@@ -13,6 +13,7 @@ import { sendResponse, sendError } from '../../utils/response';
 import { logActivity } from '../../utils/activityLogger';
 import { broadcastAfter } from '../../middleware/permissionBroadcast.middleware';
 import {EmployeePermission} from "../../database/models/EmployeePermission"
+import {employeeOverrideRouter,patchGroupMembersWithOverrideCounts,} from './permissionGroupOverrides';
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -371,6 +372,7 @@ export { PermissionGroupService, svc as permissionGroupService };
 
 export const permissionGroupRouter = Router();
 permissionGroupRouter.use(authenticate);
+permissionGroupRouter.use(employeeOverrideRouter);
 
 permissionGroupRouter.get('/me', getMyGroups);
 permissionGroupRouter.get('/', listGroups);
@@ -385,3 +387,4 @@ permissionGroupRouter.post('/:id/members', [param('id').isInt(), body('employee_
 permissionGroupRouter.delete('/:id/members/:employeeId', [param('id').isInt(), param('employeeId').isInt()], validate, broadcastAfter('permissions_updated'), removeGroupMember);
 
 permissionGroupRouter.post('/seed', seedGroups);
+patchGroupMembersWithOverrideCounts(permissionGroupRouter);

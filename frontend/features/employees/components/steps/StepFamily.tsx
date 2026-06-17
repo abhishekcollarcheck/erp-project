@@ -1,7 +1,7 @@
 'use client';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { toOpts, FATHER_SALUTATION, MOTHER_SALUTATION, PARENT_STATUS, MOTHER_STATUS } from '../../constants/employee.constants';
 
 interface Props { isEdit: boolean; employeeId: number | null }

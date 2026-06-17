@@ -2,8 +2,8 @@
 import { useWatch } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
-import { FormToggle } from '../../components/form/FormToggle';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { FormToggle } from '../../../../components/form/FormToggle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { useFieldPermissions } from '../../hooks/useEmployees';
 
 interface Props { isEdit: boolean; employeeId: number | null }
@@ -21,8 +21,8 @@ export function StepStatutory(_: Props) {
 
       <SectionTitle title="Travel Documents" />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <FormInput      name="passport_number" label="Passport Number" required placeholder="A1234567" fieldPerm={f('passport_number')} />
-        <FormDatePicker name="passport_expiry" label="Passport Expiry" required />
+        <FormInput      name="passport_number" label="Passport Number" placeholder="A1234567" fieldPerm={f('passport_number')} />
+        <FormDatePicker name="passport_expiry" label="Passport Expiry" />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <FormToggle name="yellow_fever" label="Yellow Fever Vaccination" />

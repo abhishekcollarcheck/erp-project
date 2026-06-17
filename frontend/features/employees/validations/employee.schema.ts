@@ -12,24 +12,31 @@ const optDate = z.string().optional().or(z.literal('')).nullable();
 const reqStr  = (msg: string) => z.string({ required_error: msg }).min(1, msg).trim();
 const yesNo   = z.boolean({ required_error: 'This field is required' });
 const optNum  = z.number({ coerce: true }).nonnegative().optional().nullable();
-const optInt  = z.union([z.number({coerce: true}).int().min(1), z.literal(''), z.null(), z.undefined()]).optional();
+const optInt  = z.union([z.number({ coerce: true }).int().min(1), z.literal(''), z.null(), z.undefined()]).optional();
+const reqInt  = (msg: string) => z.union([
+  z.number({ coerce: true, invalid_type_error: msg }).int().min(1, msg),
+  z.literal(''),
+  z.null(),
+  z.undefined(),
+]).refine(v => v !== '' && v !== null && v !== undefined && Number(v) >= 1, { message: msg });
 
 // ─── Step 1: Basic Info ───────────────────────────────────────────────────────
 export const basicSchema = z.object({
-  reference_code:    optStr,
-  company_id:        z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
-  employment_type:   z.enum(['Permanent', 'Contractual']).default('Permanent'),
-  status:            z.enum(['Active', 'Left', 'Retired']).default('Active'),
-  first_name:        reqStr('First name is required').max(100),
-  middle_name:       optStr,
-  last_name:         reqStr('Last name is required').max(100),
+  first_name:      reqStr('First name is required').max(100),
+  middle_name:     optStr,
+  last_name:       reqStr('Last name is required').max(100),
+  status:          z.enum(['Active', 'Left', 'Retired']).default('Active'),
+  employment_type: z.enum(['Permanent', 'Contractual']).default('Permanent'),
   employee_code:     optStr,
-  department_id:     optInt,
+  reference_code:    optStr,
+  department_id:     reqInt('Department is required'),
   sub_department_id: optInt,
-  designation_id:    optInt,
-  sub_designation:   optStr,
-  email:             z.string({ required_error: 'Work email is required' }).email('Valid email is required').toLowerCase().trim(),
-  phone:             reqStr('Phone number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
+  designation_id:    reqInt('Designation is required'),
+  sub_designation: optStr,
+  // Added: email, phone, company_id for Step 1 — Basic Info
+  email:      z.string({ required_error: 'Work email is required' }).email('Valid email is required').toLowerCase().trim(),
+  phone:      reqStr('Phone number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
+  company_id: z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
 });
 
 // ─── Step 2: Employment Details ───────────────────────────────────────────────
@@ -38,9 +45,9 @@ export const employmentSchema = z.object({
   working_city:            reqStr('Working city is required'),
   working_state_country:   reqStr('Working state/country is required'),
   pay_register_location:   reqStr('Pay register location is required'),
-  saturday_off:            reqStr('Saturday off is required'),
-  shift_id:                reqStr('Working shift is required'),
-  grace_minutes:           reqStr('Grace minute is required'),
+  saturday_off:            optStr,
+  shift_id:                reqInt('Working shift is required'),
+  grace_minutes:           z.number({ coerce: true }).int().min(0).max(120).optional().default(0),
 });
 
 // ─── Step 3: Reporting & Official Contact ─────────────────────────────────────
@@ -61,6 +68,9 @@ export const commitmentSchema = z.object({
   probation_extended_period: optStr,
   confirmation_status:       z.enum(['Confirmed', 'Failed', 'Not Applicable']).optional().nullable(),
   confirmed_on:              optDate,
+  // Auto-computed display fields — set by StepCommitment, read-only in UI
+  commitment_end_date:       optDate,
+  probation_end_date:        optDate,
 });
 
 // ─── Step 5: Enrolled Schemes ─────────────────────────────────────────────────
@@ -86,6 +96,10 @@ export const schemesSchema = z.object({
   rd_deduction_from:     z.enum(['Salary', 'AMDB', 'N/A']).optional().nullable(),
   rd_amount_employee:    optNum,
   rd_amount_employer:    optNum,
+  // Auto-computed
+  rd_maturity_date:      optDate,
+  rd_maturity_amount:    optNum,
+  rd_status:             z.string().optional().nullable(),
 });
 
 // ─── Step 6: Personal Details ─────────────────────────────────────────────────
@@ -156,8 +170,8 @@ export const emergencySchema = z.object({
 
 // ─── Step 10: Statutory / Govt IDs ───────────────────────────────────────────
 export const statutorySchema = z.object({
-  passport_number:         reqStr('Passport number is required').max(30),
-  passport_expiry:         reqStr('Passport expiry is required'),
+  passport_number:         optStr,
+  passport_expiry:         optStr,
   yellow_fever:            yesNo,
   yellow_fever_date:       optDate,
   driving_license_number:  reqStr('Driving license is required').max(30),
@@ -237,32 +251,35 @@ export const onboardingDocsSchema = z.object({
 });
 
 // ─── Full form schema ─────────────────────────────────────────────────────────
+// NOTE: Using a flat z.object() instead of .merge() chain.
+// TypeScript loses inference on deep .merge() chains (13+ levels) and collapses
+// the type to {} — causing "Property X does not exist on type {}" errors.
+// Individual step schemas above remain unchanged for per-step validation.
 export const fullEmployeeSchema = z.object({
   // ── Step 1: Basic ────────────────────────────────────────────────────────
-  reference_code:    optStr,
-  company_id:        z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
-  employment_type:   z.enum(['Permanent', 'Contractual']).default('Permanent'),
-  status:            z.enum(['Active', 'Left', 'Retired']).default('Active'),
   first_name:        reqStr('First name is required').max(100),
   middle_name:       optStr,
   last_name:         reqStr('Last name is required').max(100),
+  status:            z.enum(['Active', 'Left', 'Retired']).default('Active'),
+  employment_type:   z.enum(['Permanent', 'Contractual']).default('Permanent'),
   employee_code:     optStr,
-  department_id:     optInt,
+  reference_code:    optStr,
+  department_id:     reqInt('Department is required'),
   sub_department_id: optInt,
-  designation_id:    optInt,
+  designation_id:    reqInt('Designation is required'),
   sub_designation:   optStr,
   email:             z.string({ required_error: 'Work email is required' }).email('Valid email is required').toLowerCase().trim(),
   phone:             reqStr('Phone number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
+  company_id:        z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
 
   // ── Step 2: Employment ───────────────────────────────────────────────────
   working_site:          reqStr('Working site is required'),
   working_city:          reqStr('Working city is required'),
   working_state_country: reqStr('Working state/country is required'),
   pay_register_location: reqStr('Pay register location is required'),
-  saturday_off:          reqStr('Saturday off is required'),
-  shift_id:              reqStr('Working shift is required'),
-  grace_minutes:         reqStr('Grace minute is required'),
-
+  saturday_off:          optStr,
+  shift_id:              reqInt('Working shift is required'),
+  grace_minutes:         z.number({ coerce: true }).int().min(0).max(120).optional().default(0),
 
   // ── Step 3: Reporting ────────────────────────────────────────────────────
   l1_manager_id:   z.union([z.number().int().positive(), z.null(), z.undefined()]).optional(),
@@ -279,6 +296,9 @@ export const fullEmployeeSchema = z.object({
   probation_extended_period: optStr,
   confirmation_status:       z.enum(['Confirmed', 'Failed', 'Not Applicable']).optional().nullable(),
   confirmed_on:              optDate,
+  // Auto-computed display fields — set by StepCommitment, read-only in UI
+  commitment_end_date:       optDate,
+  probation_end_date:        optDate,
 
   // ── Step 5: Schemes ──────────────────────────────────────────────────────
   pf_status:           yesNo,
@@ -298,6 +318,9 @@ export const fullEmployeeSchema = z.object({
   rd_deduction_from:   z.enum(['Salary', 'AMDB', 'N/A']).optional().nullable(),
   rd_amount_employee:  optNum,
   rd_amount_employer:  optNum,
+  rd_maturity_date:      optDate,
+  rd_maturity_amount:    optNum,
+  rd_status:             z.string().optional().nullable(),
 
   // ── Step 6: Personal ─────────────────────────────────────────────────────
   personal_email:  z.string({ required_error: 'Personal email is required' }).email('Invalid email'),
@@ -356,8 +379,8 @@ export const fullEmployeeSchema = z.object({
   relationship:   reqStr('Relationship is required').max(100),
 
   // ── Step 10: Statutory ───────────────────────────────────────────────────
-  passport_number:          reqStr('Passport number is required').max(30),
-  passport_expiry:          reqStr('Passport expiry is required'),
+  passport_number:          optStr,
+  passport_expiry:          optStr,
   yellow_fever:             yesNo,
   yellow_fever_date:        optDate,
   driving_license_number:   reqStr('Driving license is required').max(30),

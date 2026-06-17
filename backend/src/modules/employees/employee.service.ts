@@ -1,5 +1,16 @@
+/**
+ * employees.service.ts — CORRECTED
+ *
+ * KEY CHANGES:
+ *  1. Reporting step uses l1_manager_id / l2_manager_id (integer FKs)
+ *     not employee_code strings
+ *  2. Manager lookup returns employee by ID, not by code
+ *  3. Auth fields (portal_access, is_super_admin, must_change_password)
+ *     are managed through dedicated methods
+ *  4. is_super_admin bypasses field permission masking entirely
+ */
+
 import { sequelize } from '../../config/database';
-import { Employee } from '../../database/models/Employee';
 import { AppError } from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 import { employeeRepository as repo } from './employee.repo';
@@ -97,8 +108,26 @@ export class EmployeeService {
   async create(dto: BasicInfoDto, actorId: number, ipAddress?: string) {
     const empCode = await generateEmployeeCode(dto.company_id);
     const useCode = dto.employee_code || empCode;
-    const dup = await repo.findByCode(useCode, dto.company_id);
-    if (dup) throw new AppError(`Employee code "${useCode}" already in use`, 409);
+
+    // ── Uniqueness checks (all company-scoped, runs before transaction) ──────
+    const dupCode = await repo.findByCode(useCode, dto.company_id);
+    if (dupCode) throw new AppError(`Employee code "${useCode}" is already in use`, 409);
+
+    if (dto.email) {
+      const dupEmail = await repo.findByEmail(dto.email, dto.company_id);
+      if (dupEmail) throw new AppError(
+        `Email "${dto.email}" is already registered to ${dupEmail.first_name} ${dupEmail.last_name} (${dupEmail.employee_code}) in this company`,
+        409,
+      );
+    }
+
+    if (dto.phone) {
+      const dupMobile = await repo.findByMobile(dto.phone, dto.company_id);
+      if (dupMobile) throw new AppError(
+        `Phone "${dto.phone}" is already registered to ${dupMobile.first_name} ${dupMobile.last_name} (${dupMobile.employee_code}) in this company`,
+        409,
+      );
+    }
 
     return sequelize.transaction(async (t) => {
       const refCode = await generateReferenceCode(dto.company_id);
@@ -115,10 +144,10 @@ export class EmployeeService {
         sub_department_id: dto.sub_department_id || null,
         designation_id:  dto.designation_id || null,
         sub_designation: dto.sub_designation || null,
-        email:           dto.email,
-        phone:           dto.phone,
+        email:  dto.email?.toLowerCase().trim() || null,
+        phone: dto.phone?.trim() || null,
         // Auth defaults
-        portal_access:   false,       // disabled until HR explicitly enables
+        portal_access:   true,        // enabled on creation — employee can log in immediately
         is_super_admin:  false,
         otp_attempts:    0,
         must_change_password: false,
@@ -206,8 +235,6 @@ export class EmployeeService {
         await repo.update(id, companyId, {
           l1_manager_id:   l1Id,
           l2_manager_id:   l2Id,
-          official_email:  d.official_email?.toLowerCase() || null,
-          official_mobile: d.official_mobile,
           actual_doj:      actualDoj,
           current_doj:     currentDoj,
           updated_by:      actorId,
@@ -226,9 +253,9 @@ export class EmployeeService {
           ? (new Date() < commitEndDate ? 'Active' : 'Completed')
           : 'N/A';
 
-        const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_doj)
-          ? computeProbationEndDate(emp.actual_doj.toISOString(), d.probation_period)
-          : null;
+const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_doj)
+  ? computeProbationEndDate(String(emp.actual_doj), d.probation_period)
+  : null;
 
         await repo.upsertCommitmentProbation(id, {
           commitment:               d.commitment,

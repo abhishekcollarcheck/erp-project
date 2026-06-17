@@ -3,7 +3,6 @@ import { useWatch } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
-import { SectionTitle } from '../../components/form/SectionTitle';
 import { toOpts, GENDER, BLOOD_GROUP, MARITAL_STATUS } from '../../constants/employee.constants';
 
 interface Props { isEdit: boolean; employeeId: number | null }
@@ -14,13 +13,11 @@ export function StepPersonal(_: Props) {
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      <SectionTitle title="Contact Details" />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <FormInput name="personal_email"  label="Personal Email"  type="email" required placeholder="rahul@gmail.com" />
         <FormInput name="personal_mobile" label="Personal Mobile" required placeholder="+91-9876543210" />
       </div>
 
-      <SectionTitle title="Personal Info" />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
         <FormDatePicker name="date_of_birth" label="Date of Birth" required max={maxDob} hint="Must be 18+" />
         <FormSelect name="gender"      label="Gender"      required options={toOpts(GENDER)} placeholder="Select" />
@@ -33,7 +30,6 @@ export function StepPersonal(_: Props) {
       </div>
       <FormInput name="religion" label="Religion" required placeholder="e.g. Hindu" />
 
-      <SectionTitle title="Marriage Details" />
       <FormSelect name="marital_status" label="Marital Status" required options={toOpts(MARITAL_STATUS)} placeholder="Select" />
       {marital === 'Married' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>

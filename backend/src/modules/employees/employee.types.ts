@@ -28,71 +28,69 @@ export interface EmployeeQueryParams {
 
 // ─── Step 1: Basic Info ───────────────────────────────────────────────────────
 export interface BasicInfoDto {
-  company_id:       number;
   employee_code:    string;
-  first_name:       string;           // MANDATORY
-  middle_name?:     string | null;    // optional
-  last_name:        string;           // MANDATORY
-  status:           EmployeeStatus;   // MANDATORY
-  employment_type:  EmploymentType;   // MANDATORY
-  department_id?:   number | null;    // MANDATORY (set in employment step)
+  company_id:       number;
+  first_name:       string;
+  middle_name?:     string | null;
+  last_name:        string;           
+  status:           EmployeeStatus;   
+  employment_type:  EmploymentType;   
+  email:            string;  
+  phone:           string;          
+  department_id?:   number;    
   sub_department_id?: number | null;
-  designation_id?:  number | null;    // MANDATORY
+  designation_id?:  number;    
   sub_designation?: string | null;
-  email:            string;   // optional
-  phone:           string;          // MANDATORY
 }
 
 // ─── Step 2: Employment Details ───────────────────────────────────────────────
 export interface EmploymentDto {
-  working_site:             string;   // MANDATORY
-  working_city:             string;   // MANDATORY
-  working_state_country:    string;   // MANDATORY
-  pay_register_location:    string;   // MANDATORY
-  saturday_off:             boolean;  // MANDATORY
-  shift_id:                 number;   // MANDATORY
+  working_site:             string;   
+  working_city:             string;   
+  working_state_country:    string;   
+  pay_register_location:    string;   
+  saturday_off:             boolean;  
+  shift_id:                 number;   
   grace_minutes?:           number;
 }
 
 // ─── Step 3: Reporting & Official Contact ─────────────────────────────────────
 export interface ReportingDto {
-  l1_manager_id:     number;          // MANDATORY (resolved from emp code)
-  l2_manager_id?:    number | null;   // optional
-  official_email?:   string | null;   // optional
-  official_mobile:   string;          // MANDATORY
-  actual_doj:        string;          // MANDATORY  DD-MM-YYYY
-  current_doj?:      string | null;   // AUTO
+  l1_manager_id:     number;       
+  l2_manager_id?:    number | null;
+  actual_doj:        string;       
+  current_doj?:      string | null;
 }
 
 // ─── Step 4: Commitment & Probation ──────────────────────────────────────────
 export interface CommitmentProbationDto {
-  commitment:                  boolean;           // MANDATORY
+  commitment:                  boolean;           
   commitment_term?:            CommitmentTerm;
-  commitment_entered_on?:      string | null;     // DATE
-  on_probation:                boolean;           // MANDATORY
+  commitment_entered_on?:      string | null;  
+  on_probation:                boolean;           
   probation_period?:           string | null;
   probation_extended_period?:  string | null;
-  confirmation_status?:        ConfirmationStatus; // SKIP FIRST TIME
+  confirmation_status?:        ConfirmationStatus; 
   confirmed_on?:               string | null;
 }
 
 // ─── Step 5: Enrolled Schemes ─────────────────────────────────────────────────
 export interface SchemesDto {
   // PF
-  pf_status:              boolean;               // MANDATORY
+  pf_status:              boolean;               
   uan_number?:            string | null;
   epfo_member_id?:        string | null;
   pf_contribution_pct?:   number | null;
   pf_employer_from?:      PfEmployerFrom;
   // ESIC
-  esic_status:            boolean;               // MANDATORY
+  esic_status:            boolean;               
   esic_number?:           string | null;
   // Mediclaim
-  mediclaim_status:       MediclaimStatus;       // MANDATORY
+  mediclaim_status:       MediclaimStatus;       
   mediclaim_number?:      string | null;
   mediclaim_amount?:      number | null;
   // RD
-  rd_scheme:              boolean;               // MANDATORY
+  rd_scheme:              boolean;               
   rd_term?:               RdTerm;
   rd_opening_date?:       string | null;
   rd_account_number?:     string | null;
@@ -103,16 +101,16 @@ export interface SchemesDto {
 
 // ─── Step 6: Personal Details ─────────────────────────────────────────────────
 export interface PersonalDto {
-  personal_email:   string;           // MANDATORY
-  personal_mobile:  string;           // MANDATORY
-  date_of_birth:    string;           // MANDATORY  DD-MM-YYYY
-  gender:           Gender;           // MANDATORY
-  shirt_size:       string;           // MANDATORY
-  tshirt_size:      string;           // MANDATORY
-  nationality:      string;           // MANDATORY
-  religion:         string;           // MANDATORY
-  blood_group:      BloodGroup;       // MANDATORY
-  marital_status:   MaritalStatus;    // MANDATORY
+  personal_email:   string;           
+  personal_mobile:  string;           
+  date_of_birth:    string;          
+  gender:           Gender;           
+  shirt_size:       string;           
+  tshirt_size:      string;           
+  nationality:      string;           
+  religion:         string;           
+  blood_group:      BloodGroup;       
+  marital_status:   MaritalStatus;    
   marriage_date?:   string | null;
   spouse_name?:     string | null;
   spouse_dob?:      string | null;
@@ -136,7 +134,7 @@ export interface AddressDto {
   present_country:      string;
   present_pincode:      string;
   // Permanent
-  perm_address_type:    PermAddressType;  // MANDATORY
+  perm_address_type:    PermAddressType;  
   perm_house_type?:     HouseType;
   perm_house_no?:       string | null;
   perm_area?:           string | null;
@@ -149,29 +147,29 @@ export interface AddressDto {
 
 // ─── Step 8: Family Details ───────────────────────────────────────────────────
 export interface FamilyDto {
-  father_salutation:   FatherSalutation;        // MANDATORY
-  father_name:         string;                  // MANDATORY
+  father_salutation:   FatherSalutation;        
+  father_name:         string;                  
   father_age_dob?:     string | null;
   father_occupation?:  string | null;
   father_status?:      ParentOccupationStatus;
-  mother_salutation:   MotherSalutation;        // MANDATORY
-  mother_name:         string;                  // MANDATORY
+  mother_salutation:   MotherSalutation;        
+  mother_name:         string;                  
   mother_age_dob?:     string | null;
   mother_occupation?:  MotherOccupationStatus;
 }
 
 // ─── Step 9: Emergency Contact ────────────────────────────────────────────────
 export interface EmergencyContactDto {
-  contact_name:    string;           // MANDATORY
-  contact_number:  string;           // MANDATORY
-  relationship:    string;           // MANDATORY
+  contact_name:    string;           
+  contact_number:  string;           
+  relationship:    string;           
 }
 
 // ─── Step 10: Statutory / Govt IDs ───────────────────────────────────────────
 export interface StatutoryDto {
   // Travel documents (MANDATORY)
-  passport_number:          string;
-  passport_expiry:          string;
+  passport_number:          string | null;
+  passport_expiry:          string | null;
   yellow_fever:             boolean;
   yellow_fever_date?:       string | null;
   // License (MANDATORY)
@@ -202,7 +200,7 @@ export interface BankDto {
 
 // ─── Step 12: Experience & Education ─────────────────────────────────────────
 export interface ExperienceEducationDto {
-  is_experienced:          boolean;      // MANDATORY
+  is_experienced:          boolean;      
   last_company_name?:      string | null;
   last_designation?:       string | null;
   last_working_day?:       string | null;
@@ -210,7 +208,7 @@ export interface ExperienceEducationDto {
   exp_contact_number?:     string | null;
   exp_contact_designation?: string | null;
   last_inhand_salary?:     number | null;
-  highest_education:       string;       // MANDATORY
+  highest_education:       string;       
   education_stream?:       string | null;
   education_mode?:         string | null;
   institute_name?:         string | null;
@@ -220,7 +218,7 @@ export interface ExperienceEducationDto {
 
 // ─── Step 13: Salary & Asset Deduction ───────────────────────────────────────
 export interface SalaryDto {
-  salary_mode:          SalaryMode;    // MANDATORY
+  salary_mode:          SalaryMode;    
   // Current salary (all MANDATORY)
   current_basic:        number;
   current_hra:          number;
@@ -232,7 +230,7 @@ export interface SalaryDto {
   joining_allowance1:   number;
   joining_amdb:         number;
   // Asset deduction
-  asset_deduction_applicable: boolean; // MANDATORY
+  asset_deduction_applicable: boolean; 
   security_amount?:     number | null;
   deduction_months?:    DeductionMonths;
   deduction_from?:      DeductionFrom;
@@ -241,13 +239,13 @@ export interface SalaryDto {
 
 // ─── Step 14: Onboarding Documents ───────────────────────────────────────────
 export interface OnboardingDocsDto {
-  offer_letter:               boolean; // MANDATORY
-  address_verification:       boolean; // MANDATORY
-  service_agreement:          boolean; // MANDATORY
-  indemnity_bond:             boolean; // MANDATORY
-  asset_deduction_letter:     boolean; // MANDATORY
-  account_opening_letter:     boolean; // MANDATORY
-  nda:                        boolean; // MANDATORY
+  offer_letter:               boolean; 
+  address_verification:       boolean; 
+  service_agreement:          boolean; 
+  indemnity_bond:             boolean; 
+  asset_deduction_letter:     boolean; 
+  account_opening_letter:     boolean; 
+  nda:                        boolean; 
 }
 
 // ─── Transfer Record (optional, up to 5) ─────────────────────────────────────
@@ -311,7 +309,7 @@ export interface EmployeeFullResponse {
   department?:         { id: number; name: string };
   designation?:        { id: number; name: string };
   company?:            { id: number; name: string };
-  l1_manager?:         { id: number; first_name: string; last_name: string; official_email?: string };
+  l1_manager?:         { id: number; first_name: string; last_name: string; };
   shift?:              { id: number; name: string; start_time: string; end_time: string };
   commitment_probation?: CommitmentProbationDto;
   schemes?:            SchemesDto;

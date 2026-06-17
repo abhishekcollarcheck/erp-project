@@ -15,7 +15,7 @@ import {
 import type { EmployeeQueryParams } from './employee.types';
 
 // ─── Includes ────────────────────────────────────────────────────────────────
-const MGR_ATTRS = ['id', 'employee_code', 'first_name', 'last_name'];
+const MGR_ATTRS = ['id', 'employee_code', 'first_name', 'last_name',];
 
 const DETAIL_INCLUDES: any[] = [
   { association: 'l1Manager', attributes: MGR_ATTRS },
@@ -71,7 +71,7 @@ export class EmployeeRepository {
         { last_name:     { [Op.like]: s } },
         { middle_name:   { [Op.like]: s } },
         { employee_code: { [Op.like]: s } },
-        { official_email:{ [Op.like]: s } },
+        { email:{ [Op.like]: s } },
         { working_city:  { [Op.like]: s } },
       ];
     }
@@ -214,11 +214,35 @@ export class EmployeeRepository {
     });
   }
 
+  // Company-scoped email uniqueness check (different companies may share email)
+  async findByEmail(email: string, companyId: number, excludeId?: number) {
+    return Employee.findOne({
+      where: {
+        company_id:     companyId,
+        email: email.toLowerCase().trim(),
+        ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}),
+      },
+      attributes: ['id', 'employee_code', 'first_name', 'last_name'],
+    });
+  }
+
+  // Company-scoped mobile uniqueness check (different companies may share mobile)
+  async findByMobile(mobile: string, companyId: number, excludeId?: number) {
+    return Employee.findOne({
+      where: {
+        company_id:      companyId,
+        phone: mobile.trim(),
+        ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}),
+      },
+      attributes: ['id', 'employee_code', 'first_name', 'last_name'],
+    });
+  }
+
   // Find manager by employee_id (integer) — used in reporting step
   async findManagerById(managerId: number, companyId: number) {
     return Employee.findOne({
       where: { id: managerId, company_id: companyId, status: 'Active', portal_access: true },
-      attributes: ['id', 'employee_code', 'first_name', 'last_name', 'official_email'],
+      attributes: ['id', 'employee_code', 'first_name', 'last_name'],
     });
   }
 
@@ -236,7 +260,7 @@ export class EmployeeRepository {
           { employee_code: { [Op.like]: s } },
         ],
       },
-      attributes: ['id', 'employee_code', 'first_name', 'last_name', 'official_email'],
+      attributes: ['id', 'employee_code', 'first_name', 'last_name'],
       limit: 20,
     });
   }

@@ -2,9 +2,9 @@
 import { useWatch } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
-import { FormToggle } from '../../components/form/FormToggle';
-import { FormCurrencyInput } from '../../components/form/FormCurrencyInput';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { FormToggle } from '../../../../components/form/FormToggle';
+import { FormCurrencyInput } from '../../../../components/form/FormCurrencyInput';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 

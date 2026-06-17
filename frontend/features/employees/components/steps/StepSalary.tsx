@@ -8,9 +8,9 @@
 import { useWatch, useFormContext } from 'react-hook-form';
 import { useEffect } from 'react';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { FormCurrencyInput } from '../../components/form/FormCurrencyInput';
-import { FormToggle } from '../../components/form/FormToggle';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { FormCurrencyInput } from '../../../../components/form/FormCurrencyInput';
+import { FormToggle } from '../../../../components/form/FormToggle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { useFieldPermissions } from '../../hooks/useEmployees';
 import { toOpts, SALARY_MODE, DEDUCTION_FROM, DEDUCTION_MONTHS } from '../../constants/employee.constants';
 

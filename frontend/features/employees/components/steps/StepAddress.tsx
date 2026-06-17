@@ -2,7 +2,7 @@
 import { useWatch } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { toOpts, HOUSE_TYPE, PERM_ADDRESS_TYPE } from '../../constants/employee.constants';
 
 interface Props { isEdit: boolean; employeeId: number | null }

@@ -6,25 +6,25 @@ import { sequelize } from '../../config/database';
 // ─────────────────────────────────────────────────────────────────────────────
 interface EmployeeAttrs {
   id:                     number;
-  company_id:             number;
-  reference_code:         string | null;
   employee_code:          string;
-  status:                 'Active' | 'Left' | 'Retired';
+  reference_code:         string | null;
+  company_id:             number;
   first_name:             string;
   middle_name?:           string | null;
   last_name:              string;
+  status:                 'Active' | 'Left' | 'Retired';
   employment_type:        'Permanent' | 'Contractual';
-  department_id?:         number | null;
+  email:                  string | null;
+  phone:                  string | null;
+  department_id?:         number;
   sub_department_id?:     number | null;
-  designation_id?:        number | null;
+  designation_id?:        number;
   sub_designation?:       string | null;
 
   // Reporting — INTEGER FK into employees.id (not employee_code string)
   l1_manager_id?:         number | null;  // FK → employees.id
   l2_manager_id?:         number | null;  // FK → employees.id
 
-  email:                  string | null;
-  phone:                  string | null;
   actual_doj?:            Date | null;
   current_doj?:           Date | null;
   working_site?:          string | null;
@@ -72,22 +72,22 @@ type EmployeeCreation = Optional<EmployeeAttrs,
 
 export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements EmployeeAttrs {
   public id!:                    number;
-  public company_id!:            number;
-  public reference_code!:        string | null;
   public employee_code!:         string;
-  public status!:                'Active' | 'Left' | 'Retired';
+  public reference_code!:        string | null;
+  public company_id!:            number;
   public first_name!:            string;
   public middle_name!:           string | null;
   public last_name!:             string;
+  public status!:                'Active' | 'Left' | 'Retired';
   public employment_type!:       'Permanent' | 'Contractual';
-  public department_id!:         number | null;
+  public email!:                 string;
+  public phone!:                 string;
+  public department_id!:         number;
   public sub_department_id!:     number | null;
-  public designation_id!:        number | null;
+  public designation_id!:        number;
   public sub_designation!:       string | null;
   public l1_manager_id!:         number | null;
   public l2_manager_id!:         number | null;
-  public email!:                 string;
-  public phone!:                 string;
   public actual_doj!:            Date | null;
   public current_doj!:           Date | null;
   public working_site!:          string | null;
@@ -145,23 +145,23 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
 
 Employee.init({
   id:                     { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  reference_code:         { type: DataTypes.STRING(50), allowNull: true },
   employee_code:          { type: DataTypes.STRING(30), allowNull: false },
-  status:                 { type: DataTypes.ENUM('Active', 'Left', 'Retired'), defaultValue: 'Active' },
+  reference_code:         { type: DataTypes.STRING(50), allowNull: true },
+  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   first_name:             { type: DataTypes.STRING(100), allowNull: false },
   middle_name:            { type: DataTypes.STRING(100), allowNull: true },
   last_name:              { type: DataTypes.STRING(100), allowNull: false },
+  status:                 { type: DataTypes.ENUM('Active', 'Left', 'Retired'), defaultValue: 'Active' },
   employment_type:        { type: DataTypes.ENUM('Permanent', 'Contractual'), defaultValue: 'Permanent' },
-  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: undefined },
+  email:                  { type: DataTypes.STRING(255), allowNull: false },
+  phone:                  { type: DataTypes.STRING(20), allowNull: false },
+  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
   sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: undefined },
-  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: undefined },
+  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
   sub_designation:        { type: DataTypes.STRING(200), allowNull: true },
   // FK to employees.id — NOT employee_code
   l1_manager_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   l2_manager_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  email:                  { type: DataTypes.STRING(255), allowNull: false },
-  phone:                  { type: DataTypes.STRING(20), allowNull: false },
   actual_doj:             { type: DataTypes.DATEONLY, allowNull: true },
   current_doj:            { type: DataTypes.DATEONLY, allowNull: true },
   working_site:           { type: DataTypes.STRING(200), allowNull: true },

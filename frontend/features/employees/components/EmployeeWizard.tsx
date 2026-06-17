@@ -106,27 +106,29 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     const xAddr = (employee.addresses?.find(a => a.address_type === 'permanent') ?? {}) as Partial<EmployeeAddress>;
     const emg   = (employee.emergencyContacts?.[0] ?? {}) as Partial<EmergencyContact>;
 
-    methods.reset({
-      reference_code: employee.reference_code,
+methods.reset({
       first_name: employee.first_name, middle_name: employee.middle_name ?? '',
       last_name: employee.last_name, status: employee.status as any,
       employment_type: employee.employment_type, employee_code: employee.employee_code,
-      company_id: employee.company_id,
-      email: employee.email ?? '',
-      phone: employee.phone ?? '',
-      department_id: employee.department_id ?? undefined,
+      company_id:        employee.company_id,
+      email:             employee.email ?? '',
+      phone:             employee.phone ?? '',
+      reference_code:    employee.reference_code ?? '',
+      department_id:     employee.department_id ?? undefined,
       sub_department_id: employee.sub_department_id ?? undefined,
       designation_id: employee.designation_id ?? undefined, sub_designation: employee.sub_designation ?? '',
       working_site: employee.working_site ?? '', working_city: employee.working_city ?? '',
       working_state_country: employee.working_state_country ?? '',
       pay_register_location: employee.pay_register_location ?? '',
-      saturday_off: employee.saturday_off ?? undefined, shift_id: employee.shift_id ?? null,
-      grace_minutes: employee.grace_minutes ?? undefined,
+      saturday_off: employee.saturday_off, shift_id: employee.shift_id ?? undefined,
+      grace_minutes: employee.grace_minutes,
       l1_manager_id: employee.l1_manager_id ?? undefined, l2_manager_id: employee.l2_manager_id ?? undefined,
       actual_doj: employee.actual_doj ?? '', current_doj: employee.current_doj ?? '',
       commitment: cp.commitment ?? false, commitment_term: (cp.commitment_term as any) ?? undefined,
       commitment_entered_on: cp.commitment_entered_on ?? '',
+      commitment_end_date: cp.commitment_end_date ?? null,
       on_probation: cp.on_probation ?? true, probation_period: cp.probation_period ?? '',
+      probation_end_date: cp.probation_end_date ?? null,
       probation_extended_period: cp.probation_extended_period ?? '',
       confirmation_status: (cp.confirmation_status as any) ?? undefined, confirmed_on: cp.confirmed_on ?? '',
       pf_status: sch.pf_status ?? false, uan_number: sch.uan_number ?? '',
@@ -138,6 +140,9 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       rd_opening_date: sch.rd_opening_date ?? '', rd_account_number: sch.rd_account_number ?? '',
       rd_deduction_from: (sch.rd_deduction_from as any) ?? undefined,
       rd_amount_employee: sch.rd_amount_employee ?? undefined, rd_amount_employer: sch.rd_amount_employer ?? undefined,
+      rd_maturity_date: sch.rd_maturity_date ?? null,
+      rd_maturity_amount: sch.rd_maturity_amount ?? null,
+      rd_status: sch.rd_status ?? null,
       personal_email: p.personal_email ?? '', personal_mobile: p.personal_mobile ?? '',
       date_of_birth: p.date_of_birth ?? '', gender: p.gender ?? undefined,
       shirt_size: p.shirt_size ?? '', tshirt_size: p.tshirt_size ?? '',
@@ -290,7 +295,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       case 'employment': return { working_site: v.working_site?.trim(), working_city: v.working_city?.trim(), working_state_country: v.working_state_country?.trim(), pay_register_location: v.pay_register_location?.trim(), saturday_off: v.saturday_off ?? false, shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) ?? 0 };
       case 'reporting': return { l1_manager_id: n(v.l1_manager_id), l2_manager_id: n(v.l2_manager_id), actual_doj: c(v.actual_doj), current_doj: c(v.current_doj) };
       case 'commitment': return { commitment: v.commitment ?? false, commitment_term: c(v.commitment_term), commitment_entered_on: c(v.commitment_entered_on), on_probation: v.on_probation ?? true, probation_period: c(v.probation_period), probation_extended_period: c(v.probation_extended_period), confirmation_status: c(v.confirmation_status), confirmed_on: c(v.confirmed_on) };
-      case 'schemes': return { pf_status: v.pf_status ?? false, uan_number: c(v.uan_number), epfo_member_id: c(v.epfo_member_id), pf_contribution_pct: n(v.pf_contribution_pct), pf_employer_from: c(v.pf_employer_from), esic_status: v.esic_status ?? false, esic_number: c(v.esic_number), mediclaim_status: v.mediclaim_status ?? 'No', mediclaim_number: c(v.mediclaim_number), mediclaim_amount: n(v.mediclaim_amount), rd_scheme: v.rd_scheme ?? false, rd_term: c(v.rd_term), rd_opening_date: c(v.rd_opening_date), rd_account_number: c(v.rd_account_number), rd_deduction_from: c(v.rd_deduction_from), rd_amount_employee: n(v.rd_amount_employee), rd_amount_employer: n(v.rd_amount_employer) };
+      case 'schemes': return { pf_status: v.pf_status ?? false, uan_number: c(v.uan_number), epfo_member_id: c(v.epfo_member_id), pf_contribution_pct: n(v.pf_contribution_pct), pf_employer_from: c(v.pf_employer_from), esic_status: v.esic_status ?? false, esic_number: c(v.esic_number), mediclaim_status: v.mediclaim_status ?? 'No', mediclaim_number: c(v.mediclaim_number), mediclaim_amount: n(v.mediclaim_amount), rd_scheme: v.rd_scheme ?? false, rd_term: c(v.rd_term), rd_opening_date: c(v.rd_opening_date), rd_account_number: c(v.rd_account_number), rd_deduction_from: c(v.rd_deduction_from), rd_amount_employee: n(v.rd_amount_employee), rd_amount_employer: n(v.rd_amount_employer), rd_maturity_date: c(v.rd_maturity_date), rd_maturity_amount: n(v.rd_maturity_amount), rd_status: c(v.rd_status) };
       case 'personal': return { personal_email: c(v.personal_email), personal_mobile: c(v.personal_mobile), date_of_birth: c(v.date_of_birth), gender: c(v.gender), shirt_size: c(v.shirt_size), tshirt_size: c(v.tshirt_size), nationality: c(v.nationality), religion: c(v.religion), blood_group: c(v.blood_group), marital_status: c(v.marital_status), marriage_date: c(v.marriage_date), spouse_name: c(v.spouse_name), spouse_dob: c(v.spouse_dob), child1_name: c(v.child1_name), child1_dob: c(v.child1_dob), child2_name: c(v.child2_name), child2_dob: c(v.child2_dob), child3_name: c(v.child3_name), child3_dob: c(v.child3_dob) };
       case 'address': return { present_house_type: v.present_house_type, present_house_no: v.present_house_no, present_area: c(v.present_area), present_district: v.present_district, present_city: v.present_city, present_state: v.present_state, present_country: v.present_country, present_pincode: v.present_pincode, perm_address_type: v.perm_address_type, perm_house_type: c(v.perm_house_type), perm_house_no: c(v.perm_house_no), perm_area: c(v.perm_area), perm_district: c(v.perm_district), perm_city: c(v.perm_city), perm_state: c(v.perm_state), perm_country: c(v.perm_country), perm_pincode: c(v.perm_pincode) };
       case 'family': return { father_salutation: c(v.father_salutation), father_name: c(v.father_name), father_age_dob: c(v.father_age_dob), father_occupation: c(v.father_occupation), father_status: c(v.father_status), mother_salutation: c(v.mother_salutation), mother_name: c(v.mother_name), mother_age_dob: c(v.mother_age_dob), mother_occupation: c(v.mother_occupation) };
@@ -415,7 +420,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
             <button type="button" className="btn btn-sec" disabled={isFirst || isSaving} onClick={() => setCurrentIdx(p => p - 1)}>← Back</button>
             <div style={{ display: 'flex', gap: 8 }}>
-              {isDirty && <button type="button" className="btn btn-sec btn-sm" onClick={triggerAutoSave} disabled={draftSaving} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>}
+              {/* {isDirty && <button type="button" className="btn btn-sec btn-sm" onClick={triggerAutoSave} disabled={draftSaving} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>} */}
               {!isLast
                 ? <button type="button" className="btn btn-pri" onClick={handleNext} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save & Continue →'}</button>
                 : <button type="button" className="btn btn-pri" onClick={handleSubmit} disabled={isSaving || !savedId} style={{ background: 'var(--green)', minWidth: 155 }}>{isSaving ? 'Submitting…' : mode === 'edit' ? '✓ Update Employee' : '✓ Create Employee'}</button>}

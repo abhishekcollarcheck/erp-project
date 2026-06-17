@@ -56,12 +56,12 @@ export class DepartmentService {
       where,
       order: [['name', 'ASC']],
       include: [
-        {
-          model:      Designation,
-          as:         'designations',
-          attributes: ['id', 'name', 'grade'],
-          required:   false,
-        },
+        // {
+        //   model:      Designation,
+        //   as:         'designations',
+        //   attributes: ['id', 'name', 'grade'],
+        //   required:   false,
+        // },
         // {
         //   model:      Department,
         //   as:         'parent',

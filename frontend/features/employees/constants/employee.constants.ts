@@ -22,6 +22,7 @@ export const COMMITMENT_TERM      = ['36 Months', '60 Months', 'N/A'] as const;
 export const CONFIRMATION_STATUS  = ['Confirmed', 'Failed', 'Not Applicable'] as const;
 export const PF_EMPLOYER_FROM     = ['Employee', 'Employer', 'N/A'] as const;
 export const MEDICLAIM_STATUS     = ['Yes', 'No', 'Deactivate'] as const;
+export const PROBATION_PERIOD     = ['1 Month', '2 Months', '3 Months', '6 Months', '12 Months', 'N/A'] as const;
 export const RD_TERM              = ['6 Months', '12 Months', '18 Months', '24 Months', '30 Months', '36 Months', 'N/A'] as const;
 export const HOUSE_TYPE           = ['Own', 'Rent'] as const;
 export const PERM_ADDRESS_TYPE    = ['Same as Present', 'Other'] as const;

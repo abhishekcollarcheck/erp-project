@@ -180,7 +180,7 @@ export function computeCompletionPct(employee: any): number {
   const checks: Record<StepKey, () => boolean> = {
     basic:          () => !!(employee.first_name && employee.last_name && employee.employee_code && employee.employment_type),
     employment:     () => !!(employee.department_id && employee.designation_id && employee.working_city && employee.actual_doj),
-    reporting:      () => !!(employee.l1_manager_id && employee.official_mobile),
+    reporting:      () => !!(employee.l1_manager_id),
     commitment:     () => employee.commitmentProbation != null,
     schemes:        () => employee.schemes != null,
     personal:       () => !!(employee.personal?.date_of_birth && employee.personal?.gender && employee.personal?.blood_group),

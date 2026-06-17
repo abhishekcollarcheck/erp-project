@@ -1,13 +1,4 @@
 'use client';
-/**
- * FormDatePicker.tsx
- * Native <input type="date"> with RHF Controller.
- * ─ Permission-aware: hidden / readonly by role
- * ─ Computed display: shows formatted date below input when value is set
- * ─ min / max boundary enforcement
- * ─ disableFuture / disablePast shortcuts
- */
-
 import { useFormContext, Controller } from 'react-hook-form';
 
 interface FieldPerm {
@@ -70,7 +61,7 @@ export function FormDatePicker({
       control={control}
       render={({ field }) => (
         <div className={[
-          'form-field',
+          'form-field fg',
           error    ? 'err' : '',
           required ? 'req' : '',
         ].filter(Boolean).join(' ')}>
@@ -108,7 +99,7 @@ export function FormDatePicker({
           )}
 
           {hint && !error && <p id={hintId} className="field-hint">{hint}</p>}
-          {error          && <p id={errorId} className="field-error" role="alert">{error}</p>}
+          {error          && <p id={errorId} className="err" role="alert">{error}</p>}
         </div>
       )}
     />

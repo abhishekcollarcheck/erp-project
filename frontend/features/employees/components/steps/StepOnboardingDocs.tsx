@@ -1,6 +1,6 @@
 'use client';
 import { useFormContext } from 'react-hook-form';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 
 const DOCS = [
   { name: 'offer_letter',           label: 'Offer Letter',           desc: 'Signed offer letter from employee' },

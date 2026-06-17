@@ -1,7 +1,7 @@
 'use client';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { useFieldPermissions } from '../../hooks/useEmployees';
 
 interface Props { isEdit: boolean; employeeId: number | null }

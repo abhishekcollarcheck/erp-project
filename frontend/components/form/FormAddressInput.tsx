@@ -1,7 +1,7 @@
 'use client';
 import { useFormContext } from 'react-hook-form';
-import { FormInput } from '../../../../components/form/FormInput';
-import { FormSelect } from '../../../../components/form/FormSelect';
+import { FormInput } from './FormInput';
+import { FormSelect } from './FormSelect';
 
 interface Props {
   // Prefix for field names — e.g. 'present' → present_house_no, present_city, etc.

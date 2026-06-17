@@ -1,6 +1,6 @@
 'use client';
 import { FormInput } from '../../../../components/form/FormInput';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 

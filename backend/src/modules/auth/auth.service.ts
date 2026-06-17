@@ -8,6 +8,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import { logActivity } from '../../utils/activityLogger';
 import { otpService } from '../../utils/otpService';
 import { normalizePhone } from '../../utils/normalizeNumber';
+import { resolvePermissionsForEmployee } from '../permission-groups/permissionGroupOverrides';
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 3;
@@ -105,6 +106,9 @@ async function loadPermissions(
       if (p.slug) slugs.add(p.slug);
     }
   }
+
+  const groupIds = userGroups.map((ug: any) => ug.group_id).filter(Boolean);
+  await resolvePermissionsForEmployee(employeeId, companyId, groupIds, slugs);
 
   return { permissions: [...slugs], isSuperAdmin: false };
 }

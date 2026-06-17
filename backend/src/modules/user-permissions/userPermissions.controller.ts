@@ -3,8 +3,8 @@ import { UserPermissionsService }           from './userPermissions.service';
 import { sendResponse, sendError }          from '../../utils/response';
 import { SYSTEM_MODULES, MODULE_FIELDS, FIELD_LABELS } from '../../database/models/UserPermission';
 
-const svc = new UserPermissionsService();
 
+const svc = new UserPermissionsService();
 // ─── Get the current user's own permissions (used by frontend on login) ───────
 export async function getMyPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

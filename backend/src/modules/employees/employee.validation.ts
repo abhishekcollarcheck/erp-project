@@ -31,16 +31,16 @@ export const idValidation: ValidationChain[] = [
 
 // ─── Step 1: Basic Info ───────────────────────────────────────────────────────
 export const basicValidation: ValidationChain[] = [
+  opt(body('employee_code').trim().isLength({ min: 1, max: 30 })),
   body('first_name').trim().notEmpty().withMessage('First name is required').isLength({ max: 100 }),
-  body('last_name').trim().notEmpty().withMessage('Last name is required').isLength({ max: 100 }),
   opt(body('middle_name').trim().isLength({ max: 100 })),
+  body('last_name').trim().notEmpty().withMessage('Last name is required').isLength({ max: 100 }),
   body('status').isIn(EMPLOYEE_STATUS).withMessage('Invalid status'),
   body('employment_type').isIn(EMPLOYMENT_TYPE).withMessage('Invalid employment type'),
-  opt(body('department_id').isInt({ min: 1 })),
+  body('department_id').isInt({ min: 1 }).notEmpty().withMessage("Department is required"),
   opt(body('sub_department_id').isInt({ min: 1 })),
-  opt(body('designation_id').isInt({ min: 1 })),
+  body('designation_id').isInt({ min: 1 }).notEmpty().withMessage("Designation is required"),
   opt(body('sub_designation').trim().isLength({ max: 200 })),
-  opt(body('employee_code').trim().isLength({ min: 1, max: 30 })),
 ];
 
 // ─── Step 2: Employment Details ───────────────────────────────────────────────
@@ -58,8 +58,6 @@ export const employmentValidation: ValidationChain[] = [
 export const reportingValidation: ValidationChain[] = [
   body('l1_manager_id').notEmpty().withMessage('L1 Manager is required'),
   opt(body('l2_manager_id')),
-  opt(body('official_email').isEmail().withMessage('Invalid official email')),
-  body('official_mobile').notEmpty().withMessage('Official mobile is required').matches(/^[+\d\s\-()\s]{7,20}$/).withMessage('Invalid mobile number'),
   body('actual_doj').notEmpty().withMessage('Actual date of joining is required'),
 ];
 
@@ -158,8 +156,8 @@ export const emergencyValidation: ValidationChain[] = [
 
 // ─── Step 10: Statutory / Govt IDs ───────────────────────────────────────────
 export const statutoryValidation: ValidationChain[] = [
-  body('passport_number').notEmpty().withMessage('Passport number is required').isLength({ max: 30 }),
-  body('passport_expiry').notEmpty().withMessage('Passport expiry is required'),
+  opt(body('passport_number')),
+  opt(body('passport_expiry')),
   body('yellow_fever').isBoolean().withMessage('Yellow fever must be Yes/No'),
   opt(body('yellow_fever_date')),
   body('driving_license_number').notEmpty().withMessage('Driving license is required').isLength({ max: 30 }),

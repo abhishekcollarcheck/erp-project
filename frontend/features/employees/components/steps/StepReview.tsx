@@ -1,6 +1,6 @@
 'use client';
 import { useEmployee } from '../../hooks/useEmployees';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 
 interface Props { employeeId: number | null; methods: any }
 

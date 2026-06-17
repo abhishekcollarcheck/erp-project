@@ -13,7 +13,7 @@ import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.middleware';
 
 const app = express();
-
+app.set('trust proxy', 1);
 // ─── Security ───────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({

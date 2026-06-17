@@ -53,7 +53,7 @@ export function FormCurrencyInput({
   // Masked view — role cannot see value
   if (fieldPerm?.is_masked) {
     return (
-      <div className="form-field">
+      <div className="form-field fg">
         <label className="field-label">
           {label}
           <span style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 5 }} title="Masked by role">🔒</span>
@@ -86,7 +86,7 @@ export function FormCurrencyInput({
 
         return (
           <div className={[
-            'form-field',
+            'form-field fg',
             error    ? 'err' : '',
             required ? 'req' : '',
           ].filter(Boolean).join(' ')}>
@@ -148,7 +148,7 @@ export function FormCurrencyInput({
             )}
 
             {hint && !error && <p id={hintId} className="field-hint">{hint}</p>}
-            {error          && <p id={errorId} className="field-error" role="alert">{error}</p>}
+            {error          && <p id={errorId} className="err" role="alert">{error}</p>}
           </div>
         );
       }}

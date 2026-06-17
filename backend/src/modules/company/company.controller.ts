@@ -249,7 +249,6 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
           last_name:  admin_last_name  || 'User',
           email:      admin_email.toLowerCase(),
           phone:      admin_phone || null,
-          department_id:   depts[0]?.id || null,
           employment_type: 'Permanent',
           status: 'Active', portal_access: true,
           is_super_admin: false,  // never set this — use employee_roles instead

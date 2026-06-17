@@ -54,22 +54,24 @@ export const SYSTEM_GROUPS = [
 
 // ─── PermissionGroup ──────────────────────────────────────────────────────────
 
-interface PermissionGroupAttrs {
+interface GroupAttrs {
   id:          number;
   company_id:  number;
   name:        string;
   slug:        string;
-  description: string | null;
-  color:       string | null;
-  is_system:   boolean;
+  description?: string | null;
+  color?:      string | null;     // hex color for UI badge
+  is_system:   boolean;           // system groups cannot be deleted
   is_active:   boolean;
-  created_by:  number | null;
+  created_by?: number | null;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
+
 export class PermissionGroup
-  extends Model<PermissionGroupAttrs, Optional<PermissionGroupAttrs,
-    'id' | 'description' | 'color' | 'is_system' | 'is_active' | 'created_by'>>
-  implements PermissionGroupAttrs
+  extends Model<GroupAttrs, Optional<GroupAttrs,'id'|'is_system'|'is_active'>>
+  implements GroupAttrs
 {
   public id!:          number;
   public company_id!:  number;
@@ -82,20 +84,18 @@ export class PermissionGroup
   public created_by!:  number | null;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
-  public readonly deleted_at!: Date | null;
-
-  // populated by associations
+  // associations
   public permissions?: any[];
-  public members?:     any[];
+  public members?: any[];
 }
 
 PermissionGroup.init({
   id:          { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   company_id:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  name:        { type: DataTypes.STRING(100), allowNull: false },
-  slug:        { type: DataTypes.STRING(100), allowNull: false },
+  name:        { type: DataTypes.STRING(150), allowNull: false },
+  slug:        { type: DataTypes.STRING(150), allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: true },
-  color:       { type: DataTypes.STRING(30), allowNull: true },
+  color:       { type: DataTypes.STRING(20), allowNull: true, defaultValue: '#1e56d9' },
   is_system:   { type: DataTypes.BOOLEAN, defaultValue: false },
   is_active:   { type: DataTypes.BOOLEAN, defaultValue: true },
   created_by:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
@@ -103,12 +103,10 @@ PermissionGroup.init({
   sequelize,
   tableName:  'permission_groups',
   modelName:  'PermissionGroup',
-  paranoid:   true,
   timestamps: true,
   createdAt:  'created_at',
   updatedAt:  'updated_at',
-  deletedAt:  'deleted_at',
-  indexes: [{ unique: true, fields: ['company_id', 'slug'] }],
+  indexes: [{ unique: true, fields: ['company_id','slug'] }],
 });
 
 // ─── GroupPermission — join: permission_group ↔ permissions ──────────────────
@@ -118,7 +116,7 @@ export class GroupPermission extends Model {
   public group_id!:      number;
   public permission_id!: number;
 }
-
+ 
 GroupPermission.init({
   id:            { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   group_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
@@ -128,24 +126,25 @@ GroupPermission.init({
   tableName:  'group_permissions',
   modelName:  'GroupPermission',
   timestamps: false,
-  indexes: [{ unique: true, fields: ['group_id', 'permission_id'] }],
+  indexes: [{ unique: true, fields: ['group_id','permission_id'] }],
 });
 
 // ─── UserGroup — join: employee ↔ permission_group ───────────────────────────
 // NOTE: field is employee_id (was user_id — migrated in 002_user_groups_employee_id.sql)
 
 export class UserGroup extends Model {
-  public id!:           number;
-  public employee_id!:  number;   // ← was user_id
-  public group_id!:     number;
-  public company_id!:   number;
-  public assigned_by!:  number | null;
+  public id!:         number;
+  public employee_id!: number;
+  public group_id!:   number;
+  public company_id!: number;
+  public assigned_by!:number | null;
   public readonly assigned_at!: Date;
 }
-
+ 
 UserGroup.init({
   id:          { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },  // ← was user_id
+  employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  // FK → employees.id (employee-as-identity — no users table)
   group_id:    { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   company_id:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   assigned_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
@@ -156,7 +155,7 @@ UserGroup.init({
   modelName:  'UserGroup',
   timestamps: false,
   indexes: [
-    { unique: true, fields: ['employee_id', 'group_id'] },
-    { fields: ['company_id', 'group_id'] },
+    { unique: true, fields: ['employee_id','group_id'] },
+    { fields: ['company_id','group_id'] },
   ],
 });

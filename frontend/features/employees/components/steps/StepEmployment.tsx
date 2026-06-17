@@ -1,8 +1,8 @@
 'use client';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { FormToggle } from '../../components/form/FormToggle';
-import { SectionTitle } from '../../components/form/SectionTitle';
+import { FormToggle } from '../../../../components/form/FormToggle';
+import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { useFieldPermissions } from '../../hooks/useEmployees';
 import { WORKING_SITE_OPTIONS, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS, REGISTRATION_LOCATION_OPTIONS, SATURDAY_OFF_OPTIONS, SHIFT_TIMING_OPTIONS } from "../../constants/employee.constants"
 
