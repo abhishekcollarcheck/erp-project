@@ -55,9 +55,9 @@ async function loadFieldPerms(roleId: number): Promise<FieldPermissionMap> {
   return map;
 }
 
-export function clearFpCache(roleId?: number) {
-  roleId ? fpCache.delete(roleId) : fpCache.clear();
-}
+// export function clearFpCache(roleId?: number) {
+//   roleId ? fpCache.delete(roleId) : fpCache.clear();
+// }
 
 // is_super_admin bypasses masking entirely
 function applyMasking<T extends Record<string, unknown>>(
@@ -82,21 +82,21 @@ function applyMasking<T extends Record<string, unknown>>(
 // ─────────────────────────────────────────────────────────────────────────────
 export class EmployeeService {
 
-  async getAll(params: EmployeeQueryParams, companyId: number, roleId: number, isSuperAdmin: boolean) {
+  async getAll(params: EmployeeQueryParams, companyId: number, isSuperAdmin: boolean) {
     const result = await repo.findAll(params, companyId);
-    const perms  = isSuperAdmin ? {} : await loadFieldPerms(roleId);
+    const perms  = isSuperAdmin ? {} : '';
     return {
       ...result,
       rows: result.rows.map(e => applyMasking(e.toJSON() as any, perms, isSuperAdmin)),
     };
   }
 
-  async getById(id: number, companyId: number, roleId: number, isSuperAdmin: boolean) {
-    const canSeeSensitive = isSuperAdmin || await this.hasSensitiveAccess(roleId);
+  async getById(id: number, companyId: number, isSuperAdmin: boolean) {
+    const canSeeSensitive = isSuperAdmin;
     const emp = await repo.findById(id, companyId, canSeeSensitive);
     if (!emp) throw new AppError('Employee not found', 404);
 
-    const perms = isSuperAdmin ? {} : await loadFieldPerms(roleId);
+    const perms = isSuperAdmin ? {} : '';
     const json  = emp.toJSON() as any;
     // Apply masking to sensitive sub-objects
     if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms, isSuperAdmin);

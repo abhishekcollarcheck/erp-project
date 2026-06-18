@@ -14,6 +14,7 @@ import { logActivity } from '../../utils/activityLogger';
 import { broadcastAfter } from '../../middleware/permissionBroadcast.middleware';
 import {EmployeePermission} from "../../database/models/EmployeePermission"
 import {employeeOverrideRouter,patchGroupMembersWithOverrideCounts,} from './permissionGroupOverrides';
+import { EmployeePermissionOverride } from '../../database/models/EmployeePermissionOverride';
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -211,6 +212,18 @@ async getEmployeePermissions(
   async removeMember(groupId: number, companyId: number, employeeId: number, removedBy?: number) {
     const deleted = await UserGroup.destroy({ where: { group_id: groupId, employee_id: employeeId, company_id: companyId } });
     if (!deleted) throw new AppError('User is not in this group', 404);
+
+    // Delete group-scoped overrides (EmployeePermissionOverride — our table, has group_id)
+    await EmployeePermissionOverride.destroy({
+      where: { group_id: groupId, employee_id: employeeId, company_id: companyId },
+    });
+
+    // Also delete legacy grant/revoke rows (EmployeePermission — no group_id column).
+    // These rows survive removeMember and restore old permissions when member is re-added.
+    await EmployeePermission.destroy({
+      where: { employee_id: employeeId, company_id: companyId },
+    });
+
     clearPermissionCache(employeeId);
     await logActivity({ companyId, employeeId: removedBy, action: 'PERMISSION_GROUP_MEMBER_REMOVED', module: 'settings', entityId: groupId, newValues: { employeeId } });
     return { employeeId, groupId, action: 'member_removed' };

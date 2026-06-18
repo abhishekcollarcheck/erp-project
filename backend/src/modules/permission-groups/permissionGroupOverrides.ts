@@ -28,6 +28,9 @@ import { validate }      from '../../middleware/validate.middleware';
 import { sendResponse }  from '../../utils/response';
 import { logActivity }   from '../../utils/activityLogger';
 import { clearPermissionCache } from '../../middleware/rbac.middleware';
+import { generateAccessToken }  from '../../utils/jwt';
+import { loadPermissions }      from '../auth/auth.service';
+import { getIO }                from '../../socket/socket';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,6 +142,21 @@ class EmployeeOverrideService {
       newValues:  { groupId, overrideCount: overrides.length },
     });
 
+    // Compute FULL effective permissions (role + groups + overrides) and push to employee's portal
+    try {
+      const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, companyId);
+      const freshToken = generateAccessToken({ employeeId, companyId, permissions: fullPerms, isSuperAdmin } as any);
+      getIO()?.to(`employee_${employeeId}`).emit('permissions:updated', {
+        eventType:   'permissions_updated',
+        companyId,
+        permissions: fullPerms,
+        accessToken: freshToken,
+        timestamp:   new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('[Override] socket emit failed for employee', employeeId, e);
+    }
+
     return { updated: overrides.length };
   }
 
@@ -167,6 +185,21 @@ class EmployeeOverrideService {
       entityId:   employeeId,
       oldValues:  { overrideId, groupId, ...snapshot },
     });
+
+    // Push fresh permissions to the affected employee's portal
+    try {
+      const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, companyId);
+      const freshToken = generateAccessToken({ employeeId, companyId, permissions: fullPerms, isSuperAdmin } as any);
+      getIO()?.to(`employee_${employeeId}`).emit('permissions:updated', {
+        eventType:   'permissions_updated',
+        companyId,
+        permissions: fullPerms,
+        accessToken: freshToken,
+        timestamp:   new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('[Override] socket emit failed for employee', employeeId, e);
+    }
 
     return { deleted: true };
   }

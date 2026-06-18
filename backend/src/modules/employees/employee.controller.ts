@@ -39,7 +39,6 @@ async getAll(req: Request, res: Response) {
     const result = await employeeService.getAll(
       req.query as any,
       req.user!.companyId,
-      req.user!.roleId,
       req.user!.isSuperAdmin,
     );
     sendPaginated(res, result.rows, result.meta);
@@ -50,7 +49,6 @@ async getAll(req: Request, res: Response) {
     const emp = await employeeService.getById(
       Number(req.params.id),
       req.user!.companyId,
-      req.user!.roleId,
       req.user!.isSuperAdmin,
     );
     sendResponse(res, { data: emp });

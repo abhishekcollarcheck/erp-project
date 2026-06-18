@@ -37,7 +37,7 @@ class SocketService {
   private listeners = new Map<string, Set<Function>>();
 
   connect(managedCompanyIds: number[] = []): void {
-    const token = store.getState().auth.accessToken
+    const token = store.getState().auth.accessToken;
     if (!token) return;
 
     if (this.socket?.connected) {
@@ -71,14 +71,14 @@ class SocketService {
       console.warn('[Socket] Connection error (non-critical):', err.message);
     });
 
+    this.socket.io.on("reconnect_error", (err) => {
+      console.log("RECONNECT ERROR", err);
+    });
 
-this.socket.io.on("reconnect_error", (err) => {
-  console.log("RECONNECT ERROR", err);
-});
+    this.socket.io.on("error", (err) => {
+      console.log("MANAGER ERROR", err);
+    });
 
-this.socket.io.on("error", (err) => {
-  console.log("MANAGER ERROR", err);
-});    
     // Forward server events to listeners
     const EVENTS = ['permissions:updated', 'access:revoked', 'company:suspended'];
     for (const event of EVENTS) {
@@ -98,6 +98,28 @@ this.socket.io.on("error", (err) => {
     }
   }
 
+  /**
+   * register — joins the backend's employee-specific room.
+   *
+   * Backend socket/index.ts listens for 'register' and maps:
+   *   employeeId → socket.id  (userSocketMap)
+   * Backend then emits permission events to:
+   *   io.to(`employee_${employeeId}`)
+   *
+   * This MUST be called after connect() so the employee receives
+   * their own permission updates (add/remove member, overrides).
+   */
+  register(employeeId: number): void {
+    if (this.socket?.connected) {
+      this.socket.emit('register', employeeId);
+    } else {
+      // Socket not yet connected — re-emit on connect event
+      this.socket?.once('connect', () => {
+        this.socket?.emit('register', employeeId);
+      });
+    }
+  }
+
   acknowledge(employeeId: number): void {
     this.socket?.emit('permissions:acknowledged', { employeeId });
   }
@@ -112,11 +134,7 @@ this.socket.io.on("error", (err) => {
   on(event: string, handler: Function): () => void {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set());
     this.listeners.get(event)!.add(handler);
-      console.log(
-    event,
-    "listeners:",
-    this.listeners.get(event)?.size
-  );
+    console.log(event, "listeners:", this.listeners.get(event)?.size);
     return () => this.listeners.get(event)?.delete(handler);
   }
 

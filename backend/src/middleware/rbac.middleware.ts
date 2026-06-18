@@ -22,6 +22,7 @@ import { PermissionGroup, UserGroup, GroupPermission } from '../database/models/
 import { User } from '../database/models/User';
 import { sendError } from '../utils/response';
 import { logger } from '../config/logger';
+import { clearUserPermCache } from '../modules/user-permissions/userPermissions.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -151,15 +152,30 @@ export async function loadPermissionsForUser(employeeId: number, roleId: number)
 }
 
 /**
- * Invalidate the cached permissions for a role.
- * Call this when role permissions are updated in Settings.
+ * Invalidate cached permissions.
+ *
+ * FIXED: The cache stores two types of keys:
+ *   - number  → roleId    (from loadPermissionsForRole)
+ *   - string  → `e:${employeeId}` (from loadPermissionsForUser)
+ *
+ * Calling clearPermissionCache() with no args clears everything.
+ * Calling clearPermissionCache(employeeId) clears the employee key AND
+ * all role keys (since a role change affects all employees in that role —
+ * we don't know which roleId the employee has here, so we clear all roles).
+ *
+ * This is safe: cache misses just trigger a fresh DB load.
  */
-export function clearPermissionCache(roleId?: number): void {
-  if (roleId !== undefined) {
-    permissionCache.delete(roleId);
-    logger.info(`[RBAC] Cache cleared for roleId=${roleId}`);
+export function clearPermissionCache(employeeId?: number): void {
+  if (employeeId !== undefined) {
+    (permissionCache as any).delete(`e:${employeeId}`);
+    for (const key of permissionCache.keys()) {
+      if (typeof key === 'number') permissionCache.delete(key);
+    }
+    clearUserPermCache(employeeId);   // also clear the 10-min userPermissions cache
+    logger.info(`[RBAC] Cache cleared for employeeId=${employeeId}`);
   } else {
     permissionCache.clear();
+    clearUserPermCache();             // clear all entries in both caches
     logger.info('[RBAC] Full permission cache cleared');
   }
 }

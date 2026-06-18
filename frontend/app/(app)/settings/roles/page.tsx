@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAppDispatch }      from '../../../../store';
 import { setPageTitle }        from '../../../../store/slices/uiSlice';
+import { updateToken, setPermissions } from '../../../../store/slices/authSlice';
 import { AppShell }            from '../../../../layouts/AppLayout';
 import { Modal }               from '../../../../components/ui/Modal';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
@@ -117,7 +118,7 @@ const pgApi = {
 };
 
 // Existing hooks (unchanged)
-function useGroups()             { return useQuery({ queryKey: ['rp', 'groups'],           queryFn: () => pgApi.list(),          staleTime: 60_000, select: r => r.data ?? [] }); }
+function useGroups()             { return useQuery({ queryKey: ['rp', 'groups'],           queryFn: () => pgApi.list(),          staleTime: 0, select: r => r.data ?? [] }); }
 function useGroupPerms(id: number) { return useQuery({ queryKey: ['rp', 'group-perms', id], queryFn: () => pgApi.getPerms(id),    enabled: id > 0,   select: r => r.data ?? [] }); }
 function useGroupMembers(id: number){ return useQuery({ queryKey: ['rp', 'group-members', id], queryFn: () => pgApi.getMembers(id), enabled: id > 0,   select: r => r.data ?? [] }); }
 function useEmployees()          { return useQuery({ queryKey: ['employees-light'],          queryFn: () => pgApi.employees(),     staleTime: 5 * 60_000, select: r => r.data ?? [] }); }
@@ -265,6 +266,16 @@ function GroupDetail({
   onEditOverride:  (memberId: number) => void;
   onDeleteOverride:(memberId: number) => void;
 }) {
+  console.log("group", group)
+  console.log("members", members)
+  console.log("onedit", onEdit)
+  console.log("onfiledper", onFieldPerms)
+  console.log("ondelete", onDelete)
+  console.log("addpersopn", addPersonOpen)
+  console.log("addmember", onAddMember)
+  console.log("remove meber", onRemoveMember)
+  console.log("emp", employees)
+  console.log("overrides", overrides)
   const slugs    = group.permissions?.map(p => p.slug) || [];
   const modPerms = slugsToModulePerms(slugs);
   const [search, setSearch] = useState('');
@@ -272,7 +283,7 @@ function GroupDetail({
   const permSummary = useMemo(() =>
     PERMS.map(p => ({ p, count: countPerm(modPerms, p) })).filter(x => x.count > 0),
     [slugs.join(',')]
-  );
+  ); 
 
   const notMembers = useMemo(() => {
     const memberIds = new Set(members.map((m: any) => m.id));
@@ -584,8 +595,9 @@ function EditView({
   overrideMemberName?: string;
   groupName?:         string;
 }) {
-  const qc    = useQueryClient();
-  const isNew = !group;
+  const qc             = useQueryClient();
+  const dispatch       = useAppDispatch();
+  const isNew          = !group;
   const isOverrideMode = !!overrideMemberId;
 
   const [name,       setName]       = useState(group?.name || '');
@@ -676,14 +688,17 @@ function EditView({
         for (const uid of toRm)  { try { await pgApi.removeMember(group!.id, uid); } catch {} }
       }
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       if (isOverrideMode && group?.id && overrideMemberId) {
-        // Stay on page — user sees the updated Permission Summary col 3 immediately.
-        // Invalidate so re-opening later also shows fresh state.
-        qc.invalidateQueries({ queryKey: ['rp', 'employee-overrides', group.id, overrideMemberId] });
+        // Backend re-issues a fresh access token with merged permissions.
+        // Dispatch to Redux immediately — portal canView()/canEdit() update without re-login.
+        if (data?.accessToken) dispatch(updateToken(data.accessToken));
+        if (data?.permissions) dispatch(setPermissions(data.permissions));
+        qc.refetchQueries({ queryKey: ['rp', 'employee-overrides', group.id, overrideMemberId] });
         showToast('✓ Employee override saved');
       } else {
-        qc.invalidateQueries({ queryKey: ['rp'] });
+        qc.refetchQueries({ queryKey: ['rp', 'groups'] });
+        qc.refetchQueries({ queryKey: ['rp', 'group-perms', group?.id] });
         showToast(isNew ? '✓ Group created' : '✓ Group updated');
         onBack();
       }
@@ -1036,7 +1051,13 @@ export default function RolesPermissionsPage() {
 
   const removeMemberMutation = useMutation({
     mutationFn: ({ groupId, empId }: { groupId: number; empId: number }) => pgApi.removeMember(groupId, empId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rp', 'group-members'] }); showToast('Member removed'); },
+    onSuccess: () => {
+      // The backend emits 'permissions:updated' directly to the removed employee's
+      // socket room (employee_${empId}). Their browser calls /auth/me and updates.
+      // Here we only refresh the admin's member list UI.
+      qc.refetchQueries({ queryKey: ['rp', 'group-members'] });
+      showToast('Member removed');
+    },
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
 

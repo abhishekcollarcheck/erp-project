@@ -5,7 +5,7 @@ import { Sidebar }              from '../components/layout/Sidebar';
 import { Topbar }               from '../components/layout/Topbar';
 import { useAppSelector }       from '../store';
 import { selectIsAuthenticated } from '../store/slices/authSlice';
-import { usePermissionSync } from '../hooks/usePermissionSync';
+import { usePermissionSocket } from '../hooks/usePermissionSync';
 
 interface AppShellProps {
   children:  ReactNode;
@@ -16,7 +16,7 @@ export function AppShell({ children, onAddNew }: AppShellProps) {
   const router          = useRouter();
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
 
-  usePermissionSync()
+  usePermissionSocket()
   useEffect(() => {
     if (!isAuthenticated) router.replace('/login');
   }, [isAuthenticated, router]);

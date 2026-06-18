@@ -50,7 +50,7 @@ export async function countCompanySuperAdmins(companyId: number): Promise<number
   });
 }
 
-async function loadPermissions(
+export async function loadPermissions(
   employeeId: number,
   companyId: number
 ): Promise<{permissions: string[]; isSuperAdmin: boolean}> {
