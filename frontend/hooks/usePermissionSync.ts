@@ -54,14 +54,25 @@ export function usePermissionSocket() {
 
   useEffect(() => {
     if (!isAuthenticated || !employeeId) return;
-
+  console.log(
+    "INIT SOCKET",
+    {
+      employeeId,
+      connected: socketService.isConnected()
+    }
+  );
     if (!socketService.isConnected()) {
       socketService.connect();
     }
     socketService.register(employeeId);
 
     const unsubscribe = socketService.on('permissions:updated', (payload: any) => {
+            console.log(
+        "🔥 PERMISSION EVENT RECEIVED",
+        payload
+      );
       if (payload?.permissions && Array.isArray(payload.permissions)) {
+        console.log("NEW PERMISSIONS FROM SOCKET", payload.permissions);
         // Type B: fresh permissions embedded in the payload — use directly.
         // This event was sent specifically to this employee's room by addMember,
         // removeMember, or setOverrides. No network round-trip needed.

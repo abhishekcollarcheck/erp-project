@@ -15,6 +15,7 @@ import { broadcastAfter } from '../../middleware/permissionBroadcast.middleware'
 import {EmployeePermission} from "../../database/models/EmployeePermission"
 import {employeeOverrideRouter,patchGroupMembersWithOverrideCounts,} from './permissionGroupOverrides';
 import { EmployeePermissionOverride } from '../../database/models/EmployeePermissionOverride';
+import {refreshEmployeePermission} from "../../utils/refreshEmployeePermission"
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -194,6 +195,7 @@ async getEmployeePermissions(
     });
   }
   async addMember(groupId: number, companyId: number, employeeId: number, addedBy?: number) {
+    console.log("group-id-add", groupId)
     await this.getById(groupId, companyId);
     const emp = await Employee.findOne({ where: { id: employeeId, company_id: companyId } });
     if (!emp) throw new AppError('User not found', 404);
@@ -205,11 +207,13 @@ async getEmployeePermissions(
     if (!created) throw new AppError('User is already in this group', 409);
 
     clearPermissionCache(employeeId);
+    await refreshEmployeePermission(employeeId, companyId)
     await logActivity({ companyId, employeeId: addedBy, action: 'PERMISSION_GROUP_MEMBER_ADDED', module: 'settings', entityId: groupId, newValues: { employeeId } });
     return { employeeId, groupId, action: 'member_added' };
   }
 
   async removeMember(groupId: number, companyId: number, employeeId: number, removedBy?: number) {
+    console.log("groupId-rem", groupId)
     const deleted = await UserGroup.destroy({ where: { group_id: groupId, employee_id: employeeId, company_id: companyId } });
     if (!deleted) throw new AppError('User is not in this group', 404);
 
@@ -225,6 +229,7 @@ async getEmployeePermissions(
     });
 
     clearPermissionCache(employeeId);
+    await refreshEmployeePermission(employeeId, companyId)
     await logActivity({ companyId, employeeId: removedBy, action: 'PERMISSION_GROUP_MEMBER_REMOVED', module: 'settings', entityId: groupId, newValues: { employeeId } });
     return { employeeId, groupId, action: 'member_removed' };
   }
