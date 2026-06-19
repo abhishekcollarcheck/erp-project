@@ -106,6 +106,7 @@ export class EmployeeService {
   }
 
   async create(dto: BasicInfoDto, actorId: number, ipAddress?: string) {
+    console.log("data", dto)
     const empCode = await generateEmployeeCode(dto.company_id);
     const useCode = dto.employee_code || empCode;
 

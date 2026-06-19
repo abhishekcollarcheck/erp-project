@@ -15,6 +15,8 @@ import { broadcastAfter } from '../../middleware/permissionBroadcast.middleware'
 import {EmployeePermission} from "../../database/models/EmployeePermission"
 import {employeeOverrideRouter,patchGroupMembersWithOverrideCounts,} from './permissionGroupOverrides';
 import { EmployeePermissionOverride } from '../../database/models/EmployeePermissionOverride';
+import {refreshEmployeePermission} from "../../utils/refreshEmployeePermission"
+import { CompanyModule } from '../../database/models/PermissionGroups';
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -205,11 +207,13 @@ async getEmployeePermissions(
     if (!created) throw new AppError('User is already in this group', 409);
 
     clearPermissionCache(employeeId);
+    await refreshEmployeePermission(employeeId, companyId)
     await logActivity({ companyId, employeeId: addedBy, action: 'PERMISSION_GROUP_MEMBER_ADDED', module: 'settings', entityId: groupId, newValues: { employeeId } });
     return { employeeId, groupId, action: 'member_added' };
   }
 
   async removeMember(groupId: number, companyId: number, employeeId: number, removedBy?: number) {
+    console.log("groupId-rem", groupId)
     const deleted = await UserGroup.destroy({ where: { group_id: groupId, employee_id: employeeId, company_id: companyId } });
     if (!deleted) throw new AppError('User is not in this group', 404);
 
@@ -225,6 +229,7 @@ async getEmployeePermissions(
     });
 
     clearPermissionCache(employeeId);
+    await refreshEmployeePermission(employeeId, companyId)
     await logActivity({ companyId, employeeId: removedBy, action: 'PERMISSION_GROUP_MEMBER_REMOVED', module: 'settings', entityId: groupId, newValues: { employeeId } });
     return { employeeId, groupId, action: 'member_removed' };
   }
@@ -400,4 +405,23 @@ permissionGroupRouter.post('/:id/members', [param('id').isInt(), body('employee_
 permissionGroupRouter.delete('/:id/members/:employeeId', [param('id').isInt(), param('employeeId').isInt()], validate, broadcastAfter('permissions_updated'), removeGroupMember);
 
 permissionGroupRouter.post('/seed', seedGroups);
+
+permissionGroupRouter.get('/company-modules', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const companyId = +(req.query.company_id || req.user!.companyId);
+    let rows: any[] = await CompanyModule.findAll({
+      where: { company_id: companyId, is_active: true },
+      order: [['display_order','ASC']], attributes: ['module','label'],
+    });
+    if (!rows.length) rows = [
+      {module:'recruitment',label:'Recruitment / ATS'},{module:'aptitude',label:'Aptitude Test'},
+      {module:'employees',label:'Employee Directory'},{module:'department',label:'Department'},
+      {module:'designation',label:'Designation'},{module:'payroll',label:'Payroll'},
+      {module:'attendance',label:'Attendance'},{module:'leaves',label:'Leave Management'},
+      {module:'assets',label:'Asset Management'},{module:'analytics',label:'Analytics & Reports'},
+      {module:'settings',label:'Settings & RBAC'},
+    ];
+    sendResponse(res, { data: rows });
+  } catch (e) { next(e); }
+});
 patchGroupMembersWithOverrideCounts(permissionGroupRouter);

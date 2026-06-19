@@ -17,28 +17,28 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { body, param }   from 'express-validator';
-import { Op }            from 'sequelize';
+import { body, param } from 'express-validator';
+import { Op } from 'sequelize';
 import { EmployeePermissionOverride } from '../../database/models/EmployeePermissionOverride';
 import { PermissionGroup, UserGroup } from '../../database/models/PermissionGroups';
-import { Employee }      from '../../database/models/Employee';
-import { AppError }      from '../../middleware/errorHandler.middleware';
-import { authenticate }  from '../auth/auth.middleware';
-import { validate }      from '../../middleware/validate.middleware';
-import { sendResponse }  from '../../utils/response';
-import { logActivity }   from '../../utils/activityLogger';
+import { Employee } from '../../database/models/Employee';
+import { AppError } from '../../middleware/errorHandler.middleware';
+import { authenticate } from '../auth/auth.middleware';
+import { validate } from '../../middleware/validate.middleware';
+import { sendResponse } from '../../utils/response';
+import { logActivity } from '../../utils/activityLogger';
 import { clearPermissionCache } from '../../middleware/rbac.middleware';
-import { generateAccessToken }  from '../../utils/jwt';
-import { loadPermissions }      from '../auth/auth.service';
-import { getIO }                from '../../socket/socket';
+import { generateAccessToken } from '../../utils/jwt';
+import { loadPermissions } from '../auth/auth.service';
+import { getIO } from '../../socket/socket';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface OverrideDto {
-  module:     string;
+  module: string;
   field_name: string | null;
   permission: string;
-  granted:    boolean;
+  granted: boolean;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -50,9 +50,9 @@ class EmployeeOverrideService {
    * UserGroup uses employee_id directly — no user lookup needed.
    */
   private async assertMembership(
-    groupId:    number,
+    groupId: number,
     employeeId: number,
-    companyId:  number,
+    companyId: number,
   ) {
     const emp = await Employee.findOne({
       where: { id: employeeId, company_id: companyId },
@@ -70,13 +70,13 @@ class EmployeeOverrideService {
   async listOverrides(groupId: number, employeeId: number, companyId: number) {
     await this.assertMembership(groupId, employeeId, companyId);
     return EmployeePermissionOverride.findAll({
-      where:  { group_id: groupId, employee_id: employeeId, company_id: companyId },
-      order:  [['module', 'ASC'], ['field_name', 'ASC'], ['permission', 'ASC']],
+      where: { group_id: groupId, employee_id: employeeId, company_id: companyId },
+      order: [['module', 'ASC'], ['field_name', 'ASC'], ['permission', 'ASC']],
     });
   }
 
   async getOverrideCountsForGroup(
-    groupId:   number,
+    groupId: number,
     companyId: number,
   ): Promise<Record<number, number>> {
     const rows = await EmployeePermissionOverride.findAll({
@@ -91,11 +91,11 @@ class EmployeeOverrideService {
   }
 
   async setOverrides(
-    groupId:    number,
+    groupId: number,
     employeeId: number,
-    companyId:  number,
-    overrides:  OverrideDto[],
-    actorId:    number,
+    companyId: number,
+    overrides: OverrideDto[],
+    actorId: number,
   ) {
     await this.assertMembership(groupId, employeeId, companyId);
 
@@ -117,14 +117,14 @@ class EmployeeOverrideService {
     if (overrides.length > 0) {
       await EmployeePermissionOverride.bulkCreate(
         overrides.map(o => ({
-          company_id:  companyId,
-          group_id:    groupId,
+          company_id: companyId,
+          group_id: groupId,
           employee_id: employeeId,
-          module:      o.module.trim(),
-          field_name:  null,          // always null — module-level only
-          permission:  o.permission,
-          granted:     o.granted,
-          created_by:  actorId,
+          module: o.module.trim(),
+          field_name: null,          // always null — module-level only
+          permission: o.permission,
+          granted: o.granted,
+          created_by: actorId,
         })),
         { ignoreDuplicates: true },
       );
@@ -136,22 +136,22 @@ class EmployeeOverrideService {
     await logActivity({
       companyId,
       employeeId: actorId,
-      action:     'EMPLOYEE_PERMISSION_OVERRIDES_SET',
-      module:     'settings',
-      entityId:   employeeId,
-      newValues:  { groupId, overrideCount: overrides.length },
+      action: 'EMPLOYEE_PERMISSION_OVERRIDES_SET',
+      module: 'settings',
+      entityId: employeeId,
+      newValues: { groupId, overrideCount: overrides.length },
     });
 
     // Compute FULL effective permissions (role + groups + overrides) and push to employee's portal
     try {
       const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, companyId);
       const freshToken = generateAccessToken({ employeeId, companyId, permissions: fullPerms, isSuperAdmin } as any);
-      getIO()?.to(`employee_${employeeId}`).emit('permissions:updated', {
-        eventType:   'permissions_updated',
+      getIO()?.to(`employee:${employeeId}`).emit('permissions:updated', {
+        eventType: 'permissions_updated',
         companyId,
         permissions: fullPerms,
         accessToken: freshToken,
-        timestamp:   new Date().toISOString(),
+        timestamp: new Date().toISOString(),
       });
     } catch (e) {
       console.warn('[Override] socket emit failed for employee', employeeId, e);
@@ -161,11 +161,11 @@ class EmployeeOverrideService {
   }
 
   async deleteOverride(
-    groupId:    number,
+    groupId: number,
     employeeId: number,
-    companyId:  number,
+    companyId: number,
     overrideId: number,
-    actorId:    number,
+    actorId: number,
   ) {
     const row = await EmployeePermissionOverride.findOne({
       where: { id: overrideId, group_id: groupId, employee_id: employeeId, company_id: companyId },
@@ -180,22 +180,22 @@ class EmployeeOverrideService {
     await logActivity({
       companyId,
       employeeId: actorId,
-      action:     'EMPLOYEE_PERMISSION_OVERRIDE_DELETED',
-      module:     'settings',
-      entityId:   employeeId,
-      oldValues:  { overrideId, groupId, ...snapshot },
+      action: 'EMPLOYEE_PERMISSION_OVERRIDE_DELETED',
+      module: 'settings',
+      entityId: employeeId,
+      oldValues: { overrideId, groupId, ...snapshot },
     });
 
     // Push fresh permissions to the affected employee's portal
     try {
       const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, companyId);
       const freshToken = generateAccessToken({ employeeId, companyId, permissions: fullPerms, isSuperAdmin } as any);
-      getIO()?.to(`employee_${employeeId}`).emit('permissions:updated', {
-        eventType:   'permissions_updated',
+      getIO()?.to(`employee:${employeeId}`).emit('permissions:updated', {
+        eventType: 'permissions_updated',
         companyId,
         permissions: fullPerms,
         accessToken: freshToken,
-        timestamp:   new Date().toISOString(),
+        timestamp: new Date().toISOString(),
       });
     } catch (e) {
       console.warn('[Override] socket emit failed for employee', employeeId, e);
@@ -230,25 +230,54 @@ const overrideSvc = new EmployeeOverrideService();
  */
 export async function resolvePermissionsForEmployee(
   employeeId: number,
-  companyId:  number,
-  groupIds:   number[],
-  slugSet:    Set<string>,
+  companyId: number,
+  groupIds: number[],
+  slugSet: Set<string>,
 ): Promise<Set<string>> {
   if (!groupIds.length) return slugSet;
-
+  console.log("OVERRIDE CHECK", {
+    employeeId,
+    companyId,
+    groupIds
+  });
   const overrides = await EmployeePermissionOverride.findAll({
     where: {
       employee_id: employeeId,
-      company_id:  companyId,
-      group_id:    { [Op.in]: groupIds },
-      field_name:  null,  // module-level only — field-level handled separately
+      company_id: companyId,
+      group_id: { [Op.in]: groupIds },
+      field_name: null,  // module-level only — field-level handled separately
     },
+    order: [
+      ['created_at', 'ASC']
+    ]
   });
+
+  console.log(
+    "FOUND OVERRIDES",
+    overrides.map(o => ({
+      group_id: o.group_id,
+      module: o.module,
+      permission: o.permission,
+      granted: o.granted
+    }))
+  );
+
+
 
   for (const o of overrides) {
     const slug = `${o.module}:${o.permission}`;
-    if (o.granted) slugSet.add(slug);
-    else           slugSet.delete(slug);
+
+    console.log(
+      "APPLY OVERRIDE",
+      slug,
+      o.granted
+    );
+
+    if (o.granted) {
+      slugSet.add(slug);
+    } else {
+      slugSet.delete(slug);
+    }
   }
 
   return slugSet;
@@ -266,13 +295,13 @@ export async function resolvePermissionsForEmployee(
  */
 export async function getEmployeeFieldOverrides(
   employeeId: number,
-  companyId:  number,
-  module:     string,
+  companyId: number,
+  module: string,
 ): Promise<Record<string, Record<string, boolean>>> {
   const rows = await EmployeePermissionOverride.findAll({
     where: {
       employee_id: employeeId,
-      company_id:  companyId,
+      company_id: companyId,
       module,
       field_name: { [Op.ne]: null },
     },

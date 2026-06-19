@@ -15,6 +15,7 @@ export function StepBasic({ isEdit }: Props) {
   const f = (n: string) => fp?.[n];
   const { setValue, watch } = useFormContext();
   const { companyId, companies, isMultiCompany } = useCompany();
+  console.log("companies", companies)
 
   // ── Auto-fill employee code on create ─────────────────────────────────────
   useEffect(() => {
@@ -31,11 +32,11 @@ export function StepBasic({ isEdit }: Props) {
   }, [codes, isEdit]); // eslint-disable-line
 
   // ── Auto-set company_id from active session ───────────────────────────────
-  useEffect(() => {
-    if (!watch('company_id') && companyId) {
-      setValue('company_id', companyId, { shouldDirty: false });
-    }
-  }, [companyId]); // eslint-disable-line
+  // useEffect(() => {
+  //   if (!watch('company_id') && companyId) {
+  //     setValue('company_id', companyId, { shouldDirty: false });
+  //   }
+  // }, [companyId]); // eslint-disable-line
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>

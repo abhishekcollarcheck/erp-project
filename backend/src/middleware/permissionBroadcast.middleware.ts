@@ -78,7 +78,6 @@ async function broadcastPermissionChange(
   const data = responseBody?.data || responseBody;
   const companyId = actor.companyId;
 
-  console.log("data", data)
   // Determine which employees were affected
   // Routes set different param names — check them all
   const targetEmployeeId =
@@ -110,7 +109,7 @@ async function broadcastPermissionChange(
 
   const message = buildMessage(eventType, actorName, changes);
 
-  if (targetEmployeeId && targetEmployeeId !== actor.employeeId) {
+  if (targetEmployeeId && targetEmployeeId !== actor.employeeId && eventType !== 'permissions_updated') {
     // Single employee targeted
     emitPermissionUpdate({
       employeeId: targetEmployeeId,
@@ -121,7 +120,7 @@ async function broadcastPermissionChange(
       actorEmployeeId: actor.employeeId,
       changes,
     });
-  } else if (eventType === 'bulk_permissions_updated' || eventType === 'permissions_updated') {
+  } else if (eventType === 'bulk_permissions_updated') {
 
     emitCompanyPermissionUpdate(companyId, {
       eventType,

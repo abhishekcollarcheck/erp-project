@@ -244,8 +244,6 @@ methods.reset({
   const validateStep = useCallback(async (): Promise<boolean> => {
     if (!step || step.key === 'review') return true;
     const schema = STEP_SCHEMA_MAP[step.key as StepSchemaKey];
-     console.log("CURRENT STEP:", step.key);
-  console.log("SCHEMA:", schema);
   const values = methods.getValues();
 
   console.log("FORM VALUES:", values);
@@ -253,21 +251,6 @@ methods.reset({
     const result = (schema as any).safeParse(methods.getValues());
     if (!result.success) {
       if (!result.success) {
-
-  console.log(
-    "ZOD ERROR FULL:",
-    result.error
-  );
-
-  console.log(
-    "ZOD FLATTEN:",
-    result.error.flatten()
-  );
-
-  console.log(
-    "ZOD FIELD ERRORS:",
-    result.error.flatten().fieldErrors
-  );
 
   await methods.trigger(
     Object.keys(result.error.flatten().fieldErrors) as any

@@ -87,7 +87,6 @@ export async function loadPermissions(
       if (p.can_create)  slugs.add(`${p.module}:create`);
       if (p.can_edit)    slugs.add(`${p.module}:edit`);
       if (p.can_delete)  slugs.add(`${p.module}:delete`);
-      if (p.can_approve) slugs.add(`${p.module}:approve`);
       if (p.can_export)  slugs.add(`${p.module}:export`);
     }
   }  
@@ -97,7 +96,7 @@ export async function loadPermissions(
     where: { employee_id: employeeId, company_id: companyId },
     include: [{
       model: PermissionGroup, as: 'group', where: { is_active: true },
-      include: [{ model: Permission, as: 'permissions', through: { attributes: [] }, attributes: ['slug'] }],
+      include: [{ model: Permission, as: 'permissions', through: { attributes: [], where: { company_id: companyId } }, attributes: ['slug'] }],
       required: false,
     }],
   });

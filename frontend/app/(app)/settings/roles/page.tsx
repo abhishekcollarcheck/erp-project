@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useAppDispatch }      from '../../../../store';
+import { useAppDispatch, useAppSelector } from '../../../../store';
 import { setPageTitle }        from '../../../../store/slices/uiSlice';
-import { updateToken, setPermissions } from '../../../../store/slices/authSlice';
+import { updateToken, setPermissions, selectManagedCompanies } from '../../../../store/slices/authSlice';
 import { AppShell }            from '../../../../layouts/AppLayout';
 import { Modal }               from '../../../../components/ui/Modal';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
@@ -103,7 +103,7 @@ const pgApi = {
   getPerms:    (id: number) => apiClient.get<unknown, ApiResponse<string[]>>(`/permission-groups/${id}/permissions`),
   setPerms:    (id: number, slugs: string[]) => apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${id}/permissions`, { slugs }),
   getMembers:  (id: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/permission-groups/${id}/members`),
-  addMember:   (id: number, uid: number) => apiClient.post<unknown, ApiResponse<any>>(`/permission-groups/${id}/members`, { employee_id: uid }),
+  addMember:   (id: number, uid: number, companyIds?: number[]) => apiClient.post<unknown, ApiResponse<any>>(`/permission-groups/${id}/members`, { employee_id: uid, company_ids: companyIds }),
   removeMember:(id: number, uid: number) => apiClient.delete<unknown, ApiResponse<any>>(`/permission-groups/${id}/members/${uid}`),
   seed:        () => apiClient.post<unknown, ApiResponse<any>>('/permission-groups/seed', {}),
   employees:   () => apiClient.get<unknown, ApiResponse<any[]>>('/employees?limit=100'),
@@ -243,12 +243,142 @@ function GroupSidebar({
   );
 }
 
+// ─── AddPersonForm — company-chip multi-select + employee search ─────────────
+
+function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd }: {
+  notMembers:        any[];
+  search:            string;
+  setSearch:         (s: string) => void;
+  assignedCompanies: { id: number; name: string; shortName: string }[];
+  onAdd:             (empId: number, companyIds: number[]) => void;
+}) {
+  const [selectedEmp,      setSelectedEmp]      = useState<number | null>(null);
+  const [selectedCompanies,setSelectedCompanies] = useState<Set<number>>(new Set());
+  const [allCompanies,     setAllCompanies]      = useState(false);
+
+  const toggleChip = (id: number) => {
+    setAllCompanies(false);
+    setSelectedCompanies(prev => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
+
+  const toggleAll = () => {
+    setAllCompanies(v => !v);
+    setSelectedCompanies(new Set());
+  };
+
+  const chipStyle = (active: boolean, purple?: boolean): React.CSSProperties => ({
+    cursor: 'pointer', borderRadius: 99, padding: '5px 12px', fontSize: 11, fontWeight: 600,
+    transition: 'all .1s', userSelect: 'none',
+    border:      active ? `1px solid ${purple ? 'var(--purple)' : 'var(--blue)'}` : '1px solid var(--border2)',
+    background:  active ? (purple ? 'var(--purple-lt, #f3e8ff)' : 'var(--blue-lt)') : 'var(--surface)',
+    color:       active ? (purple ? 'var(--purple)' : 'var(--blue)') : 'var(--ink3)',
+  });
+
+  const handleAdd = () => {
+    if (!selectedEmp) return;
+    const ids = allCompanies ? [] : [...selectedCompanies];
+    onAdd(selectedEmp, ids);
+    setSelectedEmp(null);
+    setSelectedCompanies(new Set());
+    setAllCompanies(false);
+    setSearch('');
+  };
+
+  const canAdd = selectedEmp && (allCompanies || selectedCompanies.size > 0);
+
+  return (
+    <div style={{ marginBottom: 12, padding: 14, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
+
+      {/* Employee search + select */}
+      <div className="fg" style={{ marginBottom: 10 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 4, display: 'block' }}>Employee</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', marginBottom: 6 }}>
+          <span style={{ color: 'var(--ink4)', fontSize: 14 }}>⌕</span>
+          <input type="text" placeholder="Search employees…" value={search} onChange={e => setSearch(e.target.value)} autoFocus
+            style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: 'var(--ink)', width: '100%', fontFamily: 'var(--font)' }} />
+        </div>
+        <div style={{ maxHeight: 160, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {notMembers.slice(0, 20).map((e: any) => {
+            const eName = `${e.first_name} ${e.last_name}`;
+            const isSelected = selectedEmp === e.id;
+            return (
+              <div key={e.id} onClick={() => setSelectedEmp(isSelected ? null : e.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 'var(--r)', cursor: 'pointer', background: isSelected ? 'var(--blue-lt)' : 'transparent', border: isSelected ? '1px solid var(--blue-md)' : '1px solid transparent' }}>
+                <Avatar name={eName} size={24} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: isSelected ? 'var(--blue)' : 'var(--ink)' }}>{eName}</div>
+                  <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{e.employee_code}</div>
+                </div>
+                {isSelected && <span style={{ fontSize: 11, color: 'var(--blue)' }}>✓</span>}
+              </div>
+            );
+          })}
+          {notMembers.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink4)', textAlign: 'center', padding: '10px 0' }}>No matching employees</div>}
+        </div>
+      </div>
+
+      {/* Company scope chips */}
+      <div className="fg" style={{ marginBottom: 12 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 6, display: 'block' }}>Company Scope</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {assignedCompanies.map(co => (
+            <span key={co.id} onClick={() => toggleChip(co.id)}
+              style={chipStyle(!allCompanies && selectedCompanies.has(co.id))}>
+              {co.name}
+            </span>
+          ))}
+          <span onClick={toggleAll} style={chipStyle(allCompanies, true)}>
+            🌐 All companies (incl. future)
+          </span>
+        </div>
+      </div>
+
+      <button className="btn btn-pri btn-sm" onClick={handleAdd} disabled={!canAdd}
+        style={{ opacity: canAdd ? 1 : 0.5 }}>
+        ✓ Add to Group
+      </button>
+    </div>
+  );
+}
+
+// ─── MemberCompanyBadges — shows which companies a member is assigned to ──────
+
+function MemberCompanyBadges({ memberId, assignedCompanies }: {
+  memberId:          number;
+  assignedCompanies: { id: number; name: string; shortName: string }[];
+}) {
+  // m.companies comes from the enriched member data from /members-with-overrides
+  // For now show all companies as placeholder — replace with m.companies when API returns it
+  if (!assignedCompanies.length) return null;
+
+  const isAll = false; // replace with: m.company_ids?.length === 0 (meaning "all")
+
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 220 }}>
+      {isAll ? (
+        <span style={{ background: 'var(--purple-lt, #f3e8ff)', border: '1px solid var(--purple-bd, #e9d5ff)', color: 'var(--purple)', borderRadius: 99, padding: '2px 9px', fontSize: 10, fontWeight: 700 }}>
+          🌐 All companies
+        </span>
+      ) : assignedCompanies.map(co => (
+        <span key={co.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 99, padding: '2px 9px', fontSize: 10, fontWeight: 600, color: 'var(--ink3)' }}>
+          {co.shortName}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ─── NEW UI: Right detail panel for selected group ────────────────────────────
+
 
 function GroupDetail({
   group, members, onEdit, onFieldPerms, onDelete,
   addPersonOpen, setAddPersonOpen,
-  onAddMember, onRemoveMember, employees,
+  onAddMember, onRemoveMember, employees, assignedCompanies,
   overrides, onToggleOverrides, onEditOverride, onDeleteOverride,
 }: {
   group:           PermGroup;
@@ -258,24 +388,15 @@ function GroupDetail({
   onDelete:        () => void;
   addPersonOpen:   boolean;
   setAddPersonOpen:(v: boolean) => void;
-  onAddMember:     (empId: number) => void;
+  onAddMember:     (empId: number, companyIds: number[]) => void;
   onRemoveMember:  (empId: number) => void;
   employees:       any[];
+  assignedCompanies: { id: number; name: string; shortName: string }[];
   overrides:       Record<string, boolean>;
   onToggleOverrides:(memberId: number) => void;
   onEditOverride:  (memberId: number) => void;
   onDeleteOverride:(memberId: number) => void;
 }) {
-  console.log("group", group)
-  console.log("members", members)
-  console.log("onedit", onEdit)
-  console.log("onfiledper", onFieldPerms)
-  console.log("ondelete", onDelete)
-  console.log("addpersopn", addPersonOpen)
-  console.log("addmember", onAddMember)
-  console.log("remove meber", onRemoveMember)
-  console.log("emp", employees)
-  console.log("overrides", overrides)
   const slugs    = group.permissions?.map(p => p.slug) || [];
   const modPerms = slugsToModulePerms(slugs);
   const [search, setSearch] = useState('');
@@ -283,7 +404,7 @@ function GroupDetail({
   const permSummary = useMemo(() =>
     PERMS.map(p => ({ p, count: countPerm(modPerms, p) })).filter(x => x.count > 0),
     [slugs.join(',')]
-  ); 
+  );
 
   const notMembers = useMemo(() => {
     const memberIds = new Set(members.map((m: any) => m.id));
@@ -335,38 +456,15 @@ function GroupDetail({
           </button>
         </div>
 
-        {/* Add person picker */}
+        {/* Add person picker — with company multi-select chips */}
         {addPersonOpen && (
-          <div style={{ marginBottom: 12, padding: 12, background: 'var(--surface2)', borderRadius: 'var(--r)', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px' }}>
-              <span style={{ color: 'var(--ink4)', fontSize: 14 }}>⌕</span>
-              <input
-                type="text" placeholder="Search employees…" value={search}
-                onChange={e => setSearch(e.target.value)} autoFocus
-                style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: 'var(--ink)', width: '100%', fontFamily: 'var(--font)' }}
-              />
-            </div>
-            <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {notMembers.slice(0, 20).map((e: any) => {
-                const name = `${e.first_name} ${e.last_name}`;
-                return (
-                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
-                    <Avatar name={name} size={24} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{name}</div>
-                      <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{e.employee_code}</div>
-                    </div>
-                    <button className="btn btn-sec btn-sm" style={{ fontSize: 11 }} onClick={() => onAddMember(e.id)}>
-                      + Add
-                    </button>
-                  </div>
-                );
-              })}
-              {notMembers.length === 0 && (
-                <div style={{ fontSize: 12, color: 'var(--ink4)', textAlign: 'center', padding: '10px 0' }}>No matching employees</div>
-              )}
-            </div>
-          </div>
+          <AddPersonForm
+            notMembers={notMembers}
+            search={search}
+            setSearch={setSearch}
+            assignedCompanies={assignedCompanies}
+            onAdd={onAddMember}
+          />
         )}
 
         {/* Member rows */}
@@ -383,6 +481,8 @@ function GroupDetail({
                     <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
                     <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{m.designation || m.employee_code}</div>
                   </div>
+                  {/* Company scope badges */}
+                  <MemberCompanyBadges memberId={memberId} assignedCompanies={assignedCompanies} />
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => onToggleOverrides(memberId)}
@@ -968,6 +1068,17 @@ export default function RolesPermissionsPage() {
   const dispatch  = useAppDispatch();
   const { canView, canEdit, canCreate, canDelete } = usePermission();
   const { companyId } = useCompanySelector();
+  const managedCompanies = useAppSelector(selectManagedCompanies);
+
+  // Build assignedCompanies with shortNames for chips and badges
+  const assignedCompanies = useMemo(() =>
+    managedCompanies.map((co: any) => ({
+      id:        co.id,
+      name:      co.name,
+      shortName: co.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 4),
+    })),
+    [managedCompanies],
+  );
   const qc = useQueryClient();
 
   const { data: groups = [], isLoading } = useGroups();
@@ -1044,7 +1155,8 @@ export default function RolesPermissionsPage() {
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: ({ groupId, empId }: { groupId: number; empId: number }) => pgApi.addMember(groupId, empId),
+    mutationFn: ({ groupId, empId, companyIds }: { groupId: number; empId: number; companyIds: number[] }) =>
+      pgApi.addMember(groupId, empId, companyIds.length > 0 ? companyIds : undefined),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['rp', 'group-members'] }); showToast('✓ Member added'); setAddPersonOpen(false); },
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
@@ -1171,9 +1283,10 @@ export default function RolesPermissionsPage() {
                   onDelete={() => setDeleteTarget(selectedGroup)}
                   addPersonOpen={addPersonOpen}
                   setAddPersonOpen={setAddPersonOpen}
-                  onAddMember={empId => addMemberMutation.mutate({ groupId: selectedGroup.id, empId })}
+                  onAddMember={(empId, companyIds) => addMemberMutation.mutate({ groupId: selectedGroup.id, empId, companyIds })}
                   onRemoveMember={empId => removeMemberMutation.mutate({ groupId: selectedGroup.id, empId })}
                   employees={employees}
+                  assignedCompanies={assignedCompanies}
                   overrides={memberOverrides}
                   onToggleOverrides={handleToggleOverrides}
                   onEditOverride={handleEditOverride}
