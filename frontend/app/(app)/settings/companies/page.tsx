@@ -58,23 +58,6 @@ function StatusBadge({ c }: { c: Company }) {
   return <span className="badge-green">Active</span>;
 }
 
-function PlanBadge({ plan }: { plan: string }) {
-  const styles: Record<string, React.CSSProperties> = {
-    starter: { background: 'var(--surface2)', color: 'var(--ink4)' },
-    growth: { background: 'var(--blue-lt)', color: 'var(--blue)' },
-    enterprise: { background: 'var(--purple-lt)', color: 'var(--purple)' },
-  };
-  const s = styles[plan] || styles.starter;
-  return (
-    <span style={{
-      ...s, fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-      textTransform: 'uppercase', letterSpacing: '.05em', border: '1px solid transparent', whiteSpace: 'nowrap'
-    }}>
-      {plan}
-    </span>
-  );
-}
-
 function Av({ name, size = 32 }: { name: string; size?: number }) {
   const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   return (
@@ -104,85 +87,67 @@ function StatCard({ label, value, sub, color = 'var(--ink)' }: { label: string; 
 }
 
 // ─── Create Company Modal ─────────────────────────────────────────────────────
-// Flow: Step 1 = Company Details | Step 2 = Select Employee + Role (optional)
-// POST /companies body: { name, city, state, country, industry, email,
-//                         subscription_plan, max_employees, employee_id?, role_id? }
-
-interface CompanyRole {
-  id:   number;
-  name: string;
-  slug: string;
-}
 
 function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const [step, setStep]               = useState<1 | 2>(1);
-  const [empSearch, setEmpSearch]     = useState('');
-  const [selectedEmpId, setSelectedEmpId]   = useState<number | null>(null);
-  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [search, setSearch] = useState('');
+  const [selectedMgrs, setSelectedMgrs] = useState<number[]>([]);
 
   const [f, setF] = useState({
-    name:              '',
-    city:              '',
-    state:             '',
-    country:           'India',
-    industry:          '',
-    email:             '',
-    subscription_plan: 'starter',
-    max_employees:     '100',
+    name: '',
+    city: '',
+    state: '',
+    country: 'India',
+    industry: '',
+    email: '',
+    phone: '',
+    timezone: 'Asia/Kolkata',
+    currency: 'INR',
+    // First admin employee
+    admin_first_name: '',
+    admin_last_name: '',
+    admin_email: '',
+    admin_phone: '',
   });
   const F = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF(p => ({ ...p, [k]: e.target.value }));
 
-  // Reset all state when modal opens
+  // Reset on open
   useEffect(() => {
-    if (open) {
-      setStep(1); setEmpSearch('');
-      setSelectedEmpId(null); setSelectedRoleId(null);
-      setF({ name: '', city: '', state: '', country: 'India', industry: '', email: '', subscription_plan: 'starter', max_employees: '100' });
-    }
+    if (open) { setStep(1); setSearch(''); setSelectedMgrs([]); setF(p => ({ ...p, name: '', admin_first_name: '', admin_last_name: '', admin_email: '', admin_phone: '' })); }
   }, [open]);
 
-  // Load all active employees (any employee can be assigned to a company)
-  const { data: allEmployees = [] } = useQuery({
-    queryKey: ['all-active-employees'],
-    queryFn:  () => apiClient.get<any, any>('/employees?limit=500&status=Active'),
-    enabled:  open && step === 2,
-    select:   (r: any) => (r.data?.rows ?? r.data ?? []) as any[],
+  // Load eligible managers
+  const { data: eligible = [] } = useQuery({
+    queryKey: ['eligible-managers-global'],
+    queryFn: () => apiClient.get<any, any>('/companies/1/eligible-managers'),
+    enabled: open && step === 2,
+    select: (r: any) => r.data as EligibleEmployee[],
   });
 
-  // Load system role templates (seeded identically for every company)
-  const { data: systemRoles = [] } = useQuery({
-    queryKey: ['system-role-templates'],
-    queryFn:  () => apiClient.get<any, any>('/roles/templates'),
-    enabled:  open && step === 2,
-    select:   (r: any) => (r.data ?? []) as CompanyRole[],
+  // Actually fetch all eligible across platform for creation
+  const { data: allEligible = [] } = useQuery({
+    queryKey: ['all-eligible-managers'],
+    queryFn: async () => {
+      // For creation, use a platform-wide endpoint
+      const r = await apiClient.get<any, any>('/companies/eligible-managers');
+      return r.data as EligibleEmployee[];
+    },
+    enabled: open && step === 2,
   });
 
-  const filteredEmps = useMemo(() =>
-    allEmployees.filter((e: any) => {
-      const name = e.full_name ?? `${e.first_name ?? ''} ${e.last_name ?? ''}`.trim();
-      return !empSearch ||
-        name.toLowerCase().includes(empSearch.toLowerCase()) ||
-        (e.email ?? '').toLowerCase().includes(empSearch.toLowerCase()) ||
-        (e.employee_code ?? '').toLowerCase().includes(empSearch.toLowerCase());
-    }), [allEmployees, empSearch]);
-
-  const selectedEmp  = allEmployees.find((e: any) => e.id === selectedEmpId) as any;
-  const selectedRole = systemRoles.find((r: any) => r.id === selectedRoleId);
+  const filtered = useMemo(() =>
+    allEligible.filter(e =>
+      !search ||
+      e.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      e.email.toLowerCase().includes(search.toLowerCase()) ||
+      e.employee_code.toLowerCase().includes(search.toLowerCase())
+    ), [allEligible, search]);
 
   const mutation = useMutation({
     mutationFn: () => apiClient.post<any, any>('/companies', {
-      name:              f.name,
-      city:              f.city      || undefined,
-      state:             f.state     || undefined,
-      country:           f.country,
-      industry:          f.industry  || undefined,
-      email:             f.email     || undefined,
-      subscription_plan: f.subscription_plan,
-      max_employees:     Number(f.max_employees),
-      employee_id:       selectedEmpId  ?? undefined,
-      role_id:           selectedRoleId ?? undefined,
+      ...f,
     }),
     onSuccess: (r: any) => {
       qc.invalidateQueries({ queryKey: ['companies'] });
@@ -190,7 +155,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
       showToast(`✓ ${r.data.name} created`);
       onClose();
     },
-    onError: (e: any) => showToast((e as any)?.message || 'Failed to create company'),
+    onError: (e: any) => showToast(e?.message || 'Failed to create company'),
   });
 
   const step1Valid = f.name.trim().length > 0;
@@ -202,7 +167,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           <>
             <button className="btn btn-sec" onClick={onClose}>Cancel</button>
             <button className="btn btn-pri" onClick={() => setStep(2)} disabled={!step1Valid}>
-              Next: Assign Employee & Role →
+              Next: Assign Managers →
             </button>
           </>
         ) : (
@@ -217,7 +182,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
 
       {/* Step indicator */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, marginTop: -4 }}>
-        {['Company Details', 'Assign Employee & Role'].map((label, i) => (
+        {['Company Details', 'Assign Managers'].map((label, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
@@ -229,18 +194,24 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
               }}>
                 {i + 1 < step ? '✓' : i + 1}
               </div>
-              <span style={{ fontSize: 12, fontWeight: i + 1 === step ? 600 : 400, color: i + 1 === step ? 'var(--blue)' : i + 1 < step ? 'var(--green)' : 'var(--ink4)' }}>
+              <span style={{
+                fontSize: 12, fontWeight: i + 1 === step ? 600 : 400,
+                color: i + 1 === step ? 'var(--blue)' : i + 1 < step ? 'var(--green)' : 'var(--ink4)'
+              }}>
                 {label}
               </span>
             </div>
-            {i < 1 && <div style={{ flex: 1, height: 2, background: step > 1 ? 'var(--green)' : 'var(--border)', margin: '0 12px', borderRadius: 99 }} />}
+            {i < 1 && (
+              <div style={{ flex: 1, height: 2, background: step > 1 ? 'var(--green)' : 'var(--border)', margin: '0 12px', borderRadius: 99 }} />
+            )}
           </div>
         ))}
       </div>
 
-      {/* ── Step 1: Company Details ─────────────────────────── */}
+      {/* ── Step 1: Company Details ───────────────────────── */}
       {step === 1 && (
         <>
+          {/* Company info */}
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink4)', marginBottom: 10 }}>Company Information</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
             <div className="fg" style={{ gridColumn: '1/-1' }}>
@@ -252,57 +223,69 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <div className="fg"><label>Industry</label>
               <select value={f.industry} onChange={F('industry')}>
                 <option value="">— Select —</option>
-                {['Technology','Manufacturing','Finance','Healthcare','Education','Retail','Logistics','Media','Real Estate','Other'].map(i => <option key={i} value={i}>{i}</option>)}
+                {['Technology', 'Manufacturing', 'Finance', 'Healthcare', 'Education', 'Retail', 'Logistics', 'Media', 'Real Estate', 'Other'].map(i => <option key={i} value={i}>{i}</option>)}
               </select>
             </div>
             <div className="fg"><label>Company Email</label><input type="email" value={f.email} onChange={F('email')} /></div>
-            <div className="fg"><label>Max Employees</label><input type="number" value={f.max_employees} onChange={F('max_employees')} min="1" /></div>
+
+          </div>
+
+          {/* First admin employee */}
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink4)', margin: '16px 0 10px' }}>First Admin Employee</div>
+          <div style={{ background: 'var(--blue-lt)', border: '1px solid var(--blue-md)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 11, color: 'var(--blue)', marginBottom: 12 }}>
+            ℹ This creates the first employee who manages this company. They can log in via OTP. Leave email blank to skip.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+            <div className="fg"><label>First Name</label><input value={f.admin_first_name} onChange={F('admin_first_name')} placeholder="Admin" /></div>
+            <div className="fg"><label>Last Name</label><input value={f.admin_last_name} onChange={F('admin_last_name')} placeholder="User" /></div>
+            <div className="fg"><label>Email</label><input type="email" value={f.admin_email} onChange={F('admin_email')} placeholder="admin@company.com" /></div>
+            <div className="fg"><label>Phone</label><input value={f.admin_phone} onChange={F('admin_phone')} placeholder="+91 9999999999" /></div>
           </div>
         </>
       )}
 
-      {/* ── Step 2: Assign Employee & Role (optional) ──────── */}
+      {/* ── Step 2: Assign Managers ───────────────────────── */}
       {step === 2 && (
         <>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink4)', marginBottom: 8 }}>
-            Assign an employee to <strong>{f.name}</strong>
+            Select employees to manage <strong>{f.name}</strong>
           </div>
           <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 11, color: 'var(--ink3)', marginBottom: 12 }}>
-            You (the creator) are automatically assigned as <strong>Super Admin</strong>. Optionally select an employee and their permission role. You can also do this later.
+            You (the creator) are automatically assigned as <strong>Owner</strong>. Select additional managers below. Only employees with <code>companies:manage</code> permission or super admins are shown.
           </div>
 
-          {/* Employee search */}
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 6 }}>Employee</div>
+          {/* Search */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '7px 10px', marginBottom: 8 }}>
             <span style={{ color: 'var(--ink4)' }}>⌕</span>
-            <input value={empSearch} onChange={e => setEmpSearch(e.target.value)} placeholder="Search by name, email, code…"
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, email, code…"
               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, fontFamily: 'var(--font)', flex: 1, color: 'var(--ink)' }} />
           </div>
 
-          {/* Employee list */}
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', maxHeight: 200, overflowY: 'auto', marginBottom: 14 }}>
-            {/* Skip option */}
-            <div onClick={() => { setSelectedEmpId(null); setSelectedRoleId(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: selectedEmpId === null ? 'var(--surface2)' : 'transparent' }}>
-              <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${selectedEmpId === null ? 'var(--blue)' : 'var(--border2)'}`, background: selectedEmpId === null ? 'var(--blue)' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {selectedEmpId === null && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+          {/* List */}
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', maxHeight: 280, overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>
+                No eligible employees found.<br />Employees need <code>companies:manage</code> permission or super admin status.
               </div>
-              <span style={{ fontSize: 12, color: 'var(--ink4)', fontStyle: 'italic' }}>Skip — assign later</span>
-            </div>
-            {filteredEmps.length === 0 ? (
-              <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>No employees found.</div>
-            ) : filteredEmps.slice(0, 50).map((emp: any) => {
-              const name = emp.full_name ?? `${emp.first_name ?? ''} ${emp.last_name ?? ''}`.trim();
-              const sel  = selectedEmpId === emp.id;
+            ) : filtered.map(emp => {
+              const checked = selectedMgrs.includes(emp.id);
               return (
-                <div key={emp.id} onClick={() => { setSelectedEmpId(sel ? null : emp.id); setSelectedRoleId(null); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: sel ? 'var(--blue-lt)' : 'transparent' }}>
-                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${sel ? 'var(--blue)' : 'var(--border2)'}`, background: sel ? 'var(--blue)' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {sel && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
-                  </div>
-                  <Av name={name} size={28} />
+                <div key={emp.id} onClick={() => setSelectedMgrs(p => checked ? p.filter(x => x !== emp.id) : [...p, emp.id])}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer',
+                    borderBottom: '1px solid var(--border)',
+                    background: checked ? 'var(--blue-lt)' : 'transparent'
+                  }}>
+                  <input type="checkbox" readOnly checked={checked}
+                    style={{ width: 14, height: 14, accentColor: 'var(--blue)', cursor: 'pointer', flexShrink: 0 }} />
+                  <Av name={emp.full_name} size={32} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--blue)' : 'var(--ink)' }}>{name}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {emp.full_name}
+                      {emp.is_super_admin && (
+                        <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--purple-lt)', color: 'var(--purple)', border: '1px solid var(--purple-bd)', borderRadius: 3, padding: '1px 5px' }}>⚡ SA</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{emp.employee_code} · {emp.email}</div>
                   </div>
                 </div>
@@ -310,27 +293,9 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             })}
           </div>
 
-          {/* Role select — only when employee is selected */}
-          {selectedEmpId && (
-            <div className="fg">
-              <label style={{ fontWeight: 600, fontSize: 12 }}>
-                Permission Role for {selectedEmp ? (selectedEmp.full_name ?? `${selectedEmp.first_name} ${selectedEmp.last_name}`) : ''} *
-              </label>
-              <select value={selectedRoleId ?? ''} onChange={e => setSelectedRoleId(e.target.value ? Number(e.target.value) : null)} style={{ marginTop: 6 }}>
-                <option value="">Select role…</option>
-                {systemRoles
-                  .filter((r: any) => r.slug !== 'super_admin')
-                  .map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)
-                }
-              </select>
-              <p style={{ fontSize: 10, color: 'var(--ink4)', marginTop: 4 }}>Role determines which modules this employee can access in this company.</p>
-            </div>
-          )}
-
-          {/* Confirmation summary */}
-          {selectedEmpId && selectedRoleId && (
-            <div style={{ marginTop: 10, padding: '8px 12px', background: 'var(--green-lt,#f0fdf4)', border: '1px solid var(--green-bd,#bbf7d0)', borderRadius: 'var(--r)', fontSize: 11, color: 'var(--green)' }}>
-              ✓ <strong>{selectedEmp ? (selectedEmp.full_name ?? `${selectedEmp.first_name} ${selectedEmp.last_name}`) : ''}</strong> → <strong>{selectedRole?.name}</strong>
+          {selectedMgrs.length > 0 && (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--green)' }}>
+              ✓ {selectedMgrs.length} manager{selectedMgrs.length !== 1 ? 's' : ''} selected (+ you as owner = {selectedMgrs.length + 1} total)
             </div>
           )}
         </>
@@ -338,6 +303,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     </Modal>
   );
 }
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function CompaniesPage() {
@@ -350,7 +316,6 @@ export default function CompaniesPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [planFilter, setPlanFilter] = useState('');
 
   const { data: stats } = useQuery({
     queryKey: ['company-stats'],
@@ -360,8 +325,8 @@ export default function CompaniesPage() {
   });
 
   const { data: companies = [], isLoading } = useQuery({
-    queryKey: ['companies', search, planFilter],
-    queryFn: () => apiClient.get<any, any>(`/companies?${new URLSearchParams({ ...(search ? { search } : {}), ...(planFilter ? { plan: planFilter } : {}) })}`),
+    queryKey: ['companies', search],
+    queryFn: () => apiClient.get<any, any>(`/companies?${new URLSearchParams(search ? { search } : {})}`),
     select: (r: any) => r.data?.rows ?? r.data ?? [],
   });
 
@@ -408,13 +373,7 @@ export default function CompaniesPage() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search companies…"
               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, fontFamily: 'var(--font)', flex: 1, color: 'var(--ink)' }} />
           </div>
-          <select value={planFilter} onChange={e => setPlanFilter(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'var(--font)', background: 'var(--surface)', color: 'var(--ink)' }}>
-            <option value="">All plans</option>
-            <option value="starter">Starter</option>
-            <option value="growth">Growth</option>
-            <option value="enterprise">Enterprise</option>
-          </select>
+
         </div>
 
         {isLoading ? (
@@ -464,11 +423,14 @@ export default function CompaniesPage() {
                       </div>
                     </td>
                     <td style={{ padding: '12px 14px' }}>
+                      <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+                        {co.employee_count} employees
+                      </div>
                       <div style={{ marginTop: 3, height: 4, background: 'var(--border)', borderRadius: 99, width: 80, overflow: 'hidden' }}>
-                        {/* <div style={{
-                          height: '100%', borderRadius: 99, width: `${Math.min(100, co.employee_count / co.max_employees * 100)}%`,
-                          background: co.employee_count > co.max_employees * 0.9 ? 'var(--amber)' : 'var(--blue)'
-                        }} /> */}
+                        <div style={{
+                          height: '100%', borderRadius: 99, width: '100%',
+                          background: 'var(--blue)'
+                        }} />
                       </div>
                     </td>
                     <td style={{ padding: '12px 14px' }}>

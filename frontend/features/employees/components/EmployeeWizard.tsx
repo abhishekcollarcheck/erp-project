@@ -366,13 +366,13 @@ methods.reset({
               const isActive = idx === currentIdx;
               const isDone   = completedSet.has(idx);
               const hasErr   = errorSet.has(idx);
-              const canGo    = idx === 0 || savedId !== null || isDone;
+              // const canGo    = idx === 0 || savedId !== null || isDone;
               return (
-                <div key={s.key} role="button" tabIndex={canGo ? 0 : -1}
+                <div key={s.key} role="button" tabIndex={0}
                   aria-current={isActive ? 'step' : undefined}
-                  onClick={() => canGo && setCurrentIdx(idx)}
-                  onKeyDown={e => e.key === 'Enter' && canGo && setCurrentIdx(idx)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', cursor: canGo ? 'pointer' : 'default', background: isActive ? 'var(--blue-lt)' : 'transparent', borderLeft: `3px solid ${isActive ? 'var(--blue)' : 'transparent'}`, opacity: canGo ? 1 : 0.45, transition: 'all .15s', userSelect: 'none' }}>
+                  onClick={() => setCurrentIdx(idx)}
+                  onKeyDown={e => e.key === 'Enter' && setCurrentIdx(idx)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px', cursor: 'pointer', background: isActive ? 'var(--blue-lt)' : 'transparent', borderLeft: `3px solid ${isActive ? 'var(--blue)' : 'transparent'}`, opacity: 1, transition: 'all .15s', userSelect: 'none' }}>
                   <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, background: hasErr ? 'var(--red-lt)' : isDone ? 'var(--green-lt)' : isActive ? 'var(--blue-lt)' : 'var(--surface2)', color: hasErr ? 'var(--red)' : isDone ? 'var(--green)' : isActive ? 'var(--blue)' : 'var(--ink4)', border: `1.5px solid ${hasErr ? 'var(--red-bd)' : isDone ? 'var(--green-bd)' : isActive ? 'var(--blue-md)' : 'var(--border)'}` }}>
                     {hasErr ? '✕' : isDone ? '✓' : idx + 1}
                   </div>

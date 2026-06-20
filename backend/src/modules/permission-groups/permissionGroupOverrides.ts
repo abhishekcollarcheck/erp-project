@@ -1,21 +1,3 @@
-/**
- * permissionGroupOverrides.ts
- *
- * Employee-level permission overrides — extension layer only.
- * Zero changes to existing routes, models, or permission checks.
- *
- * Architecture: Employee IS the identity.
- *   - No users table exists.
- *   - JWT: { employeeId, companyId, roleId, ... }
- *   - req.user.employeeId is the actor.
- *   - UserGroup.employee_id is the member FK (confirmed from auth.service.ts).
- *
- * Adds 3 new routes to permissionGroupRouter:
- *   GET    /:id/members/:employeeId/overrides
- *   PUT    /:id/members/:employeeId/overrides
- *   DELETE /:id/members/:employeeId/overrides/:overrideId
- */
-
 import { Router, Request, Response, NextFunction } from 'express';
 import { body, param } from 'express-validator';
 import { Op } from 'sequelize';
@@ -130,7 +112,6 @@ class EmployeeOverrideService {
       );
     }
 
-    // Invalidate this employee's permission cache (keyed by employeeId)
     clearPermissionCache(employeeId);
 
     await logActivity({
@@ -142,7 +123,6 @@ class EmployeeOverrideService {
       newValues: { groupId, overrideCount: overrides.length },
     });
 
-    // Compute FULL effective permissions (role + groups + overrides) and push to employee's portal
     try {
       const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, companyId);
       const freshToken = generateAccessToken({ employeeId, companyId, permissions: fullPerms, isSuperAdmin } as any);

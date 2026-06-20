@@ -28,6 +28,7 @@ export function useEmployees(params?: object) {
     queryFn: () => employeeService.getAll(params),
     // staleTime: 30_000,
     select: (res) => {
+      console.log({rows: res.data,meta: res.meta,data: res.data,})
      return {rows: res.data,meta: res.meta,data: res.data,}
   } ,
   });

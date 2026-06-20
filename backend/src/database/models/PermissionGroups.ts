@@ -161,10 +161,14 @@ UserGroup.init({
   tableName: 'user_groups',
   modelName: 'UserGroup',
   timestamps: false,
-  indexes: [
-    { unique: true, fields: ['employee_id', 'group_id'] },
-    { fields: ['company_id', 'group_id'] },
-  ],
+indexes: [
+  {
+    unique: true,
+    name: 'uq_ug_emp_group_company',
+    fields: ['employee_id', 'group_id', 'company_id'],
+  },
+  { fields: ['company_id', 'group_id'] },
+],
 });
 
 export class CompanyModule extends Model {

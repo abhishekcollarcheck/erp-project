@@ -149,10 +149,9 @@ export function computeEsicContributions(grossSalary: number) {
 
 export async function generateEmployeeCode(companyId: number): Promise<string> {
   const last = await Employee.findOne({
-    where: { company_id: companyId },
-    order: [['id', 'DESC']],
-    attributes: ['employee_code'],
-    paranoid: false,
+  where: { company_id: companyId },
+  order: [['employee_code', 'DESC']],
+  attributes: ['employee_code'],
   });
   if (!last) return 'EMP-0001';
   const match = last.employee_code.match(/(\d+)$/);

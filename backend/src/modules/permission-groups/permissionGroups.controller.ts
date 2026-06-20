@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { body, param } from 'express-validator';
 import { Op } from 'sequelize';
-import { PermissionGroup, GroupPermission, UserGroup, SYSTEM_GROUPS } from '../../database/models/PermissionGroups';
+import { PermissionGroup, GroupPermission, UserGroup, CompanyModule, SYSTEM_GROUPS } from '../../database/models/PermissionGroups';
 import { Permission } from '../../database/models/RoleModels';
 import { User } from '../../database/models/User';
 import { Employee } from '../../database/models/Employee';
@@ -15,8 +15,10 @@ import { broadcastAfter } from '../../middleware/permissionBroadcast.middleware'
 import {EmployeePermission} from "../../database/models/EmployeePermission"
 import {employeeOverrideRouter,patchGroupMembersWithOverrideCounts,} from './permissionGroupOverrides';
 import { EmployeePermissionOverride } from '../../database/models/EmployeePermissionOverride';
-import {refreshEmployeePermission} from "../../utils/refreshEmployeePermission"
-import { CompanyModule } from '../../database/models/PermissionGroups';
+import { CompanyManager } from '../../database/models';
+import { loadPermissions } from '../auth/auth.service';
+import { generateAccessToken } from '../../utils/jwt';
+import { getIO } from '../../socket/socket';
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -190,30 +192,97 @@ async getEmployeePermissions(
     if (!userGroups.length) return [];
 
     const employeeIds = userGroups.map(ug => ug.employee_id);
+
+    // Bug 4 fix: do NOT filter by company_id here.
+    // Cross-company employees have a different home company_id but are valid members.
+    // We find them by id only.
     return Employee.findAll({
-      where: { id: employeeIds, company_id: companyId },
-      attributes: ['id', 'first_name', 'last_name', 'employee_code'],
+      where:      { id: employeeIds },
+      attributes: ['id', 'first_name', 'last_name', 'employee_code', 'company_id'],
     });
   }
-  async addMember(groupId: number, companyId: number, employeeId: number, addedBy?: number) {
-    await this.getById(groupId, companyId);
-    const emp = await Employee.findOne({ where: { id: employeeId, company_id: companyId } });
-    if (!emp) throw new AppError('User not found', 404);
+  async addMember(
+    groupId:    number,
+    companyId:  number,   // the GROUP's company — NOT the admin's active company
+    employeeId: number,
+    addedBy?:   number,
+    companyIds?: number[], // optional multi-company list
+  ) {
 
-    const [, created] = await UserGroup.findOrCreate({
-      where: { group_id: groupId, employee_id: employeeId },
-      defaults: { group_id: groupId, employee_id: employeeId, company_id: companyId, assigned_by: addedBy || null },
-    });
-    if (!created) throw new AppError('User is already in this group', 409);
+    // Get the group to confirm it exists and to resolve its own company_id
+    const group = await this.getById(groupId, companyId);
+
+    // Bug 3 fix: search employee by id only — no company_id filter
+    // Cross-company employees don't belong to the admin's company
+    const emp = await Employee.findOne({ where: { id: employeeId } });
+    if (!emp) throw new AppError('Employee not found', 404);
+
+    // Bug 5 fix: support multi-company assignment
+    // companyIds: list of companies to assign this employee to this group for
+    // If empty/absent, default to the group's own company_id
+    const targetCompanies = companyIds && companyIds.length > 0
+      ? companyIds
+      : [companyId];
+
+    const added: number[] = [];
+
+    for (const cid of targetCompanies) {
+      console.log('Processing company', cid);
+      // Bug 2 fix: UserGroup.company_id = the TARGET company (cid), not admin's company
+      const [, created] = await UserGroup.findOrCreate({
+        where:    { group_id: groupId, employee_id: employeeId, company_id: cid },
+        defaults: { group_id: groupId, employee_id: employeeId, company_id: cid, assigned_by: addedBy || null },
+      });
+        console.log({
+    cid,
+    created,
+  });
+
+      if (created) {
+        added.push(cid);
+
+        // Bug 1 fix: create CompanyManager row so employee can see this company
+        // in /companies/mine and switch to it in the portal
+        await CompanyManager.findOrCreate({
+          where:    { company_id: cid, employee_id: employeeId },
+          defaults: { company_id: cid, employee_id: employeeId, is_primary: false, assigned_by: addedBy || null },
+        } as any);
+      }
+    }
+
+    if (added.length === 0) {
+      throw new AppError('Employee is already in this group for all selected companies', 409);
+    }
 
     clearPermissionCache(employeeId);
-    await refreshEmployeePermission(employeeId, companyId)
-    await logActivity({ companyId, employeeId: addedBy, action: 'PERMISSION_GROUP_MEMBER_ADDED', module: 'settings', entityId: groupId, newValues: { employeeId } });
-    return { employeeId, groupId, action: 'member_added' };
+    await logActivity({
+      companyId,
+      employeeId: addedBy,
+      action:     'PERMISSION_GROUP_MEMBER_ADDED',
+      module:     'settings',
+      entityId:   groupId,
+      newValues:  { employeeId, companiesAdded: added },
+    });
+
+    // Emit real-time permission update to the affected employee
+    try {
+      const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, added[0]);
+      const freshToken = generateAccessToken({ employeeId, companyId: added[0], permissions: fullPerms, isSuperAdmin } as any);
+      getIO()?.to(`employee:${employeeId}`).emit('permissions:updated', {
+        eventType:   'permissions_updated',
+        companyId:   added[0],
+        permissions: fullPerms,
+        accessToken: freshToken,
+        timestamp:   new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('[RBAC] socket emit failed for employee', employeeId, e);
+    }
+
+    return { employeeId, groupId, companiesAdded: added, action: 'member_added' };
   }
 
   async removeMember(groupId: number, companyId: number, employeeId: number, removedBy?: number) {
-    console.log("groupId-rem", groupId)
     const deleted = await UserGroup.destroy({ where: { group_id: groupId, employee_id: employeeId, company_id: companyId } });
     if (!deleted) throw new AppError('User is not in this group', 404);
 
@@ -228,8 +297,16 @@ async getEmployeePermissions(
       where: { employee_id: employeeId, company_id: companyId },
     });
 
+    // Also remove the CompanyManager row for this company if the employee
+    // has no other UserGroup rows for it (i.e. no other group access to this company)
+    const remainingGroups = await UserGroup.findOne({
+      where: { employee_id: employeeId, company_id: companyId },
+    });
+    if (!remainingGroups) {
+      await CompanyManager.destroy({ where: { company_id: companyId, employee_id: employeeId } });
+    }
+
     clearPermissionCache(employeeId);
-    await refreshEmployeePermission(employeeId, companyId)
     await logActivity({ companyId, employeeId: removedBy, action: 'PERMISSION_GROUP_MEMBER_REMOVED', module: 'settings', entityId: groupId, newValues: { employeeId } });
     return { employeeId, groupId, action: 'member_removed' };
   }
@@ -354,7 +431,10 @@ async function deleteGroup(req: Request, res: Response, next: NextFunction): Pro
 async function getGroupPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const group = await svc.getById(+req.params.id, req.user!.companyId);
-    const slugs = ((group as any).permissions ?? []).map((p: any) => p.slug);
+    const cid = req.user!.companyId;
+    const slugs = ((group as any).permissions ?? [])
+      .filter((p: any) => !p.GroupPermission || p.GroupPermission.company_id === cid)
+      .map((p: any) => p.slug);
     sendResponse(res, { data: slugs });
   } catch (e) { next(e); }
 }
@@ -368,7 +448,8 @@ async function getGroupMembers(req: Request, res: Response, next: NextFunction):
 }
 
 async function addGroupMember(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await svc.addMember(+req.params.id, req.user!.companyId, req.body.employee_id, req.user!.employeeId), statusCode: 201 }); } catch (e) { next(e); }
+  // Body: { employee_id: number, company_ids?: number[] }
+  try { sendResponse(res, { data: await svc.addMember(+req.params.id, req.user!.companyId, req.body.employee_id, req.user!.employeeId, req.body.company_ids), statusCode: 201 }); } catch (e) { next(e); }
 }
 
 async function removeGroupMember(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -406,6 +487,7 @@ permissionGroupRouter.delete('/:id/members/:employeeId', [param('id').isInt(), p
 
 permissionGroupRouter.post('/seed', seedGroups);
 
+// GET /permission-groups/company-modules?company_id=N
 permissionGroupRouter.get('/company-modules', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const companyId = +(req.query.company_id || req.user!.companyId);

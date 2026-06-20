@@ -1,31 +1,31 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../store';
-import { setPageTitle }        from '../../../../store/slices/uiSlice';
+import { setPageTitle } from '../../../../store/slices/uiSlice';
 import { updateToken, setPermissions, selectManagedCompanies } from '../../../../store/slices/authSlice';
-import { AppShell }            from '../../../../layouts/AppLayout';
-import { Modal }               from '../../../../components/ui/Modal';
+import { AppShell } from '../../../../layouts/AppLayout';
+import { Modal } from '../../../../components/ui/Modal';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
-import { showToast }           from '../../../../utils/toast';
-import apiClient               from '../../../../services/api/client';
-import type { ApiResponse }    from '../../../../types/api.types';
+import { showToast } from '../../../../utils/toast';
+import apiClient from '../../../../services/api/client';
+import type { ApiResponse } from '../../../../types/api.types';
 import { Eye, SquarePen, Trash2, Download, Pen } from 'lucide-react';
-import { usePermission }       from '../../../../features/auth/hooks/useAuth';
+import { usePermission } from '../../../../features/auth/hooks/useAuth';
 import { PageHeaderWithCompany, useCompanySelector } from '../../../../components/company/CompanySelector';
-import { PermissionGuard }     from '../../../../utils/permissionGuard';
+import { PermissionGuard } from '../../../../utils/permissionGuard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type View = 'groups' | 'edit' | 'field-perms';
 
 interface PermGroup {
-  id:           number;
-  name:         string;
-  slug:         string;
+  id: number;
+  name: string;
+  slug: string;
   description?: string | null;
-  color?:       string | null;
-  is_system:    boolean;
-  is_active:    boolean;
+  color?: string | null;
+  is_system: boolean;
+  is_active: boolean;
   member_count: number;
   permissions?: { id: number; slug: string; module: string; action: string }[];
 }
@@ -48,12 +48,12 @@ const MODULE_SECTIONS = [
   {
     label: 'Modules',
     modules: [
-      { key: 'recruitment', label: 'Recruitment / ATS'  },
-      { key: 'aptitude',    label: 'Aptitude Test'      },
-      { key: 'employees',   label: 'Employee Directory' },
-      { key: 'department',  label: 'Department'         },
-      { key: 'designation', label: 'Designation'        },
-      { key: 'settings',    label: 'Settings & RBAC'    },
+      { key: 'recruitment', label: 'Recruitment / ATS' },
+      { key: 'aptitude', label: 'Aptitude Test' },
+      { key: 'employees', label: 'Employee Directory' },
+      { key: 'department', label: 'Department' },
+      { key: 'designation', label: 'Designation' },
+      { key: 'settings', label: 'Settings & RBAC' },
     ],
   },
 ];
@@ -63,14 +63,14 @@ const MODULE_SECTIONS = [
 const MODULES = MODULE_SECTIONS.flatMap(s => s.modules);
 
 // Only module-level permissions (field-level is separate)
-const PERMS    = ['view', 'create', 'edit', 'delete', 'download'] as const;
+const PERMS = ['view', 'create', 'edit', 'delete', 'download'] as const;
 type Perm = typeof PERMS[number];
 
 const PERM_ICONS: Record<string, React.ReactNode> = {
-  view:     <Eye size={13} />,
-  create:   <Pen size={13} />,
-  edit:     <SquarePen size={13} />,
-  delete:   <Trash2 size={13} />,
+  view: <Eye size={13} />,
+  create: <Pen size={13} />,
+  edit: <SquarePen size={13} />,
+  delete: <Trash2 size={13} />,
   download: <Download size={13} />,
 };
 const PERM_LABELS: Record<string, string> = {
@@ -80,13 +80,13 @@ const PERM_LABELS: Record<string, string> = {
 type ModulePerms = Record<string, Record<string, boolean>>;
 
 const COLOR_OPTS = [
-  { key: 'blue',   css: 'var(--blue)'   },
-  { key: 'green',  css: 'var(--green)'  },
+  { key: 'blue', css: 'var(--blue)' },
+  { key: 'green', css: 'var(--green)' },
   { key: 'purple', css: 'var(--purple)' },
-  { key: 'amber',  css: 'var(--amber)'  },
-  { key: 'red',    css: 'var(--red)'    },
-  { key: 'teal',   css: 'var(--teal)'   },
-  { key: 'pink',   css: 'var(--pink, #c0265e)' },
+  { key: 'amber', css: 'var(--amber)' },
+  { key: 'red', css: 'var(--red)' },
+  { key: 'teal', css: 'var(--teal)' },
+  { key: 'pink', css: 'var(--pink, #c0265e)' },
 ];
 
 function cssForKey(key: string | null | undefined) {
@@ -96,17 +96,17 @@ function cssForKey(key: string | null | undefined) {
 // ─── Existing API layer (unchanged) ───────────────────────────────────────────
 
 const pgApi = {
-  list:        () => apiClient.get<unknown, ApiResponse<PermGroup[]>>('/permission-groups'),
-  create:      (d: any) => apiClient.post<unknown, ApiResponse<PermGroup>>('/permission-groups', d),
-  update:      (id: number, d: any) => apiClient.put<unknown, ApiResponse<PermGroup>>(`/permission-groups/${id}`, d),
-  delete:      (id: number) => apiClient.delete<unknown, ApiResponse<any>>(`/permission-groups/${id}`),
-  getPerms:    (id: number) => apiClient.get<unknown, ApiResponse<string[]>>(`/permission-groups/${id}/permissions`),
-  setPerms:    (id: number, slugs: string[]) => apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${id}/permissions`, { slugs }),
-  getMembers:  (id: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/permission-groups/${id}/members`),
-  addMember:   (id: number, uid: number, companyIds?: number[]) => apiClient.post<unknown, ApiResponse<any>>(`/permission-groups/${id}/members`, { employee_id: uid, company_ids: companyIds }),
-  removeMember:(id: number, uid: number) => apiClient.delete<unknown, ApiResponse<any>>(`/permission-groups/${id}/members/${uid}`),
-  seed:        () => apiClient.post<unknown, ApiResponse<any>>('/permission-groups/seed', {}),
-  employees:   () => apiClient.get<unknown, ApiResponse<any[]>>('/employees?limit=100'),
+  list: () => apiClient.get<unknown, ApiResponse<PermGroup[]>>('/permission-groups'),
+  create: (d: any) => apiClient.post<unknown, ApiResponse<PermGroup>>('/permission-groups', d),
+  update: (id: number, d: any) => apiClient.put<unknown, ApiResponse<PermGroup>>(`/permission-groups/${id}`, d),
+  delete: (id: number) => apiClient.delete<unknown, ApiResponse<any>>(`/permission-groups/${id}`),
+  getPerms: (id: number) => apiClient.get<unknown, ApiResponse<string[]>>(`/permission-groups/${id}/permissions`),
+  setPerms: (id: number, slugs: string[]) => apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${id}/permissions`, { slugs }),
+  getMembers: (id: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/permission-groups/${id}/members`),
+  addMember: (id: number, uid: number, companyIds?: number[]) => apiClient.post<unknown, ApiResponse<any>>(`/permission-groups/${id}/members`, { employee_id: uid, company_ids: companyIds }),
+  removeMember: (id: number, uid: number) => apiClient.delete<unknown, ApiResponse<any>>(`/permission-groups/${id}/members/${uid}`),
+  seed: () => apiClient.post<unknown, ApiResponse<any>>('/permission-groups/seed', {}),
+  employees: () => apiClient.get<unknown, ApiResponse<any[]>>('/employees?limit=100'),
   // Employee-level override — PUT to override endpoint, never touches group permissions
   setOverrides: (groupId: number, employeeId: number, overrides: { module: string; field_name: null; permission: string; granted: boolean }[]) =>
     apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${groupId}/members/${employeeId}/overrides`, { overrides }),
@@ -118,16 +118,16 @@ const pgApi = {
 };
 
 // Existing hooks (unchanged)
-function useGroups()             { return useQuery({ queryKey: ['rp', 'groups'],           queryFn: () => pgApi.list(),          staleTime: 0, select: r => r.data ?? [] }); }
-function useGroupPerms(id: number) { return useQuery({ queryKey: ['rp', 'group-perms', id], queryFn: () => pgApi.getPerms(id),    enabled: id > 0,   select: r => r.data ?? [] }); }
-function useGroupMembers(id: number){ return useQuery({ queryKey: ['rp', 'group-members', id], queryFn: () => pgApi.getMembers(id), enabled: id > 0,   select: r => r.data ?? [] }); }
-function useEmployees()          { return useQuery({ queryKey: ['employees-light'],          queryFn: () => pgApi.employees(),     staleTime: 5 * 60_000, select: r => r.data ?? [] }); }
+function useGroups() { return useQuery({ queryKey: ['rp', 'groups'], queryFn: () => pgApi.list(), staleTime: 0, select: r => r.data ?? [] }); }
+function useGroupPerms(id: number) { return useQuery({ queryKey: ['rp', 'group-perms', id], queryFn: () => pgApi.getPerms(id), enabled: id > 0, select: r => r.data ?? [] }); }
+function useGroupMembers(id: number) { return useQuery({ queryKey: ['rp', 'group-members', id], queryFn: () => pgApi.getMembers(id), enabled: id > 0, select: r => r.data ?? [] }); }
+function useEmployees() { return useQuery({ queryKey: ['employees-light'], queryFn: () => pgApi.employees(), staleTime: 5 * 60_000, select: r => r.data ?? [] }); }
 function useEmployeeOverrides(groupId: number, employeeId: number | undefined) {
   return useQuery({
     queryKey: ['rp', 'employee-overrides', groupId, employeeId],
-    queryFn:  () => pgApi.getOverrides(groupId, employeeId!),
-    enabled:  groupId > 0 && !!employeeId,
-    select:   r => r.data ?? [],
+    queryFn: () => pgApi.getOverrides(groupId, employeeId!),
+    enabled: groupId > 0 && !!employeeId,
+    select: r => r.data ?? [],
     staleTime: 0,
     refetchOnMount: true,
   });
@@ -205,17 +205,17 @@ function Avatar({ name, size = 24, fontSize = 8 }: { name: string; size?: number
 function GroupSidebar({
   groups, selectedId, onSelect, onNew, membersMap,
 }: {
-  groups:     PermGroup[];
+  groups: PermGroup[];
   selectedId: number | null;
-  onSelect:   (g: PermGroup) => void;
-  onNew:      () => void;
+  onSelect: (g: PermGroup) => void;
+  onNew: () => void;
   membersMap: Record<number, any[]>;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {groups.map(g => {
         const isActive = g.id === selectedId;
-        const count    = membersMap[g.id]?.length ?? g.member_count;
+        const count = membersMap[g.id]?.length ?? g.member_count;
         return (
           <div
             key={g.id}
@@ -246,15 +246,15 @@ function GroupSidebar({
 // ─── AddPersonForm — company-chip multi-select + employee search ─────────────
 
 function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd }: {
-  notMembers:        any[];
-  search:            string;
-  setSearch:         (s: string) => void;
+  notMembers: any[];
+  search: string;
+  setSearch: (s: string) => void;
   assignedCompanies: { id: number; name: string; shortName: string }[];
-  onAdd:             (empId: number, companyIds: number[]) => void;
+  onAdd: (empId: number, companyIds: number[]) => void;
 }) {
-  const [selectedEmp,      setSelectedEmp]      = useState<number | null>(null);
-  const [selectedCompanies,setSelectedCompanies] = useState<Set<number>>(new Set());
-  const [allCompanies,     setAllCompanies]      = useState(false);
+  const [selectedEmp, setSelectedEmp] = useState<number | null>(null);
+  const [selectedCompanies, setSelectedCompanies] = useState<Set<number>>(new Set());
+  const [allCompanies, setAllCompanies] = useState(false);
 
   const toggleChip = (id: number) => {
     setAllCompanies(false);
@@ -273,9 +273,9 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
   const chipStyle = (active: boolean, purple?: boolean): React.CSSProperties => ({
     cursor: 'pointer', borderRadius: 99, padding: '5px 12px', fontSize: 11, fontWeight: 600,
     transition: 'all .1s', userSelect: 'none',
-    border:      active ? `1px solid ${purple ? 'var(--purple)' : 'var(--blue)'}` : '1px solid var(--border2)',
-    background:  active ? (purple ? 'var(--purple-lt, #f3e8ff)' : 'var(--blue-lt)') : 'var(--surface)',
-    color:       active ? (purple ? 'var(--purple)' : 'var(--blue)') : 'var(--ink3)',
+    border: active ? `1px solid ${purple ? 'var(--purple)' : 'var(--blue)'}` : '1px solid var(--border2)',
+    background: active ? (purple ? 'var(--purple-lt, #f3e8ff)' : 'var(--blue-lt)') : 'var(--surface)',
+    color: active ? (purple ? 'var(--purple)' : 'var(--blue)') : 'var(--ink3)',
   });
 
   const handleAdd = () => {
@@ -348,7 +348,7 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
 // ─── MemberCompanyBadges — shows which companies a member is assigned to ──────
 
 function MemberCompanyBadges({ memberId, assignedCompanies }: {
-  memberId:          number;
+  memberId: number;
   assignedCompanies: { id: number; name: string; shortName: string }[];
 }) {
   // m.companies comes from the enriched member data from /members-with-overrides
@@ -381,23 +381,23 @@ function GroupDetail({
   onAddMember, onRemoveMember, employees, assignedCompanies,
   overrides, onToggleOverrides, onEditOverride, onDeleteOverride,
 }: {
-  group:           PermGroup;
-  members:         any[];
-  onEdit:          () => void;
-  onFieldPerms:    () => void;
-  onDelete:        () => void;
-  addPersonOpen:   boolean;
-  setAddPersonOpen:(v: boolean) => void;
-  onAddMember:     (empId: number, companyIds: number[]) => void;
-  onRemoveMember:  (empId: number) => void;
-  employees:       any[];
+  group: PermGroup;
+  members: any[];
+  onEdit: () => void;
+  onFieldPerms: () => void;
+  onDelete: () => void;
+  addPersonOpen: boolean;
+  setAddPersonOpen: (v: boolean) => void;
+  onAddMember: (empId: number, companyIds: number[]) => void;
+  onRemoveMember: (empId: number) => void;
+  employees: any[];
   assignedCompanies: { id: number; name: string; shortName: string }[];
-  overrides:       Record<string, boolean>;
-  onToggleOverrides:(memberId: number) => void;
-  onEditOverride:  (memberId: number) => void;
-  onDeleteOverride:(memberId: number) => void;
+  overrides: Record<string, boolean>;
+  onToggleOverrides: (memberId: number) => void;
+  onEditOverride: (memberId: number) => void;
+  onDeleteOverride: (memberId: number) => void;
 }) {
-  const slugs    = group.permissions?.map(p => p.slug) || [];
+  const slugs = group.permissions?.map(p => p.slug) || [];
   const modPerms = slugsToModulePerms(slugs);
   const [search, setSearch] = useState('');
 
@@ -406,12 +406,21 @@ function GroupDetail({
     [slugs.join(',')]
   );
 
-  const notMembers = useMemo(() => {
-    const memberIds = new Set(members.map((m: any) => m.id));
-    return employees.filter((e: any) => !memberIds.has(e.id) && (
-      !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())
-    ));
-  }, [employees, members, search]);
+  // const notMembers = useMemo(() => {
+  //   const memberIds = new Set(members.map((m: any) => m.id));
+  //   return employees.filter((e: any) => !memberIds.has(e.id) && (
+  //     !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())
+  //   ));
+  // }, [employees, members, search]);
+
+const notMembers = useMemo(() => {
+  return employees.filter((e: any) =>
+    !search ||
+    `${e.first_name} ${e.last_name}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  );
+}, [employees, search]);  
 
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
@@ -470,9 +479,9 @@ function GroupDetail({
         {/* Member rows */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {members.map((m: any) => {
-            const name      = `${m.first_name || ''} ${m.last_name || ''}`.trim();
-            const memberId  = m.id;
-            const showOvrd  = overrides[memberId] === true;
+            const name = `${m.first_name || ''} ${m.last_name || ''}`.trim();
+            const memberId = m.id;
+            const showOvrd = overrides[memberId] === true;
             return (
               <div key={memberId} id={`rp-mrow-${memberId}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -530,8 +539,8 @@ function GroupDetail({
 // ─── NEW UI: Module matrix with "All" toggle col and section grouping ─────────
 
 function ModuleMatrix({ modPerms, onChange, isOverrideMode = false }: {
-  modPerms:        ModulePerms;
-  onChange:        (mp: ModulePerms) => void;
+  modPerms: ModulePerms;
+  onChange: (mp: ModulePerms) => void;
   isOverrideMode?: boolean;
 }) {
   const toggle = (mod: string, perm: string) => {
@@ -541,7 +550,7 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false }: {
   const toggleRow = (modKey: string) => {
     const cur = modPerms[modKey] || {};
     const allOn = PERMS.every(p => cur[p]);
-    const next  = {} as Record<string, boolean>;
+    const next = {} as Record<string, boolean>;
     for (const p of PERMS) next[p] = !allOn;
     onChange({ ...modPerms, [modKey]: next });
   };
@@ -590,8 +599,8 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false }: {
                   </td>
                 </tr>
                 {section.modules.map(m => {
-                  const cur   = modPerms[m.key] || {};
-                  const allOn    = PERMS.every(p => cur[p]);
+                  const cur = modPerms[m.key] || {};
+                  const allOn = PERMS.every(p => cur[p]);
                   return (
                     <tr key={m.key} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
@@ -664,7 +673,7 @@ function MemberPicker({ selected, onToggle }: { selected: Set<number>; onToggle:
       <div style={{ maxHeight: 280, overflowY: 'auto' }}>
         {filtered.map((e: any) => {
           const name = `${e.first_name} ${e.last_name}`;
-          const uid  = e.id;
+          const uid = e.id;
           const isOn = selected.has(uid);
           return (
             <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 2px', borderBottom: '1px solid var(--border)' }}>
@@ -689,27 +698,27 @@ function EditView({
   group, onBack,
   overrideMemberId, overrideMemberName, groupName,
 }: {
-  group:              PermGroup | null;
-  onBack:             () => void;
-  overrideMemberId?:  number;
+  group: PermGroup | null;
+  onBack: () => void;
+  overrideMemberId?: number;
   overrideMemberName?: string;
-  groupName?:         string;
+  groupName?: string;
 }) {
-  const qc             = useQueryClient();
-  const dispatch       = useAppDispatch();
-  const isNew          = !group;
+  const qc = useQueryClient();
+  const dispatch = useAppDispatch();
+  const isNew = !group;
   const isOverrideMode = !!overrideMemberId;
 
-  const [name,       setName]       = useState(group?.name || '');
-  const [desc,       setDesc]       = useState(group?.description || '');
-  const [colorKey,   setColorKey]   = useState(group?.color || 'blue');
-  const [modPerms,   setModPerms]   = useState<ModulePerms>(() => initModulePerms(false));
+  const [name, setName] = useState(group?.name || '');
+  const [desc, setDesc] = useState(group?.description || '');
+  const [colorKey, setColorKey] = useState(group?.color || 'blue');
+  const [modPerms, setModPerms] = useState<ModulePerms>(() => initModulePerms(false));
   const [selMembers, setSelMembers] = useState<Set<number>>(new Set());
 
-  const { data: existingSlugs   = [] } = useGroupPerms(group?.id || 0);
+  const { data: existingSlugs = [] } = useGroupPerms(group?.id || 0);
   const { data: existingMembers = [] } = useGroupMembers(group?.id || 0);
   // Load saved overrides for this employee — only active in override mode
-  const { data: savedOverrides  = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId);
+  const { data: savedOverrides = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId);
 
   // Populate modPerms from server on mount (and when the employee changes).
   // Two separate effects so they compose correctly:
@@ -739,7 +748,7 @@ function EditView({
       }
       return mp;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedOverrides.map(o => `${o.module}:${o.permission}:${o.granted}`).join(','), baseLoaded]);
 
   useEffect(() => {
@@ -776,32 +785,41 @@ function EditView({
         const r = await pgApi.create({ name, description: desc, color: colorKey });
         const newId = r.data.id;
         await pgApi.setPerms(newId, slugs);
-        for (const uid of selMembers) { try { await pgApi.addMember(newId, uid); } catch {} }
+        for (const uid of selMembers) { try { await pgApi.addMember(newId, uid); } catch { } }
         return r;
       } else {
         await pgApi.update(group!.id, { name, description: desc, color: colorKey });
         await pgApi.setPerms(group!.id, slugs);
         const existing = new Set(existingMembers.map((m: any) => m.id)); // employee_id — no users table
         const toAdd = [...selMembers].filter(id => !existing.has(id));
-        const toRm  = [...existing].filter(id  => !selMembers.has(id));
-        for (const uid of toAdd) { try { await pgApi.addMember(group!.id, uid);    } catch {} }
-        for (const uid of toRm)  { try { await pgApi.removeMember(group!.id, uid); } catch {} }
+        const toRm = [...existing].filter(id => !selMembers.has(id));
+        for (const uid of toAdd) { try { await pgApi.addMember(group!.id, uid); } catch { } }
+        for (const uid of toRm) { try { await pgApi.removeMember(group!.id, uid); } catch { } }
       }
     },
     onSuccess: (data: any) => {
       if (isOverrideMode && group?.id && overrideMemberId) {
-        // Backend re-issues a fresh access token with merged permissions.
-        // Dispatch to Redux immediately — portal canView()/canEdit() update without re-login.
+
         if (data?.accessToken) dispatch(updateToken(data.accessToken));
         if (data?.permissions) dispatch(setPermissions(data.permissions));
-        qc.refetchQueries({ queryKey: ['rp', 'employee-overrides', group.id, overrideMemberId] });
+
+        qc.refetchQueries({
+          queryKey: ['rp', 'employee-overrides', group.id, overrideMemberId]
+        });
+
         showToast('✓ Employee override saved');
-      } else {
-        qc.refetchQueries({ queryKey: ['rp', 'groups'] });
-        qc.refetchQueries({ queryKey: ['rp', 'group-perms', group?.id] });
-        showToast(isNew ? '✓ Group created' : '✓ Group updated');
+
+        // ADD THIS
         onBack();
+
+        return;
       }
+
+      qc.refetchQueries({ queryKey: ['rp', 'groups'] });
+      qc.refetchQueries({ queryKey: ['rp', 'group-perms', group?.id] });
+
+      showToast(isNew ? '✓ Group created' : '✓ Group updated');
+      onBack();
     },
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
@@ -884,40 +902,46 @@ function EditView({
 // ─── Existing FieldPermissionsView (unchanged — only wired into new nav) ──────
 
 const FP_FIELD_MODULES = [
-  { key: 'employee', label: 'Employee Directory', sub: 'Personal data, statutory, bank, payroll fields', fields: [
-    { k: 'full_name',          label: 'Full Name',       section: 'Personal'  },
-    { k: 'date_of_birth',      label: 'Date of Birth',   section: 'Personal'  },
-    { k: 'gender',             label: 'Gender',          section: 'Personal'  },
-    { k: 'personal_email',     label: 'Personal Email',  section: 'Personal'  },
-    { k: 'phone',              label: 'Phone',           section: 'Personal'  },
-    { k: 'address_line1',      label: 'Address',         section: 'Address'   },
-    { k: 'city',               label: 'City',            section: 'Address'   },
-    { k: 'aadhaar_number',     label: 'Aadhaar Number',  section: 'Statutory', sensitive: true },
-    { k: 'pan_number',         label: 'PAN Number',      section: 'Statutory', sensitive: true },
-    { k: 'bank_account_number',label: 'Bank Account',    section: 'Statutory', sensitive: true },
-    { k: 'basic_salary',       label: 'Basic Salary',    section: 'Payroll',  sensitive: true },
-    { k: 'net_pay',            label: 'Net Pay',         section: 'Payroll',  sensitive: true },
-    { k: 'pf_number',          label: 'PF Number',       section: 'Statutory', sensitive: true },
-    { k: 'esi_number',         label: 'ESI Number',      section: 'Statutory', sensitive: true },
-  ]},
-  { key: 'candidate', label: 'Candidate / ATS', sub: 'Resume, offer, aptitude data', fields: [
-    { k: 'candidate_name',  label: 'Candidate Name',  section: 'Basic'              },
-    { k: 'email',           label: 'Email',           section: 'Basic'              },
-    { k: 'phone_number',    label: 'Phone',           section: 'Basic'              },
-    { k: 'current_salary',  label: 'Current Salary',  section: 'Offer', sensitive: true },
-    { k: 'expected_salary', label: 'Expected Salary', section: 'Offer', sensitive: true },
-    { k: 'offered_ctc',     label: 'Offered CTC',     section: 'Offer', sensitive: true },
-    { k: 'resume_url',      label: 'Resume',          section: 'Basic'              },
-    { k: 'aadhaar',         label: 'Aadhaar',         section: 'KYC',  sensitive: true },
-    { k: 'pan',             label: 'PAN',             section: 'KYC',  sensitive: true },
-  ]},
-  { key: 'payroll', label: 'Payroll', sub: 'Salary breakup and payslip data', fields: [
-    { k: 'basic',   label: 'Basic',     section: 'Components'                    },
-    { k: 'hra',     label: 'HRA',       section: 'Components'                    },
-    { k: 'gross',   label: 'Gross Pay', section: 'Summary',   sensitive: true },
-    { k: 'tds',     label: 'TDS',       section: 'Deductions',sensitive: true },
-    { k: 'net_pay', label: 'Net Pay',   section: 'Summary',   sensitive: true },
-  ]},
+  {
+    key: 'employee', label: 'Employee Directory', sub: 'Personal data, statutory, bank, payroll fields', fields: [
+      { k: 'full_name', label: 'Full Name', section: 'Personal' },
+      { k: 'date_of_birth', label: 'Date of Birth', section: 'Personal' },
+      { k: 'gender', label: 'Gender', section: 'Personal' },
+      { k: 'personal_email', label: 'Personal Email', section: 'Personal' },
+      { k: 'phone', label: 'Phone', section: 'Personal' },
+      { k: 'address_line1', label: 'Address', section: 'Address' },
+      { k: 'city', label: 'City', section: 'Address' },
+      { k: 'aadhaar_number', label: 'Aadhaar Number', section: 'Statutory', sensitive: true },
+      { k: 'pan_number', label: 'PAN Number', section: 'Statutory', sensitive: true },
+      { k: 'bank_account_number', label: 'Bank Account', section: 'Statutory', sensitive: true },
+      { k: 'basic_salary', label: 'Basic Salary', section: 'Payroll', sensitive: true },
+      { k: 'net_pay', label: 'Net Pay', section: 'Payroll', sensitive: true },
+      { k: 'pf_number', label: 'PF Number', section: 'Statutory', sensitive: true },
+      { k: 'esi_number', label: 'ESI Number', section: 'Statutory', sensitive: true },
+    ]
+  },
+  {
+    key: 'candidate', label: 'Candidate / ATS', sub: 'Resume, offer, aptitude data', fields: [
+      { k: 'candidate_name', label: 'Candidate Name', section: 'Basic' },
+      { k: 'email', label: 'Email', section: 'Basic' },
+      { k: 'phone_number', label: 'Phone', section: 'Basic' },
+      { k: 'current_salary', label: 'Current Salary', section: 'Offer', sensitive: true },
+      { k: 'expected_salary', label: 'Expected Salary', section: 'Offer', sensitive: true },
+      { k: 'offered_ctc', label: 'Offered CTC', section: 'Offer', sensitive: true },
+      { k: 'resume_url', label: 'Resume', section: 'Basic' },
+      { k: 'aadhaar', label: 'Aadhaar', section: 'KYC', sensitive: true },
+      { k: 'pan', label: 'PAN', section: 'KYC', sensitive: true },
+    ]
+  },
+  {
+    key: 'payroll', label: 'Payroll', sub: 'Salary breakup and payslip data', fields: [
+      { k: 'basic', label: 'Basic', section: 'Components' },
+      { k: 'hra', label: 'HRA', section: 'Components' },
+      { k: 'gross', label: 'Gross Pay', section: 'Summary', sensitive: true },
+      { k: 'tds', label: 'TDS', section: 'Deductions', sensitive: true },
+      { k: 'net_pay', label: 'Net Pay', section: 'Summary', sensitive: true },
+    ]
+  },
 ];
 
 type FPPermission = { view: boolean; create: boolean; edit: boolean; delete: boolean; download: boolean };
@@ -926,8 +950,8 @@ type FPPerms = Record<string, FPPermission>;
 function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: () => void }) {
   const { data: groups = [] } = useGroups();
   const [selectedGroupId, setSelectedGroupId] = useState(groupId);
-  const [selectedModKey,  setSelectedModKey]  = useState(FP_FIELD_MODULES[0].key);
-  const [fp, setFp]     = useState<FPPerms>({});
+  const [selectedModKey, setSelectedModKey] = useState(FP_FIELD_MODULES[0].key);
+  const [fp, setFp] = useState<FPPerms>({});
   const [dirty, setDirty] = useState(false);
 
   const selMod = FP_FIELD_MODULES.find(m => m.key === selectedModKey)!;
@@ -947,7 +971,7 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
     setDirty(true);
   };
 
-  const grantAll  = () => { setFp(prev => { const n = { ...prev }; for (const f of selMod.fields) n[`${selMod.key}:${f.k}`] = { view: true, create: true, edit: true, delete: true, download: true }; return n; }); setDirty(true); };
+  const grantAll = () => { setFp(prev => { const n = { ...prev }; for (const f of selMod.fields) n[`${selMod.key}:${f.k}`] = { view: true, create: true, edit: true, delete: true, download: true }; return n; }); setDirty(true); };
   const revokeAll = () => { setFp(prev => { const n = { ...prev }; for (const f of selMod.fields) n[`${selMod.key}:${f.k}`] = { view: false, create: false, edit: false, delete: false, download: false }; return n; }); setDirty(true); };
   const save = () => { showToast('✓ Field permissions saved'); setDirty(false); };
 
@@ -1007,7 +1031,7 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
                 </thead>
                 <tbody>
                   {fields.map(f => {
-                    const fk  = `${selMod.key}:${f.k}`;
+                    const fk = `${selMod.key}:${f.k}`;
                     const fpf = fp[fk] || { view: true, create: false, edit: false, delete: false, download: false };
                     return (
                       <tr key={f.k} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -1065,7 +1089,7 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
 // ─── ROOT PAGE ────────────────────────────────────────────────────────────────
 
 export default function RolesPermissionsPage() {
-  const dispatch  = useAppDispatch();
+  const dispatch = useAppDispatch();
   const { canView, canEdit, canCreate, canDelete } = usePermission();
   const { companyId } = useCompanySelector();
   const managedCompanies = useAppSelector(selectManagedCompanies);
@@ -1073,8 +1097,8 @@ export default function RolesPermissionsPage() {
   // Build assignedCompanies with shortNames for chips and badges
   const assignedCompanies = useMemo(() =>
     managedCompanies.map((co: any) => ({
-      id:        co.id,
-      name:      co.name,
+      id: co.id,
+      name: co.name,
       shortName: co.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 4),
     })),
     [managedCompanies],
@@ -1084,20 +1108,20 @@ export default function RolesPermissionsPage() {
   const { data: groups = [], isLoading } = useGroups();
 
   // View state
-  const [view,         setView]         = useState<View>('groups');
-  const [editGroup,    setEditGroup]     = useState<PermGroup | null>(null);
-  const [fpGroupId,    setFpGroupId]     = useState(0);
+  const [view, setView] = useState<View>('groups');
+  const [editGroup, setEditGroup] = useState<PermGroup | null>(null);
+  const [fpGroupId, setFpGroupId] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<PermGroup | null>(null);
 
   // NEW UI state
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null);
   // Derived live from query — always reflects server state after any refetch
   const selectedGroup = groups.find(g => g.id === activeGroupId) ?? groups[0] ?? null;
-  const [addPersonOpen,    setAddPersonOpen]    = useState(false);
-  const [memberOverrides,  setMemberOverrides]  = useState<Record<number, boolean>>({});
+  const [addPersonOpen, setAddPersonOpen] = useState(false);
+  const [memberOverrides, setMemberOverrides] = useState<Record<number, boolean>>({});
 
   // Override mode — opens EditView for a specific member
-  const [overrideMemberId,   setOverrideMemberId]   = useState<number | undefined>();
+  const [overrideMemberId, setOverrideMemberId] = useState<number | undefined>();
   const [overrideMemberName, setOverrideMemberName] = useState<string | undefined>();
 
   const { data: employees = [] } = useEmployees();
@@ -1110,8 +1134,8 @@ export default function RolesPermissionsPage() {
   const memberQueries = useQueries({
     queries: groups.map(g => ({
       queryKey: ['rp', 'group-members', g.id],
-      queryFn:  () => pgApi.getMembers(g.id),
-      enabled:  !!g.id,
+      queryFn: () => pgApi.getMembers(g.id),
+      enabled: !!g.id,
     })),
   });
 
@@ -1129,12 +1153,12 @@ export default function RolesPermissionsPage() {
   // Stats — existing computation
   const { data: stats } = useQuery({
     queryKey: ['rbac-stats', companyId],
-    queryFn:  () => apiClient.get<any, any>(`/permission-groups/stats?company_id=${companyId}`),
-    enabled:  !!companyId,
-    select:   (r: any) => r.data,
+    queryFn: () => apiClient.get<any, any>(`/permission-groups/stats?company_id=${companyId}`),
+    enabled: !!companyId,
+    select: (r: any) => r.data,
   });
 
-  const totalAssigned  = groups.reduce((s, g) => s + (groupMembersMap[g.id]?.length || 0), 0);
+  const totalAssigned = groups.reduce((s, g) => s + (groupMembersMap[g.id]?.length || 0), 0);
   const fieldRuleCount = groups.reduce((s, g) => s + (g.permissions?.length || 0) * 3, 0);
 
   // Existing mutations
@@ -1157,7 +1181,7 @@ export default function RolesPermissionsPage() {
   const addMemberMutation = useMutation({
     mutationFn: ({ groupId, empId, companyIds }: { groupId: number; empId: number; companyIds: number[] }) =>
       pgApi.addMember(groupId, empId, companyIds.length > 0 ? companyIds : undefined),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rp', 'group-members'] }); showToast('✓ Member added'); setAddPersonOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rp', 'group-members'] }); setMemberOverrides({}); showToast('✓ Member added'); setAddPersonOpen(false); },
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
 
@@ -1179,7 +1203,7 @@ export default function RolesPermissionsPage() {
 
   const handleEditOverride = (memberId: number) => {
     const member = groupMembersMap[selectedGroup?.id || 0]?.find((m: any) => m.id === memberId);
-    const name   = member ? `${member.first_name} ${member.last_name}`.trim() : '';
+    const name = member ? `${member.first_name} ${member.last_name}`.trim() : '';
     setOverrideMemberId(memberId);
     setOverrideMemberName(name);
     setView('edit');
@@ -1230,10 +1254,10 @@ export default function RolesPermissionsPage() {
           {/* Stats — existing logic, new styling */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'Permission Groups',  value: stats?.totalGroups ?? groups.length, color: 'var(--blue)'   },
-              { label: 'Employees Assigned', value: totalAssigned ?? '—',                 color: 'var(--green)'  },
-              { label: 'Unassigned',         value: stats?.unassigned ?? '—',             color: 'var(--amber)'  },
-              { label: 'Field Rules',        value: fieldRuleCount ?? '—',                color: 'var(--purple)' },
+              { label: 'Permission Groups', value: stats?.totalGroups ?? groups.length, color: 'var(--blue)' },
+              { label: 'Employees Assigned', value: totalAssigned ?? '—', color: 'var(--green)' },
+              { label: 'Unassigned', value: stats?.unassigned ?? '—', color: 'var(--amber)' },
+              { label: 'Field Rules', value: fieldRuleCount ?? '—', color: 'var(--purple)' },
             ].map(s => (
               <div key={s.label} style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r3)', padding: '14px 18px', boxShadow: 'var(--sh)' }}>
                 <div style={{ fontSize: 26, fontWeight: 500, color: s.color }}>{s.value}</div>
@@ -1290,7 +1314,7 @@ export default function RolesPermissionsPage() {
                   overrides={memberOverrides}
                   onToggleOverrides={handleToggleOverrides}
                   onEditOverride={handleEditOverride}
-                  onDeleteOverride={() => {}}
+                  onDeleteOverride={() => { }}
                 />
               ) : null}
             </div>
