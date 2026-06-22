@@ -8,6 +8,7 @@ import { showToast } from '../../../utils/toast';
 import type { StepSchemaKey } from '../validations/employee.schema';
 import { PaginatedResponse } from '../../../types/api.types';
 import { Employee } from '../types/employee.types';
+import { useCompany } from '../../../features/company/hooks/useCompany';
 
 // ─── Query key factory ────────────────────────────────────────────────────────
 export const EMP_KEYS = {
@@ -23,8 +24,12 @@ export const EMP_KEYS = {
 
 // ─── List ─────────────────────────────────────────────────────────────────────
 export function useEmployees(params?: object) {
+  const {companyId} = useCompany()
   return useQuery({
-    queryKey: EMP_KEYS.list(params ?? {}),
+    queryKey: EMP_KEYS.list({
+      ...params,
+      companyId,
+    }),
     queryFn: () => employeeService.getAll(params),
     // staleTime: 30_000,
     select: (res) => {

@@ -1,13 +1,19 @@
 // ─── ManagedCompany ───────────────────────────────────────────────────────────
 // A company this employee is assigned to manage via company_managers table
 
+export interface CompanyRole {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 export interface ManagedCompany {
-  id:           number;
-  name:         string;
-  slug:         string | null;
-  is_active:    boolean;
-  manager_role: 'owner' | 'admin' | 'manager';
-  is_primary:   boolean;
+  id: number;
+  name: string;
+  slug: string | null;
+  is_active: boolean;
+  is_primary: boolean;
+  manager_role: CompanyRole;
 }
 
 // ─── User (employee-as-identity) ──────────────────────────────────────────────

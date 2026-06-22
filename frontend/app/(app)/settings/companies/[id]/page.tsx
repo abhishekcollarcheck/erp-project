@@ -149,7 +149,7 @@ function PermissionGroupsTab({ companyId }: { companyId:number }) {
                     <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
                       {mems.map(m => (
                         <div key={m.id} style={{ display:'flex', alignItems:'center', gap:5, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:99, padding:'3px 10px 3px 4px', fontSize:11 }}>
-                          <Av name={`${m.first_name} ${m.last_name}`} size={20}/>
+                          <Av name={`${m.first_name} ${m.last_name}`} size={20} />
                           <span style={{ fontWeight:500, color:'var(--ink2)' }}>{m.first_name}</span>
                           <span style={{ fontSize:9, color:'var(--ink4)' }}>{m.employee_code}</span>
                         </div>
@@ -308,16 +308,20 @@ const PERMISSION_GROUPS = [
 
 function AssignManagerModal({ companyId, onClose }: { companyId:number; onClose:()=>void }) {
   const qc = useQueryClient();
-  const [search,     setSearch]     = useState('');
-  const [selEmp,     setSelEmp]     = useState<any>(null);
-  const [groupSlug,  setGroupSlug]  = useState<string>('hr_manager');
+  const [search,     setSearch]    = useState('');
+  const [selEmp,     setSelEmp]    = useState<any>(null);
+  const [selRoleSlug,setSelRoleSlug] = useState<string>('hr_manager');
 
-  // Load all active employees (not just eligible managers)
-  const { data:employees=[], isLoading } = useQuery({
-    queryKey: ['all-active-employees'],
-    queryFn:  () => apiClient.get<any,any>('/employees?limit=500&status=Active'),
-    select:   (r:any) => r.data?.rows ?? r.data ?? [],
+  // Load eligible employees + company roles in one call
+  // eligible-managers now returns ALL active employees (no restrictive filter)
+  const { data: eligibleData, isLoading } = useQuery({
+    queryKey: ['eligible-managers', companyId],
+    queryFn:  () => apiClient.get<any,any>(`/companies/${companyId}/eligible-managers`),
+    select:   (r:any) => r.data as { employees: any[]; roles: any[] },
   });
+
+  const employees = eligibleData?.employees ?? [];
+  const companyRoles = eligibleData?.roles ?? [];
 
   const filtered = useMemo(() =>
     employees.filter((e:any) => {
@@ -328,7 +332,7 @@ function AssignManagerModal({ companyId, onClose }: { companyId:number; onClose:
   const mutation = useMutation({
     mutationFn: () => apiClient.post<any,any>(`/companies/${companyId}/managers`, {
       employee_id: selEmp!.id,
-      group_slug:  groupSlug,
+      role_slug:  selRoleSlug,
     }),
     onSuccess: (r:any) => {
       qc.invalidateQueries({ queryKey:['company',companyId] });
@@ -343,7 +347,7 @@ function AssignManagerModal({ companyId, onClose }: { companyId:number; onClose:
     <Modal open={true} onClose={onClose} title="Give Company Access" width={520}
       footer={<>
         <button className="btn btn-sec" onClick={onClose}>Cancel</button>
-        <button className="btn btn-pri" onClick={()=>mutation.mutate()} disabled={!selEmp||!groupSlug||mutation.isPending}>
+        <button className="btn btn-pri" onClick={()=>mutation.mutate()} disabled={!selEmp||!selRoleSlug||mutation.isPending}>
           {mutation.isPending?'Assigning…':'✓ Give Access'}
         </button>
       </>}>
@@ -380,30 +384,19 @@ function AssignManagerModal({ companyId, onClose }: { companyId:number; onClose:
         })}
       </div>
 
-      {/* Permission group select */}
-      <div style={{ fontSize:11, fontWeight:600, color:'var(--ink3)', marginBottom:8 }}>Permission Group</div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginBottom:10 }}>
-        {PERMISSION_GROUPS.map(g => {
-          const sel = groupSlug===g.slug;
-          return (
-            <div key={g.slug} onClick={()=>setGroupSlug(g.slug)}
-              style={{ padding:'10px 12px', cursor:'pointer', border:`1px solid ${sel?'var(--blue)':'var(--border)'}`, borderRadius:'var(--r)', background:sel?'var(--blue-lt)':'var(--surface)', transition:'all .1s' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                <div style={{ width:12, height:12, borderRadius:'50%', border:`2px solid ${sel?'var(--blue)':'var(--border2)'}`, background:sel?'var(--blue)':'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  {sel && <div style={{ width:5, height:5, borderRadius:'50%', background:'#fff' }} />}
-                </div>
-                <div style={{ fontSize:12, fontWeight:600, color:sel?'var(--blue)':'var(--ink)' }}>{g.name}</div>
-              </div>
-              <div style={{ fontSize:10, color:'var(--ink4)', marginTop:3, paddingLeft:19 }}>{g.description}</div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Role select */}
+      <div style={{ fontSize:11, fontWeight:600, color:'var(--ink3)', marginBottom:6 }}>Role *</div>
+      <select value={selRoleSlug} onChange={e => setSelRoleSlug(e.target.value)}
+        style={{ width:'100%', padding:'8px 12px', border:'1px solid var(--border2)', borderRadius:'var(--r)', fontSize:12, fontFamily:'var(--font)', background:'var(--surface)', color:'var(--ink)', marginBottom:12 }}>
+        {companyRoles.map((r:any) => (
+          <option key={r.id} value={r.slug}>{r.name}</option>
+        ))}
+      </select>
 
       {/* Confirmation */}
-      {selEmp && groupSlug && (
+      {selEmp && selRoleSlug && (
         <div style={{ padding:'8px 12px', background:'var(--green-lt,#f0fdf4)', border:'1px solid var(--green-bd,#bbf7d0)', borderRadius:'var(--r)', fontSize:11, color:'var(--green)' }}>
-          ✓ <strong>{selEmp.full_name ?? `${selEmp.first_name} ${selEmp.last_name}`.trim()}</strong> → <strong>{PERMISSION_GROUPS.find(g=>g.slug===groupSlug)?.name}</strong>
+          ✓ <strong>{selEmp.full_name ?? `${selEmp.first_name} ${selEmp.last_name}`.trim()}</strong> → <strong>{companyRoles.find((r:any) => r.slug === selRoleSlug)?.name ?? selRoleSlug}</strong>
         </div>
       )}
     </Modal>

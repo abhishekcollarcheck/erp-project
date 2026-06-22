@@ -5,6 +5,7 @@ import { useAppSelector } from '../../store';
 import { selectUser, selectIsSuperAdmin } from '../../store/slices/authSlice';
 import { useAuth, usePermission }      from '../../features/auth/hooks/useAuth';
 import { useCompany }                  from '../../features/company/hooks/useCompany';
+import storage from '@/store/storage';
 
 // ─── Nav definition ───────────────────────────────────────────────────────────
 
@@ -78,6 +79,7 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  console.log("company-id", companyId)
   // Close on outside click
   useEffect(() => {
     if (!open) return;
@@ -164,7 +166,7 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
                     {co.name}
                   </div>
                   <div style={{ fontSize: 9, color: 'var(--ink4)', textTransform: 'capitalize' }}>
-                    {co.manager_role} {co.is_primary ? '· Primary' : ''}
+                    {co.manager_role.name} {co.is_primary ? '· Primary' : ''}
                   </div>
                 </div>
                 {isActive && (
@@ -194,8 +196,7 @@ export function Sidebar() {
   const isSuperAdmin = useAppSelector(selectIsSuperAdmin);
   const { logout }   = useAuth();
   const { hasPermission } = usePermission();
-  const { company, companyId, companies } = useCompany();
-  const auth = useAppSelector((state: any) => state.auth);
+  const { companies } = useCompany();
 
   const initials = user?.fullName
     ? user.fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()

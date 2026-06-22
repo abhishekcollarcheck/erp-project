@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken, JwtPayload } from "../../utils/jwt";
 import { sendError } from "../../utils/response";
+import { CompanyManager } from "../../database/models";
+
 declare global {
   namespace Express {
     interface Request {
@@ -95,4 +97,36 @@ export function selfOrAdmin(
     return;
   }
   sendError(res, "Forbidden: You cannot access this resource", 403);
+}
+
+
+export async function resolveCompanyContext(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const companyId = Number(req.headers["x-company-id"]);
+  console.log("company-id-x", companyId)
+
+  if (!companyId) {
+    return next();
+  }
+
+  // validate user has access to this company
+
+  const access = await CompanyManager.findOne({
+    where: {
+      company_id: companyId,
+      employee_id: req.user!.employeeId,
+    },
+  });
+
+  if (!access && !req.user!.isSuperAdmin) {
+    sendError(res, "Company access denied", 403);
+    return;
+  }
+
+  req.user!.companyId = companyId;
+
+  next();
 }

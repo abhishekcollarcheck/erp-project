@@ -6,6 +6,7 @@ export type AttendanceSource = 'Biometric' | 'Manual' | 'Mobile' | 'System';
 
 interface AttendanceAttributes {
   id: number;
+  company_id: number;    // ← added for data isolation
   employee_id: number;
   date: string;
   status: AttendanceStatus;
@@ -25,6 +26,7 @@ export class Attendance
   implements AttendanceAttributes
 {
   public id!: number;
+  public company_id!: number;   // ← added
   public employee_id!: number;
   public date!: string;
   public status!: AttendanceStatus;
@@ -41,6 +43,7 @@ export class Attendance
 Attendance.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },   // ← added
     employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     date: { type: DataTypes.DATEONLY, allowNull: false },
     status: {
@@ -62,8 +65,10 @@ Attendance.init(
     tableName: 'attendance',
     modelName: 'Attendance',
     indexes: [
-      { unique: true, fields: ['employee_id', 'date'] },
-      { fields: ['date'] },
+      // company_id added to unique — same employee can have attendance in different companies
+      { unique: true, fields: ['company_id', 'employee_id', 'date'] },
+      { fields: ['company_id', 'date'] },    // fast company-level date queries
+      { fields: ['employee_id', 'date'] },   // keep for backward compat
     ],
   },
 );

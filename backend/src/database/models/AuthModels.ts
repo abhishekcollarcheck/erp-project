@@ -48,7 +48,7 @@ EmployeeRole.init({
   sequelize, tableName: 'employee_roles', modelName: 'EmployeeRole',
   timestamps: false,
   indexes: [
-    { unique: true, fields: ['employee_id','role_id'] },
+    { unique: true, fields: ['employee_id','role_id', 'company_id'] },
     { fields: ['company_id','role_id'] },
   ],
 });

@@ -50,8 +50,13 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const accessToken = store.getState().auth.accessToken;
+    const activeCompanyId = store.getState().auth.activeCompanyId;
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+    if (activeCompanyId) {
+      config.headers["x-company-id"] =
+        String(activeCompanyId);
     }
     return config;
   },

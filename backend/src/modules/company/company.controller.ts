@@ -50,7 +50,13 @@ async function getPlatformStats(req: Request, res: Response, next: NextFunction)
       Company.count({ where: { is_active: true } }),
       Employee.count(),
     ]);
-    sendResponse(res, { data: { totalCompanies: total, activeCompanies: active, suspendedCompanies: total - active, totalEmployees } });
+    const planRows = await Company.findAll({
+      attributes: ['subscription_plan', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      where: { is_active: true }, group: ['subscription_plan'], raw: true,
+    }) as any[];
+    const plans: Record<string, number> = {};
+    for (const r of planRows) plans[r.subscription_plan] = Number(r.count);
+    sendResponse(res, { data: { totalCompanies: total, activeCompanies: active, suspendedCompanies: total - active, totalEmployees, plans } });
   } catch(e){ next(e); }
 }
 
@@ -68,6 +74,7 @@ async function listCompanies(req: Request, res: Response, next: NextFunction): P
       where.id = ids;
     }
     if (req.query.is_active !== undefined) where.is_active = req.query.is_active === 'true';
+    if (req.query.plan)   where.subscription_plan = req.query.plan;
     if (req.query.search) {
       where[Op.or] = [{ name:{ [Op.like]:`%${req.query.search}%` }},{ slug:{ [Op.like]:`%${req.query.search}%` }}];
     }
@@ -172,35 +179,28 @@ async function getCompany(req: Request, res: Response, next: NextFunction): Prom
 async function createCompany(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const {
-      name, city, state, country, industry, email, phone,
-      timezone, currency,
-      admin_first_name, admin_last_name, admin_email, admin_phone,
-      // admin_role_slug defaults to super_admin — creator + first employee both get it
-      admin_role_slug = 'super_admin',
-      managers = [],
+      name, city, state, industry, email, theme_color,
+      // employees[] — array of existing employees to assign at creation
+      // Each: { employee_id: number, role_slug: string }
+      // Multiple employees allowed, same role allowed for different employees
+      employees = [],
     } = req.body;
-
+    console.log("body-front", req.body)
     const slug = (req.body.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).slice(0, 100);
     const exists = await Company.findOne({ where: { slug }, paranoid: false });
     if (exists) { sendError(res, 'A company with this slug already exists', 409); return; }
-
-    if (admin_email) {
-      const emailTaken = await Employee.findOne({ where: { email: admin_email.toLowerCase() } });
-      if (emailTaken) { sendError(res, `Email ${admin_email} is already registered`, 409); return; }
-    }
 
     const t = await sequelize.transaction();
     try {
       // 1. Create company
       const company = await Company.create({
-        name, slug, city: city||null, state: state||null, country: country||'India',
-        industry: industry||null, email: email||null, phone: phone||null,
-        timezone: timezone||'Asia/Kolkata', currency: currency||'INR',
+        name, slug, theme_color, city: city||null, state: state||null,
+        industry: industry||null, email: email||null,
         is_active: true, onboarding_step: 0,
         created_by: req.user!.employeeId,
       }, { transaction: t });
 
-      // 2. Seed system roles from global templates
+      // 2. Seed system roles from global templates (unchanged)
       const templates    = await RoleTemplate.findAll();
       const rolesCreated: any[] = [];
       for (const tmpl of templates) {
@@ -213,8 +213,8 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
         const tPerms = await RoleTemplatePermission.findAll({ where: { template_id: tmpl.id } });
         for (const tp of tPerms) {
           await RoleModulePermission.findOrCreate({
-            where: { role_id: role.id, module: tp.module },
-            defaults: { role_id: role.id, module: tp.module, can_view: tp.can_view, can_edit: tp.can_edit, can_delete: tp.can_delete, },
+            where:    { role_id: role.id, module: tp.module },
+            defaults: { role_id: role.id, module: tp.module, can_view: tp.can_view, can_edit: tp.can_edit, can_delete: tp.can_delete },
             transaction: t,
           } as any);
         }
@@ -222,86 +222,74 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
 
       const saRole = rolesCreated.find(r => r.slug === 'super_admin')!;
 
-      // 3. Seed departments
-      const depts = await Department.bulkCreate([
+      // 3. Seed departments (unchanged)
+      await Department.bulkCreate([
         { company_id: company.id, name: 'Human Resources', },
         { company_id: company.id, name: 'Engineering',     },
         { company_id: company.id, name: 'Finance',         },
         { company_id: company.id, name: 'Operations',      },
       ], { transaction: t, ignoreDuplicates: true });
 
-      // 4. Create first admin employee with their chosen role
-      let firstEmployee: Employee | null = null;
-      if (admin_email) {
-        const chosenRole = rolesCreated.find(r => r.slug === admin_role_slug) || saRole;
-
-        firstEmployee = await Employee.create({
-          company_id: company.id,
-          employee_code: await nextEmpCode(company.id, slug),
-          first_name: admin_first_name || 'Admin',
-          last_name:  admin_last_name  || 'User',
-          email:      admin_email.toLowerCase(),
-          phone:      admin_phone || null,
-          department_id:   depts[0]?.id,
-          employment_type: 'Permanent', 
-          status: 'Active', portal_access: true,
-          is_super_admin: false,  // never set this — use employee_roles instead
-          must_change_password: true,
-        }, { transaction: t });
-
-        // Assign chosen role (default = super_admin)
-        await EmployeeRole.create({
-          employee_id: firstEmployee.id,
-          role_id:     chosenRole.id,
-          company_id:  company.id,
-          assigned_by: req.user!.employeeId,
-        }, { transaction: t });
-
-        await CompanyManager.create({
-          company_id:  company.id,
-          employee_id: firstEmployee.id,
-          is_primary:  true,
-          assigned_by: req.user!.employeeId,
-        }, { transaction: t });
-      }
-
-      // 5. CREATOR also gets super_admin role in this new company
-      //    (they already have their own home company role, this is additional)
+      // 4. Creator gets super_admin + CompanyManager (unchanged)
       await EmployeeRole.findOrCreate({
-        where:    { employee_id: req.user!.employeeId, company_id: company.id },
+        where:    { employee_id: req.user!.employeeId, role_id: saRole.id, company_id: company.id },
         defaults: { employee_id: req.user!.employeeId, role_id: saRole.id, company_id: company.id, assigned_by: req.user!.employeeId },
         transaction: t,
       } as any);
 
       await CompanyManager.findOrCreate({
         where:    { company_id: company.id, employee_id: req.user!.employeeId },
-        defaults: { company_id: company.id, employee_id: req.user!.employeeId, is_primary: !firstEmployee, assigned_by: req.user!.employeeId },
+        defaults: { company_id: company.id, employee_id: req.user!.employeeId, is_primary: true, assigned_by: req.user!.employeeId },
         transaction: t,
       } as any);
 
-      // 6. Additional managers
-      for (const mgr of (managers as { employee_id: number; role_slug: string }[])) {
-        if (mgr.employee_id === req.user!.employeeId) continue;
-        const mgrRole = rolesCreated.find(r => r.slug === mgr.role_slug) || rolesCreated.find(r => r.slug === 'hr_manager');
-        if (!mgrRole) continue;
-        await EmployeeRole.findOrCreate({ where:{ employee_id:mgr.employee_id, company_id:company.id }, defaults:{ employee_id:mgr.employee_id, role_id:mgrRole.id, company_id:company.id, assigned_by:req.user!.employeeId }, transaction:t } as any);
-        await CompanyManager.findOrCreate({ where:{ company_id:company.id, employee_id:mgr.employee_id }, defaults:{ company_id:company.id, employee_id:mgr.employee_id, is_primary:false, assigned_by:req.user!.employeeId }, transaction:t } as any);
+      // 5. Assign each selected existing employee their role + CompanyManager access
+      //    Same role can be assigned to multiple employees (e.g. 2 HR Managers)
+      //    UNIQUE on (employee_id, role_id, company_id) — so same employee can't
+      //    get the same role twice but two different employees can share a role
+      const assignedEmployees: any[] = [];
+      for (const entry of (employees as { employee_id: number; role_slug: string }[])) {
+        if (entry.employee_id === req.user!.employeeId) continue; // creator already handled
+
+        const emp = await Employee.findOne({ where: { id: entry.employee_id, status: 'Active' } });
+        if (!emp) continue; // skip invalid
+
+        const role = rolesCreated.find(r => r.slug === entry.role_slug)
+                  || rolesCreated.find(r => r.slug === 'hr_manager');
+        if (!role) continue;
+
+        await EmployeeRole.findOrCreate({
+          where:    { employee_id: emp.id, role_id: role.id, company_id: company.id },
+          defaults: { employee_id: emp.id, role_id: role.id, company_id: company.id, assigned_by: req.user!.employeeId },
+          transaction: t,
+        } as any);
+
+        await CompanyManager.findOrCreate({
+          where:    { company_id: company.id, employee_id: emp.id },
+          defaults: { company_id: company.id, employee_id: emp.id, is_primary: false, assigned_by: req.user!.employeeId },
+          transaction: t,
+        } as any);
+
+        assignedEmployees.push({ id: emp.id, name: `${emp.first_name} ${emp.last_name}`, role: role.slug });
       }
 
       await company.update({ onboarding_step: 5 }, { transaction: t });
       await t.commit();
 
-      await logActivity({ companyId: req.user!.companyId, employeeId: req.user!.employeeId, action: 'COMPANY_CREATED', module: 'companies', entityId: company.id, newValues: { name, slug, first_employee: admin_email } });
+      await logActivity({
+        companyId: req.user!.companyId, employeeId: req.user!.employeeId,
+        action: 'COMPANY_CREATED', module: 'companies', entityId: company.id,
+        newValues: { name, slug, assigned_employees: assignedEmployees.length },
+      });
 
       sendResponse(res, {
         statusCode: 201,
-        message: `${name} created. Both you and ${admin_email || 'you'} are super admins of this company.`,
+        message: `${name} created successfully.`,
         data: {
-          id: company.id, name: company.name, slug: company.slug,
-          super_admins: [
-            { type: 'creator', email: req.user!.email },
-            ...(firstEmployee ? [{ type: 'first_employee', email: firstEmployee.email, role: admin_role_slug, employee_code: firstEmployee.employee_code }] : []),
-          ],
+          id:   company.id,
+          name: company.name,
+          slug: company.slug,
+          assigned_employees: assignedEmployees,
         },
       });
     } catch(e2){ await t.rollback(); throw e2; }
@@ -536,15 +524,13 @@ async function getEligibleManagers(req: Request, res: Response, next: NextFuncti
 
     const eligible = await Employee.findAll({
       where: {
-        status: 'Active', portal_access: true,
+        // Any active employee with portal access can be assigned — no permission filter
+        status: 'Active',
+        portal_access: true,
         ...(excludeIds.length ? { id: { [Op.notIn]: excludeIds } } : {}),
-        [Op.or]: [
-          { is_super_admin: true },
-          sequelize.literal(`id IN (SELECT er.employee_id FROM employee_roles er JOIN role_module_permissions rmp ON rmp.role_id = er.role_id WHERE rmp.module = 'companies' AND rmp.can_edit = 1)`),
-        ],
       },
       attributes: ['id','first_name','last_name','email','employee_code','is_super_admin'],
-      order: [['first_name','ASC']], limit: 200,
+      order: [['first_name','ASC']], limit: 500,
     });
 
     const companyRoles = await Role.findAll({
@@ -565,9 +551,9 @@ async function getEligibleManagers(req: Request, res: Response, next: NextFuncti
 async function getGlobalEligibleManagers(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const eligible = await Employee.findAll({
-      where: { status: 'Active', portal_access:true, [Op.or]:[{ is_super_admin:true },sequelize.literal(`id IN (SELECT er.employee_id FROM employee_roles er JOIN role_module_permissions rmp ON rmp.role_id=er.role_id WHERE rmp.module='companies' AND rmp.can_edit=1)`)] },
+      where: { status: 'Active', portal_access: true },
       attributes: ['id','first_name','last_name','email','employee_code','is_super_admin'],
-      order: [['first_name','ASC']], limit: 200,
+      order: [['first_name','ASC']], limit: 500,
     });
     sendResponse(res, { data: eligible.map(e => ({ id:e.id, full_name:`${e.first_name} ${e.last_name}`, email:e.email, employee_code:e.employee_code, is_super_admin:e.is_super_admin })) });
   } catch(e){ next(e); }
@@ -579,7 +565,7 @@ async function updateCompany(req: Request, res: Response, next: NextFunction): P
   try {
     const company = await Company.findByPk(+req.params.id);
     if (!company) { sendError(res, 'Not found', 404); return; }
-    const allowed = ['name','city','state','country','industry','email','phone','website','logo_url','gstin','pan','timezone','currency','notes'];
+    const allowed = ['name','city','state','country','industry','email','phone','website','logo_url','gstin','pan','timezone','currency','notes','theme_color'];
     const updates: any = {};
     for (const k of allowed) { if (req.body[k] !== undefined) updates[k] = req.body[k]; }
     await company.update(updates);
@@ -639,7 +625,7 @@ companyRouter.get('/platform-stats',    requireSuperAdmin => authenticate, getPl
 companyRouter.get('/eligible-managers', authorize('companies:create'), getGlobalEligibleManagers);
 companyRouter.get('/mine',              authorize('companies:view'),   getMyCompanies);
 companyRouter.get('/',                  authorize('companies:view'),   listCompanies);
-companyRouter.post('/',                 authorize('companies:create'), [body('name').trim().notEmpty(), body('admin_email').optional().isEmail()], validate, createCompany);
+companyRouter.post('/',                 authorize('companies:create'), [body('name').trim().notEmpty(), body('employees').optional().isArray()], validate, createCompany);
 companyRouter.get('/:id',               authorize('companies:view'),   [param('id').isInt()], validate, getCompany);
 companyRouter.put('/:id',               [param('id').isInt()], validate, requireCompanyAccess, updateCompany);
 companyRouter.post('/:id/suspend',      [param('id').isInt()], validate, requireCompanyAccess, suspendCompany);

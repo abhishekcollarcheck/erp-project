@@ -8,7 +8,6 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import { logActivity } from '../../utils/activityLogger';
 import { otpService } from '../../utils/otpService';
 import { normalizePhone } from '../../utils/normalizeNumber';
-import { resolvePermissionsForEmployee } from '../permission-groups/permissionGroupOverrides';
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 3;
@@ -50,7 +49,7 @@ export async function countCompanySuperAdmins(companyId: number): Promise<number
   });
 }
 
-export async function loadPermissions(
+async function loadPermissions(
   employeeId: number,
   companyId: number
 ): Promise<{permissions: string[]; isSuperAdmin: boolean}> {
@@ -87,6 +86,7 @@ export async function loadPermissions(
       if (p.can_create)  slugs.add(`${p.module}:create`);
       if (p.can_edit)    slugs.add(`${p.module}:edit`);
       if (p.can_delete)  slugs.add(`${p.module}:delete`);
+      if (p.can_approve) slugs.add(`${p.module}:approve`);
       if (p.can_export)  slugs.add(`${p.module}:export`);
     }
   }  
@@ -96,7 +96,7 @@ export async function loadPermissions(
     where: { employee_id: employeeId, company_id: companyId },
     include: [{
       model: PermissionGroup, as: 'group', where: { is_active: true },
-      include: [{ model: Permission, as: 'permissions', through: { attributes: [], where: { company_id: companyId } }, attributes: ['slug'] }],
+      include: [{ model: Permission, as: 'permissions', through: { attributes: [] }, attributes: ['slug'] }],
       required: false,
     }],
   });
@@ -105,9 +105,6 @@ export async function loadPermissions(
       if (p.slug) slugs.add(p.slug);
     }
   }
-
-  const groupIds = userGroups.map((ug: any) => ug.group_id).filter(Boolean);
-  await resolvePermissionsForEmployee(employeeId, companyId, groupIds, slugs);
 
   return { permissions: [...slugs], isSuperAdmin: false };
 }
@@ -148,7 +145,7 @@ async function buildPayload(employee: Employee, activeCompanyId?: number) {
 async function buildResponse(employee: Employee, payload: Awaited<ReturnType<typeof buildPayload>>) {
   const assignments = await CompanyManager.findAll({
     where:   { employee_id: employee.id },
-    include: [{ model: Company, as: 'company', attributes: ['id','name','slug','is_active'] }],
+    include: [{ model: Company, as: 'company', attributes: ['id','name','slug','is_active','theme_color'] }],
     order:   [['is_primary','DESC'],['assigned_at','ASC']],
   });
 
@@ -166,10 +163,11 @@ async function buildResponse(employee: Employee, payload: Awaited<ReturnType<typ
         name:            co.name,
         slug:            co.slug,
         is_active:       co.is_active,
+        theme_color:     co.theme_color ?? null,   // ← for per-company theming
         manager_role:    (empRole as any)?.role?.slug  || null,
         role_name:       (empRole as any)?.role?.name  || null,
         is_primary:      a.is_primary,
-        is_super_admin:  isSA,   // ← per-company super admin flag
+        is_super_admin:  isSA,
       };
     })
   );
@@ -180,7 +178,7 @@ async function buildResponse(employee: Employee, payload: Awaited<ReturnType<typ
     if (home) {
       managedCompanies.push({
         id: home.id, name: home.name, slug: home.slug, is_active: home.is_active,
-        manager_role: payload.roleSlug, role_name: null,
+        manager_role: payload.roleSlug, role_name: null, theme_color: home.theme_color,
         is_primary: true, is_super_admin: payload.isSuperAdmin,
       });
     }
@@ -225,20 +223,19 @@ export class AuthService {
     const recentCount = await OtpRequest.count({ where: { employee_id: employee.id, requested_at: { [Op.gte]: new Date(Date.now() - 3600000) } } });
     if (recentCount >= OTP_RATE_LIMIT) throw new AppError('Too many OTP requests. Wait 1 hour.', 429);
 
-    // const otp = process.env.NODE_ENV === 'production' ? String(Math.floor(100000 + Math.random() * 900000)) : '123456';
-    const otp = '123456'
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
     const otpHash = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
 
     await employee.update({ otp_hash: otpHash, otp_expires: expiresAt, otp_attempts: 0, otp_locked_until: null });
     await OtpRequest.create({ employee_id: employee.id, channel: isPhone ? 'sms' : 'email', ip_address: ipAddress ?? null, expires_at: expiresAt });
 
-    // await otpService.send({ channel: isPhone ? 'sms' : 'email', destination: isPhone ? emailOrPhone.trim() : employee.email, otp, employeeId: employee.id });
+    await otpService.send({ channel: isPhone ? 'sms' : 'email', destination: isPhone ? emailOrPhone.trim() : employee.email, otp, employeeId: employee.id });
 
     return { message: 'If an account exists, an OTP has been sent.', expires_in: 600 };
   }
 
-  async verifyOtp(emailOrPhone: string, otp: string = '123456', ipAddress?: string) {
+  async verifyOtp(emailOrPhone: string, otp: string, ipAddress?: string) {
     const loginValue = emailOrPhone.trim();
     const isPhone = /^\+?[0-9]{10,15}$/.test(emailOrPhone.trim());
     const normalizedPhone = normalizePhone(loginValue);

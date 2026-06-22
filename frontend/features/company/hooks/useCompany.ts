@@ -1,20 +1,4 @@
 'use client';
-/**
- * useCompany.ts
- *
- * Central hook for company context. Use this everywhere instead of
- * reading companyId from user directly. This handles:
- *   - Single-company employees: activeCompanyId = their home company
- *   - Multi-company managers:   activeCompanyId = whatever they switched to
- *   - Super admins:             activeCompanyId = whatever they selected
- *
- * Usage:
- *   const { companyId, company, managedCompanies, switchCompany } = useCompany();
- *
- *   // Use companyId as the query parameter everywhere:
- *   useQuery(['employees', companyId], () => api.employees(companyId))
- *   apiClient.get(`/employees?company_id=${companyId}`)
- */
 import { useCallback }   from 'react';
 import { useAppDispatch, useAppSelector } from '../../../store';
 import {

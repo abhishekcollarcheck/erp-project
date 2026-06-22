@@ -37,7 +37,7 @@ export async function getByEmployee(
     const month = Number(req.query.month ?? new Date().getMonth() + 1);
     const year = Number(req.query.year ?? new Date().getFullYear());
 
-    const data = await attendanceService.getByEmployee(employeeId, month, year);
+    const data = await attendanceService.getByEmployee(employeeId, month, year, req.user!.companyId);
 
     sendResponse(res, {
       data,
@@ -79,6 +79,7 @@ export async function markAttendance(
   try {
     const { record, created } = await attendanceService.mark({
       ...req.body,
+      company_id: req.user!.companyId,   // always from JWT — never trust body
       created_by: req.user!.employeeId,
     });
 
@@ -101,8 +102,13 @@ export async function bulkMarkAttendance(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Inject company_id from JWT into every record — never trust body
+    const records = (req.body.records as any[]).map(r => ({
+      ...r,
+      company_id: req.user!.companyId,
+    }));
     const result = await attendanceService.bulkMark(
-      req.body.records,
+      records,
       req.user!.employeeId
     );
 
@@ -126,6 +132,7 @@ export async function updateAttendance(
   try {
     const record = await attendanceService.update(
       parseInt(req.params.id, 10),
+      req.user!.companyId,
       req.body,
       req.user!.employeeId
     );

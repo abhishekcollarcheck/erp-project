@@ -26,6 +26,7 @@ interface CompanyAttributes {
   timezone:              string;
   currency:              string;
   date_format:           string;
+  theme_color:           string | null;  
   onboarding_step:       number;
   setup_completed_at:    Date | null;
   is_active:             boolean;
@@ -41,7 +42,7 @@ interface CompanyCreationAttributes extends Optional<CompanyAttributes,
   'website' | 'address' | 'city' | 'state' | 'pincode' | 'industry' |
   'country' | 'fiscal_year' | 'employee_count' |
   'timezone' | 'currency' |
-  'date_format' | 'onboarding_step' | 'setup_completed_at' | 'is_active' |
+  'date_format' | 'theme_color' | 'onboarding_step' | 'setup_completed_at' | 'is_active' |
   'notes' | 'created_by'
 > {}
 
@@ -70,6 +71,7 @@ export class Company
   public timezone!:              string;
   public currency!:              string;
   public date_format!:           string;
+  public theme_color!:           string | null;
   public onboarding_step!:       number;
   public setup_completed_at!:    Date | null;
   public is_active!:             boolean;
@@ -102,6 +104,7 @@ Company.init({
   timezone:              { type: DataTypes.STRING(100), defaultValue: 'Asia/Kolkata' },
   currency:              { type: DataTypes.STRING(10),  defaultValue: 'INR' },
   date_format:           { type: DataTypes.STRING(30),  defaultValue: 'DD/MM/YYYY' },
+  theme_color:           { type: DataTypes.STRING(20),  allowNull: true,  defaultValue: null },
   onboarding_step:       { type: DataTypes.INTEGER,     defaultValue: 0 },
   setup_completed_at:    { type: DataTypes.DATE, allowNull: true },
   is_active:             { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -122,3 +125,56 @@ Company.init({
     { fields: ['is_active'] },
   ],
 });
+
+// ─── CompanySettings — flexible key-value store ───────────────────────────────
+// Stores any company-level setting without requiring schema changes.
+// Examples: leave_approval_flow, probation_days, payslip_footer, etc.
+
+interface CompanySettingAttributes {
+  id:         number;
+  company_id: number;
+  key:        string;
+  value:      string | null;
+  updated_by: number | null;
+}
+
+export class CompanySetting
+  extends Model<CompanySettingAttributes, Optional<CompanySettingAttributes, 'id' | 'updated_by'>>
+  implements CompanySettingAttributes
+{
+  public id!:         number;
+  public company_id!: number;
+  public key!:        string;
+  public value!:      string | null;
+  public updated_by!: number | null;
+  public readonly updated_at!: Date;
+}
+
+CompanySetting.init({
+  id:         { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  key:        { type: DataTypes.STRING(100), allowNull: false },
+  value:      { type: DataTypes.TEXT, allowNull: true },
+  updated_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+}, {
+  sequelize,
+  tableName:  'company_settings',
+  modelName:  'CompanySetting',
+  timestamps: true,
+  createdAt:  false,
+  updatedAt:  'updated_at',
+  indexes: [
+    { unique: true, fields: ['company_id', 'key'] },
+    { fields: ['company_id'] },
+  ],
+});
+
+// ─── Well-known setting keys (for type safety in code) ────────────────────────
+export const COMPANY_SETTING_KEYS = {
+  LEAVE_APPROVAL_FLOW:  'leave_approval_flow',   // 'single' | 'multi'
+  PROBATION_DAYS:       'probation_days',          // number as string
+  PAYSLIP_FOOTER:       'payslip_footer',          // text
+  WORK_WEEK:            'work_week',               // '5' | '5.5' | '6'
+  ATTENDANCE_CUTOFF:    'attendance_cutoff',       // time e.g. '10:30'
+  PORTAL_WELCOME_MSG:   'portal_welcome_msg',      // text
+} as const;

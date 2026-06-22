@@ -1,8 +1,9 @@
 import { Request, Response, Router, NextFunction } from 'express';
 import {employeeController} from "./employee.controller"
-import { authenticate, authorize } from '../auth/auth.middleware';
+import { authenticate, resolveCompanyContext } from '../auth/auth.middleware';
 import { asyncHandler } from '../../middleware/errorHandler.middleware';
 import { rbacCheck } from '../../middleware/rbac.middleware';
+
 import {
   listValidation, idValidation, STEP_VALIDATORS,
 } from './employee.validation';
@@ -10,6 +11,7 @@ import {
 
 export const employeeRoutes = Router();
 employeeRoutes.use(authenticate);
+employeeRoutes.use(resolveCompanyContext)
 
 // Static routes — ALL must be declared before /:id to avoid param collision
 employeeRoutes.get('/summary',              asyncHandler(employeeController.summary));
