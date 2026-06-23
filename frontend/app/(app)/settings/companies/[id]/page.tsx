@@ -461,6 +461,202 @@ function EditCompanyModal({ company, onClose }: { company:CompanyDetail; onClose
   );
 }
 
+// ─── Settings Tab — Theme + Company Settings + Danger Zone ───────────────────
+
+const THEME_PRESETS = [
+  { label: 'Blue',    color: '#1e56d9' },
+  { label: 'Purple',  color: '#7c3aed' },
+  { label: 'Green',   color: '#0d9669' },
+  { label: 'Red',     color: '#cc2a2a' },
+  { label: 'Orange',  color: '#c96f00' },
+  { label: 'Teal',    color: '#0d8a7e' },
+  { label: 'Pink',    color: '#c0265e' },
+  { label: 'Slate',   color: '#475569' },
+];
+
+const SETTING_FIELDS = [
+  { key: 'work_week',           label: 'Work Week',             type: 'select', options: [{ v:'5', l:'5 days (Mon–Fri)' }, { v:'5.5', l:'5.5 days' }, { v:'6', l:'6 days (Mon–Sat)' }] },
+  { key: 'attendance_cutoff',   label: 'Attendance Cutoff Time',type: 'time',   placeholder: '10:30' },
+  { key: 'leave_approval_flow', label: 'Leave Approval Flow',   type: 'select', options: [{ v:'single', l:'Single Level' }, { v:'multi', l:'Multi Level' }] },
+  { key: 'probation_days',      label: 'Probation Days',        type: 'number', placeholder: '90' },
+  { key: 'portal_welcome_msg',  label: 'Portal Welcome Message',type: 'text',   placeholder: 'Welcome to the HR portal!' },
+];
+
+function SettingsTab({ companyId, company }: { companyId:number; company:CompanyDetail }) {
+  const qc            = useQueryClient();
+  const { canEdit }   = usePermission();
+  const [themeColor,  setThemeColor]  = useState<string>((company as any).theme_color || '#1e56d9');
+  const [themeDirty,  setThemeDirty]  = useState(false);
+  const [settings,    setSettings]    = useState<Record<string,string>>({});
+  const [settingsDirty, setSettingsDirty] = useState(false);
+
+  // Load current settings
+  const { data: currentSettings } = useQuery({
+    queryKey: ['company-settings', companyId],
+    queryFn:  () => apiClient.get<any,any>(`/companies/${companyId}/settings`),
+    select:   (r:any) => r.data as Record<string,string>,
+  });
+
+  useEffect(() => {
+    if (currentSettings) {
+      const s: Record<string,string> = {};
+      for (const f of SETTING_FIELDS) s[f.key] = currentSettings[f.key] ?? '';
+      setSettings(s);
+    }
+  }, [currentSettings]);
+
+  const themeMut = useMutation({
+    mutationFn: () => apiClient.put<any,any>(`/companies/${companyId}/theme`, { theme_color: themeColor }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company', companyId] });
+      // Apply theme immediately in the browser via CSS variable
+      document.documentElement.style.setProperty('--blue', themeColor);
+      setThemeDirty(false);
+      showToast('✓ Theme updated');
+    },
+    onError: (e:any) => showToast(e?.message || 'Failed'),
+  });
+
+  const settingsMut = useMutation({
+    mutationFn: () => apiClient.put<any,any>(`/companies/${companyId}/settings`, settings),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company-settings', companyId] });
+      setSettingsDirty(false);
+      showToast('✓ Settings saved');
+    },
+    onError: (e:any) => showToast(e?.message || 'Failed'),
+  });
+
+  const handleThemeSelect = (color: string) => {
+    setThemeColor(color);
+    setThemeDirty(true);
+    // Live preview as user picks
+    document.documentElement.style.setProperty('--blue', color);
+  };
+
+  const handleSettingChange = (key: string, val: string) => {
+    setSettings(p => ({ ...p, [key]: val }));
+    setSettingsDirty(true);
+  };
+
+  return (
+    <div style={{ maxWidth:560, display:'flex', flexDirection:'column', gap:16 }}>
+
+      {/* ── Edit company details ──────────────────────────── */}
+      {canEdit('companies') && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r3)', padding:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'var(--ink)', marginBottom:4 }}>Company Details</div>
+          <div style={{ fontSize:12, color:'var(--ink4)', marginBottom:12 }}>Update name, contact info, industry and timezone.</div>
+          <button className="btn btn-sec btn-sm" onClick={() => {
+            // Trigger the edit modal from parent via a custom event
+            document.dispatchEvent(new CustomEvent('open-company-edit'));
+          }}>✎ Edit Details</button>
+        </div>
+      )}
+
+      {/* ── Theme Color ───────────────────────────────────── */}
+      {canEdit('companies') && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r3)', padding:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'var(--ink)', marginBottom:4 }}>Theme Color</div>
+          <div style={{ fontSize:12, color:'var(--ink4)', marginBottom:14 }}>
+            Har employee portal pe ye color primary color ki tarah apply hoga jab wo is company mein ho.
+          </div>
+
+          {/* Preset chips */}
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:14 }}>
+            {THEME_PRESETS.map(p => (
+              <div key={p.color} onClick={() => handleThemeSelect(p.color)}
+                title={p.label}
+                style={{
+                  width:32, height:32, borderRadius:'50%', background:p.color, cursor:'pointer',
+                  border: themeColor===p.color ? `3px solid var(--ink)` : '3px solid transparent',
+                  transform: themeColor===p.color ? 'scale(1.2)' : 'scale(1)',
+                  transition: 'all .12s', boxShadow: themeColor===p.color ? '0 0 0 1px var(--ink)' : 'none',
+                }} />
+            ))}
+          </div>
+
+          {/* Custom hex input */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+            <div style={{ width:36, height:36, borderRadius:'var(--r)', background:themeColor, border:'1px solid var(--border)', flexShrink:0 }} />
+            <div className="fg" style={{ marginBottom:0, flex:1 }}>
+              <input
+                type="text"
+                value={themeColor}
+                onChange={e => { setThemeColor(e.target.value); setThemeDirty(true); if(/^#[0-9a-fA-F]{6}$/.test(e.target.value)) document.documentElement.style.setProperty('--blue', e.target.value); }}
+                placeholder="#1e56d9"
+                style={{ fontFamily:'var(--mono)' }}
+              />
+            </div>
+            <input type="color" value={themeColor} onChange={e => handleThemeSelect(e.target.value)}
+              style={{ width:36, height:36, border:'1px solid var(--border)', borderRadius:'var(--r)', cursor:'pointer', padding:2 }} />
+          </div>
+
+          {themeDirty && (
+            <button className="btn btn-pri btn-sm" onClick={() => themeMut.mutate()} disabled={themeMut.isPending}>
+              {themeMut.isPending ? 'Saving…' : '✓ Save Theme'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Company Settings ──────────────────────────────── */}
+      {canEdit('companies') && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r3)', padding:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'var(--ink)', marginBottom:4 }}>Company Settings</div>
+          <div style={{ fontSize:12, color:'var(--ink4)', marginBottom:16 }}>Leave aur attendance ke default settings configure karo.</div>
+
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {SETTING_FIELDS.map(field => (
+              <div key={field.key} className="fg" style={{ marginBottom:0 }}>
+                <label style={{ fontSize:11 }}>{field.label}</label>
+                {field.type === 'select' ? (
+                  <select value={settings[field.key] ?? ''} onChange={e => handleSettingChange(field.key, e.target.value)} style={{ marginTop:4 }}>
+                    <option value="">— Select —</option>
+                    {field.options?.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type={field.type === 'number' ? 'number' : 'text'}
+                    value={settings[field.key] ?? ''}
+                    onChange={e => handleSettingChange(field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    style={{ marginTop:4 }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {settingsDirty && (
+            <button className="btn btn-pri btn-sm" style={{ marginTop:14 }}
+              onClick={() => settingsMut.mutate()} disabled={settingsMut.isPending}>
+              {settingsMut.isPending ? 'Saving…' : '✓ Save Settings'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Danger Zone ───────────────────────────────────── */}
+      {canEdit('companies') && (
+        <div style={{ background:'var(--red-lt)', border:'1px solid var(--red-bd)', borderRadius:'var(--r3)', padding:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'var(--red)', marginBottom:6 }}>Danger Zone</div>
+          {company.is_active
+            ? <button className="btn btn-sec btn-sm" style={{ fontSize:11, color:'var(--red)', borderColor:'var(--red-bd)' }}
+                onClick={()=>{ if(window.confirm(`Suspend ${company.name}?`)) apiClient.post<any,any>(`/companies/${companyId}/suspend`).then(()=>{ qc.invalidateQueries({ queryKey:['company',companyId] }); showToast('Company suspended'); }); }}>
+                ⏸ Suspend Company
+              </button>
+            : <button className="btn btn-sec btn-sm" style={{ fontSize:11, color:'var(--green)', borderColor:'var(--green-bd)' }}
+                onClick={()=>apiClient.post<any,any>(`/companies/${companyId}/activate`).then(()=>{ qc.invalidateQueries({ queryKey:['company',companyId] }); showToast('✓ Activated'); })}>
+                ▶ Activate Company
+              </button>
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CompanyDetailPage() {
@@ -488,6 +684,12 @@ export default function CompanyDetailPage() {
   });
 
   useEffect(() => { if (company) dispatch(setPageTitle({ title:company.name, breadcrumb:'Companies' })); }, [company,dispatch]);
+
+  useEffect(() => {
+    const handler = () => setEditOpen(true);
+    document.addEventListener('open-company-edit', handler);
+    return () => document.removeEventListener('open-company-edit', handler);
+  }, []);
 
   if (isLoading) return <AppShell><div style={{ padding:40, textAlign:'center', color:'var(--ink4)' }}>Loading…</div></AppShell>;
   if (!company)  return <AppShell><div style={{ padding:40, textAlign:'center', color:'var(--ink4)' }}>Not found</div></AppShell>;
@@ -626,32 +828,7 @@ export default function CompanyDetailPage() {
 
         {/* ── Settings ──────────────────────────────────────── */}
         {tab==='settings' && (
-          <div style={{ maxWidth:520, display:'flex', flexDirection:'column', gap:16 }}>
-            {/* Quick edit shortcut */}
-            {canEdit('companies') && (
-              <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r3)', padding:20 }}>
-                <div style={{ fontSize:12, fontWeight:700, color:'var(--ink)', marginBottom:6 }}>Company Details</div>
-                <div style={{ fontSize:12, color:'var(--ink4)', marginBottom:12 }}>Update name, contact, subscription plan and limits.</div>
-                <button className="btn btn-sec btn-sm" onClick={()=>setEditOpen(true)}>✎ Edit Company Details</button>
-              </div>
-            )}
-            {/* Danger zone */}
-            {canEdit('companies') && (
-              <div style={{ background:'var(--red-lt)', border:'1px solid var(--red-bd)', borderRadius:'var(--r3)', padding:20 }}>
-                <div style={{ fontSize:12, fontWeight:700, color:'var(--red)', marginBottom:6 }}>Danger Zone</div>
-                {company.is_active
-                  ? <button className="btn btn-sec btn-sm" style={{ fontSize:11, color:'var(--red)', borderColor:'var(--red-bd)' }}
-                      onClick={()=>{ if(window.confirm(`Suspend ${company.name}?`)) apiClient.post<any,any>(`/companies/${companyId}/suspend`).then(()=>{ qc.invalidateQueries({ queryKey:['company',companyId] }); showToast('Company suspended'); }); }}>
-                      ⏸ Suspend Company
-                    </button>
-                  : <button className="btn btn-sec btn-sm" style={{ fontSize:11, color:'var(--green)', borderColor:'var(--green-bd)' }}
-                      onClick={()=>apiClient.post<any,any>(`/companies/${companyId}/activate`).then(()=>{ qc.invalidateQueries({ queryKey:['company',companyId] }); showToast('✓ Activated'); })}>
-                      ▶ Activate Company
-                    </button>
-                }
-              </div>
-            )}
-          </div>
+          <SettingsTab companyId={companyId} company={company} />
         )}
 
       </div>

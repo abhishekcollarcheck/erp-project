@@ -106,7 +106,6 @@ export async function resolveCompanyContext(
   next: NextFunction
 ) {
   const companyId = Number(req.headers["x-company-id"]);
-  console.log("company-id-x", companyId)
 
   if (!companyId) {
     return next();

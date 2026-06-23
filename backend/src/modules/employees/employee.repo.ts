@@ -207,18 +207,16 @@ export class EmployeeRepository {
 
   // ─── Lookups ────────────────────────────────────────────────────────────────
 
-  // Find by employee_code for duplicate check only
-  async findByCode(code: string, companyId: number, excludeId?: number) {
+  async findByCode(code: string, excludeId?: number) {
     return Employee.findOne({
-      where: { company_id: companyId, employee_code: code, ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}) },
+      where: {employee_code: code, ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}) },
     });
   }
 
   // Company-scoped email uniqueness check (different companies may share email)
-  async findByEmail(email: string, companyId: number, excludeId?: number) {
+  async findByEmail(email: string, excludeId?: number) {
     return Employee.findOne({
       where: {
-        company_id:     companyId,
         email: email.toLowerCase().trim(),
         ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}),
       },
@@ -227,10 +225,9 @@ export class EmployeeRepository {
   }
 
   // Company-scoped mobile uniqueness check (different companies may share mobile)
-  async findByMobile(mobile: string, companyId: number, excludeId?: number) {
+  async findByMobile(mobile: string, excludeId?: number) {
     return Employee.findOne({
       where: {
-        company_id:      companyId,
         phone: mobile.trim(),
         ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}),
       },

@@ -397,6 +397,7 @@ function GroupDetail({
   onEditOverride: (memberId: number) => void;
   onDeleteOverride: (memberId: number) => void;
 }) {
+  console.log("members-of-adding", members)
   const slugs = group.permissions?.map(p => p.slug) || [];
   const modPerms = slugsToModulePerms(slugs);
   const [search, setSearch] = useState('');

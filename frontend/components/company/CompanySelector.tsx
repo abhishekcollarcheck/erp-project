@@ -1,24 +1,4 @@
 'use client';
-/**
- * CompanySelector.tsx
- *
- * Reusable company picker for any settings page (roles, permissions,
- * permission groups, user permissions, form builder, etc.)
- *
- * Shows only for:
- *   - Super admins (can switch to any company)
- *   - Employees managing multiple companies
- *
- * Single-company employees see nothing — companyId is implicit.
- *
- * Usage:
- *   const { companyId } = useCompanySelector();
- *   // Then use companyId in all queries on the page
- *
- *   // OR embed the dropdown directly:
- *   <CompanySelector onChange={id => setCompanyId(id)} />
- */
-import { useState }     from 'react';
 import { useCompany }   from '../../features/company/hooks/useCompany';
 import { ManagedCompany } from '../../types/auth.types';
 

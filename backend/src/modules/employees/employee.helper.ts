@@ -13,11 +13,11 @@ import { Op } from 'sequelize';
 // ─── Salary computations (spreadsheet salary calculator) ─────────────────────
 
 export interface SalaryBreakdown {
-  basic:           number;
-  hra:             number;
-  allowance1:      number;
+  basic: number;
+  hra: number;
+  allowance1: number;
   gross_salary_pm: number;
-  amdb_pm:         number;
+  amdb_pm: number;
   total_earning_pm: number;
 }
 
@@ -39,10 +39,10 @@ export function computeSalary(
   const gross = b + h + a;
   const amdb_pm = amdb !== undefined ? Number(amdb) : Math.round(gross * AMDB_PERCENTAGE);
   return {
-    basic:            b,
-    hra:              h,
-    allowance1:       a,
-    gross_salary_pm:  gross,
+    basic: b,
+    hra: h,
+    allowance1: a,
+    gross_salary_pm: gross,
     amdb_pm,
     total_earning_pm: gross + amdb_pm,
   };
@@ -55,13 +55,13 @@ export function computeWorkingDuration(doj: Date | string): string {
   const now = new Date();
   const diffMs = now.getTime() - start.getTime();
   const totalDays = Math.floor(diffMs / 86400000);
-  const years  = Math.floor(totalDays / 365);
+  const years = Math.floor(totalDays / 365);
   const months = Math.floor((totalDays % 365) / 30);
-  const days   = totalDays % 30;
+  const days = totalDays % 30;
   const parts: string[] = [];
-  if (years  > 0) parts.push(`${years} Yr${years  > 1 ? 's' : ''}`);
+  if (years > 0) parts.push(`${years} Yr${years > 1 ? 's' : ''}`);
   if (months > 0) parts.push(`${months} Mo${months > 1 ? 's' : ''}`);
-  if (days   > 0) parts.push(`${days} Day${days > 1 ? 's' : ''}`);
+  if (days > 0) parts.push(`${days} Day${days > 1 ? 's' : ''}`);
   return parts.length > 0 ? parts.join(' ') : '0 Days';
 }
 
@@ -140,18 +140,17 @@ export function computeEsicContributions(grossSalary: number) {
   if (grossSalary > ESIC_THRESHOLD) {
     return { empContrib: 0, employerContrib: 0 };
   }
-  const empContrib       = Math.round(grossSalary * 0.0075);
-  const employerContrib  = Math.round(grossSalary * 0.0325);
+  const empContrib = Math.round(grossSalary * 0.0075);
+  const employerContrib = Math.round(grossSalary * 0.0325);
   return { empContrib, employerContrib };
 }
 
 // ─── Employee code generation ─────────────────────────────────────────────────
 
-export async function generateEmployeeCode(companyId: number): Promise<string> {
+export async function generateEmployeeCode(): Promise<string> {
   const last = await Employee.findOne({
-  where: { company_id: companyId },
-  order: [['employee_code', 'DESC']],
-  attributes: ['employee_code'],
+    order: [['id', 'DESC']],
+    attributes: ['employee_code'],
   });
   if (!last) return 'EMP-0001';
   const match = last.employee_code.match(/(\d+)$/);
@@ -177,21 +176,21 @@ export async function generateReferenceCode(companyId: number): Promise<string> 
 export function computeCompletionPct(employee: any): number {
   let score = 0;
   const checks: Record<StepKey, () => boolean> = {
-    basic:          () => !!(employee.first_name && employee.last_name && employee.employee_code && employee.employment_type),
-    employment:     () => !!(employee.department_id && employee.designation_id && employee.working_city && employee.actual_doj),
-    reporting:      () => !!(employee.l1_manager_id),
-    commitment:     () => employee.commitmentProbation != null,
-    schemes:        () => employee.schemes != null,
-    personal:       () => !!(employee.personal?.date_of_birth && employee.personal?.gender && employee.personal?.blood_group),
-    address:        () => !!(employee.addresses?.find((a: any) => a.address_type === 'present')),
-    family:         () => !!(employee.family?.father_name && employee.family?.mother_name),
-    emergency:      () => !!(employee.emergencyContacts?.[0]?.contact_name),
-    statutory:      () => !!(employee.statutory?.aadhaar_number && employee.statutory?.pan_number),
-    bank:           () => !!(employee.bankDetails?.find((b: any) => b.bank_type === 'personal')),
-    experience:     () => employee.experience != null,
-    salary:         () => !!(employee.salaries?.find((s: any) => s.salary_type === 'current')),
-    onboarding_docs:() => employee.onboardingDocs != null,
-    review:         () => false,
+    basic: () => !!(employee.first_name && employee.last_name && employee.employee_code && employee.employment_type),
+    employment: () => !!(employee.department_id && employee.designation_id && employee.working_city && employee.actual_doj),
+    reporting: () => !!(employee.l1_manager_id),
+    commitment: () => employee.commitmentProbation != null,
+    schemes: () => employee.schemes != null,
+    personal: () => !!(employee.personal?.date_of_birth && employee.personal?.gender && employee.personal?.blood_group),
+    address: () => !!(employee.addresses?.find((a: any) => a.address_type === 'present')),
+    family: () => !!(employee.family?.father_name && employee.family?.mother_name),
+    emergency: () => !!(employee.emergencyContacts?.[0]?.contact_name),
+    statutory: () => !!(employee.statutory?.aadhaar_number && employee.statutory?.pan_number),
+    bank: () => !!(employee.bankDetails?.find((b: any) => b.bank_type === 'personal')),
+    experience: () => employee.experience != null,
+    salary: () => !!(employee.salaries?.find((s: any) => s.salary_type === 'current')),
+    onboarding_docs: () => employee.onboardingDocs != null,
+    review: () => false,
   };
 
   for (const step of WIZARD_STEPS) {

@@ -9,11 +9,12 @@ import { EmployeeRole, RoleTemplate, RoleTemplatePermission } from '../../databa
 import { Department }            from '../../database/models/Department';
 import { CompanyManager }        from '../../database/models/CompanyManager';
 import { AppError }              from '../../middleware/errorHandler.middleware';
-import { authenticate, authorize } from '../auth/auth.middleware';
+import { authenticate, authorize, resolveCompanyContext } from '../auth/auth.middleware';
 import { validate }              from '../../middleware/validate.middleware';
 import { logActivity }           from '../../utils/activityLogger';
 import { isCompanySuperAdmin, countCompanySuperAdmins } from '../auth/auth.service';
 import { sendResponse, sendError, sendPaginated, parsePaginationParams, buildPaginationMeta } from '../../utils/response';
+import { getSettings, updateSettings, updateTheme } from './companySetting'
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 
@@ -108,6 +109,13 @@ async function getMyCompanies(req: Request, res: Response, next: NextFunction): 
       include: [{ model: Company, as: 'company' }],
       order:   [['is_primary','DESC'],['assigned_at','ASC']],
     });
+for (const a of assignments) {
+  console.log(
+    "company from db",
+    (a as any).company?.id,
+    (a as any).company?.theme_color
+  );
+}    
     const companyIds = assignments.map(a => a.company_id);
     const empRoles   = await EmployeeRole.findAll({
       where: { employee_id: req.user!.employeeId, company_id: companyIds },
@@ -180,9 +188,6 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
   try {
     const {
       name, city, state, industry, email, theme_color,
-      // employees[] — array of existing employees to assign at creation
-      // Each: { employee_id: number, role_slug: string }
-      // Multiple employees allowed, same role allowed for different employees
       employees = [],
     } = req.body;
     console.log("body-front", req.body)
@@ -620,6 +625,7 @@ async function listManagers(req: Request, res: Response, next: NextFunction): Pr
 
 export const companyRouter = Router();
 companyRouter.use(authenticate);
+companyRouter.use(resolveCompanyContext)
 
 companyRouter.get('/platform-stats',    requireSuperAdmin => authenticate, getPlatformStats);
 companyRouter.get('/eligible-managers', authorize('companies:create'), getGlobalEligibleManagers);
@@ -642,6 +648,29 @@ companyRouter.delete('/:id/managers/:employeeId', [param('id').isInt(), param('e
 companyRouter.get('/:id/super-admins',                    [param('id').isInt()], validate, requireCompanyAccess, listSuperAdmins);
 companyRouter.post('/:id/super-admins/:employeeId/promote',[param('id').isInt(), param('employeeId').isInt()], validate, requireCompanyAccess, promoteSuperAdmin);
 companyRouter.post('/:id/super-admins/:employeeId/demote', [param('id').isInt(), param('employeeId').isInt()], validate, requireCompanyAccess, demoteSuperAdmin);
+
+// ─── Company settings + theme ─────────────────────────────────────────────────
+// FIXED: Added requireCompanyAccess middleware to authorize access
+companyRouter.get('/:id/settings', 
+  [param('id').isInt()], 
+  validate, 
+  requireCompanyAccess,  // ← ADDED: Only platform super admin OR company super admin can read settings
+  getSettings
+);
+ 
+companyRouter.put('/:id/settings', 
+  [param('id').isInt()], 
+  validate, 
+  requireCompanyAccess,  // ← ADDED: Only platform super admin OR company super admin can update settings
+  updateSettings
+);
+ 
+companyRouter.put('/:id/theme',    
+  [param('id').isInt(), body('theme_color').isString()], 
+  validate, 
+  requireCompanyAccess,  // ← ADDED: Only platform super admin OR company super admin can update theme
+  updateTheme
+);
 
 // Export helper for middleware use
 export { requireCompanyAccess };

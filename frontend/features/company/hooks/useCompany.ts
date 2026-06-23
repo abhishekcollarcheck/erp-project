@@ -1,5 +1,5 @@
 'use client';
-import { useCallback }   from 'react';
+import { useCallback, useEffect }   from 'react';
 import { useAppDispatch, useAppSelector } from '../../../store';
 import {
   switchCompany    as switchCompanyAction,
@@ -22,6 +22,12 @@ export function useCompany() {
   const switchCompany = useCallback((companyId: number) => {
     dispatch(switchCompanyAction(companyId));
   }, [dispatch]);
+
+useEffect(() => {
+  console.log("ACTIVE COMPANY", activeCompany);
+}, [activeCompany]);
+
+console.log("managedCompanies", managedCompanies);
 
   // For super admins managing many companies, also load from API
   const { data: allCompanies = [] } = useQuery({

@@ -31,6 +31,7 @@ import type {
 import type { StepKey } from './employee.constants';
 import { SENSITIVE_FIELDS } from './employee.constants';
 import { Transaction } from 'sequelize';
+import { normalizePhone } from '../../utils/normalizeNumber';
 
 // ─── Field permission cache ───────────────────────────────────────────────────
 const fpCache = new Map<number, { data: FieldPermissionMap; ts: number }>();
@@ -106,16 +107,16 @@ export class EmployeeService {
   }
 
   async create(dto: BasicInfoDto, actorId: number, ipAddress?: string) {
-    console.log("data", dto)
-    const empCode = await generateEmployeeCode(dto.company_id);
-    const useCode = dto.employee_code || empCode;
+    const empCode = await generateEmployeeCode();
+const useCode = empCode;
+console.log("final", useCode);
 
     // ── Uniqueness checks (all company-scoped, runs before transaction) ──────
-    const dupCode = await repo.findByCode(useCode, dto.company_id);
+    const dupCode = await repo.findByCode(useCode);
     if (dupCode) throw new AppError(`Employee code "${useCode}" is already in use`, 409);
 
     if (dto.email) {
-      const dupEmail = await repo.findByEmail(dto.email, dto.company_id);
+      const dupEmail = await repo.findByEmail(dto.email);
       if (dupEmail) throw new AppError(
         `Email "${dto.email}" is already registered to ${dupEmail.first_name} ${dupEmail.last_name} (${dupEmail.employee_code}) in this company`,
         409,
@@ -123,7 +124,7 @@ export class EmployeeService {
     }
 
     if (dto.phone) {
-      const dupMobile = await repo.findByMobile(dto.phone, dto.company_id);
+      const dupMobile = await repo.findByMobile(dto.phone);
       if (dupMobile) throw new AppError(
         `Phone "${dto.phone}" is already registered to ${dupMobile.first_name} ${dupMobile.last_name} (${dupMobile.employee_code}) in this company`,
         409,
@@ -146,7 +147,7 @@ export class EmployeeService {
         designation_id:  dto.designation_id || null,
         sub_designation: dto.sub_designation || null,
         email:  dto.email?.toLowerCase().trim() || null,
-        phone: dto.phone?.trim() || null,
+        phone: dto.phone ? normalizePhone(dto.phone) : null,
         // Auth defaults
         portal_access:   true,        // enabled on creation — employee can log in immediately
         is_super_admin:  false,
@@ -184,7 +185,7 @@ export class EmployeeService {
       case 'basic': {
         const d = dto as BasicInfoDto;
         if (d.employee_code) {
-          const dup = await repo.findByCode(d.employee_code, companyId, id);
+          const dup = await repo.findByCode(d.employee_code);
           if (dup) throw new AppError('Employee code already in use', 409);
         }
         await repo.update(id, companyId, {
@@ -443,7 +444,7 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
   }
 
   async getNextCode(companyId: number) {
-    return { code: await generateEmployeeCode(companyId), ref: await generateReferenceCode(companyId) };
+    return { code: await generateEmployeeCode(), ref: await generateReferenceCode(companyId) };
   }
 
   // Search managers by ID or name (returns list for async dropdown)
