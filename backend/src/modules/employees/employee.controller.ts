@@ -198,3 +198,54 @@ async getAll(req: Request, res: Response) {
     res.send(buf);
   },
 };
+
+export async function getManagedEmployees(req: Request, res: Response, next: NextFunction):Promise<void> {
+  try {
+    const {Employee}          = await import('../../database/models/Employee');
+    const {CompanyManager}    = await import('../../database/models/CompanyManager');
+    const { Op }              = await import('sequelize');
+
+    const employeeId = req.user!.employeeId
+    const isSuperAdmin = req.user!.isSuperAdmin
+
+    let companyIds = [];
+
+    if(isSuperAdmin){
+      const {Company} = await import('../../database/models/Company')
+      const companies = await Company.findAll({where: {is_active: true}, attributes: ['id']})
+      companyIds = companies.map((c:any) => c.id)
+    }else{
+      const assignments = await CompanyManager.findAll({where: {employee_id: employeeId}, attributes: ['company_id']})
+      companyIds = assignments.map((c:any) => c.company_id)
+    }
+
+    if (!companyIds.length){
+      sendResponse(res, {data: []})
+      return;
+    }
+
+    const search = (req.query.search as string) || '';
+
+    const employees = await Employee.findAll({
+      where: {
+        company_id: {[Op.in]: companyIds},
+        status: 'Active',
+        portal_access: true,
+        ...(search ? {
+          [Op.or]:[
+            {first_name:  {[Op.like]: `%${search}%`}},
+            {last_name:   {[Op.like]: `%${search}%`}},
+            {email:       {[Op.like]: `%${search}%`}}
+          ]
+        }: {}) 
+      },
+      attributes: ['id', 'first_name', 'last_name', 'email', 'employee_code', 'company_id'],
+      order:  [['first_name', 'ASC']],
+      limit: 100,
+    })
+
+    sendResponse(res, {data: employees})
+  } catch (error) {
+    next(error);
+  }
+}

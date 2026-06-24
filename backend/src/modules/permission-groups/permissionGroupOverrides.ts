@@ -34,15 +34,14 @@ class EmployeeOverrideService {
   private async assertMembership(
     groupId: number,
     employeeId: number,
-    companyId: number,
   ) {
     const emp = await Employee.findOne({
-      where: { id: employeeId, company_id: companyId },
+      where: { id: employeeId},
     });
     if (!emp) throw new AppError('Employee not found', 404);
 
     const membership = await UserGroup.findOne({
-      where: { group_id: groupId, employee_id: employeeId, company_id: companyId },
+      where: { group_id: groupId, employee_id: employeeId},
     });
     if (!membership) throw new AppError('Employee is not a member of this group', 404);
 
@@ -50,7 +49,7 @@ class EmployeeOverrideService {
   }
 
   async listOverrides(groupId: number, employeeId: number, companyId: number) {
-    await this.assertMembership(groupId, employeeId, companyId);
+    await this.assertMembership(groupId, employeeId);
     return EmployeePermissionOverride.findAll({
       where: { group_id: groupId, employee_id: employeeId, company_id: companyId },
       order: [['module', 'ASC'], ['field_name', 'ASC'], ['permission', 'ASC']],
@@ -79,7 +78,6 @@ class EmployeeOverrideService {
     overrides: OverrideDto[],
     actorId: number,
   ) {
-    await this.assertMembership(groupId, employeeId, companyId);
 
     // Module-level only — field-level (mask, copy, print) not in scope yet
     const VALID = new Set(['view', 'create', 'edit', 'delete', 'download']);
@@ -300,10 +298,16 @@ export async function getEmployeeFieldOverrides(
 
 async function listOverrides(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const employee = await Employee.findByPk(+req.params.employeeId, {attributes: ['id', 'company_id']}) 
+
+    if(!employee){
+      throw new AppError("Employee not found", 404)
+    } 
+
     const data = await overrideSvc.listOverrides(
       +req.params.id,
       +req.params.employeeId,
-      req.user!.companyId,
+      employee.company_id,
     );
     sendResponse(res, { data });
   } catch (e) { next(e); }
@@ -311,10 +315,18 @@ async function listOverrides(req: Request, res: Response, next: NextFunction): P
 
 async function setOverrides(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+const employee = await Employee.findByPk(+req.params.employeeId, {
+  attributes: ['id', 'company_id']
+});
+
+  if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
     const data = await overrideSvc.setOverrides(
       +req.params.id,
       +req.params.employeeId,
-      req.user!.companyId,
+      employee.company_id,
       req.body.overrides ?? [],
       req.user!.employeeId,   // actor is req.user.employeeId — no userId
     );
@@ -324,15 +336,26 @@ async function setOverrides(req: Request, res: Response, next: NextFunction): Pr
 
 async function deleteOverride(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const employee = await Employee.findByPk(+req.params.employeeId, {
+      attributes: ['id', 'company_id'],
+    });
+
+    if (!employee) {
+      throw new AppError('Employee not found', 404);
+    }
+
     const data = await overrideSvc.deleteOverride(
       +req.params.id,
       +req.params.employeeId,
-      req.user!.companyId,
+      employee.company_id,
       +req.params.overrideId,
       req.user!.employeeId,
     );
+
     sendResponse(res, { data });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 }
 
 /**
@@ -355,7 +378,8 @@ export function patchGroupMembersWithOverrideCounts(router: Router): void {
         const { permissionGroupService } = await import('./permissionGroups.controller');
         const members = await permissionGroupService.getMembers(
           +req.params.id,
-          req.user!.companyId,
+          req.user!.employeeId, 
+          req.user!.isSuperAdmin
         );
         const overrideCounts = await overrideSvc.getOverrideCountsForGroup(
           +req.params.id,

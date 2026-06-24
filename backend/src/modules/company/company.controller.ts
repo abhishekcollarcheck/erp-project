@@ -15,6 +15,8 @@ import { logActivity }           from '../../utils/activityLogger';
 import { isCompanySuperAdmin, countCompanySuperAdmins } from '../auth/auth.service';
 import { sendResponse, sendError, sendPaginated, parsePaginationParams, buildPaginationMeta } from '../../utils/response';
 import { getSettings, updateSettings, updateTheme } from './companySetting'
+import { PermissionGroup, GroupPermission, SYSTEM_GROUPS } from '../../database/models/PermissionGroups';
+import { Permission } from '../../database/models/RoleModels';
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 
@@ -234,6 +236,32 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
         { company_id: company.id, name: 'Finance',         },
         { company_id: company.id, name: 'Operations',      },
       ], { transaction: t, ignoreDuplicates: true });
+
+// Step 3.5: Seed permission groups with default permissions
+const allPerms = await Permission.findAll({ attributes: ['id', 'slug'], transaction: t });
+const permMap  = new Map(allPerms.map((p: any) => [p.slug, p.id]));
+
+for (const tpl of SYSTEM_GROUPS) {
+  const [group] = await PermissionGroup.findOrCreate({
+    where:    { company_id: company.id, slug: tpl.slug },
+    defaults: { company_id: company.id, name: tpl.name, slug: tpl.slug,
+                description: tpl.description, color: tpl.color,
+                is_system: tpl.is_system, is_active: true },
+    transaction: t,
+  } as any);
+
+  const permIds = (tpl.slug_grants as readonly string[])
+    .filter(s => s !== '*')
+    .map(s => permMap.get(s))
+    .filter(Boolean) as number[];
+
+  if (permIds.length) {
+    await GroupPermission.bulkCreate(
+      permIds.map(pid => ({ group_id: group.id, company_id: company.id, permission_id: pid })),
+      { ignoreDuplicates: true, transaction: t },
+    );
+  }
+}
 
       // 4. Creator gets super_admin + CompanyManager (unchanged)
       await EmployeeRole.findOrCreate({

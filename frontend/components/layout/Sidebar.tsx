@@ -79,7 +79,6 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  console.log("company-id", companyId)
   // Close on outside click
   useEffect(() => {
     if (!open) return;

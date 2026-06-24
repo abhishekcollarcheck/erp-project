@@ -3,6 +3,7 @@ import {employeeController} from "./employee.controller"
 import { authenticate, resolveCompanyContext } from '../auth/auth.middleware';
 import { asyncHandler } from '../../middleware/errorHandler.middleware';
 import { rbacCheck } from '../../middleware/rbac.middleware';
+import {getManagedEmployees} from "./employee.controller"
 
 import {
   listValidation, idValidation, STEP_VALIDATORS,
@@ -40,6 +41,8 @@ employeeRoutes.get('/',
   listValidation,
   asyncHandler(employeeController.getAll),
 );
+
+employeeRoutes.get('/managed', getManagedEmployees);
 
 employeeRoutes.post('/',
   asyncHandler(employeeController.create),

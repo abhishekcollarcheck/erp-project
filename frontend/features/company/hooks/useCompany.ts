@@ -27,8 +27,6 @@ useEffect(() => {
   console.log("ACTIVE COMPANY", activeCompany);
 }, [activeCompany]);
 
-console.log("managedCompanies", managedCompanies);
-
   // For super admins managing many companies, also load from API
   const { data: allCompanies = [] } = useQuery({
     queryKey: ['my-companies'],

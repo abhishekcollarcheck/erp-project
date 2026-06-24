@@ -106,7 +106,7 @@ const pgApi = {
   addMember: (id: number, uid: number, companyIds?: number[]) => apiClient.post<unknown, ApiResponse<any>>(`/permission-groups/${id}/members`, { employee_id: uid, company_ids: companyIds }),
   removeMember: (id: number, uid: number) => apiClient.delete<unknown, ApiResponse<any>>(`/permission-groups/${id}/members/${uid}`),
   seed: () => apiClient.post<unknown, ApiResponse<any>>('/permission-groups/seed', {}),
-  employees: () => apiClient.get<unknown, ApiResponse<any[]>>('/employees?limit=100'),
+  employees: () => apiClient.get<unknown, ApiResponse<any[]>>('/employees/managed'),
   // Employee-level override — PUT to override endpoint, never touches group permissions
   setOverrides: (groupId: number, employeeId: number, overrides: { module: string; field_name: null; permission: string; granted: boolean }[]) =>
     apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${groupId}/members/${employeeId}/overrides`, { overrides }),
@@ -115,6 +115,11 @@ const pgApi = {
     apiClient.get<unknown, ApiResponse<{ module: string; permission: string; granted: boolean }[]>>(
       `/permission-groups/${groupId}/members/${employeeId}/overrides`
     ),
+  deleteOverride: (groupId: number, employeeId: number, overrideId: number) => {
+    return apiClient.delete(
+      `/permission-groups/${groupId}/members/${employeeId}/overrides/${overrideId}`
+    );
+  }
 };
 
 // Existing hooks (unchanged)
@@ -311,7 +316,14 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
                 <Avatar name={eName} size={24} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: isSelected ? 'var(--blue)' : 'var(--ink)' }}>{eName}</div>
-                  <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{e.employee_code}</div>
+                  <div style={{ fontSize: 10, color: 'var(--ink4)' }}>
+                    {e.employee_code}
+                    {e.company_id && assignedCompanies.find(c => c.id === e.company_id) && (
+                      <span style={{ marginLeft: 5, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 99, padding: '1px 6px', fontSize: 9, fontWeight: 600, color: 'var(--ink3)' }}>
+                        {assignedCompanies.find(c => c.id === e.company_id)?.shortName}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {isSelected && <span style={{ fontSize: 11, color: 'var(--blue)' }}>✓</span>}
               </div>
@@ -345,35 +357,27 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
   );
 }
 
-// ─── MemberCompanyBadges — shows which companies a member is assigned to ──────
+// ─── MemberCompanyBadges — shows which company the member belongs to ──────────
 
-function MemberCompanyBadges({ memberId, assignedCompanies }: {
-  memberId: number;
+function MemberCompanyBadges({ member, assignedCompanies }: {
+  member: any;
   assignedCompanies: { id: number; name: string; shortName: string }[];
 }) {
-  // m.companies comes from the enriched member data from /members-with-overrides
-  // For now show all companies as placeholder — replace with m.companies when API returns it
-  if (!assignedCompanies.length) return null;
-
-  const isAll = false; // replace with: m.company_ids?.length === 0 (meaning "all")
+  // member.company_id is their home company — find it in managedCompanies
+  const homeCompany = assignedCompanies.find(c => c.id === member.company_id);
+  if (!homeCompany) return null;
 
   return (
-    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 220 }}>
-      {isAll ? (
-        <span style={{ background: 'var(--purple-lt, #f3e8ff)', border: '1px solid var(--purple-bd, #e9d5ff)', color: 'var(--purple)', borderRadius: 99, padding: '2px 9px', fontSize: 10, fontWeight: 700 }}>
-          🌐 All companies
-        </span>
-      ) : assignedCompanies.map(co => (
-        <span key={co.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 99, padding: '2px 9px', fontSize: 10, fontWeight: 600, color: 'var(--ink3)' }}>
-          {co.shortName}
-        </span>
-      ))}
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 160 }}>
+      <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 99, padding: '2px 9px', fontSize: 10, fontWeight: 600, color: 'var(--ink3)' }}
+        title={homeCompany.name}>
+        {homeCompany.shortName}
+      </span>
     </div>
   );
 }
 
 // ─── NEW UI: Right detail panel for selected group ────────────────────────────
-
 
 function GroupDetail({
   group, members, onEdit, onFieldPerms, onDelete,
@@ -395,33 +399,77 @@ function GroupDetail({
   overrides: Record<string, boolean>;
   onToggleOverrides: (memberId: number) => void;
   onEditOverride: (memberId: number) => void;
-  onDeleteOverride: (memberId: number) => void;
+  onDeleteOverride: (
+    memberId: number,
+    overrideId: number
+  ) => void;
 }) {
-  console.log("members-of-adding", members)
   const slugs = group.permissions?.map(p => p.slug) || [];
   const modPerms = slugsToModulePerms(slugs);
   const [search, setSearch] = useState('');
+  const qc = useQueryClient();
 
   const permSummary = useMemo(() =>
     PERMS.map(p => ({ p, count: countPerm(modPerms, p) })).filter(x => x.count > 0),
     [slugs.join(',')]
   );
 
-  // const notMembers = useMemo(() => {
-  //   const memberIds = new Set(members.map((m: any) => m.id));
-  //   return employees.filter((e: any) => !memberIds.has(e.id) && (
-  //     !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())
-  //   ));
-  // }, [employees, members, search]);
+  const notMembers = useMemo(() => {
+    const memberIds = new Set(members.map((m: any) => m.id));
+    return employees.filter((e: any) => !memberIds.has(e.id) && (
+      !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())
+    ));
+  }, [employees, members, search]);
 
-const notMembers = useMemo(() => {
-  return employees.filter((e: any) =>
-    !search ||
-    `${e.first_name} ${e.last_name}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
-}, [employees, search]);  
+  const overrideQueries = useQueries({
+    queries: members.map((m: any) => ({
+      queryKey: ['group-overrides', group?.id, m.id],
+      queryFn: () => pgApi.getOverrides(group!.id, m.id),
+      enabled: !!group && overrides[m.id] === true,
+    })),
+  });
+
+  const memberOverridesMap = useMemo(() => {
+    const map: Record<number, any[]> = {};
+
+    members.forEach((m: any, idx: number) => {
+      map[m.id] = overrideQueries[idx]?.data?.data || [];
+    });
+
+    return map;
+  }, [members, overrideQueries]);
+
+  const deleteModuleOverridesMutation = useMutation({
+    mutationFn: async ({
+      memberId,
+      overrideIds,
+    }: {
+      memberId: number;
+      overrideIds: number[];
+    }) => {
+      await Promise.all(
+        overrideIds.map((overrideId) =>
+          pgApi.deleteOverride(
+            group!.id,
+            memberId,
+            overrideId
+          )
+        )
+      );
+    },
+
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ['group-overrides', group!.id, vars.memberId],
+      });
+
+      showToast('✓ Override removed');
+    },
+
+    onError: (e: any) => {
+      showToast(e?.message || 'Failed to remove override');
+    },
+  });
 
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
@@ -483,6 +531,30 @@ const notMembers = useMemo(() => {
             const name = `${m.first_name || ''} ${m.last_name || ''}`.trim();
             const memberId = m.id;
             const showOvrd = overrides[memberId] === true;
+            const overrideRows = memberOverridesMap[memberId] || [];
+            const groupedOverrides = Object.values(
+              overrideRows.reduce((acc: any, row: any) => {
+                if (!acc[row.module]) {
+                  acc[row.module] = {
+                    module: row.module,
+                    overrideIds: [],
+                    changes: [],
+                  };
+                }
+
+                acc[row.module].overrideIds.push(row.id);
+
+                acc[row.module].changes.push({
+                  permission: row.permission,
+                  granted: row.granted,
+                });
+
+                return acc;
+              }, {})
+            );
+
+            console.log("overrideRows", memberId, overrideRows);
+            console.log("groupedOverrides", memberId, groupedOverrides);
             return (
               <div key={memberId} id={`rp-mrow-${memberId}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -491,8 +563,8 @@ const notMembers = useMemo(() => {
                     <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
                     <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{m.designation || m.employee_code}</div>
                   </div>
-                  {/* Company scope badges */}
-                  <MemberCompanyBadges memberId={memberId} assignedCompanies={assignedCompanies} />
+                  {/* Company badge — shows member's home company */}
+                  <MemberCompanyBadges member={m} assignedCompanies={assignedCompanies} />
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => onToggleOverrides(memberId)}
@@ -520,6 +592,83 @@ const notMembers = useMemo(() => {
                     <div style={{ fontSize: 10, color: 'var(--ink4)', marginBottom: 10 }}>
                       These exceptions apply only to {m.first_name} — everyone else in <strong>{group.name}</strong> keeps the group's default permissions.
                     </div>
+                    {groupedOverrides.length > 0 && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                          marginBottom: 10,
+                        }}
+                      >
+                        {groupedOverrides.map((mod: any) => (
+                          <div
+                            key={mod.module}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--r)',
+                              padding: '8px 10px',
+                              fontSize: 11,
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  color: 'var(--ink)',
+                                  textTransform: 'capitalize',
+                                }}
+                              >
+                                {mod.module.replace(/_/g, ' ')}
+                              </div>
+
+                              <div
+                                style={{
+                                  color: 'var(--ink3)',
+                                  marginTop: 2,
+                                }}
+                              >
+                                {mod.changes.map((p: any, idx: number) => (
+                                  <span key={idx}>
+                                    <strong style={{ textTransform: 'capitalize' }}>
+                                      {p.permission}
+                                    </strong>
+                                    {': '}
+                                    <span
+                                      style={{
+                                        color: p.granted
+                                          ? 'var(--green)'
+                                          : 'var(--red)',
+                                      }}
+                                    >
+                                      {p.granted ? 'allowed' : 'denied'}
+                                    </span>
+
+                                    {idx < mod.changes.length - 1 ? ', ' : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              style={{ color: 'var(--red)' }}
+                              onClick={() => {
+                                deleteModuleOverridesMutation.mutate({
+                                  memberId,
+                                  overrideIds: mod.overrideIds,
+                                });
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <button className="btn btn-sec btn-sm" onClick={() => onEditOverride(memberId)} style={{ fontSize: 11 }}>
                       + Edit Override
                     </button>
@@ -720,6 +869,7 @@ function EditView({
   const { data: existingMembers = [] } = useGroupMembers(group?.id || 0);
   // Load saved overrides for this employee — only active in override mode
   const { data: savedOverrides = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId);
+  const [baseModPerms, setBaseModPerms] = useState<ModulePerms>(() => initModulePerms(false));
 
   // Populate modPerms from server on mount (and when the employee changes).
   // Two separate effects so they compose correctly:
@@ -731,8 +881,12 @@ function EditView({
   // Effect A: load group base permissions
   useEffect(() => {
     if (!existingSlugs.length) return;
+
     const mp = slugsToModulePerms(existingSlugs);
-    setModPerms(mp);
+
+    setBaseModPerms(mp); // original group permissions
+    setModPerms(mp);     // working copy for UI
+
     setBaseLoaded(true);
   }, [existingSlugs.join(',')]);
 
@@ -769,9 +923,21 @@ function EditView({
         const VALID_PERMS = ['view', 'create', 'edit', 'delete', 'download'] as const;
         const overrides: { module: string; field_name: null; permission: string; granted: boolean }[] = [];
         for (const mod of MODULES) {
-          const modState = modPerms[mod.key] || {};
+          const currentModule = modPerms[mod.key] || {};
+          const baseModule = baseModPerms[mod.key] || {};
+
           for (const perm of VALID_PERMS) {
-            overrides.push({ module: mod.key, field_name: null, permission: perm, granted: !!modState[perm] });
+            const currentValue = !!currentModule[perm];
+            const baseValue = !!baseModule[perm];
+
+            if (currentValue !== baseValue) {
+              overrides.push({
+                module: mod.key,
+                field_name: null,
+                permission: perm,
+                granted: currentValue,
+              });
+            }
           }
         }
         // PUT /permission-groups/:groupId/members/:employeeId/overrides
@@ -1210,6 +1376,21 @@ export default function RolesPermissionsPage() {
     setView('edit');
   };
 
+  const deleteOverrideMutation = useMutation({
+    mutationFn: ({
+      memberId,
+      overrideId,
+    }: {
+      memberId: number;
+      overrideId: number;
+    }) =>
+      pgApi.deleteOverride(
+        selectedGroup!.id,
+        memberId,
+        overrideId
+      ),
+  });
+
   // Views
   if (view === 'edit') return (
     <AppShell>
@@ -1315,7 +1496,12 @@ export default function RolesPermissionsPage() {
                   overrides={memberOverrides}
                   onToggleOverrides={handleToggleOverrides}
                   onEditOverride={handleEditOverride}
-                  onDeleteOverride={() => { }}
+                  onDeleteOverride={(memberId, overrideId) =>
+                    deleteOverrideMutation.mutate({
+                      memberId,
+                      overrideId,
+                    })
+                  }
                 />
               ) : null}
             </div>

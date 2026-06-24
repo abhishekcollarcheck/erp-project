@@ -12,8 +12,8 @@ import { validate } from '../../middleware/validate.middleware';
 import { sendResponse, sendError } from '../../utils/response';
 import { logActivity } from '../../utils/activityLogger';
 import { broadcastAfter } from '../../middleware/permissionBroadcast.middleware';
-import {EmployeePermission} from "../../database/models/EmployeePermission"
-import {employeeOverrideRouter,patchGroupMembersWithOverrideCounts,} from './permissionGroupOverrides';
+import { EmployeePermission } from "../../database/models/EmployeePermission"
+import { employeeOverrideRouter, patchGroupMembersWithOverrideCounts, } from './permissionGroupOverrides';
 import { EmployeePermissionOverride } from '../../database/models/EmployeePermissionOverride';
 import { CompanyManager } from '../../database/models';
 import { loadPermissions } from '../auth/auth.service';
@@ -118,94 +118,125 @@ class PermissionGroupService {
     return { groupId: id, slugs, updated: permissions.length };
   }
 
-async getEmployeePermissions(
-  employeeId: number,
-  companyId: number
-) {
-  const groups = await UserGroup.findAll({
-    where: {
-      employee_id: employeeId,
-      company_id: companyId,
-    },
-  });
-
-  const groupIds = groups.map(g => g.group_id);
-
-  const groupPermissions = await GroupPermission.findAll({
-    where: {
-      group_id: groupIds,
-    },
-    include: [
-      {
-        model: Permission,
+  async getEmployeePermissions(
+    employeeId: number,
+    companyId: number
+  ) {
+    const groups = await UserGroup.findAll({
+      where: {
+        employee_id: employeeId,
+        company_id: companyId,
       },
-    ],
-  });
+    });
 
-  const overrides = await EmployeePermission.findAll({
-    where: {
-      employee_id: employeeId,
-      company_id: companyId,
-    },
-    include: [
-      {
-        model: Permission,
+    const groupIds = groups.map(g => g.group_id);
+
+    const groupPermissions = await GroupPermission.findAll({
+      where: {
+        group_id: groupIds,
       },
-    ],
-  });
+      include: [
+        {
+          model: Permission,
+        },
+      ],
+    });
 
-  const finalPermissions = new Set<string>();
+    const overrides = await EmployeePermission.findAll({
+      where: {
+        employee_id: employeeId,
+        company_id: companyId,
+      },
+      include: [
+        {
+          model: Permission,
+        },
+      ],
+    });
 
-  for (const gp of groupPermissions) {
-    finalPermissions.add(
-      (gp as any).Permission.slug
+    const finalPermissions = new Set<string>();
+
+    for (const gp of groupPermissions) {
+      finalPermissions.add(
+        (gp as any).Permission.slug
+      );
+    }
+
+    const grants = overrides.filter(
+      o => o.type === 'grant'
     );
-  }
 
-  const grants = overrides.filter(
-    o => o.type === 'grant'
-  );
-
-  const revokes = overrides.filter(
-    o => o.type === 'revoke'
-  );
-
-  for (const grant of grants) {
-    finalPermissions.add(
-      (grant as any).Permission.slug
+    const revokes = overrides.filter(
+      o => o.type === 'revoke'
     );
-  }
 
-  for (const revoke of revokes) {
-    finalPermissions.delete(
-      (revoke as any).Permission.slug
-    );
-  }
+    for (const grant of grants) {
+      finalPermissions.add(
+        (grant as any).Permission.slug
+      );
+    }
 
-  return [...finalPermissions];
-}
+    for (const revoke of revokes) {
+      finalPermissions.delete(
+        (revoke as any).Permission.slug
+      );
+    }
+
+    return [...finalPermissions];
+  }
 
   // ── Member management ────────────────────────────────────────────────────────
 
-  async getMembers(id: number, companyId: number) {
-    const userGroups = await UserGroup.findAll({ where: { group_id: id, company_id: companyId } });
+  async getMembers(id: number, employeeId: number, isSuperAdmin: boolean) {
+    let companyIds: number[] = []
+
+    if (isSuperAdmin) {
+      const { Company } = await import('../../database/models/Company')
+      const companies = await Company.findAll({
+        where: { is_active: true },
+        attributes: ['id']
+      });
+
+      companyIds = companies.map((c: any) => c.id);
+    } else {
+      const assignments = await CompanyManager.findAll({
+        where: { employee_id: employeeId },
+        attributes: ['company_id']
+      });
+
+      companyIds = assignments.map((c: any) => c.company_id);
+    }
+
+    const userGroups = await UserGroup.findAll({
+      where: {
+        group_id: id,
+        company_id: {
+          [Op.in]: companyIds
+        }
+      }
+    });
+
     if (!userGroups.length) return [];
 
-    const employeeIds = userGroups.map(ug => ug.employee_id);
-
-    // Bug 4 fix: do NOT filter by company_id here.
-    // Cross-company employees have a different home company_id but are valid members.
-    // We find them by id only.
+    const employeeIds = [...new Set(userGroups.map(x => x.employee_id))];
     return Employee.findAll({
-      where:      { id: employeeIds },
-      attributes: ['id', 'first_name', 'last_name', 'employee_code', 'company_id'],
+      where: { id: employeeIds },
+      attributes: [
+        'id',
+        'first_name',
+        'last_name',
+        'employee_code',
+        'company_id'
+      ]
     });
   }
+
+
   async addMember(
-    groupId:    number,
-    companyId:  number,   // the GROUP's company — NOT the admin's active company
+    groupId: number,
+    companyId: number,   // the GROUP's company — NOT the admin's active company
     employeeId: number,
-    addedBy?:   number,
+    addedBy?: number,
     companyIds?: number[], // optional multi-company list
   ) {
 
@@ -230,13 +261,13 @@ async getEmployeePermissions(
       console.log('Processing company', cid);
       // Bug 2 fix: UserGroup.company_id = the TARGET company (cid), not admin's company
       const [, created] = await UserGroup.findOrCreate({
-        where:    { group_id: groupId, employee_id: employeeId, company_id: cid },
+        where: { group_id: groupId, employee_id: employeeId, company_id: cid },
         defaults: { group_id: groupId, employee_id: employeeId, company_id: cid, assigned_by: addedBy || null },
       });
-        console.log({
-    cid,
-    created,
-  });
+      console.log({
+        cid,
+        created,
+      });
 
       if (created) {
         added.push(cid);
@@ -244,7 +275,7 @@ async getEmployeePermissions(
         // Bug 1 fix: create CompanyManager row so employee can see this company
         // in /companies/mine and switch to it in the portal
         await CompanyManager.findOrCreate({
-          where:    { company_id: cid, employee_id: employeeId },
+          where: { company_id: cid, employee_id: employeeId },
           defaults: { company_id: cid, employee_id: employeeId, is_primary: false, assigned_by: addedBy || null },
         } as any);
       }
@@ -258,10 +289,10 @@ async getEmployeePermissions(
     await logActivity({
       companyId,
       employeeId: addedBy,
-      action:     'PERMISSION_GROUP_MEMBER_ADDED',
-      module:     'settings',
-      entityId:   groupId,
-      newValues:  { employeeId, companiesAdded: added },
+      action: 'PERMISSION_GROUP_MEMBER_ADDED',
+      module: 'settings',
+      entityId: groupId,
+      newValues: { employeeId, companiesAdded: added },
     });
 
     // Emit real-time permission update to the affected employee
@@ -269,11 +300,11 @@ async getEmployeePermissions(
       const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, added[0]);
       const freshToken = generateAccessToken({ employeeId, companyId: added[0], permissions: fullPerms, isSuperAdmin } as any);
       getIO()?.to(`employee:${employeeId}`).emit('permissions:updated', {
-        eventType:   'permissions_updated',
-        companyId:   added[0],
+        eventType: 'permissions_updated',
+        companyId: added[0],
         permissions: fullPerms,
         accessToken: freshToken,
-        timestamp:   new Date().toISOString(),
+        timestamp: new Date().toISOString(),
       });
     } catch (e) {
       console.warn('[RBAC] socket emit failed for employee', employeeId, e);
@@ -283,27 +314,48 @@ async getEmployeePermissions(
   }
 
   async removeMember(groupId: number, companyId: number, employeeId: number, removedBy?: number) {
-    const deleted = await UserGroup.destroy({ where: { group_id: groupId, employee_id: employeeId, company_id: companyId } });
+    const membership = await UserGroup.findOne({
+      where: {
+        group_id: groupId,
+        employee_id: employeeId,
+      },
+    });
+
+    console.log("membership", membership?.toJSON());
+
+    if (!membership) {
+      throw new AppError('User is not in this group', 404);
+    }
+
+    const targetCompanyId = membership.company_id;
+
+    const deleted = await UserGroup.destroy({
+      where: {
+        id: membership.id,
+      },
+    });
+
+    console.log("deleted", deleted);
     if (!deleted) throw new AppError('User is not in this group', 404);
 
     // Delete group-scoped overrides (EmployeePermissionOverride — our table, has group_id)
     await EmployeePermissionOverride.destroy({
-      where: { group_id: groupId, employee_id: employeeId, company_id: companyId },
+      where: { group_id: groupId, employee_id: employeeId, company_id: targetCompanyId },
     });
 
     // Also delete legacy grant/revoke rows (EmployeePermission — no group_id column).
     // These rows survive removeMember and restore old permissions when member is re-added.
     await EmployeePermission.destroy({
-      where: { employee_id: employeeId, company_id: companyId },
+      where: { employee_id: employeeId, company_id: targetCompanyId },
     });
 
     // Also remove the CompanyManager row for this company if the employee
     // has no other UserGroup rows for it (i.e. no other group access to this company)
     const remainingGroups = await UserGroup.findOne({
-      where: { employee_id: employeeId, company_id: companyId },
+      where: { employee_id: employeeId, company_id: targetCompanyId },
     });
     if (!remainingGroups) {
-      await CompanyManager.destroy({ where: { company_id: companyId, employee_id: employeeId } });
+      await CompanyManager.destroy({ where: { company_id: targetCompanyId, employee_id: employeeId } });
     }
 
     clearPermissionCache(employeeId);
@@ -444,7 +496,7 @@ async function setGroupPermissions(req: Request, res: Response, next: NextFuncti
 }
 
 async function getGroupMembers(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await svc.getMembers(+req.params.id, req.user!.companyId) }); } catch (e) { next(e); }
+  try { sendResponse(res, { data: await svc.getMembers(+req.params.id, req.user!.employeeId, req.user!.isSuperAdmin) }); } catch (e) { next(e); }
 }
 
 async function addGroupMember(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -493,15 +545,15 @@ permissionGroupRouter.get('/company-modules', authenticate, async (req: Request,
     const companyId = +(req.query.company_id || req.user!.companyId);
     let rows: any[] = await CompanyModule.findAll({
       where: { company_id: companyId, is_active: true },
-      order: [['display_order','ASC']], attributes: ['module','label'],
+      order: [['display_order', 'ASC']], attributes: ['module', 'label'],
     });
     if (!rows.length) rows = [
-      {module:'recruitment',label:'Recruitment / ATS'},{module:'aptitude',label:'Aptitude Test'},
-      {module:'employees',label:'Employee Directory'},{module:'department',label:'Department'},
-      {module:'designation',label:'Designation'},{module:'payroll',label:'Payroll'},
-      {module:'attendance',label:'Attendance'},{module:'leaves',label:'Leave Management'},
-      {module:'assets',label:'Asset Management'},{module:'analytics',label:'Analytics & Reports'},
-      {module:'settings',label:'Settings & RBAC'},
+      { module: 'recruitment', label: 'Recruitment / ATS' }, { module: 'aptitude', label: 'Aptitude Test' },
+      { module: 'employees', label: 'Employee Directory' }, { module: 'department', label: 'Department' },
+      { module: 'designation', label: 'Designation' }, { module: 'payroll', label: 'Payroll' },
+      { module: 'attendance', label: 'Attendance' }, { module: 'leaves', label: 'Leave Management' },
+      { module: 'assets', label: 'Asset Management' }, { module: 'analytics', label: 'Analytics & Reports' },
+      { module: 'settings', label: 'Settings & RBAC' },
     ];
     sendResponse(res, { data: rows });
   } catch (e) { next(e); }
