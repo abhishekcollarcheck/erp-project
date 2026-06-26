@@ -1,15 +1,3 @@
-/**
- * employees.service.ts — CORRECTED
- *
- * KEY CHANGES:
- *  1. Reporting step uses l1_manager_id / l2_manager_id (integer FKs)
- *     not employee_code strings
- *  2. Manager lookup returns employee by ID, not by code
- *  3. Auth fields (portal_access, is_super_admin, must_change_password)
- *     are managed through dedicated methods
- *  4. is_super_admin bypasses field permission masking entirely
- */
-
 import { sequelize } from '../../config/database';
 import { AppError } from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
@@ -107,11 +95,8 @@ export class EmployeeService {
   }
 
   async create(dto: BasicInfoDto, actorId: number, ipAddress?: string) {
-    const empCode = await generateEmployeeCode();
-const useCode = empCode;
-console.log("final", useCode);
-
-    // ── Uniqueness checks (all company-scoped, runs before transaction) ──────
+    const empCode = await generateEmployeeCode(dto.company_id);
+    let useCode = empCode;
     const dupCode = await repo.findByCode(useCode);
     if (dupCode) throw new AppError(`Employee code "${useCode}" is already in use`, 409);
 
@@ -444,7 +429,7 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
   }
 
   async getNextCode(companyId: number) {
-    return { code: await generateEmployeeCode(), ref: await generateReferenceCode(companyId) };
+    return { code: await generateEmployeeCode(companyId), ref: await generateReferenceCode(companyId) };
   }
 
   // Search managers by ID or name (returns list for async dropdown)

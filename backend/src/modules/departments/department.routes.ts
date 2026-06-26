@@ -12,7 +12,6 @@ import {
 
 const router = Router();
 router.use(authenticate);
-router.use(resolveCompanyContext)
 
 // GET /api/departments?search=eng&is_active=true
 router.get('/', listDepartmentValidation, validate, getDepartments);

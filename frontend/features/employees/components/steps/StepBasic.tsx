@@ -14,9 +14,7 @@ export function StepBasic({ isEdit }: Props) {
   const { data: codes } = useNextCode();
   const f = (n: string) => fp?.[n];
   const { setValue, watch } = useFormContext();
-  const { companyId, companies, isMultiCompany } = useCompany();
-  console.log("companies", companies)
-
+  const { company } = useCompany();
   // ── Auto-fill employee code on create ─────────────────────────────────────
   useEffect(() => {
     if (!isEdit && codes?.code && !watch('employee_code')) {
@@ -31,12 +29,11 @@ export function StepBasic({ isEdit }: Props) {
     }
   }, [codes, isEdit]); // eslint-disable-line
 
-  // ── Auto-set company_id from active session ───────────────────────────────
-  // useEffect(() => {
-  //   if (!watch('company_id') && companyId) {
-  //     setValue('company_id', companyId, { shouldDirty: false });
-  //   }
-  // }, [companyId]); // eslint-disable-line
+useEffect(() => {
+ if(company?.id){
+  setValue('company_id', company?.id)
+ }
+}, [company])
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -48,15 +45,7 @@ export function StepBasic({ isEdit }: Props) {
           hint="Auto-generated, can be changed"
           fieldPerm={f('reference_code')}
         />
-        {isMultiCompany && (
-          <FormSelect
-            name="company_id"
-            label="Company"
-            required
-            placeholder="Select company"
-            options={companies.map(c => ({ value: c.id, label: c.name }))}
-          />
-        )}
+        <FormInput name="company_id" label="Company" displayValue={company?.name} readOnly fieldPerm={f('company_id')} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>

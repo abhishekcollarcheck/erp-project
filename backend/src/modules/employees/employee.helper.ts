@@ -8,6 +8,7 @@
 import { AMDB_PERCENTAGE, STEP_WEIGHTS, WIZARD_STEPS } from './employee.constants';
 import type { StepKey } from './employee.constants';
 import { Employee } from '../../database/models/Employee';
+import { Company } from '../../database/models/Company';
 import { Op } from 'sequelize';
 
 // ─── Salary computations (spreadsheet salary calculator) ─────────────────────
@@ -20,6 +21,13 @@ export interface SalaryBreakdown {
   amdb_pm: number;
   total_earning_pm: number;
 }
+
+const COMPANY_RANGES = {
+  1: { start: 1, end: 99 },
+  2: { start: 100, end: 999 },
+  3: { start: 2000, end: 2999 },
+  4: { start: 3000, end: 3999 },
+} as const;
 
 /**
  * Computes gross and total as spreadsheet does:
@@ -147,16 +155,81 @@ export function computeEsicContributions(grossSalary: number) {
 
 // ─── Employee code generation ─────────────────────────────────────────────────
 
-export async function generateEmployeeCode(): Promise<string> {
-  const last = await Employee.findOne({
-    order: [['id', 'DESC']],
-    attributes: ['employee_code'],
+// export async function generateEmployeeCode(): Promise<string> {
+//   const last = await Employee.findOne({
+//     order: [['id', 'DESC']],
+//     attributes: ['employee_code'],
+//   });
+//   if (!last) return 'EMP-0001';
+//   const match = last.employee_code.match(/(\d+)$/);
+//   const num = match ? parseInt(match[1], 10) + 1 : 1;
+//   return `EMP-${String(num).padStart(4, '0')}`;
+// }
+
+export async function generateEmployeeCode(
+  companyId: number
+): Promise<string> {
+
+  const company = await Company.findByPk(companyId, {
+    attributes: [
+      'employee_code_start',
+      'employee_code_end',
+      'employee_code_skip',
+    ],
   });
-  if (!last) return 'EMP-0001';
-  const match = last.employee_code.match(/(\d+)$/);
-  const num = match ? parseInt(match[1], 10) + 1 : 1;
-  return `EMP-${String(num).padStart(4, '0')}`;
+
+  if (!company) {
+    throw new Error(`Company not found (${companyId})`);
+  }
+
+  const startCode = Number(company.employee_code_start);
+  const endCode = Number(company.employee_code_end);
+
+  if (
+    Number.isNaN(startCode) ||
+    Number.isNaN(endCode)
+  ) {
+    throw new Error(
+      `Employee code range not configured for company ${companyId}`
+    );
+  }
+
+  let skipCodes: number[] = [];
+
+  try {
+    skipCodes = company.employee_code_skip
+      ? JSON.parse(company.employee_code_skip)
+      : [];
+  } catch {
+    skipCodes = [];
+  }
+
+  const employees = await Employee.findAll({
+    attributes: ['employee_code'],
+    raw: true,
+  });
+
+  const blockedCodes = new Set<number>(skipCodes);
+
+  for (const emp of employees) {
+    const code = Number(emp.employee_code);
+
+    if (!Number.isNaN(code)) {
+      blockedCodes.add(code);
+    }
+  }
+
+  for (let code = startCode; code <= endCode; code++) {
+    if (!blockedCodes.has(code)) {
+      return String(code);
+    }
+  }
+
+  throw new Error(
+    `Employee code range exhausted (${startCode}-${endCode})`
+  );
 }
+
 
 export async function generateReferenceCode(companyId: number): Promise<string> {
   const last = await Employee.findOne({

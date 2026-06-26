@@ -63,7 +63,7 @@ export async function seedDatabase(): Promise<void> {
     // ── 1. Company ───────────────────────────────────────────────────────────
     await Company.upsert({
       id: COMPANY_ID, name: 'Nexgen Solutions Pvt Ltd', slug: 'nexgen',
-      country: 'India', currency: 'INR', timezone: 'Asia/Kolkata',
+      country: 'India', currency: 'INR', timezone: 'Asia/Kolkata', employee_code_start: null, employee_code_end: null, employee_code_skip: '', 
       is_active: true, onboarding_step: 5,
     });
     logger.info('✅ Company ready');

@@ -5,7 +5,6 @@ import { useAppSelector } from '../../store';
 import { selectUser, selectIsSuperAdmin } from '../../store/slices/authSlice';
 import { useAuth, usePermission }      from '../../features/auth/hooks/useAuth';
 import { useCompany }                  from '../../features/company/hooks/useCompany';
-import storage from '@/store/storage';
 
 // ─── Nav definition ───────────────────────────────────────────────────────────
 
@@ -16,6 +15,7 @@ interface NavItem {
   href:       string;
   count?:     number;
   permission: string | null;  // null = always show
+  module?:    string;          // if set, only show when this module is active for the company
   superOnly?: boolean;        // only show to super admins
 }
 interface NavSection {
@@ -34,8 +34,8 @@ const NAV: NavSection[] = [
   {
     label: 'Talent Acquisition',
     items: [
-      { id: 'ats', label: 'Sourcing (ATS)', icon: '⇧', href: '/ats', permission: 'recruitment:view' },
-      { id: 'ats-tests', label: 'Aptitude Tests', icon: '🧠', href: '/ats-tests', permission: 'aptitude:view' },      
+      { id: 'ats', label: 'Sourcing (ATS)', icon: '⇧', href: '/ats', permission: 'recruitment:view', module: 'recruitment' },
+      { id: 'ats-tests', label: 'Aptitude Tests', icon: '🧠', href: '/ats-tests', permission: 'aptitude:view', module: 'aptitude' },
       // { id: 'pipeline', label: 'Pipeline / Kanban', icon: '▤', href: '/pipeline', permission: 'recruitment:view' },
       // { id: 'interviews', label: 'Interviews', icon: '📅', href: '/interviews', permission: 'recruitment:view' },
       // { id: 'evaluation', label: 'Evaluation Forms', icon: '★', href: '/evaluation', permission: 'recruitment:view' },
@@ -45,9 +45,9 @@ const NAV: NavSection[] = [
   {
     label: 'People & Performance',
     items: [
-      { id: 'employees', label: 'Employees', icon: '👥', href: '/employees',permission: 'employees:view' },
-      { id: 'departments', label: 'Departments', icon: '🏢', href: '/departments', permission: 'department:view' },
-      { id: 'designations', label: 'Designations', icon: '🎯', href: '/designations', permission: 'designation:view' },      
+      { id: 'employees', label: 'Employees', icon: '👥', href: '/employees', permission: 'employees:view', module: 'employees' },
+      { id: 'departments', label: 'Departments', icon: '🏢', href: '/departments', permission: 'department:view', module: 'departments' },
+      { id: 'designations', label: 'Designations', icon: '🎯', href: '/designations', permission: 'designation:view', module: 'designations' },
     ],
   }, 
   {
@@ -164,9 +164,9 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
                   <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? 'var(--blue)' : 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {co.name}
                   </div>
-                  <div style={{ fontSize: 9, color: 'var(--ink4)', textTransform: 'capitalize' }}>
-                    {co.manager_role.name} {co.is_primary ? '· Primary' : ''}
-                  </div>
+                  {/* <div style={{ fontSize: 9, color: 'var(--ink4)', textTransform: 'capitalize' }}>
+                    {co.manager_role} {co.is_primary ? '· Primary' : ''}
+                  </div> */}
                 </div>
                 {isActive && (
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--blue)', flexShrink: 0 }} />
@@ -195,7 +195,15 @@ export function Sidebar() {
   const isSuperAdmin = useAppSelector(selectIsSuperAdmin);
   const { logout }   = useAuth();
   const { hasPermission } = usePermission();
-  const { companies } = useCompany();
+  const { company, companyId, companies } = useCompany();
+  // Active modules for the current company — filters sidebar items
+  const activeModules: string[] = (company as any)?.active_modules ?? [];
+  console.log("user", user)
+  console.log("companies", companies)
+  console.log("isSuperAdmin", isSuperAdmin)
+  console.log("hasPermission", hasPermission)
+  const auth = useAppSelector((state: any) => state.auth);
+  console.log("auth", auth)
 
   const initials = user?.fullName
     ? user.fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
@@ -265,6 +273,11 @@ export function Sidebar() {
           // Filter items
           const visibleItems = section.items.filter(item => {
             if (item.superOnly && !isSuperAdmin) return false;
+            // Module filter: hide item if company has modules loaded but this module is inactive
+            // Super admins see everything; empty activeModules = fallback show all
+            if (item.module && !isSuperAdmin && activeModules.length > 0) {
+              if (!activeModules.includes(item.module)) return false;
+            }
             if (item.permission === null) return true;
             return hasPermission(item.permission);
           });

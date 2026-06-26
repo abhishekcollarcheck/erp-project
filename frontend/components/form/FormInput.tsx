@@ -13,6 +13,8 @@ interface Props {
   label:        string;
   type?:        'text' | 'email' | 'number' | 'password' | 'tel' | 'url' | 'search';
   placeholder?: string;
+  prefilledValue? : string | number;
+  displayValue?:string; 
   required?:    boolean;
   disabled?:    boolean;
   readOnly?:    boolean;
@@ -30,7 +32,7 @@ interface Props {
 }
 
 export function FormInput({
-  name, label, type = 'text', placeholder, required, disabled, readOnly,
+  name, label, type = 'text', placeholder, prefilledValue, displayValue, required, disabled, readOnly,
   hint, maxLength, min, max, step, prefix, suffix, autoComplete,
   fieldPerm, onChange, onBlur,
 }: Props) {
@@ -91,7 +93,7 @@ export function FormInput({
               type={displayType}
               placeholder={placeholder}
               disabled={isDisabled}
-              readOnly={isReadOnly}
+              readOnly={isReadOnly || !!prefilledValue}
               maxLength={maxLength}
               min={min}
               max={max}
@@ -100,9 +102,9 @@ export function FormInput({
               aria-invalid={!!error}
               aria-describedby={describedBy}
               aria-required={required}
-              value={field.value ?? ''}
+              value={displayValue ?? field.value ?? ''}
               className={[
-                'form-input',
+                'form-input capitalize',
                 isReadOnly ? 'readonly' : '',
                 fieldPerm?.is_masked ? 'masked' : '',
               ].filter(Boolean).join(' ')}
@@ -112,7 +114,7 @@ export function FormInput({
                 flex: '1 1 0%',
               }}
               onChange={e => {
-                if (isReadOnly) return;
+                if (isReadOnly || prefilledValue) return;
                 field.onChange(e.target.value);
                 onChange?.(e.target.value);
               }}

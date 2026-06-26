@@ -7,7 +7,7 @@ import { AppShell } from '../../../../layouts/AppLayout';
 import { Modal } from '../../../../components/ui/Modal';
 import { usePermission } from '../../../../hooks/usePermission';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import apiClient     from '../../../../services/api/client';
+import apiClient from '../../../../services/api/client';
 import { authService } from '../../../../services/api/auth.service';
 import { showToast } from '../../../../utils/toast';
 import { formatDate } from '../../../../utils/formatters';
@@ -24,8 +24,9 @@ interface Company {
   country?: string;
   industry?: string | null;
   email?: string | null;
-  subscription_plan: string;
-  max_employees: number;
+  employee_code_start?: number | null;
+  employee_code_end?: number | null;
+  employee_code_skip?: number | null;
   employee_count: number;
   is_active: boolean;
   onboarding_step: number;
@@ -114,12 +115,12 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   const dispatch = useAppDispatch();
   const [step, setStep] = useState<1 | 2>(1);
 
-  const [pendingEmps, setPendingEmps] = useState<{ employee_id: number; role_slug: string;}[]>([]);
-  const [empSearch,   setEmpSearch]   = useState('');
-  const [selEmpId,    setSelEmpId]    = useState<number | null>(null);
+  const [pendingEmps, setPendingEmps] = useState<{ employee_id: number; role_slug: string; }[]>([]);
+  const [empSearch, setEmpSearch] = useState('');
+  const [selEmpId, setSelEmpId] = useState<number | null>(null);
   const [selRoleSlug, setSelRoleSlug] = useState<string>('hr_manager');
 
-  const [f, setF] = useState({ name: '', city: '', state: '', country: 'India', industry: '', email: '', theme_color: null });
+  const [f, setF] = useState({ name: '', city: '', state: '', country: 'India', industry: '', email: '', employee_code_start: 0, employee_code_end: 0, employee_code_skip: '', theme_color: null });
   const F = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF(p => ({ ...p, [k]: e.target.value }));
 
@@ -127,25 +128,25 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     if (open) {
       setStep(1); setEmpSearch(''); setSelEmpId(null); setSelRoleSlug('hr_manager');
       setPendingEmps([]);
-      setF({ name: '', city: '', state: '', country: 'India', industry: '', email: '', theme_color: null });
+      setF({ name: '', city: '', state: '', country: 'India', industry: '', email: '', employee_code_start: 0, employee_code_end: 0, employee_code_skip: '', theme_color: null });
     }
   }, [open]);
 
   const { data: allEmployees = [] } = useQuery({
     queryKey: ['all-active-employees'],
-    queryFn:  () => apiClient.get<any, any>('/employees?limit=100&status=Active'),
-    enabled:  open && step === 2,
-    select:   (r: any) => (r.data?.rows ?? r.data ?? []) as any[],
+    queryFn: () => apiClient.get<any, any>('/employees?limit=100&status=Active'),
+    enabled: open && step === 2,
+    select: (r: any) => (r.data?.rows ?? r.data ?? []) as any[],
   });
 
   const ROLES = [
-    { slug: 'super_admin',    name: 'Super Admin'    },
-    { slug: 'hr_manager',     name: 'HR Manager'     },
-    { slug: 'finance_manager',name: 'Finance Manager'},
-    { slug: 'recruiter',      name: 'Recruiter'      },
-    { slug: 'dept_manager',   name: 'Dept. Manager'  },
-    { slug: 'it_admin',       name: 'IT Admin'       },
-    { slug: 'employee',       name: 'Employee'       },
+    { slug: 'super_admin', name: 'Super Admin' },
+    { slug: 'hr_manager', name: 'HR Manager' },
+    { slug: 'finance_manager', name: 'Finance Manager' },
+    { slug: 'recruiter', name: 'Recruiter' },
+    { slug: 'dept_manager', name: 'Dept. Manager' },
+    { slug: 'it_admin', name: 'IT Admin' },
+    { slug: 'employee', name: 'Employee' },
   ];
 
   const pendingIds = new Set(pendingEmps.map(p => p.employee_id));
@@ -159,11 +160,8 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     }), [allEmployees, empSearch, pendingIds]);
 
   const handleAddEmployee = () => {
-    console.log("CLICKED");
-  console.log("selEmpId", selEmpId);
-  console.log("allEmployees", allEmployees);
     if (!selEmpId) return;
-    const emp  = allEmployees.find((e: any) => e.id === selEmpId);
+    const emp = allEmployees.find((e: any) => e.id === selEmpId);
     const role = ROLES.find(r => r.slug === selRoleSlug);
     if (!emp || !role) return;
     console.log("e-id", selEmpId)
@@ -179,12 +177,22 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   const mutation = useMutation({
     mutationFn: () => apiClient.post<any, any>('/companies', {
-      name:         f.name,
-      city:         f.city     || undefined,
-      state:        f.state    || undefined,
-      industry:     f.industry || undefined,
-      email:        f.email    || undefined,
-      theme_color:  f.theme_color || null,
+      name: f.name,
+      city: f.city || undefined,
+      state: f.state || undefined,
+      industry: f.industry || undefined,
+      email: f.email || undefined,
+      employee_code_start: f.employee_code_start || null,
+      employee_code_end: f.employee_code_end || null,
+      employee_code_skip: f.employee_code_skip?.trim()
+        ? JSON.stringify(
+          f.employee_code_skip
+            .split(',')
+            .map(v => Number(v.trim()))
+            .filter(v => !Number.isNaN(v))
+        )
+        : '[]',
+      theme_color: f.theme_color || null,
       employees: pendingEmps.map(p => ({ employee_id: p.employee_id, role_slug: p.role_slug })),
     }),
     onSuccess: async (r: any) => {
@@ -192,7 +200,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
       qc.invalidateQueries({ queryKey: ['company-stats'] });
       try {
         // Refresh session so new company appears in managedCompanies immediately
-        const res  = await authService.getMe();
+        const res = await authService.getMe();
         const user = (res as any)?.data ?? res;
         const store = await import('../../../../store');
         const token = store.store.getState().auth.accessToken ?? '';
@@ -263,11 +271,13 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <div className="fg"><label>Industry</label>
               <select value={f.industry} onChange={F('industry')}>
                 <option value="">— Select —</option>
-                {['Technology','Manufacturing','Finance','Healthcare','Education','Retail','Logistics','Media','Real Estate','Other'].map(i => <option key={i} value={i}>{i}</option>)}
+                {['Technology', 'Manufacturing', 'Finance', 'Healthcare', 'Education', 'Retail', 'Logistics', 'Media', 'Real Estate', 'Other'].map(i => <option key={i} value={i}>{i}</option>)}
               </select>
             </div>
             <div className="fg"><label>Company Email</label><input type="email" value={f.email} onChange={F('email')} /></div>
-            <div className="fg"><label>Color Theme</label><input type="color" value={f.theme_color || '#2563eb'} onChange={F('theme_color')} /></div>
+            <div className="fg"><label>Employee Code Start</label><input type='number' value={f.employee_code_start} onChange={F('employee_code_start')} /></div>
+            <div className="fg"><label>Employee Code End</label><input type='number' value={f.employee_code_end} onChange={F('employee_code_end')} /></div>
+            <div className="fg"><label>Employee Code Skip</label><input value={f.employee_code_skip} onChange={F('employee_code_skip')} placeholder="36,40,68" /></div>
           </div>
         </>
       )}
@@ -292,7 +302,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
               ? <div style={{ padding: 16, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>No employees found</div>
               : filteredEmps.slice(0, 50).map((emp: any) => {
                 const name = emp.full_name ?? `${emp.first_name ?? ''} ${emp.last_name ?? ''}`.trim();
-                const sel  = selEmpId === emp.id;
+                const sel = selEmpId === emp.id;
                 return (
                   <div key={emp.id} onClick={() => setSelEmpId(sel ? null : emp.id)}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: sel ? 'var(--blue-lt)' : 'transparent' }}>
@@ -473,18 +483,6 @@ export default function CompaniesPage() {
                             {co.slug} {co.city ? `· ${co.city}` : ''} {co.state ? `, ${co.state}` : ''}
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 14px' }}><PlanBadge plan={co.subscription_plan} /></td>
-                    <td style={{ padding: '12px 14px' }}>
-                      <div style={{ fontSize: 12, color: co.employee_count > co.max_employees * 0.9 ? 'var(--amber)' : 'var(--ink3)' }}>
-                        {co.employee_count} / {co.max_employees}
-                      </div>
-                      <div style={{ marginTop: 3, height: 4, background: 'var(--border)', borderRadius: 99, width: 80, overflow: 'hidden' }}>
-                        <div style={{
-                          height: '100%', borderRadius: 99, width: `${Math.min(100, co.employee_count / co.max_employees * 100)}%`,
-                          background: co.employee_count > co.max_employees * 0.9 ? 'var(--amber)' : 'var(--blue)'
-                        }} />
                       </div>
                     </td>
                     <td style={{ padding: '12px 14px' }}>

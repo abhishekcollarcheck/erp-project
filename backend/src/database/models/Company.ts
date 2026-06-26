@@ -19,6 +19,9 @@ interface CompanyAttributes {
   city:                  string | null;
   state:                 string | null;
   pincode:               string | null;
+  employee_code_start:   string | null;
+  employee_code_end:     string | null;
+  employee_code_skip:    string;  
   country:               string;
   industry:              string | null;
   fiscal_year:           string;
@@ -64,6 +67,9 @@ export class Company
   public city!:                  string | null;
   public state!:                 string | null;
   public pincode!:               string | null;
+  public employee_code_start!:   string | null;
+  public employee_code_end!:     string | null;
+  public employee_code_skip!:    string;
   public country!:               string;
   public industry!:              string | null;
   public fiscal_year!:           string;
@@ -97,6 +103,9 @@ Company.init({
   city:                  { type: DataTypes.STRING(100), allowNull: true },
   state:                 { type: DataTypes.STRING(100), allowNull: true },
   pincode:               { type: DataTypes.STRING(10),  allowNull: true },
+  employee_code_start:   { type: DataTypes.STRING(10), allowNull: true, },
+  employee_code_end:     { type: DataTypes.STRING(10), allowNull: true,},
+  employee_code_skip:    { type: DataTypes.TEXT, allowNull: false, defaultValue: '[]', },  
   country:               { type: DataTypes.STRING(100), allowNull: false, defaultValue: 'India' },
   industry:              { type: DataTypes.STRING(100), allowNull: true },
   fiscal_year:           { type: DataTypes.STRING(10),  allowNull: false, defaultValue: 'Apr-Mar' },
@@ -120,16 +129,11 @@ Company.init({
   updatedAt:  'updated_at',
   deletedAt:  'deleted_at',
   indexes: [
-    { unique: true, fields: ['slug'] },
-    { unique: true, fields: ['code'] },
     { fields: ['is_active'] },
   ],
 });
 
 // ─── CompanySettings — flexible key-value store ───────────────────────────────
-// Stores any company-level setting without requiring schema changes.
-// Examples: leave_approval_flow, probation_days, payslip_footer, etc.
-
 interface CompanySettingAttributes {
   id:         number;
   company_id: number;
@@ -178,3 +182,68 @@ export const COMPANY_SETTING_KEYS = {
   ATTENDANCE_CUTOFF:    'attendance_cutoff',       // time e.g. '10:30'
   PORTAL_WELCOME_MSG:   'portal_welcome_msg',      // text
 } as const;
+
+
+// ─── CompanyModule — per-company module activation ─────────────────────────── 
+interface CompanyModuleAttributes {
+  id:            number;
+  company_id:    number;
+  module:        string;
+  label:         string;
+  is_active:     boolean;
+  is_core:       boolean;    // core modules cannot be disabled
+  display_order: number;
+}
+ 
+export class CompanyModule
+  extends Model<CompanyModuleAttributes, Optional<CompanyModuleAttributes, 'id'>>
+  implements CompanyModuleAttributes
+{
+  public id!:            number;
+  public company_id!:    number;
+  public module!:        string;
+  public label!:         string;
+  public is_active!:     boolean;
+  public is_core!:       boolean;
+  public display_order!: number;
+  public readonly created_at!: Date;
+  public readonly updated_at!: Date;
+}
+ 
+CompanyModule.init({
+  id:            { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  company_id:    { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  module:        { type: DataTypes.STRING(100), allowNull: false },
+  label:         { type: DataTypes.STRING(200), allowNull: false },
+  is_active:     { type: DataTypes.BOOLEAN, defaultValue: true },
+  is_core:       { type: DataTypes.BOOLEAN, defaultValue: false },
+  display_order: { type: DataTypes.SMALLINT, defaultValue: 0 },
+}, {
+  sequelize,
+  tableName:  'company_modules',
+  modelName:  'CompanyModule',
+  timestamps: true,
+  createdAt:  'created_at',
+  updatedAt:  'updated_at',
+  indexes: [
+    { unique: true, fields: ['company_id', 'module'] },
+    { fields: ['company_id', 'is_active'] },
+  ],
+});
+ 
+// ─── Default module configuration ────────────────────────────────────────────
+export const DEFAULT_MODULES = [
+  // Core — always on
+  { module: 'employees',    label: 'Employees',         is_active: true,  is_core: true,  display_order: 1 },
+  { module: 'departments',  label: 'Departments',        is_active: true,  is_core: true,  display_order: 2 },
+  { module: 'designations', label: 'Designations',       is_active: true,  is_core: true,  display_order: 3 },
+  { module: 'settings',     label: 'Settings & RBAC',    is_active: true,  is_core: true,  display_order: 4 },
+  // Default on
+  { module: 'attendance',   label: 'Attendance',         is_active: true,  is_core: false, display_order: 5 },
+  { module: 'leaves',       label: 'Leave Management',   is_active: true,  is_core: false, display_order: 6 },
+  // Default off — activate when needed
+  { module: 'payroll',      label: 'Payroll',            is_active: false, is_core: false, display_order: 7 },
+  { module: 'recruitment',  label: 'Recruitment / ATS',  is_active: false, is_core: false, display_order: 8 },
+  { module: 'aptitude',     label: 'Aptitude Tests',     is_active: false, is_core: false, display_order: 9 },
+  { module: 'assets',       label: 'Asset Management',   is_active: false, is_core: false, display_order: 10 },
+] as const;

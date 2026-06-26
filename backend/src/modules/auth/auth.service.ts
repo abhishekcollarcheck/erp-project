@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 import { Employee, EmployeeRole, OtpRequest, Role, RoleModulePermission, PermissionGroup, GroupPermission, UserGroup, Permission } from '../../database/models/index';
 import { CompanyManager }  from '../../database/models/CompanyManager';
-import { Company }         from '../../database/models/Company';
+import { Company, CompanyModule }         from '../../database/models/Company';
 import { AppError } from '../../middleware/errorHandler.middleware';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../utils/jwt';
 import { logActivity } from '../../utils/activityLogger';
@@ -160,6 +160,14 @@ async function buildResponse(employee: Employee, payload: Awaited<ReturnType<typ
         where:   { employee_id: employee.id, company_id: a.company_id },
         include: [{ model: Role, as: 'role', attributes: ['id','name','slug'] }],
       });
+
+      const moduleRows = await CompanyModule.findAll({
+        where:      { company_id: a.company_id, is_active: true },
+        attributes: ['module'],
+        order:      [['display_order', 'ASC']],
+      });
+      const active_modules = moduleRows.map((m: any) => m.module);
+
       return {
         id:              co.id,
         name:            co.name,
@@ -170,6 +178,7 @@ async function buildResponse(employee: Employee, payload: Awaited<ReturnType<typ
         role_name:       (empRole as any)?.role?.name  || null,
         is_primary:      a.is_primary,
         is_super_admin:  isSA,
+        active_modules, 
       };
     })
   );
@@ -181,7 +190,7 @@ async function buildResponse(employee: Employee, payload: Awaited<ReturnType<typ
       managedCompanies.push({
         id: home.id, name: home.name, slug: home.slug, is_active: home.is_active,
         manager_role: payload.roleSlug, role_name: null, theme_color: home.theme_color,
-        is_primary: true, is_super_admin: payload.isSuperAdmin,
+        is_primary: true, is_super_admin: payload.isSuperAdmin, active_modules: []
       });
     }
   }

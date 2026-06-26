@@ -2,7 +2,7 @@ import { sequelize } from '../../config/database';
 
 // ─── Core ─────────────────────────────────────────────────────────────────────
 import { Employee }    from './Employee';
-import { Company, CompanySetting }     from './Company';
+import { Company, CompanySetting, CompanyModule, DEFAULT_MODULES }     from './Company';
 import { Department }  from './Department';
 import { Designation } from './Designation';
 
@@ -80,5 +80,6 @@ export {
   UserModulePermission, UserFieldPermission,
   PermissionGroup, GroupPermission, UserGroup,
   Asset, AssetCategory, AssetAssignment, AssetRequest, AssetMaintenance,
-  CompanyManager,   EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, CompanySetting
+  CompanyManager,   EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, CompanySetting,
+  CompanyModule, DEFAULT_MODULES,
 };

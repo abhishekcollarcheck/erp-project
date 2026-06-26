@@ -15,9 +15,9 @@ import rbacRoutes from '../modules/form-builder/formBuilder.routes';
 import { userPermissionsRouter } from '../modules/user-permissions/userPermissions.controller';
 // import { assetRouter } from '../modules/assets/asset.controller';
 import { permissionGroupRouter } from '../modules/permission-groups/permissionGroups.controller';
-import { superAdminRouter } from '../modules/super-admin/superAdmin.routes';
-import { adminRouter } from '../modules/admin/admin.controller';
-import { companyUsersRouter, companyEmployeesRouter } from '../modules/admin/company-users-controller';
+// import { superAdminRouter } from '../modules/super-admin/superAdmin.routes';
+// import { adminRouter } from '../modules/admin/admin.controller';
+// import { companyUsersRouter, companyEmployeesRouter } from '../modules/admin/company-users-controller';
 import { companyRouter } from '../modules/company/company.controller';
 
 const router = Router();
@@ -40,9 +40,9 @@ router.use('/email-templates', emailTemplateRoutes);
 router.use('/rbac', rbacRoutes);
 router.use('/user-permissions', userPermissionsRouter);
 router.use('/permission-groups', permissionGroupRouter);
-router.use('/admin', adminRouter);
-router.use('/admin/companies/:companyId/users',      companyUsersRouter);
-router.use('/admin/companies/:companyId/employees',  companyEmployeesRouter);
+// router.use('/admin', adminRouter);
+// router.use('/admin/companies/:companyId/users',      companyUsersRouter);
+// router.use('/admin/companies/:companyId/employees',  companyEmployeesRouter);
 router.use('/companies', companyRouter);
 
 export default router;
