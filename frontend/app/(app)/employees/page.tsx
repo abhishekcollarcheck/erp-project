@@ -16,11 +16,12 @@ import { StatCard } from '../../../components/ui/StatCard';
 import { Modal } from '../../../components/ui/Modal';
 import { useEmployees, useEmployeeSummary, useDeleteEmployee } from '../../../features/employees/hooks/useEmployees';
 import { useDebounce } from '../../../hooks/useDebounce';
-import { usePermission } from '../../../features/auth/hooks/usePermission';
+import { usePermission } from '../../../features/auth/hooks/useAuth';
 import { formatDate, getTenure, getInitials, statusVariant } from '../../../features/employees/utils/employee.utils';
 import { showToast } from '../../../utils/toast';
 import type { Employee, EmployeeStatus } from '../../../features/employees/types/employee.types';
 import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE } from '../../../features/employees/constants/employee.constants';
+import { BulkUploadModal } from '../../../features/employees/components/BulkUploadModal';
 
 type StatusFilter     = EmployeeStatus | '';
 type EmpTypeFilter    = 'Permanent' | 'Contractual' | '';
@@ -28,7 +29,7 @@ type EmpTypeFilter    = 'Permanent' | 'Contractual' | '';
 export default function EmployeesPage() {
   const router    = useRouter();
   const dispatch  = useAppDispatch();
-  const { canCreate, canEdit, canDelete, canManageEmployees } = usePermission();
+  const { canCreate, canEdit, canDelete, canDownload } = usePermission();
 
   // ── State ────────────────────────────────────────────────────────────────
   const [page,         setPage]         = useState(1);
@@ -36,6 +37,7 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
   const [typeFilter,   setTypeFilter]   = useState<EmpTypeFilter>('');
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -231,7 +233,10 @@ export default function EmployeesPage() {
             <p>All employees · Multi-company · Role-based access control</p>
           </div>
           <div className="ph-r">
-            <button className="btn btn-sec btn-sm" disabled>↓ Export</button>
+            {/* <button className="btn btn-sec btn-sm" disabled>↓ Export</button> */}
+              {canDownload('employees') && (
+                <button className="btn btn-sec btn-sm" onClick={() => setBulkOpen(true)}>↑ Bulk Import</button>
+              )}            
             {canCreate('employees') && (
               <button className="btn btn-pri btn-sm" onClick={() => router.push('/employees/new')}>
                 + Add Employee
@@ -285,6 +290,8 @@ export default function EmployeesPage() {
           Portal access will be revoked immediately.
         </div>
       </Modal>
+
+      <BulkUploadModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
     </AppShell>
   );
 }

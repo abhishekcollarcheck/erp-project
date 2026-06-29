@@ -452,21 +452,193 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
   async getFieldPermissions(roleId: number) { return loadFieldPerms(roleId); }
   async getSummary(companyId: number) { return repo.getSummary(companyId); }
 
+  // ✅ FIXED bulkUpload METHOD - Handles all required fields
   async bulkUpload(rows: BulkUploadRow[], companyId: number, actorId: number): Promise<BulkUploadResult> {
-    const result: BulkUploadResult = { total: rows.length, success: 0, failed: 0, errors: [], created: [] };
+    const result: BulkUploadResult = {
+      total: rows.length,
+      success: 0,
+      failed: 0,
+      errors: [],
+      created: [],
+    };
+
+    // ✅ Map for converting labels to IDs
+    const departmentMap: Record<string, number> = {
+      'Commercial': 1,
+      'Accounts': 2,
+      'Automation': 3,
+      'HR': 4,
+      'Graphics': 5,
+      'Admin': 6,
+      'Project': 7,
+      'Service': 8,
+      'IT': 9,
+      'Estimation': 10,
+      'Management': 11,
+      'Purchase': 12,
+      'Tender': 13,
+      'Sales': 14,
+      'Technical': 15,
+      'Legal': 16,
+      'Regulatory Affairs': 17,
+      'Store': 18,
+      'Ortho': 19,
+      'Maintenance': 20,
+      'Design': 21,
+      'Quality': 22,
+      'Credit Control': 23,
+      'International Marketing': 24,
+      'Field': 25,
+      'Projects': 26,
+      'Facility Management (Operations)': 27,
+      'PTS and Project': 28,
+      'CSSD': 29,
+      'Quality Control': 30,
+      'Marketing': 31,
+      'Operations': 32,
+    };
+
+    const designationMap: Record<string, number> = {
+      'Accountant': 1,
+      'Manager': 2,
+      'Senior Manager': 3,
+      'Executive': 4,
+      'Engineer': 5,
+      'Developer': 6,
+      'Coordinator': 7,
+      'Supervisor': 8,
+    };
+
+    const companyMapBulk: Record<string, number> = {
+      'Narula Exports': 1,
+      'Med Freshe': 2,
+      'Greenvac Solutions': 3,
+      'Collarcheck': 4,
+    };
+
+    // ✅ Helper function to safely convert to string
+    const getString = (value: any): string => {
+      if (!value) return '';
+      return String(value).trim();
+    };
+
+    // ✅ Helper function to safely convert to number
+    const getNumber = (value: any): number | undefined => {
+      if (!value) return undefined;
+      const num = Number(value);
+      return isNaN(num) ? undefined : num;
+    };
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        if (!row.first_name?.trim()) throw new Error('first_name required');
-        if (!row.last_name?.trim())  throw new Error('last_name required');
-        const emp = await this.create({ company_id: companyId, first_name: String(row.first_name).trim(), last_name: String(row.last_name).trim(), employment_type: (row.employment_type as any) || 'Permanent', status: 'Active' } as any, actorId);
+        // ✅ Validate Required Fields
+        const firstName = getString(row.first_name);
+        if (!firstName) {
+          throw new Error('first_name is required');
+        }
+
+        const lastName = getString(row.last_name);
+        if (!lastName) {
+          throw new Error('last_name is required');
+        }
+
+        const email = getString(row.email);
+        if (!email) {
+          throw new Error('email is required');
+        }
+
+        const phone = getString(row.phone);
+        if (!phone) {
+          throw new Error('phone is required');
+        }
+
+        const departmentStr = getString(row.department_id);
+        if (!departmentStr) {
+          throw new Error('department_id is required');
+        }
+
+        const designationStr = getString(row.designation_id);
+        if (!designationStr) {
+          throw new Error('designation_id is required');
+        }
+
+        // ✅ Convert department label to ID
+        let departmentId: number;
+        const deptNum = getNumber(departmentStr);
+        if (deptNum) {
+          departmentId = deptNum;
+        } else {
+          departmentId = departmentMap[departmentStr];
+          if (!departmentId) {
+            throw new Error(`Invalid department: ${departmentStr}`);
+          }
+        }
+
+        // ✅ Convert designation label to ID
+        let designationId: number;
+        const designNum = getNumber(designationStr);
+        if (designNum) {
+          designationId = designNum;
+        } else {
+          designationId = designationMap[designationStr];
+          if (!designationId) {
+            throw new Error(`Invalid designation: ${designationStr}`);
+          }
+        }
+
+        // ✅ Convert company label to ID if provided
+        let finalCompanyId = companyId;
+        if (row.company_id) {
+          const companyStr = getString(row.company_id);
+          const compNum = getNumber(companyStr);
+          if (compNum) {
+            finalCompanyId = compNum;
+          } else {
+            const mappedCompanyId = companyMapBulk[companyStr];
+            if (mappedCompanyId) {
+              finalCompanyId = mappedCompanyId;
+            }
+          }
+        }
+
+        // ✅ Create Employee with ALL required fields
+        const emp = await this.create(
+          {
+            company_id: finalCompanyId,
+            first_name: firstName,
+            last_name: lastName,
+            email: email,
+            phone: phone,
+            department_id: departmentId,
+            designation_id: designationId,
+            // Optional fields
+            employee_code: row.employee_code ? getString(row.employee_code) : undefined,
+            date_of_birth: row.date_of_birth ? getString(row.date_of_birth) : undefined,
+            gender: row.gender ? getString(row.gender) : undefined,
+            date_of_joining: row.date_of_joining ? getString(row.date_of_joining) : undefined,
+            salary: row.salary ? getNumber(row.salary) : undefined,
+            working_site: row.working_site ? getString(row.working_site) : undefined,
+            sub_department_id: row.sub_department_id ? getNumber(row.sub_department_id) : undefined,
+            sub_designation: row.sub_designation ? getString(row.sub_designation) : undefined,
+            employment_type: (row.employment_type as any) || 'Permanent',
+            status: row.status ? getString(row.status) : 'Active',
+          } as any,
+          actorId
+        );
+
         result.created.push(emp.id);
         result.success++;
       } catch (err: any) {
         result.failed++;
-        result.errors.push({ row: i + 2, name: `${row.first_name || ''} ${row.last_name || ''}`.trim(), reason: err.message });
+        result.errors.push({
+          row: i + 2,
+          name: `${getString(row.first_name)} ${getString(row.last_name)}`.trim(),
+          reason: err.message || 'Unknown error',
+        });
       }
     }
+
     return result;
   }
 

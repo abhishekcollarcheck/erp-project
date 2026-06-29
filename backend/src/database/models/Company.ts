@@ -191,7 +191,7 @@ interface CompanyModuleAttributes {
   module:        string;
   label:         string;
   is_active:     boolean;
-  is_core:       boolean;    // core modules cannot be disabled
+  // is_core:       boolean;    // core modules cannot be disabled
   display_order: number;
 }
  
@@ -204,7 +204,7 @@ export class CompanyModule
   public module!:        string;
   public label!:         string;
   public is_active!:     boolean;
-  public is_core!:       boolean;
+  // public is_core!:       boolean;
   public display_order!: number;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
@@ -216,7 +216,7 @@ CompanyModule.init({
   module:        { type: DataTypes.STRING(100), allowNull: false },
   label:         { type: DataTypes.STRING(200), allowNull: false },
   is_active:     { type: DataTypes.BOOLEAN, defaultValue: true },
-  is_core:       { type: DataTypes.BOOLEAN, defaultValue: false },
+  // is_core:       { type: DataTypes.BOOLEAN, defaultValue: false },
   display_order: { type: DataTypes.SMALLINT, defaultValue: 0 },
 }, {
   sequelize,

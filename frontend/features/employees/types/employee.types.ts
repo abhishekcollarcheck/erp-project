@@ -285,3 +285,8 @@ export interface EmployeeSummary {
   retired: number;
 }
 
+export interface BulkUploadResult {
+  total: number; success: number; failed: number;
+  errors: { row: number; name: string; reason: string }[]; inserted: number[];
+}
+
