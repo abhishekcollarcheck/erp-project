@@ -78,6 +78,7 @@ class EmployeeOverrideService {
     overrides: OverrideDto[],
     actorId: number,
   ) {
+    console.log("set-company", companyId)
 
     // Module-level only — field-level (mask, copy, print) not in scope yet
     const VALID = new Set(['view', 'create', 'edit', 'delete', 'download']);

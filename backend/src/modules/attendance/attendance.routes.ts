@@ -1,82 +1,120 @@
-import { Router } from 'express';
-import { body, query, param } from 'express-validator';
-import { validate } from '../../middleware/validate.middleware';
-import { authenticate, authorize} from '../auth/auth.middleware';
-import {
-  getTodaySummary,
-  getByEmployee,
-  getAllAttendance,
-  markAttendance,
-  bulkMarkAttendance,
-  updateAttendance,
-} from './attendance.controller';
+/**
+ * attendance.mssql.routes.ts
+ *
+ * Routes for reading attendance from local MSSQL Realtime database.
+ *
+ * Place at: backend/src/modules/attendance/attendance.mssql.routes.ts
+ *
+ * Register in main routes (src/routes/index.ts):
+ *   import mssqlAttendanceRouter from '../modules/attendance/attendance.mssql.routes';
+ *   app.use('/api/attendance/mssql', mssqlAttendanceRouter);
+ */
 
-const router = Router();
+import { Router, Request, Response, NextFunction } from 'express';
+import { query, param }                             from 'express-validator';
+import { validate }                                 from '../../middleware/validate.middleware';
+import { authenticate }                             from '../auth/auth.middleware';
+import { attendanceMSSQLService }                   from './attendance.service';
+import { sendResponse, sendError }                  from '../../utils/response';
 
-router.use(authenticate,);
+const mssqlAttendanceRouter = Router();
+mssqlAttendanceRouter.use(authenticate);
 
-// GET /api/attendance/today-summary
-router.get('/today-summary', getTodaySummary);
+// ─── GET /api/attendance/mssql/tables ────────────────────────────────────────
+// Step 1: Run this to discover MSSQL schema — find table + column names
+mssqlAttendanceRouter.get('/tables', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const schema = await attendanceMSSQLService.discoverSchema();
+    sendResponse(res, {
+      data: schema,
+      message: 'MSSQL schema discovered. Update MSSQL_TABLE_NAME and COL in attendance.mssql.service.ts',
+    });
+  } catch (e: any) {
+    sendError(res, `MSSQL connection failed: ${e.message}`, 500);
+  }
+});
 
-// GET /api/attendance/employee/:employeeId?month=5&year=2026
-router.get(
-  '/employee/:employeeId',
+// ─── GET /api/attendance/mssql/sample ────────────────────────────────────────
+// Step 2: See raw data to understand column names
+mssqlAttendanceRouter.get('/sample', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const rows = await attendanceMSSQLService.getSampleRows();
+    sendResponse(res, {
+      data: rows,
+      message: `Sample rows from MSSQL. Use these column names to update the service.`,
+    });
+  } catch (e: any) {
+    sendError(res, `MSSQL query failed: ${e.message}`, 500);
+  }
+});
+
+// ─── GET /api/attendance/mssql/today ─────────────────────────────────────────
+// Today's attendance from MSSQL (biometric data)
+mssqlAttendanceRouter.get('/today', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const rows = await attendanceMSSQLService.getTodayAttendance();
+    sendResponse(res, {
+      data:    rows,
+      message: `Today's attendance from Realtime DB (${rows.length} records)`,
+    });
+  } catch (e: any) {
+    sendError(res, `MSSQL query failed: ${e.message}`, 500);
+  }
+});
+
+// ─── GET /api/attendance/mssql?date_from=2026-06-01&date_to=2026-06-30 ───────
+// Date range attendance
+mssqlAttendanceRouter.get(
+  '/',
   [
-    param('employeeId').isInt({ min: 1 }),
+    query('date_from').optional().isISO8601(),
+    query('date_to').optional().isISO8601(),
+    query('employee_code').optional().isString(),
+  ],
+  validate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const today    = new Date().toISOString().split('T')[0];
+      const dateFrom = (req.query.date_from as string) || today;
+      const dateTo   = (req.query.date_to   as string) || today;
+      const empCode  = req.query.employee_code as string | undefined;
+
+      const rows = await attendanceMSSQLService.getAttendanceByDate(dateFrom, dateTo, empCode);
+      sendResponse(res, {
+        data:    rows,
+        message: `Attendance from ${dateFrom} to ${dateTo} (${rows.length} records)`,
+      });
+    } catch (e: any) {
+      sendError(res, `MSSQL query failed: ${e.message}`, 500);
+    }
+  }
+);
+
+// ─── GET /api/attendance/mssql/employee/:code?month=6&year=2026 ───────────────
+// Monthly attendance for one employee by their code
+mssqlAttendanceRouter.get(
+  '/employee/:code',
+  [
+    param('code').notEmpty(),
     query('month').optional().isInt({ min: 1, max: 12 }),
     query('year').optional().isInt({ min: 2000 }),
   ],
   validate,
-  getByEmployee,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const code  = req.params.code;
+      const month = Number(req.query.month ?? new Date().getMonth() + 1);
+      const year  = Number(req.query.year  ?? new Date().getFullYear());
+
+      const rows = await attendanceMSSQLService.getByEmployeeCode(code, month, year);
+      sendResponse(res, {
+        data:    rows,
+        message: `Attendance for ${code} — ${month}/${year} (${rows.length} records)`,
+      });
+    } catch (e: any) {
+      sendError(res, `MSSQL query failed: ${e.message}`, 500);
+    }
+  }
 );
 
-// GET /api/attendance?date_from=2026-05-01&date_to=2026-05-31&status=Absent
-router.get(
-  '/',
-  [
-    query('page').optional().isInt({ min: 1 }),
-    query('limit').optional().isInt({ min: 1, max: 100 }),
-    query('status').optional().isIn(['Present', 'Absent', 'WFH', 'Half-Day', 'Holiday', 'Leave']),
-    query('date_from').optional().isISO8601(),
-    query('date_to').optional().isISO8601(),
-  ],
-  validate,
-  getAllAttendance,
-);
-
-// POST /api/attendance — mark single
-// router.post(
-//   '/',
-//   requireRole('hr', 'admin', 'mgr'),
-//   [
-//     body('employee_id').isInt({ min: 1 }).withMessage('employee_id must be a positive integer'),
-//     body('date').isISO8601().withMessage('date must be a valid ISO date (YYYY-MM-DD)'),
-//     body('status')
-//       .isIn(['Present', 'Absent', 'WFH', 'Half-Day', 'Holiday', 'Leave'])
-//       .withMessage('Invalid status value'),
-//     body('check_in').optional({ nullable: true }).matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('check_in must be HH:MM'),
-//     body('check_out').optional({ nullable: true }).matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('check_out must be HH:MM'),
-//   ],
-//   validate,
-//   markAttendance,
-// );
-
-// POST /api/attendance/bulk — mark multiple employees at once
-// router.post(
-//   '/bulk',
-//   requireRole('hr', 'admin'),
-//   [body('records').isArray({ min: 1 }).withMessage('records must be a non-empty array')],
-//   validate,
-//   bulkMarkAttendance,
-// );
-
-// PUT /api/attendance/:id
-// router.put(
-//   '/:id',
-//   requireRole('hr', 'admin', 'mgr'),
-//   [param('id').isInt({ min: 1 })],
-//   validate,
-//   updateAttendance,
-// );
-
-export default router;
+export default mssqlAttendanceRouter;

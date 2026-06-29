@@ -258,15 +258,10 @@ class PermissionGroupService {
     const added: number[] = [];
 
     for (const cid of targetCompanies) {
-      console.log('Processing company', cid);
       // Bug 2 fix: UserGroup.company_id = the TARGET company (cid), not admin's company
       const [, created] = await UserGroup.findOrCreate({
         where: { group_id: groupId, employee_id: employeeId, company_id: cid },
         defaults: { group_id: groupId, employee_id: employeeId, company_id: cid, assigned_by: addedBy || null },
-      });
-      console.log({
-        cid,
-        created,
       });
 
       if (created) {
@@ -321,8 +316,6 @@ class PermissionGroupService {
       },
     });
 
-    console.log("membership", membership?.toJSON());
-
     if (!membership) {
       throw new AppError('User is not in this group', 404);
     }
@@ -335,13 +328,22 @@ class PermissionGroupService {
       },
     });
 
-    console.log("deleted", deleted);
     if (!deleted) throw new AppError('User is not in this group', 404);
-
+console.log("Removing overrides", {
+  groupId,
+  employeeId,
+ targetCompanyId,
+});
     // Delete group-scoped overrides (EmployeePermissionOverride — our table, has group_id)
-    await EmployeePermissionOverride.destroy({
-      where: { group_id: groupId, employee_id: employeeId, company_id: targetCompanyId },
-    });
+const deletedOverrides = await EmployeePermissionOverride.destroy({
+  where: {
+    group_id: groupId,
+    employee_id: employeeId,
+    company_id: targetCompanyId,
+  },
+});
+
+console.log("Deleted Override Rows:", deletedOverrides);
 
     // Also delete legacy grant/revoke rows (EmployeePermission — no group_id column).
     // These rows survive removeMember and restore old permissions when member is re-added.

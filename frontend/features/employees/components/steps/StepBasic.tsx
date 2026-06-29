@@ -15,6 +15,7 @@ export function StepBasic({ isEdit }: Props) {
   const f = (n: string) => fp?.[n];
   const { setValue, watch } = useFormContext();
   const { company } = useCompany();
+  console.log("company", company)
   // ── Auto-fill employee code on create ─────────────────────────────────────
   useEffect(() => {
     if (!isEdit && codes?.code && !watch('employee_code')) {

@@ -19,6 +19,7 @@ import { permissionGroupRouter } from '../modules/permission-groups/permissionGr
 // import { adminRouter } from '../modules/admin/admin.controller';
 // import { companyUsersRouter, companyEmployeesRouter } from '../modules/admin/company-users-controller';
 import { companyRouter } from '../modules/company/company.controller';
+import mssqlAttendanceRouter from "../modules/attendance/attendance.routes"
 
 const router = Router();
 
@@ -29,7 +30,7 @@ router.use('/auth', authRoutes);
 router.use('/employees', employeeRoutes);
 router.use('/departments', departmentRoutes);
 router.use('/designations', designationRoutes);
-router.use('/attendance', attendanceRoutes);
+router.use('/attendance', mssqlAttendanceRouter);
 router.use('/leaves', leaveRoutes);
 router.use('/payroll', payrollRoutes);
 router.use('/candidates', candidateRoutes);

@@ -511,7 +511,7 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
 
     const companyMapBulk: Record<string, number> = {
       'Narula Exports': 1,
-      'Med Freshe': 2,
+      'Med Freshe': 5,
       'Greenvac Solutions': 3,
       'Collarcheck': 4,
     };
