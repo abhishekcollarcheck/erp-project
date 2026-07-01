@@ -1,18 +1,22 @@
-import { Router, Request, Response, NextFunction } from 'express';
-import { body, param } from 'express-validator';
-import { Op } from 'sequelize';
-import { EmployeePermissionOverride } from '../../database/models/EmployeePermissionOverride';
-import { PermissionGroup, UserGroup } from '../../database/models/PermissionGroups';
-import { Employee } from '../../database/models/Employee';
-import { AppError } from '../../middleware/errorHandler.middleware';
-import { authenticate } from '../auth/auth.middleware';
-import { validate } from '../../middleware/validate.middleware';
-import { sendResponse } from '../../utils/response';
-import { logActivity } from '../../utils/activityLogger';
-import { clearPermissionCache } from '../../middleware/rbac.middleware';
-import { generateAccessToken } from '../../utils/jwt';
-import { loadPermissions } from '../auth/auth.service';
-import { getIO } from '../../socket/socket';
+import { Router, Request, Response, NextFunction } from "express";
+import { body, param } from "express-validator";
+import { Op } from "sequelize";
+import { EmployeePermissionOverride } from "../../database/models/EmployeePermissionOverride";
+import {
+  PermissionGroup,
+  UserGroup,
+} from "../../database/models/PermissionGroups";
+import { Employee } from "../../database/models/Employee";
+import { AppError } from "../../middleware/errorHandler.middleware";
+import { authenticate } from "../auth/auth.middleware";
+import { validate } from "../../middleware/validate.middleware";
+import { sendResponse } from "../../utils/response";
+import { logActivity } from "../../utils/activityLogger";
+import { clearPermissionCache } from "../../middleware/rbac.middleware";
+import { generateAccessToken } from "../../utils/jwt";
+import { loadPermissions } from "../auth/auth.service";
+import { getIO } from "../../socket/socket";
+import { refreshEmployeePermission } from "../../utils/refreshEmployeePermission";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,35 +30,52 @@ export interface OverrideDto {
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 class EmployeeOverrideService {
-
   /**
    * Confirm employee exists in this company AND is a member of this group.
    * UserGroup uses employee_id directly — no user lookup needed.
    */
-  private async assertMembership(
-    groupId: number,
-    employeeId: number,
-  ) {
+  private async assertMembership(groupId: number, employeeId: number) {
     const emp = await Employee.findOne({
-      where: { id: employeeId},
+      where: { id: employeeId },
     });
-    if (!emp) throw new AppError('Employee not found', 404);
+    if (!emp) throw new AppError("Employee not found", 404);
 
     const membership = await UserGroup.findOne({
-      where: { group_id: groupId, employee_id: employeeId},
+      where: { group_id: groupId, employee_id: employeeId },
     });
-    if (!membership) throw new AppError('Employee is not a member of this group', 404);
+    if (!membership)
+      throw new AppError("Employee is not a member of this group", 404);
 
     return emp;
   }
 
-  async listOverrides(groupId: number, employeeId: number, companyId: number) {
-    await this.assertMembership(groupId, employeeId);
-    return EmployeePermissionOverride.findAll({
-      where: { group_id: groupId, employee_id: employeeId, company_id: companyId },
-      order: [['module', 'ASC'], ['field_name', 'ASC'], ['permission', 'ASC']],
-    });
+async listOverrides(groupId: number, employeeId: number) {
+  const membership = await UserGroup.findOne({
+    where: {
+      group_id: groupId,
+      employee_id: employeeId,
+    },
+  });
+
+  if (!membership) {
+    throw new AppError("Employee is not a member of this group", 404);
   }
+
+  const targetCompanyId = membership.company_id;
+
+  return EmployeePermissionOverride.findAll({
+    where: {
+      group_id: groupId,
+      employee_id: employeeId,
+      company_id: targetCompanyId,
+    },
+    order: [
+      ["module", "ASC"],
+      ["field_name", "ASC"],
+      ["permission", "ASC"],
+    ],
+  });
+}
 
   async getOverrideCountsForGroup(
     groupId: number,
@@ -62,7 +83,7 @@ class EmployeeOverrideService {
   ): Promise<Record<number, number>> {
     const rows = await EmployeePermissionOverride.findAll({
       where: { group_id: groupId, company_id: companyId },
-      attributes: ['employee_id'],
+      attributes: ["employee_id"],
     });
     const counts: Record<number, number> = {};
     for (const r of rows) {
@@ -74,35 +95,54 @@ class EmployeeOverrideService {
   async setOverrides(
     groupId: number,
     employeeId: number,
-    companyId: number,
     overrides: OverrideDto[],
     actorId: number,
   ) {
-    console.log("set-company", companyId)
+    const membership = await UserGroup.findOne({
+      where: {
+        group_id: groupId,
+        employee_id: employeeId,
+      },
+    });
 
+    if (!membership) {
+      throw new AppError("Employee is not a member of this group", 404);
+    }
+
+    const targetCompanyId = membership.company_id;
+    console.log("set override", targetCompanyId, groupId, employeeId);
     // Module-level only — field-level (mask, copy, print) not in scope yet
-    const VALID = new Set(['view', 'create', 'edit', 'delete', 'download']);
+    const VALID = new Set(["view", "create", "edit", "delete", "download"]);
     for (const o of overrides) {
-      if (!o.module?.trim())
-        throw new AppError('module is required', 400);
+      if (!o.module?.trim()) throw new AppError("module is required", 400);
       if (!VALID.has(o.permission))
-        throw new AppError(`Invalid permission "${o.permission}". Allowed: view, create, edit, delete, download`, 400);
+        throw new AppError(
+          `Invalid permission "${o.permission}". Allowed: view, create, edit, delete, download`,
+          400,
+        );
       if (o.field_name !== null && o.field_name !== undefined)
-        throw new AppError('field_name must be null — only module-level overrides are supported', 400);
+        throw new AppError(
+          "field_name must be null — only module-level overrides are supported",
+          400,
+        );
     }
 
     await EmployeePermissionOverride.destroy({
-      where: { group_id: groupId, employee_id: employeeId, company_id: companyId },
+      where: {
+        group_id: groupId,
+        employee_id: employeeId,
+        company_id: targetCompanyId,
+      },
     });
 
     if (overrides.length > 0) {
       await EmployeePermissionOverride.bulkCreate(
-        overrides.map(o => ({
-          company_id: companyId,
+        overrides.map((o) => ({
+          company_id: targetCompanyId,
           group_id: groupId,
           employee_id: employeeId,
           module: o.module.trim(),
-          field_name: null,          // always null — module-level only
+          field_name: null, // always null — module-level only
           permission: o.permission,
           granted: o.granted,
           created_by: actorId,
@@ -114,71 +154,89 @@ class EmployeeOverrideService {
     clearPermissionCache(employeeId);
 
     await logActivity({
-      companyId,
+      companyId: targetCompanyId,
       employeeId: actorId,
-      action: 'EMPLOYEE_PERMISSION_OVERRIDES_SET',
-      module: 'settings',
+      action: "EMPLOYEE_PERMISSION_OVERRIDES_SET",
+      module: "settings",
       entityId: employeeId,
       newValues: { groupId, overrideCount: overrides.length },
     });
 
-    try {
-      const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, companyId);
-      const freshToken = generateAccessToken({ employeeId, companyId, permissions: fullPerms, isSuperAdmin } as any);
-      getIO()?.to(`employee:${employeeId}`).emit('permissions:updated', {
-        eventType: 'permissions_updated',
-        companyId,
-        permissions: fullPerms,
-        accessToken: freshToken,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.warn('[Override] socket emit failed for employee', employeeId, e);
-    }
+    // try {
+    //   const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(
+    //     employeeId,
+    //     targetCompanyId,
+    //   );
+    //   const freshToken = generateAccessToken({
+    //     employeeId,
+    //     companyId: targetCompanyId,
+    //     permissions: fullPerms,
+    //     isSuperAdmin,
+    //   } as any);
+    //   getIO()?.to(`employee:${employeeId}`).emit("permissions:updated", {
+    //     eventType: "permissions_updated",
+    //     companyId: targetCompanyId,
+    //     permissions: fullPerms,
+    //     accessToken: freshToken,
+    //     timestamp: new Date().toISOString(),
+    //   });
+    // } catch (e) {
+    //   console.warn("[Override] socket emit failed for employee", employeeId, e);
+    // }
 
+    await refreshEmployeePermission(employeeId, targetCompanyId)
     return { updated: overrides.length };
   }
 
   async deleteOverride(
     groupId: number,
     employeeId: number,
-    companyId: number,
     overrideId: number,
     actorId: number,
   ) {
-    const row = await EmployeePermissionOverride.findOne({
-      where: { id: overrideId, group_id: groupId, employee_id: employeeId, company_id: companyId },
-    });
-    if (!row) throw new AppError('Override not found', 404);
+const membership = await UserGroup.findOne({
+  where: {
+    group_id: groupId,
+    employee_id: employeeId,
+  },
+});
 
-    const snapshot = { module: row.module, field_name: row.field_name, permission: row.permission, granted: row.granted };
+if (!membership) {
+  throw new AppError("Employee is not a member of this group", 404);
+}
+
+const targetCompanyId = membership.company_id;    
+    const row = await EmployeePermissionOverride.findOne({
+      where: {
+        id: overrideId,
+        group_id: groupId,
+        employee_id: employeeId,
+        company_id: targetCompanyId,
+      },
+    });
+    if (!row) throw new AppError("Override not found", 404);
+
+    const snapshot = {
+      module: row.module,
+      field_name: row.field_name,
+      permission: row.permission,
+      granted: row.granted,
+    };
     await row.destroy();
 
     clearPermissionCache(employeeId);
 
     await logActivity({
-      companyId,
+      companyId: targetCompanyId,
       employeeId: actorId,
-      action: 'EMPLOYEE_PERMISSION_OVERRIDE_DELETED',
-      module: 'settings',
+      action: "EMPLOYEE_PERMISSION_OVERRIDE_DELETED",
+      module: "settings",
       entityId: employeeId,
       oldValues: { overrideId, groupId, ...snapshot },
     });
 
     // Push fresh permissions to the affected employee's portal
-    try {
-      const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(employeeId, companyId);
-      const freshToken = generateAccessToken({ employeeId, companyId, permissions: fullPerms, isSuperAdmin } as any);
-      getIO()?.to(`employee:${employeeId}`).emit('permissions:updated', {
-        eventType: 'permissions_updated',
-        companyId,
-        permissions: fullPerms,
-        accessToken: freshToken,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.warn('[Override] socket emit failed for employee', employeeId, e);
-    }
+    await refreshEmployeePermission(employeeId, targetCompanyId)
 
     return { deleted: true };
   }
@@ -217,40 +275,32 @@ export async function resolvePermissionsForEmployee(
   console.log("OVERRIDE CHECK", {
     employeeId,
     companyId,
-    groupIds
+    groupIds,
   });
   const overrides = await EmployeePermissionOverride.findAll({
     where: {
       employee_id: employeeId,
       company_id: companyId,
       group_id: { [Op.in]: groupIds },
-      field_name: null,  // module-level only — field-level handled separately
+      field_name: null, // module-level only — field-level handled separately
     },
-    order: [
-      ['created_at', 'ASC']
-    ]
+    order: [["created_at", "ASC"]],
   });
 
   console.log(
     "FOUND OVERRIDES",
-    overrides.map(o => ({
+    overrides.map((o) => ({
       group_id: o.group_id,
       module: o.module,
       permission: o.permission,
-      granted: o.granted
-    }))
+      granted: o.granted,
+    })),
   );
-
-
 
   for (const o of overrides) {
     const slug = `${o.module}:${o.permission}`;
 
-    console.log(
-      "APPLY OVERRIDE",
-      slug,
-      o.granted
-    );
+    console.log("APPLY OVERRIDE", slug, o.granted);
 
     if (o.granted) {
       slugSet.add(slug);
@@ -297,58 +347,51 @@ export async function getEmployeeFieldOverrides(
 
 // ─── Controllers ──────────────────────────────────────────────────────────────
 
-async function listOverrides(req: Request, res: Response, next: NextFunction): Promise<void> {
+async function listOverrides(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-    const employee = await Employee.findByPk(+req.params.employeeId, {attributes: ['id', 'company_id']}) 
-
-    if(!employee){
-      throw new AppError("Employee not found", 404)
-    } 
-
     const data = await overrideSvc.listOverrides(
       +req.params.id,
       +req.params.employeeId,
-      employee.company_id,
     );
+
     sendResponse(res, { data });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 }
 
-async function setOverrides(req: Request, res: Response, next: NextFunction): Promise<void> {
+async function setOverrides(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-const employee = await Employee.findByPk(+req.params.employeeId, {
-  attributes: ['id', 'company_id']
-});
-
-  if (!employee) {
-      throw new AppError('Employee not found', 404);
-    }
-
     const data = await overrideSvc.setOverrides(
       +req.params.id,
       +req.params.employeeId,
-      employee.company_id,
       req.body.overrides ?? [],
-      req.user!.employeeId,   // actor is req.user.employeeId — no userId
+      req.user!.employeeId,
     );
+
     sendResponse(res, { data });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 }
 
-async function deleteOverride(req: Request, res: Response, next: NextFunction): Promise<void> {
+async function deleteOverride(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-    const employee = await Employee.findByPk(+req.params.employeeId, {
-      attributes: ['id', 'company_id'],
-    });
-
-    if (!employee) {
-      throw new AppError('Employee not found', 404);
-    }
-
     const data = await overrideSvc.deleteOverride(
       +req.params.id,
       +req.params.employeeId,
-      employee.company_id,
       +req.params.overrideId,
       req.user!.employeeId,
     );
@@ -370,17 +413,18 @@ async function deleteOverride(req: Request, res: Response, next: NextFunction): 
  */
 export function patchGroupMembersWithOverrideCounts(router: Router): void {
   router.get(
-    '/:id/members-with-overrides',
+    "/:id/members-with-overrides",
     authenticate,
-    [param('id').isInt()],
+    [param("id").isInt()],
     validate,
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const { permissionGroupService } = await import('./permissionGroups.controller');
+        const { permissionGroupService } =
+          await import("./permissionGroups.controller");
         const members = await permissionGroupService.getMembers(
           +req.params.id,
-          req.user!.employeeId, 
-          req.user!.isSuperAdmin
+          req.user!.employeeId,
+          req.user!.isSuperAdmin,
         );
         const overrideCounts = await overrideSvc.getOverrideCountsForGroup(
           +req.params.id,
@@ -391,7 +435,9 @@ export function patchGroupMembersWithOverrideCounts(router: Router): void {
           override_count: overrideCounts[m.id] ?? 0,
         }));
         sendResponse(res, { data: enriched });
-      } catch (e) { next(e); }
+      } catch (e) {
+        next(e);
+      }
     },
   );
 }
@@ -411,29 +457,33 @@ export const employeeOverrideRouter = Router();
 employeeOverrideRouter.use(authenticate);
 
 employeeOverrideRouter.get(
-  '/:id/members/:employeeId/overrides',
-  [param('id').isInt(), param('employeeId').isInt()],
+  "/:id/members/:employeeId/overrides",
+  [param("id").isInt(), param("employeeId").isInt()],
   validate,
   listOverrides,
 );
 
 employeeOverrideRouter.put(
-  '/:id/members/:employeeId/overrides',
+  "/:id/members/:employeeId/overrides",
   [
-    param('id').isInt(),
-    param('employeeId').isInt(),
-    body('overrides').isArray(),
-    body('overrides.*.module').trim().notEmpty(),
-    body('overrides.*.permission').trim().notEmpty(),
-    body('overrides.*.granted').isBoolean(),
+    param("id").isInt(),
+    param("employeeId").isInt(),
+    body("overrides").isArray(),
+    body("overrides.*.module").trim().notEmpty(),
+    body("overrides.*.permission").trim().notEmpty(),
+    body("overrides.*.granted").isBoolean(),
   ],
   validate,
   setOverrides,
 );
 
 employeeOverrideRouter.delete(
-  '/:id/members/:employeeId/overrides/:overrideId',
-  [param('id').isInt(), param('employeeId').isInt(), param('overrideId').isInt()],
+  "/:id/members/:employeeId/overrides/:overrideId",
+  [
+    param("id").isInt(),
+    param("employeeId").isInt(),
+    param("overrideId").isInt(),
+  ],
   validate,
   deleteOverride,
 );
