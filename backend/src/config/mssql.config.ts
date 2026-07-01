@@ -48,7 +48,7 @@ export async function getMSSQLPool(): Promise<sql.ConnectionPool> {
   });
 
   await pool.connect();
-  console.log('✅ [MSSQL] Connected to Realtime DB at 192.168.1.197');
+  // console.log('✅ [MSSQL] Connected to Realtime DB at 192.168.1.197');
   return pool;
 }
 

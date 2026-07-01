@@ -552,9 +552,6 @@ function GroupDetail({
                 return acc;
               }, {})
             );
-
-            console.log("overrideRows", memberId, overrideRows);
-            console.log("groupedOverrides", memberId, groupedOverrides);
             return (
               <div key={memberId} id={`rp-mrow-${memberId}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>

@@ -58,8 +58,6 @@ export const employeeController = {
   async create(req: Request, res: Response) {
     try {
       if (checkErrors(req, res)) return;
-      console.log("form-body", req.body);
-      console.log("user", req.user);
       const emp = await employeeService.create(
         { ...req.body, company_id: req.body.company_id },
         req.user!.employeeId,

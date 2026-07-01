@@ -279,7 +279,7 @@ async function buildResponse(
     firstName: employee.first_name,
     lastName: employee.last_name,
     avatarUrl: employee.avatar_url ?? null,
-    companyId: employee.company_id,
+    companyId: payload.companyId,
     roleId: payload.roleId,
     roleSlug: payload.roleSlug,
     isSuperAdmin: employee.is_super_admin, // platform-level flag

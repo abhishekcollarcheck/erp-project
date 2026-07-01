@@ -17,7 +17,6 @@ async function test() {
     console.log("✅ Connected");
 
     const result = await pool.request().query("SELECT @@VERSION AS version");
-    console.log(result.recordset);
 
     await pool.close();
   } catch (err) {

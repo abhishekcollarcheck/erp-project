@@ -27,8 +27,9 @@ import { EmployeePermissionOverride } from "../../database/models/EmployeePermis
 import { CompanyManager } from "../../database/models";
 import { loadPermissions } from "../auth/auth.service";
 import { generateAccessToken } from "../../utils/jwt";
-import { refreshEmployeePermission } from "@/utils/refreshEmployeePermission";
+import { refreshEmployeePermission } from "../../utils/refreshEmployeePermission";
 import { getIO } from "../../socket/socket";
+import { refreshEmployeeCompanies } from "../../utils/refreshEmployeeCompanies";
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -306,6 +307,13 @@ class PermissionGroupService {
     addedBy?: number,
     companyIds?: number[], // optional multi-company list
   ) {
+    console.log("========== ADD MEMBER ==========");
+console.log({
+  groupId,
+  employeeId,
+  companyId,
+  companyIds,
+});
     // Get the group to confirm it exists and to resolve its own company_id
     const group = await this.getById(groupId, companyId);
 
@@ -321,9 +329,10 @@ class PermissionGroupService {
       companyIds && companyIds.length > 0 ? companyIds : [companyId];
 
     const added: number[] = [];
-
+console.log("Target Companies:", targetCompanies);
     for (const cid of targetCompanies) {
       // Bug 2 fix: UserGroup.company_id = the TARGET company (cid), not admin's company
+      console.log("Assigning Company:", cid);
       const [, created] = await UserGroup.findOrCreate({
         where: { group_id: groupId, employee_id: employeeId, company_id: cid },
         defaults: {
@@ -333,6 +342,7 @@ class PermissionGroupService {
           assigned_by: addedBy || null,
         },
       });
+      console.log("CompanyManager Created:", cid);
 
       if (created) {
         added.push(cid);
@@ -390,6 +400,8 @@ class PermissionGroupService {
     // } catch (e) {
     //   console.warn("[RBAC] socket emit failed for employee", employeeId, e);
     // }
+    console.log("Refreshing Company:", added);
+    await refreshEmployeeCompanies(employeeId);
 await refreshEmployeePermission(employeeId, added[0]);
     return {
       employeeId,
@@ -425,11 +437,6 @@ await refreshEmployeePermission(employeeId, added[0]);
     });
 
     if (!deleted) throw new AppError("User is not in this group", 404);
-    console.log("Removing overrides", {
-      groupId,
-      employeeId,
-      targetCompanyId,
-    });
     // Delete group-scoped overrides (EmployeePermissionOverride — our table, has group_id)
     const deletedOverrides = await EmployeePermissionOverride.destroy({
       where: {
@@ -438,8 +445,6 @@ await refreshEmployeePermission(employeeId, added[0]);
         company_id: targetCompanyId,
       },
     });
-
-    console.log("Deleted Override Rows:", deletedOverrides);
 
     // Also delete legacy grant/revoke rows (EmployeePermission — no group_id column).
     // These rows survive removeMember and restore old permissions when member is re-added.
@@ -467,6 +472,7 @@ await refreshEmployeePermission(employeeId, added[0]);
       entityId: groupId,
       newValues: { employeeId },
     });
+    await refreshEmployeeCompanies(employeeId);
     await refreshEmployeePermission(employeeId, targetCompanyId);
     return { employeeId, groupId, action: "member_removed" };
   }

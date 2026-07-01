@@ -198,12 +198,7 @@ export function Sidebar() {
   const { company, companyId, companies } = useCompany();
   // Active modules for the current company — filters sidebar items
   const activeModules: string[] = (company as any)?.active_modules ?? [];
-  console.log("user", user)
-  console.log("companies", companies)
-  console.log("isSuperAdmin", isSuperAdmin)
-  console.log("hasPermission", hasPermission)
   const auth = useAppSelector((state: any) => state.auth);
-  console.log("auth", auth)
 
   const initials = user?.fullName
     ? user.fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()

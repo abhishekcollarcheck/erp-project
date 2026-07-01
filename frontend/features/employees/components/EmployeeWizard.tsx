@@ -246,7 +246,6 @@ methods.reset({
     const schema = STEP_SCHEMA_MAP[step.key as StepSchemaKey];
   const values = methods.getValues();
 
-  console.log("FORM VALUES:", values);
     if (!schema) return true;
     const result = (schema as any).safeParse(methods.getValues());
     if (!result.success) {
@@ -293,13 +292,7 @@ methods.reset({
   }, [methods]);
 
   const handleNext = async () => {
-      console.log("========== NEXT CLICK ==========");
-  console.log("currentIdx:", currentIdx);
-  console.log("step:", step);
     const valid = await validateStep();
-    console.log("validate result:", valid);
-  console.log("form errors:", methods.formState.errors);
-  console.log("current values:", methods.getValues());
     if (!valid || !step) return;
     if (mode === 'create' && currentIdx === 0 && !savedId) {
       const v = methods.getValues();

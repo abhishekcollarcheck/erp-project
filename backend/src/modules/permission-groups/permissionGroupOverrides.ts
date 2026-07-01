@@ -110,7 +110,6 @@ async listOverrides(groupId: number, employeeId: number) {
     }
 
     const targetCompanyId = membership.company_id;
-    console.log("set override", targetCompanyId, groupId, employeeId);
     // Module-level only — field-level (mask, copy, print) not in scope yet
     const VALID = new Set(["view", "create", "edit", "delete", "download"]);
     for (const o of overrides) {
@@ -272,11 +271,6 @@ export async function resolvePermissionsForEmployee(
   slugSet: Set<string>,
 ): Promise<Set<string>> {
   if (!groupIds.length) return slugSet;
-  console.log("OVERRIDE CHECK", {
-    employeeId,
-    companyId,
-    groupIds,
-  });
   const overrides = await EmployeePermissionOverride.findAll({
     where: {
       employee_id: employeeId,
@@ -287,20 +281,9 @@ export async function resolvePermissionsForEmployee(
     order: [["created_at", "ASC"]],
   });
 
-  console.log(
-    "FOUND OVERRIDES",
-    overrides.map((o) => ({
-      group_id: o.group_id,
-      module: o.module,
-      permission: o.permission,
-      granted: o.granted,
-    })),
-  );
 
   for (const o of overrides) {
     const slug = `${o.module}:${o.permission}`;
-
-    console.log("APPLY OVERRIDE", slug, o.granted);
 
     if (o.granted) {
       slugSet.add(slug);

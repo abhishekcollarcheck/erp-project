@@ -32,6 +32,11 @@ export interface CompanySuspendedEvent {
   timestamp:   string;
 }
 
+export interface CompaniesUpdatedEvent {
+  eventType: "companies_updated";
+  timestamp: string;
+}
+
 class SocketService {
   private socket: Socket | null = null;
   private listeners = new Map<string, Set<Function>>();
@@ -56,13 +61,11 @@ class SocketService {
     });
 
     this.socket.on('connect', () => {
-      console.log("CONNECTED", this.socket?.id);
       console.debug('[Socket] Connected:', this.socket?.id);
       this.joinCompanyRooms(managedCompanyIds);
     });
 
     this.socket.on('disconnect', (reason: string) => {
-      console.log("DISCONNECTED", reason);
       console.debug('[Socket] Disconnected:', reason);
     });
 
@@ -72,15 +75,13 @@ class SocketService {
     });
 
     this.socket.io.on("reconnect_error", (err) => {
-      console.log("RECONNECT ERROR", err);
     });
 
     this.socket.io.on("error", (err) => {
-      console.log("MANAGER ERROR", err);
     });
 
     // Forward server events to listeners
-    const EVENTS = ['permissions:updated', 'access:revoked', 'company:suspended'];
+    const EVENTS = ['permissions:updated', 'companies:updated', 'access:revoked', 'company:suspended'];
     for (const event of EVENTS) {
       this.socket.on(event, (data: any) => this.trigger(event, data));
     }
@@ -129,17 +130,16 @@ class SocketService {
   }
 
   on(event: 'permissions:updated', handler: (d: PermissionUpdateEvent) => void): () => void;
+  on(event: 'companies:updated', handler: (d: CompaniesUpdatedEvent) => void): () => void;  
   on(event: 'access:revoked',      handler: (d: AccessRevokedEvent)       => void): () => void;
   on(event: 'company:suspended',   handler: (d: CompanySuspendedEvent)    => void): () => void;
   on(event: string, handler: Function): () => void {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set());
     this.listeners.get(event)!.add(handler);
-    console.log(event, "listeners:", this.listeners.get(event)?.size);
     return () => this.listeners.get(event)?.delete(handler);
   }
 
   private trigger(event: string, data: any): void {
-    console.log("TRIGGER", event, data);
     this.listeners.get(event)?.forEach(fn => {
       try { fn(data); } catch (e) { console.error(`[Socket] Handler error [${event}]:`, e); }
     });

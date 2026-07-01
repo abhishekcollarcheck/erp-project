@@ -23,10 +23,6 @@ export function useCompany() {
     dispatch(switchCompanyAction(companyId));
   }, [dispatch]);
 
-useEffect(() => {
-  console.log("ACTIVE COMPANY", activeCompany);
-}, [activeCompany]);
-
   // For super admins managing many companies, also load from API
   const { data: allCompanies = [] } = useQuery({
     queryKey: ['my-companies'],

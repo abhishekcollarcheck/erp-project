@@ -32,11 +32,17 @@ import {
 import { socketService }                  from '../services/socket.service';
 import { authService }                    from '../services/api/auth.service';
 import { store }                          from '../store';
+import { useCompany } from '../features/company/hooks/useCompany';
+import { useQueryClient } from '@tanstack/react-query';
+import apiClient from '../services/api/client';
+import { setManagedCompanies } from '../store/slices/authSlice';
 
 export function usePermissionSocket() {
   const dispatch        = useAppDispatch();
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const employeeId      = useAppSelector(selectEmployeeId);
+  const { companyId } = useCompany();
+  const queryClient = useQueryClient();
 
   // Called when the event has no embedded permissions (Type A — broadcast middleware).
   // Fetches the current user's own fresh permissions from the server.
@@ -54,40 +60,50 @@ export function usePermissionSocket() {
 
   useEffect(() => {
     if (!isAuthenticated || !employeeId) return;
-  console.log(
-    "INIT SOCKET",
-    {
-      employeeId,
-      connected: socketService.isConnected()
-    }
-  );
     if (!socketService.isConnected()) {
       socketService.connect();
     }
     socketService.register(employeeId);
 
-    const unsubscribe = socketService.on('permissions:updated', (payload: any) => {
-            console.log(
-        "🔥 PERMISSION EVENT RECEIVED",
-        payload
-      );
-      if (payload?.permissions && Array.isArray(payload.permissions)) {
-        console.log("NEW PERMISSIONS FROM SOCKET", payload.permissions);
-        // Type B: fresh permissions embedded in the payload — use directly.
-        // This event was sent specifically to this employee's room by addMember,
-        // removeMember, or setOverrides. No network round-trip needed.
-        dispatch(setPermissions(payload.permissions));
-        if (payload.accessToken) {
-          dispatch(updateToken(payload.accessToken));
-        }
-      } else {
-        // Type A: no permissions in payload (broadcast middleware format).
-        // Call /auth/me to get the current user's fresh state.
-        refreshFromServer();
-      }
-    });
+const unsubscribe = socketService.on("permissions:updated", (payload: any) => {
+  console.log("🔥 PERMISSION EVENT RECEIVED", payload);
 
-    return () => { unsubscribe(); };
+  // Ignore updates for inactive companies
+  if (payload.companyId !== companyId) {
+    console.log(
+      `Ignoring permission update. Active=${companyId}, Event=${payload.companyId}`,
+    );
+    return;
+  }
+
+  if (payload?.permissions && Array.isArray(payload.permissions)) {
+    console.log("NEW PERMISSIONS FROM SOCKET", payload.permissions);
+
+    dispatch(setPermissions(payload.permissions));
+
+    if (payload.accessToken) {
+      dispatch(updateToken(payload.accessToken));
+    }
+  } else {
+    refreshFromServer();
+  }
+});
+
+const unsubscribeCompanies = socketService.on("companies:updated", async () => {
+  console.log("🔥 COMPANIES UPDATED");
+
+  try {
+    const res = await apiClient.get("/companies/mine");
+
+    console.log("Updated Companies", res.data);
+
+    dispatch(setManagedCompanies(res.data.data ?? res.data));
+  } catch (err) {
+    console.error("Failed to refresh companies", err);
+  }
+});
+
+    return () => { unsubscribe(); unsubscribeCompanies(); };
   }, [isAuthenticated, employeeId, dispatch, refreshFromServer]);
 
   useEffect(() => {

@@ -111,13 +111,6 @@ async function getMyCompanies(req: Request, res: Response, next: NextFunction): 
       include: [{ model: Company, as: 'company' }],
       order: [['is_primary', 'DESC'], ['assigned_at', 'ASC']],
     });
-    for (const a of assignments) {
-      console.log(
-        "company from db",
-        (a as any).company?.id,
-        (a as any).company?.theme_color
-      );
-    }
     const companyIds = assignments.map(a => a.company_id);
     const empRoles = await EmployeeRole.findAll({
       where: { employee_id: req.user!.employeeId, company_id: companyIds },

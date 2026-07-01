@@ -164,10 +164,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     const emp = allEmployees.find((e: any) => e.id === selEmpId);
     const role = ROLES.find(r => r.slug === selRoleSlug);
     if (!emp || !role) return;
-    console.log("e-id", selEmpId)
-    console.log("e-slug", selRoleSlug)
     setPendingEmps(prev => [...prev, { employee_id: selEmpId, role_slug: selRoleSlug }]);
-    console.log("data", pendingEmps)
     setSelEmpId(null);
     setEmpSearch('');
   };

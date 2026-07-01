@@ -133,7 +133,7 @@ export const otpService = {
       logger.error(`OTP delivery failed [${channel}] for employee ${employeeId}:`, err);
       // In dev, always print to console as fallback
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`\n🔑 OTP (delivery failed, fallback): ${otp}\n`);
+        // console.log(`\n🔑 OTP (delivery failed, fallback): ${otp}\n`);
       }
       // In prod, rethrow — caller should handle gracefully
       if (process.env.NODE_ENV === 'production') throw err;
