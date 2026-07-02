@@ -1,33 +1,47 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { AuthState, User, ManagedCompany } from '../../types/auth.types';
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { AuthState, User, ManagedCompany } from "../../types/auth.types";
 
 const initialState: AuthState = {
-  user:            null,
-  accessToken:     null,
+  user: null,
+  accessToken: null,
   isAuthenticated: false,
-  permissions:     [],
+  permissions: [],
   activeCompanyId: null,
 };
 
 const authSlice = createSlice({
-  name: 'auth',
+  name: "auth",
   initialState,
   reducers: {
-    setCredentials(state, action: PayloadAction<{ user: User; accessToken: string }>) {
+    setCredentials(
+      state,
+      action: PayloadAction<{ user: User; accessToken: string }>,
+    ) {
       const { user, accessToken } = action.payload;
-      state.user            = user;
-      state.accessToken     = accessToken;
+      state.user = user;
+      state.accessToken = accessToken;
       state.isAuthenticated = true;
-      state.permissions     = user.permissions ?? [];
+      state.permissions = user.permissions ?? [];
       // Default active company = home company
-      state.activeCompanyId = user.companyId;
+      // state.activeCompanyId = user.companyId;
+      if (!state.activeCompanyId) {
+        state.activeCompanyId = user.companyId;
+      }
     },
 
     // Switch active company — used by CompanySwitcher in sidebar
     // When an employee manages multiple companies, switching here
     // scopes all data fetches (roles, permissions, employees) to that company
     switchCompany(state, action: PayloadAction<number>) {
+       console.log("REDUCER BEFORE", {
+    active: state.activeCompanyId,
+    companies: state.user?.managedCompanies,
+  });
       state.activeCompanyId = action.payload;
+  console.log("REDUCER AFTER", {
+    active: state.activeCompanyId,
+    companies: state.user?.managedCompanies,
+  });      
     },
 
     updateToken(state, action: PayloadAction<string>) {
@@ -35,10 +49,10 @@ const authSlice = createSlice({
     },
 
     clearCredentials(state) {
-      state.user            = null;
-      state.accessToken     = null;
+      state.user = null;
+      state.accessToken = null;
       state.isAuthenticated = false;
-      state.permissions     = [];
+      state.permissions = [];
       state.activeCompanyId = null;
     },
 
@@ -51,6 +65,17 @@ const authSlice = createSlice({
     setManagedCompanies(state, action: PayloadAction<ManagedCompany[]>) {
       if (state.user) state.user.managedCompanies = action.payload;
     },
+updateCurrentUser(state, action) {
+
+  console.log("OLD", state.user?.managedCompanies);
+
+  console.log("NEW", action.payload.managedCompanies);
+
+  state.user = action.payload;
+
+  state.permissions = action.payload.permissions ?? [];
+
+}
   },
 });
 
@@ -61,22 +86,29 @@ export const {
   clearCredentials,
   setPermissions,
   setManagedCompanies,
+  updateCurrentUser
 } = authSlice.actions;
 
 export default authSlice.reducer;
 
 // ─── Selectors ────────────────────────────────────────────────────────────────
 
-export const selectUser             = (s: { auth: AuthState }) => s.auth.user;
-export const selectIsAuthenticated  = (s: { auth: AuthState }) => s.auth.isAuthenticated;
-export const selectPermissions      = (s: { auth: AuthState }) => s.auth.permissions;
-export const selectCurrentRole      = (s: { auth: AuthState }) => s.auth.user?.roleSlug;
-export const selectIsSuperAdmin     = (s: { auth: AuthState }) => s.auth.user?.isSuperAdmin ?? false;
-export const selectEmployeeId       = (s: { auth: AuthState }) => s.auth.user?.employeeId ?? null;
-export const selectActiveCompanyId  = (s: { auth: AuthState }) => s.auth.activeCompanyId;
-export const selectManagedCompanies = (s: { auth: AuthState }) => s.auth.user?.managedCompanies ?? [];
-export const selectActiveCompany    = (s: { auth: AuthState }) => {
-  const id      = s.auth.activeCompanyId;
+export const selectUser = (s: { auth: AuthState }) => s.auth.user;
+export const selectIsAuthenticated = (s: { auth: AuthState }) =>
+  s.auth.isAuthenticated;
+export const selectPermissions = (s: { auth: AuthState }) => s.auth.permissions;
+export const selectCurrentRole = (s: { auth: AuthState }) =>
+  s.auth.user?.roleSlug;
+export const selectIsSuperAdmin = (s: { auth: AuthState }) =>
+  s.auth.user?.isSuperAdmin ?? false;
+export const selectEmployeeId = (s: { auth: AuthState }) =>
+  s.auth.user?.employeeId ?? null;
+export const selectActiveCompanyId = (s: { auth: AuthState }) =>
+  s.auth.activeCompanyId;
+export const selectManagedCompanies = (s: { auth: AuthState }) =>
+  s.auth.user?.managedCompanies ?? [];
+export const selectActiveCompany = (s: { auth: AuthState }) => {
+  const id = s.auth.activeCompanyId;
   const managed = s.auth.user?.managedCompanies ?? [];
-  return managed.find(c => c.id === id) ?? null;
+  return managed.find((c) => c.id === id) ?? null;
 };

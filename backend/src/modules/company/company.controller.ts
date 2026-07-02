@@ -106,6 +106,9 @@ async function listCompanies(req: Request, res: Response, next: NextFunction): P
 
 async function getMyCompanies(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const employee = await Employee.findByPk(req.user!.employeeId, {
+  attributes: ["company_id"],
+});
     const assignments = await CompanyManager.findAll({
       where: { employee_id: req.user!.employeeId },
       include: [{ model: Company, as: 'company' }],
@@ -118,20 +121,47 @@ async function getMyCompanies(req: Request, res: Response, next: NextFunction): 
         (a as any).company?.theme_color
       );
     }
-    const companyIds = assignments.map(a => a.company_id);
+    const companyIds = [
+  ...new Set([
+    ...(employee?.company_id ? [employee.company_id] : []),
+    ...assignments.map(a => a.company_id),
+  ]),
+];
     const empRoles = await EmployeeRole.findAll({
       where: { employee_id: req.user!.employeeId, company_id: companyIds },
       include: [{ model: Role, as: 'role', attributes: ['id', 'name', 'slug'] }],
     });
+    // Ensure employee's home company is always present
+if (
+  employee?.company_id &&
+  !assignments.some(a => a.company_id === employee.company_id)
+) {
+  const homeCompany = await Company.findByPk(employee.company_id);
+
+  if (homeCompany) {
+    assignments.unshift({
+      company_id: employee.company_id,
+      company: homeCompany,
+      is_primary: true,
+      assigned_at: new Date(),
+    } as any);
+  }
+}
     const roleMap: Record<number, any> = {};
     for (const er of empRoles) roleMap[er.company_id] = (er as any).role;
 
-    const result = await Promise.all(assignments.map(async a => ({
-      ...(a as any).company?.toJSON(),
-      is_primary: a.is_primary,
-      manager_role: roleMap[a.company_id] || null,
-      is_super_admin: await isCompanySuperAdmin(req.user!.employeeId, a.company_id),
-    })));
+const result = await Promise.all(
+  assignments.map(async (a) => ({
+    ...(a as any).company?.toJSON(),
+    is_primary:
+      a.company_id === employee?.company_id ? true : a.is_primary,
+    manager_role: roleMap[a.company_id] || null,
+    is_super_admin: await isCompanySuperAdmin(
+      req.user!.employeeId,
+      a.company_id,
+    ),
+  }))
+);
     sendResponse(res, { data: result });
   } catch (e) { next(e); }
 }
@@ -739,11 +769,11 @@ companyRouter.use(authenticate);
 companyRouter.use(resolveCompanyContext)
 
 companyRouter.get('/platform-stats', requireSuperAdmin => authenticate, getPlatformStats);
-companyRouter.get('/eligible-managers', authorize('companies:create'), getGlobalEligibleManagers);
-companyRouter.get('/mine', authorize('companies:view'), getMyCompanies);
-companyRouter.get('/', authorize('companies:view'), listCompanies);
-companyRouter.post('/', authorize('companies:create'), [body('name').trim().notEmpty(), body('employees').optional().isArray()], validate, createCompany);
-companyRouter.get('/:id', authorize('companies:view'), [param('id').isInt()], validate, getCompany);
+companyRouter.get('/eligible-managers', getGlobalEligibleManagers);
+companyRouter.get('/mine', getMyCompanies);
+companyRouter.get('/', listCompanies);
+companyRouter.post('/', [body('name').trim().notEmpty(), body('employees').optional().isArray()], validate, createCompany);
+companyRouter.get('/:id', [param('id').isInt()], validate, getCompany);
 companyRouter.put('/:id', [param('id').isInt()], validate, requireCompanyAccess, updateCompany);
 companyRouter.post('/:id/suspend', [param('id').isInt()], validate, requireCompanyAccess, suspendCompany);
 companyRouter.post('/:id/activate', [param('id').isInt()], validate, requireCompanyAccess, activateCompany);

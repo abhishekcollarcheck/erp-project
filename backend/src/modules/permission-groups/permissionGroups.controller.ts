@@ -27,8 +27,9 @@ import { EmployeePermissionOverride } from "../../database/models/EmployeePermis
 import { CompanyManager } from "../../database/models";
 import { loadPermissions } from "../auth/auth.service";
 import { generateAccessToken } from "../../utils/jwt";
-import { refreshEmployeePermission } from "@/utils/refreshEmployeePermission";
+import { refreshEmployeePermission } from "../../utils/refreshEmployeePermission";
 import { getIO } from "../../socket/socket";
+import { refreshEmployeeCompanies } from "../../utils/refreshEmployeeCompanies";
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -306,6 +307,13 @@ class PermissionGroupService {
     addedBy?: number,
     companyIds?: number[], // optional multi-company list
   ) {
+    console.log("========== ADD MEMBER ==========");
+console.log({
+  groupId,
+  employeeId,
+  companyId,
+  companyIds,
+});
     // Get the group to confirm it exists and to resolve its own company_id
     const group = await this.getById(groupId, companyId);
 
@@ -319,10 +327,11 @@ class PermissionGroupService {
     // If empty/absent, default to the group's own company_id
     const targetCompanies =
       companyIds && companyIds.length > 0 ? companyIds : [companyId];
-
+console.log("Target Companies:", targetCompanies);
     const added: number[] = [];
 
     for (const cid of targetCompanies) {
+      console.log("Assigning Company:", cid);
       // Bug 2 fix: UserGroup.company_id = the TARGET company (cid), not admin's company
       const [, created] = await UserGroup.findOrCreate({
         where: { group_id: groupId, employee_id: employeeId, company_id: cid },
@@ -333,7 +342,7 @@ class PermissionGroupService {
           assigned_by: addedBy || null,
         },
       });
-
+console.log("UserGroup Created:", created);
       if (created) {
         added.push(cid);
 
@@ -348,6 +357,7 @@ class PermissionGroupService {
             assigned_by: addedBy || null,
           },
         } as any);
+        console.log("CompanyManager Created:", cid);
       }
     }
 
@@ -390,6 +400,8 @@ class PermissionGroupService {
     // } catch (e) {
     //   console.warn("[RBAC] socket emit failed for employee", employeeId, e);
     // }
+    console.log("Refreshing Company:", added);
+await refreshEmployeeCompanies(employeeId);    
 await refreshEmployeePermission(employeeId, added[0]);
     return {
       employeeId,
@@ -467,6 +479,7 @@ await refreshEmployeePermission(employeeId, added[0]);
       entityId: groupId,
       newValues: { employeeId },
     });
+    await refreshEmployeeCompanies(employeeId)
     await refreshEmployeePermission(employeeId, targetCompanyId);
     return { employeeId, groupId, action: "member_removed" };
   }

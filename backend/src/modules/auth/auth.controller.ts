@@ -44,6 +44,6 @@ export async function logout(req: Request, res: Response, next: NextFunction): P
 
 export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    sendResponse(res, { data: await svc.getMe(req.user!.employeeId) }); // employeeId
+    sendResponse(res, { data: await svc.getMe(req.user!.employeeId, req.user!.companyId) }); // employeeId
   } catch(e){ next(e); }
 }

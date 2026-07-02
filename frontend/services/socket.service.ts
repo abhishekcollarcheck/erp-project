@@ -32,6 +32,11 @@ export interface CompanySuspendedEvent {
   timestamp:   string;
 }
 
+export interface CompaniesUpdatedEvent {
+  eventType: "companies_updated";
+  timestamp: string;
+}
+
 class SocketService {
   private socket: Socket | null = null;
   private listeners = new Map<string, Set<Function>>();
@@ -80,7 +85,7 @@ class SocketService {
     });
 
     // Forward server events to listeners
-    const EVENTS = ['permissions:updated', 'access:revoked', 'company:suspended'];
+    const EVENTS = ['permissions:updated', 'companies:updated','access:revoked', 'company:suspended'];
     for (const event of EVENTS) {
       this.socket.on(event, (data: any) => this.trigger(event, data));
     }
@@ -129,6 +134,7 @@ class SocketService {
   }
 
   on(event: 'permissions:updated', handler: (d: PermissionUpdateEvent) => void): () => void;
+  on(event: 'companies:updated', handler: (d: CompaniesUpdatedEvent) => void): () => void;
   on(event: 'access:revoked',      handler: (d: AccessRevokedEvent)       => void): () => void;
   on(event: 'company:suspended',   handler: (d: CompanySuspendedEvent)    => void): () => void;
   on(event: string, handler: Function): () => void {
