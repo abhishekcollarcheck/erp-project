@@ -72,18 +72,20 @@ export function usePermissionSocket() {
 const unsubscribe = socketService.on("permissions:updated", (payload: any) => {
   console.log("🔥 PERMISSION EVENT RECEIVED", payload);
 
-  // Ignore updates for inactive companies
+  console.log("EVENT COMPANY", payload.companyId);
+  console.log("ACTIVE COMPANY", companyId);
+
   if (payload.companyId !== companyId) {
-    console.log(
-      `Ignoring permission update. Active=${companyId}, Event=${payload.companyId}`,
-    );
+    console.log("❌ EVENT IGNORED");
     return;
   }
 
-  if (payload?.permissions && Array.isArray(payload.permissions)) {
-    console.log("NEW PERMISSIONS FROM SOCKET", payload.permissions);
+  console.log("✅ BEFORE DISPATCH");
 
+  if (payload?.permissions && Array.isArray(payload.permissions)) {
     dispatch(setPermissions(payload.permissions));
+
+    console.log("✅ AFTER DISPATCH");
 
     if (payload.accessToken) {
       dispatch(updateToken(payload.accessToken));
@@ -92,7 +94,6 @@ const unsubscribe = socketService.on("permissions:updated", (payload: any) => {
     refreshFromServer();
   }
 });
-
 const unsubscribeCompanies = socketService.on("companies:updated", async () => {
   try {
     const res = await apiClient.get("/companies/mine");
@@ -105,7 +106,7 @@ dispatch(setManagedCompanies(res.data));
 });
 
     return () => { unsubscribe(); unsubscribeCompanies();};
-  }, [isAuthenticated, employeeId, dispatch, refreshFromServer]);
+  }, [isAuthenticated, employeeId, dispatch, refreshFromServer, companyId]);
 
   useEffect(() => {
     if (!isAuthenticated) {

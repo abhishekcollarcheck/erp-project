@@ -105,11 +105,7 @@ export async function resolveCompanyContext(
   res: Response,
   next: NextFunction
 ) {
-  console.log("========== COMPANY CONTEXT ==========");
-console.log({
-  header: req.headers["x-company-id"],
-  before: req.user!.companyId,
-});
+
   if (req.path === "/mine") {
     return next();
   }
@@ -135,8 +131,6 @@ console.log({
   }
 
   req.user!.companyId = companyId;
-console.log({
-  after: req.user!.companyId,
-});
+
   next();
 }

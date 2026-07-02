@@ -13,35 +13,36 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    setCredentials(
-      state,
-      action: PayloadAction<{ user: User; accessToken: string }>,
-    ) {
-      const { user, accessToken } = action.payload;
-      state.user = user;
-      state.accessToken = accessToken;
-      state.isAuthenticated = true;
-      state.permissions = user.permissions ?? [];
-      // Default active company = home company
-      // state.activeCompanyId = user.companyId;
-      if (!state.activeCompanyId) {
-        state.activeCompanyId = user.companyId;
-      }
-    },
+setCredentials(state, action) {
+  console.log("SET CREDENTIALS");
+  console.log("USER COMPANY", action.payload.user.companyId);
+  console.log("OLD ACTIVE", state.activeCompanyId);
 
-    // Switch active company — used by CompanySwitcher in sidebar
-    // When an employee manages multiple companies, switching here
-    // scopes all data fetches (roles, permissions, employees) to that company
+  const { user, accessToken } = action.payload;
+
+  state.user = user;
+  state.accessToken = accessToken;
+  state.isAuthenticated = true;
+
+  if (!state.activeCompanyId) {
+    state.activeCompanyId = user.companyId;
+  }
+
+  console.log("NEW ACTIVE", state.activeCompanyId);
+},
+
     switchCompany(state, action: PayloadAction<number>) {
-       console.log("REDUCER BEFORE", {
-    active: state.activeCompanyId,
-    companies: state.user?.managedCompanies,
-  });
-      state.activeCompanyId = action.payload;
-  console.log("REDUCER AFTER", {
-    active: state.activeCompanyId,
-    companies: state.user?.managedCompanies,
-  });      
+      const company = state.user?.managedCompanies.find(
+        c => c.id === action.payload
+      );
+      if (!company || !state.user) return;
+      state.activeCompanyId = company.id;
+      state.permissions = company.permissions ?? [];
+
+      state.user.companyId = company.id;
+      state.user.roleId = company.role_id;
+      state.user.roleSlug = company.role_slug;
+      state.user.permissions = company.permissions ?? [];
     },
 
     updateToken(state, action: PayloadAction<string>) {
@@ -57,25 +58,55 @@ const authSlice = createSlice({
     },
 
     setPermissions(state, action: PayloadAction<string[]>) {
+      console.log("🔥 SET PERMISSIONS REDUCER", action.payload);
       state.permissions = action.payload;
-      if (state.user) state.user.permissions = action.payload;
+
+      if (!state.user) return;
+
+      state.user.permissions = action.payload;
+
+      const company = state.user.managedCompanies.find(
+        c => c.id === state.activeCompanyId
+      );
+
+      if (company) {
+        company.permissions = action.payload;
+      }
+      console.log("AFTER", state);
     },
 
     // Refresh managed companies list after assigning/removing
     setManagedCompanies(state, action: PayloadAction<ManagedCompany[]>) {
-      if (state.user) state.user.managedCompanies = action.payload;
+      if (!state.user) return;
+
+      state.user.managedCompanies = action.payload;
+
+      const company = action.payload.find(
+        c => c.id === state.activeCompanyId
+      );
+
+      if (company) {
+        state.permissions = company.permissions ?? [];
+      }
     },
-updateCurrentUser(state, action) {
+    updateCurrentUser(state, action: PayloadAction<User>) {
+      state.user = action.payload;
 
-  console.log("OLD", state.user?.managedCompanies);
+      const company = action.payload.managedCompanies.find(
+        c => c.id === state.activeCompanyId
+      );
 
-  console.log("NEW", action.payload.managedCompanies);
+      if (company) {
+        state.permissions = company.permissions ?? [];
 
-  state.user = action.payload;
-
-  state.permissions = action.payload.permissions ?? [];
-
-}
+        state.user.roleId = company.role_id;
+        state.user.roleSlug = company.role_slug;
+        state.user.companyId = company.id;
+        state.user.permissions = company.permissions ?? [];
+      } else {
+        state.permissions = action.payload.permissions ?? [];
+      }
+    }
   },
 });
 
@@ -96,7 +127,8 @@ export default authSlice.reducer;
 export const selectUser = (s: { auth: AuthState }) => s.auth.user;
 export const selectIsAuthenticated = (s: { auth: AuthState }) =>
   s.auth.isAuthenticated;
-export const selectPermissions = (s: { auth: AuthState }) => s.auth.permissions;
+export const selectPermissions = (s: { auth: AuthState }) =>
+  s.auth.permissions;
 export const selectCurrentRole = (s: { auth: AuthState }) =>
   s.auth.user?.roleSlug;
 export const selectIsSuperAdmin = (s: { auth: AuthState }) =>

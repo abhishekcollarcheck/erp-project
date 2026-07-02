@@ -174,16 +174,12 @@ export async function loadPermissions(
 // }
 
 async function buildPayload(employee: Employee, activeCompanyId?: number) {
-  console.log("========== BUILD PAYLOAD ==========");
-console.log("activeCompanyId:", activeCompanyId);
-console.log("employee.company_id:", employee.company_id);
+
   const companyId = activeCompanyId || employee.company_id;
-  console.log("resolved companyId:", companyId);
   const { permissions, isSuperAdmin } = await loadPermissions(
     employee.id,
     companyId,
   );
-  console.log("permissions loaded for:", companyId);
 
   const empRole = await EmployeeRole.findOne({
     where: { employee_id: employee.id, company_id: companyId },
@@ -220,6 +216,7 @@ async function buildResponse(
       ["assigned_at", "ASC"],
     ],
   });
+  
 if (
   employee.company_id &&
   !assignments.some(a => a.company_id === employee.company_id)
@@ -248,6 +245,7 @@ if (
           { model: Role, as: "role", attributes: ["id", "name", "slug"] },
         ],
       });
+      const companyPayload = await buildPayload(employee, a.company_id);
 
       const moduleRows = await CompanyModule.findAll({
         where: { company_id: a.company_id, is_active: true },
@@ -266,49 +264,14 @@ if (
         role_name: (empRole as any)?.role?.name || null,
         is_primary: a.is_primary,
         is_super_admin: isSA,
-        active_modules,
+        // active_modules,
+        role_id: companyPayload.roleId,
+        role_slug: companyPayload.roleSlug,
+        permissions: companyPayload.permissions,        
       };
     }),
   );
-console.log("===== BUILD RESPONSE =====");
 
-console.log(
-  "Assignments:",
-  assignments.map(a => ({
-    company_id: a.company_id,
-    primary: a.is_primary,
-  }))
-);
-
-  // If no managed companies, include home company
-  if (managedCompanies.length === 0) {
-    const home = await Company.findByPk(employee.company_id, {
-      attributes: ["id", "name", "slug", "is_active"],
-    });
-    if (home) {
-      managedCompanies.push({
-        id: home.id,
-        name: home.name,
-        slug: home.slug,
-        is_active: home.is_active,
-        manager_role: payload.roleSlug,
-        role_name: null,
-        theme_color: home.theme_color,
-        is_primary: true,
-        is_super_admin: payload.isSuperAdmin,
-        active_modules: [],
-      });
-    }
-  }
-console.log(
-  "Managed Response:",
-  managedCompanies.map(c => c.id)
-);
-
-console.log(
-  "Payload company:",
-  payload.companyId
-);
   return {
     id: employee.id,
     employeeId: employee.id,
@@ -524,11 +487,7 @@ export class AuthService {
   }
 
   async getMe(employeeId: number, activeCompanyId?: number) {
-      console.log("========== GET ME ==========");
-  console.log({
-    employeeId,
-    activeCompanyId,
-  });
+
     const employee = await Employee.findByPk(employeeId, {
       attributes: {
         exclude: [

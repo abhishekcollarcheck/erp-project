@@ -17,6 +17,7 @@ import { sendResponse, sendError, sendPaginated, parsePaginationParams, buildPag
 import { getSettings, updateSettings, updateTheme } from './companySetting'
 import { PermissionGroup, GroupPermission, SYSTEM_GROUPS } from '../../database/models/PermissionGroups';
 import { Permission } from '../../database/models/RoleModels';
+import { loadPermissions } from '../auth/auth.service';
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 
@@ -114,13 +115,6 @@ async function getMyCompanies(req: Request, res: Response, next: NextFunction): 
       include: [{ model: Company, as: 'company' }],
       order: [['is_primary', 'DESC'], ['assigned_at', 'ASC']],
     });
-    for (const a of assignments) {
-      console.log(
-        "company from db",
-        (a as any).company?.id,
-        (a as any).company?.theme_color
-      );
-    }
     const companyIds = [
   ...new Set([
     ...(employee?.company_id ? [employee.company_id] : []),
@@ -151,16 +145,38 @@ if (
     for (const er of empRoles) roleMap[er.company_id] = (er as any).role;
 
 const result = await Promise.all(
-  assignments.map(async (a) => ({
-    ...(a as any).company?.toJSON(),
-    is_primary:
-      a.company_id === employee?.company_id ? true : a.is_primary,
-    manager_role: roleMap[a.company_id] || null,
-    is_super_admin: await isCompanySuperAdmin(
+  assignments.map(async (a) => {
+    const role = roleMap[a.company_id];
+
+    const { permissions } = await loadPermissions(
       req.user!.employeeId,
       a.company_id,
-    ),
-  }))
+    );
+
+    return {
+      ...(a as any).company?.toJSON(),
+
+      is_primary:
+        a.company_id === employee?.company_id
+          ? true
+          : a.is_primary,
+
+      manager_role: role?.slug ?? null,
+
+      role_name: role?.name ?? null,
+
+      role_id: role?.id ?? 0,
+
+      role_slug: role?.slug ?? "employee",
+
+      permissions,
+
+      is_super_admin: await isCompanySuperAdmin(
+        req.user!.employeeId,
+        a.company_id,
+      ),
+    };
+  }),
 );
     sendResponse(res, { data: result });
   } catch (e) { next(e); }

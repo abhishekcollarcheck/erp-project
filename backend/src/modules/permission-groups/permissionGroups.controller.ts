@@ -171,34 +171,40 @@ class PermissionGroupService {
 
   // ── Permission assignment ────────────────────────────────────────────────────
 
-  async setPermissions(
-    id: number,
-    companyId: number,
-    slugs: string[],
-    updatedBy?: number,
-  ) {
-    await this.getById(id, companyId);
-    const permissions = await Permission.findAll({ where: { slug: slugs } });
-    await GroupPermission.destroy({ where: { group_id: id } });
-    await GroupPermission.bulkCreate(
-      permissions.map((p) => ({ group_id: id, permission_id: p.id })),
-    );
+async setPermissions(
+  id: number,
+  companyId: number,
+  slugs: string[],
+  updatedBy?: number,
+) {
+  await this.getById(id, companyId);
 
-    // Invalidate cache for all users in this group
-    const userGroups = await UserGroup.findAll({ where: { group_id: id } });
+  const permissions = await Permission.findAll({
+    where: { slug: [...new Set(slugs)] },
+  });
 
-    for (const ug of userGroups) clearPermissionCache(ug.employee_id);
+  // Fix: remove ALL existing rows for this group, regardless of any
+  // legacy/missing company_id value — group_id alone is a sufficient,
+  // unambiguous scope since a group belongs to exactly one company.
+  await GroupPermission.destroy({
+    where: { group_id: id },
+  });
 
-    await logActivity({
-      companyId,
-      employeeId: updatedBy,
-      action: "PERMISSION_GROUP_PERMISSIONS_UPDATED",
-      module: "settings",
-      entityId: id,
-      newValues: { slugs },
-    });
-    return { groupId: id, slugs, updated: permissions.length };
+  await GroupPermission.bulkCreate(
+    permissions.map((p) => ({
+      group_id: id,
+      company_id: companyId,
+      permission_id: p.id,
+    }))
+  );
+
+  const userGroups = await UserGroup.findAll({ where: { group_id: id } });
+  for (const ug of userGroups) {
+    clearPermissionCache(ug.employee_id);
   }
+
+  return { groupId: id, slugs, updated: permissions.length };
+}
 
   async getEmployeePermissions(employeeId: number, companyId: number) {
     const groups = await UserGroup.findAll({
@@ -307,13 +313,6 @@ class PermissionGroupService {
     addedBy?: number,
     companyIds?: number[], // optional multi-company list
   ) {
-    console.log("========== ADD MEMBER ==========");
-console.log({
-  groupId,
-  employeeId,
-  companyId,
-  companyIds,
-});
     // Get the group to confirm it exists and to resolve its own company_id
     const group = await this.getById(groupId, companyId);
 
@@ -327,11 +326,9 @@ console.log({
     // If empty/absent, default to the group's own company_id
     const targetCompanies =
       companyIds && companyIds.length > 0 ? companyIds : [companyId];
-console.log("Target Companies:", targetCompanies);
     const added: number[] = [];
 
     for (const cid of targetCompanies) {
-      console.log("Assigning Company:", cid);
       // Bug 2 fix: UserGroup.company_id = the TARGET company (cid), not admin's company
       const [, created] = await UserGroup.findOrCreate({
         where: { group_id: groupId, employee_id: employeeId, company_id: cid },
@@ -342,7 +339,6 @@ console.log("Target Companies:", targetCompanies);
           assigned_by: addedBy || null,
         },
       });
-console.log("UserGroup Created:", created);
       if (created) {
         added.push(cid);
 
@@ -357,7 +353,6 @@ console.log("UserGroup Created:", created);
             assigned_by: addedBy || null,
           },
         } as any);
-        console.log("CompanyManager Created:", cid);
       }
     }
 
@@ -378,31 +373,9 @@ console.log("UserGroup Created:", created);
       newValues: { employeeId, companiesAdded: added },
     });
 
-    // Emit real-time permission update to the affected employee
-    // try {
-    //   const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(
-    //     employeeId,
-    //     added[0],
-    //   );
-    //   const freshToken = generateAccessToken({
-    //     employeeId,
-    //     companyId: added[0],
-    //     permissions: fullPerms,
-    //     isSuperAdmin,
-    //   } as any);
-    //   getIO()?.to(`employee:${employeeId}`).emit("permissions:updated", {
-    //     eventType: "permissions_updated",
-    //     companyId: added[0],
-    //     permissions: fullPerms,
-    //     accessToken: freshToken,
-    //     timestamp: new Date().toISOString(),
-    //   });
-    // } catch (e) {
-    //   console.warn("[RBAC] socket emit failed for employee", employeeId, e);
-    // }
-    console.log("Refreshing Company:", added);
-await refreshEmployeeCompanies(employeeId);    
-await refreshEmployeePermission(employeeId, added[0]);
+    console.log("Companies Added:", added);
+    await refreshEmployeeCompanies(employeeId);
+    await refreshEmployeePermission(employeeId, added);
     return {
       employeeId,
       groupId,
@@ -437,12 +410,6 @@ await refreshEmployeePermission(employeeId, added[0]);
     });
 
     if (!deleted) throw new AppError("User is not in this group", 404);
-    console.log("Removing overrides", {
-      groupId,
-      employeeId,
-      targetCompanyId,
-    });
-    // Delete group-scoped overrides (EmployeePermissionOverride — our table, has group_id)
     const deletedOverrides = await EmployeePermissionOverride.destroy({
       where: {
         group_id: groupId,
@@ -451,10 +418,6 @@ await refreshEmployeePermission(employeeId, added[0]);
       },
     });
 
-    console.log("Deleted Override Rows:", deletedOverrides);
-
-    // Also delete legacy grant/revoke rows (EmployeePermission — no group_id column).
-    // These rows survive removeMember and restore old permissions when member is re-added.
     await EmployeePermission.destroy({
       where: { employee_id: employeeId, company_id: targetCompanyId },
     });
@@ -480,7 +443,7 @@ await refreshEmployeePermission(employeeId, added[0]);
       newValues: { employeeId },
     });
     await refreshEmployeeCompanies(employeeId)
-    await refreshEmployeePermission(employeeId, targetCompanyId);
+    await refreshEmployeePermission(employeeId, [targetCompanyId]);
     return { employeeId, groupId, action: "member_removed" };
   }
 
@@ -584,7 +547,11 @@ class EmployeePermissionService {
     await EmployeePermission.bulkCreate(rows);
 
     clearPermissionCache(employeeId);
+    // refresh runtime permissions
+    await refreshEmployeePermission(employeeId, [companyId]);
 
+    // optional but recommended
+    await refreshEmployeeCompanies(employeeId);
     return {
       employeeId,
       grants,

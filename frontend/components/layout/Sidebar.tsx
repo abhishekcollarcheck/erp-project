@@ -6,6 +6,7 @@ import {
   selectUser,
   selectIsSuperAdmin,
   updateCurrentUser,
+  selectPermissions
 } from "../../store/slices/authSlice";
 import { useAuth, usePermission } from "../../features/auth/hooks/useAuth";
 import { useCompany } from "../../features/company/hooks/useCompany";
@@ -383,13 +384,12 @@ export function Sidebar() {
   const { company, companyId, companies } = useCompany();
   // Active modules for the current company — filters sidebar items
   const activeModules: string[] = (company as any)?.active_modules ?? [];
-  console.log("user", user);
-  console.log("companies", companies);
-  console.log("isSuperAdmin", isSuperAdmin);
-  console.log("hasPermission", hasPermission);
   const auth = useAppSelector((state: any) => state.auth);
-  console.log("auth", auth);
+const permissions = useAppSelector(selectPermissions);
 
+console.log("HAS EMPLOYEE VIEW", hasPermission("employees:view"));
+console.log("HAS DEPARTMENT VIEW", hasPermission("department:view"));
+console.log("SIDEBAR PERMISSIONS", permissions);
   const initials = user?.fullName
     ? user.fullName
         .split(" ")

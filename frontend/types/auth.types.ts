@@ -12,8 +12,20 @@ export interface ManagedCompany {
   name: string;
   slug: string | null;
   is_active: boolean;
-  is_primary: boolean;
+  theme_color: string | null;
+
   manager_role: CompanyRole;
+  role_name: string | null;
+
+  is_primary: boolean;
+  is_super_admin: boolean;
+
+  active_modules: string[];
+
+  role_id: number;
+  role_slug: string;
+
+  permissions: string[];
 }
 
 // ─── User (employee-as-identity) ──────────────────────────────────────────────

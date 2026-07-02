@@ -133,6 +133,5 @@ async function broadcastPermissionChange(
 }
 
 function extractModulesFromSlugs(slugs: string[]): string[] {
-  console.log("slug", slugs)
   return [...new Set(slugs.map(s => s.split(':')[0]))];
 }

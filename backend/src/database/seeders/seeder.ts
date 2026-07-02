@@ -62,7 +62,7 @@ export async function seedDatabase(): Promise<void> {
 
     // ── 1. Company ───────────────────────────────────────────────────────────
     await Company.upsert({
-      id: COMPANY_ID, name: 'Nexgen Solutions Pvt Ltd', slug: 'nexgen',
+      id: COMPANY_ID, name: 'Narula Exports', slug: 'narula-exports',
       country: 'India', currency: 'INR', timezone: 'Asia/Kolkata', employee_code_start: null, employee_code_end: null, employee_code_skip: '', 
       is_active: true, onboarding_step: 5,
     });
