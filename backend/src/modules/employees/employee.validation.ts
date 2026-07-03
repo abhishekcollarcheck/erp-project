@@ -56,7 +56,7 @@ export const employmentValidation: ValidationChain[] = [
 
 // ─── Step 3: Reporting & Official Contact ─────────────────────────────────────
 export const reportingValidation: ValidationChain[] = [
-  body('l1_manager_id').notEmpty().withMessage('L1 Manager is required'),
+  opt(body('l1_manager_id')),
   opt(body('l2_manager_id')),
   body('actual_doj').notEmpty().withMessage('Actual date of joining is required'),
 ];

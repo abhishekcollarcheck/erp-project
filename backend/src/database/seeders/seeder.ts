@@ -117,8 +117,8 @@ export async function seedDatabase(): Promise<void> {
     for (const name of ['Commercial','Accounts','Automation','HR','Graphics','Admin','Project','Service','IT','Estimation','Management','Purchase','Tender','Sales','Technical','Legal','Regulatory Affairs','Store','Ortho','Maintenance','Design','Quality','Credit Control','International Marketing','Field','Projects','Facility Management (Operations)','PTS and Project','CSSD','Quality Control','Marketing','Operations']) {
       // const code = name.split(' ').map((w: string) => w[0]).join('').toUpperCase();
       const [d] = await Department.findOrCreate({
-        where: { company_id: COMPANY_ID, name },
-        defaults: { company_id: COMPANY_ID, name, },
+        where: { name },
+        defaults: { name, },
       });
       deptMap.set(name, d.id);
     }
@@ -127,8 +127,8 @@ export async function seedDatabase(): Promise<void> {
     const desigMap = new Map<string, number>();
     for (const name of ['Accountant','Advisor','Asst. General Manager','Asst. Manager','CMD','Computer Operator','Cook','Coordinator','Deputy Manager','Director','Driver','Electrician','Engineer','Executive','Executive Assistant','Field Assistant','Fitter','General Manager','Guard','Helper','Jr. Accountant','Jr. Executive','Jr. Operator','Jr. Technician','Manager','MIS Executive','Office Attendant','Operator','Plumber','Receptionist','Sales Officer','Senior Deputy Manager','Site Engineer','Sr. Computer Operator','Sr. Coordinator','Sr. Engineer','Sr. Executive','Sr. Field Assistant','Sr. Fitter','Sr. Helper','Sr. Manager','Sr. MIS Executive','Sr. Sales Officer','Supervisor','Technician','Data Entry Operator','Security Guard','Field Executive','Site Supervisor','Housekeeper','Jr. Engineer','Semi Fitter','Sr. Developer','Vice President','Social Media Video Editor','Quality Assurance Engineer','Recruiter','Sr. Site Engineer','Jr. Site Engineer','Site Manager','Flutter Developer','Incharge','Sr. Recruiter','Jr. Recruiter','PSO','Social Media Manager','Fullstack Developer','Software Engineer','Dispatch Clerk Cum Engineer','Jr. Fitter','Deputy General Manager','Jr. Electrician','Social Media Executive','Sr. Data Analyst','Sr. Supervisor','Sr. Software Engineer']) {
       const [d] = await Designation.findOrCreate({
-        where: { company_id: COMPANY_ID, name },
-        defaults: { company_id: COMPANY_ID, name },
+        where: { name },
+        defaults: { name },
       });
       desigMap.set(name, d.id);
     }

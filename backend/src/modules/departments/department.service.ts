@@ -29,77 +29,58 @@ export interface DepartmentQueryParams {
 export class DepartmentService {
 
   // ─── List (with employee count + head + designations) ─────────────────────
-  async getAll(companyId: number, query: DepartmentQueryParams = {}) {
-    const where: WhereOptions = { company_id: companyId };
+async getAll(companyId: number, query: DepartmentQueryParams = {}) {
+  const where: WhereOptions = {};
 
-    // Default to active only unless explicitly asked for inactive
-    if (query.is_active === 'false' || query.is_active === false) {
-      where['is_active'] = false;
-    } else if (query.is_active === 'all') {
-      // no filter
-    } else {
-      where['is_active'] = true;
-    }
-
-    if (query.search) {
-      (where as any)[Op.or] = [
-        { name: { [Op.like]: `%${query.search}%` } },
-        { code: { [Op.like]: `%${query.search}%` } },
-      ];
-    }
-
-    // if (query.parent_id !== undefined) {
-    //   where['parent_id'] = query.parent_id ? Number(query.parent_id) : null;
-    // }
-
-    const departments = await Department.findAll({
-      where,
-      order: [['name', 'ASC']],
-      include: [
-        // {
-        //   model:      Designation,
-        //   as:         'designations',
-        //   attributes: ['id', 'name', 'grade'],
-        //   required:   false,
-        // },
-        // {
-        //   model:      Department,
-        //   as:         'parent',
-        //   attributes: ['id', 'name', 'code'],
-        //   required:   false,
-        // },
-        // {
-        //   model:      Department,
-        //   as:         'children',
-        //   attributes: ['id', 'name', 'code', 'is_active'],
-        //   required:   false,
-        // },
-      ],
-    });
-
-    // Attach employee count per department
-    const deptIds = departments.map((d) => d.id);
-    const empCounts = await Employee.findAll({
-      where: { department_id: deptIds, status: ['Active', 'On_Probation'] },
-      attributes: ['department_id', [fn('COUNT', col('id')), 'count']],
-      group: ['department_id'],
-      raw: true,
-    });
-
-    const countMap = new Map<number, number>(
-      empCounts.map((r: any) => [r.department_id, Number(r.count)]),
-    );
-
-    return departments.map((d) => ({
-      ...d.toJSON(),
-      employee_count: countMap.get(d.id) ?? 0,
-    }));
+  // Default to active only unless explicitly asked for inactive
+  if (query.is_active === 'false' || query.is_active === false) {
+    where['is_active'] = false;
+  } else if (query.is_active === 'all') {
+    // no filter
+  } else {
+    where['is_active'] = true;
   }
+
+  if (query.search) {
+    (where as any)[Op.or] = [
+      { name: { [Op.like]: `%${query.search}%` } },
+    ];
+  }
+
+  const departments = await Department.findAll({
+    where,
+    order: [['name', 'ASC']],
+  });
+
+  const deptIds = departments.map((d) => d.id);
+
+  const empCounts = await Employee.findAll({
+    where: {
+      department_id: deptIds,
+      status: ['Active', 'On_Probation'],
+    },
+    attributes: [
+      'department_id',
+      [fn('COUNT', col('id')), 'count'],
+    ],
+    group: ['department_id'],
+    raw: true,
+  });
+
+  const countMap = new Map<number, number>(
+    empCounts.map((r: any) => [r.department_id, Number(r.count)]),
+  );
+
+  return departments.map((d) => ({
+    ...d.toJSON(),
+    employee_count: countMap.get(d.id) ?? 0,
+  }));
+}
 
   // ─── Single (full detail with employees list) ─────────────────────────────
   async getById(id: number, companyId: number) {
     const dept = await Department.findOne({
-      where: { id, company_id: companyId },
+      where: { id},
       include: [
         {
           model:      Employee,
@@ -142,8 +123,8 @@ export class DepartmentService {
   // ─── Summary stats ────────────────────────────────────────────────────────
   async getStats(companyId: number) {
     const [total, active] = await Promise.all([
-      Department.count({ where: { company_id: companyId } }),
-      Department.count({ where: { company_id: companyId, is_active: true } }),
+      Department.count(),
+      Department.count({ where: { is_active: true } }),
     ]);
 
     const empCounts = await Employee.findAll({
@@ -178,7 +159,7 @@ export class DepartmentService {
   async create(companyId: number, dto: CreateDepartmentDto, createdBy?: number) {
     // Duplicate name check within same company
     const existing = await Department.findOne({
-      where: { company_id: companyId, name: dto.name.trim(), is_active: true },
+      where: { name: dto.name.trim(), is_active: true },
     });
     if (existing) throw new AppError(`Department "${dto.name}" already exists`, 409);
 
@@ -189,7 +170,6 @@ export class DepartmentService {
     // }
 
     const dept = await Department.create({
-      company_id: companyId,
       name:       dto.name.trim(),
       // code:       dto.code?.toUpperCase().trim() || null,
       // parent_id:  dto.parent_id ?? null,
@@ -208,7 +188,7 @@ export class DepartmentService {
 
   // ─── Update ───────────────────────────────────────────────────────────────
   async update(id: number, companyId: number, dto: UpdateDepartmentDto, updatedBy?: number) {
-    const dept = await Department.findOne({ where: { id, company_id: companyId } });
+    const dept = await Department.findOne({ where: { id } });
     if (!dept) throw new AppError('Department not found', 404);
 
     const before = { name: dept.name, is_active: dept.is_active };
@@ -237,7 +217,7 @@ export class DepartmentService {
 
   // ─── Soft delete ──────────────────────────────────────────────────────────
   async delete(id: number, companyId: number, deletedBy?: number) {
-    const dept = await Department.findOne({ where: { id, company_id: companyId } });
+    const dept = await Department.findOne({ where: { id } });
     if (!dept) throw new AppError('Department not found', 404);
 
     const empCount = await Employee.count({

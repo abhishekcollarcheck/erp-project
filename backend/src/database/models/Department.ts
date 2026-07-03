@@ -3,7 +3,7 @@ import { sequelize } from '../../config/database';
 
 interface DepartmentAttributes {
   id: number;
-  company_id: number;
+  // company_id: number;
   name: string;
   // code?: string | null;
   // parent_id?: number | null;
@@ -20,7 +20,7 @@ export class Department
   extends Model<DepartmentAttributes, DepartmentCreationAttributes>
   implements DepartmentAttributes {
   public id!: number;
-  public company_id!: number;
+  // public company_id!: number;
   public name!: string;
   // public code!: string | null;
   // public parent_id!: number | null;
@@ -37,7 +37,7 @@ export class Department
 Department.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-    company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    // company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     name: { type: DataTypes.STRING(200), allowNull: false },
     // code: { type: DataTypes.STRING(20), allowNull: true },
     // parent_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
@@ -55,7 +55,7 @@ Department.init(
     indexes: [
       {
         unique: true,
-        fields: ['company_id', 'name']
+        fields: ['name']
       },
     ]
   },

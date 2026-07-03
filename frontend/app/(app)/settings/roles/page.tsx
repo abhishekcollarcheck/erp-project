@@ -363,16 +363,22 @@ function MemberCompanyBadges({ member, assignedCompanies }: {
   member: any;
   assignedCompanies: { id: number; name: string; shortName: string }[];
 }) {
-  // member.company_id is their home company — find it in managedCompanies
-  const homeCompany = assignedCompanies.find(c => c.id === member.company_id);
-  if (!homeCompany) return null;
+  if (!member.assigned_company_ids?.length) return null;
+
+  const companies = member.assigned_company_ids
+    .map((id: number) => assignedCompanies.find(ac => ac.id === id))
+    .filter(Boolean) as { id: number; name: string; shortName: string }[];
+
+  if (!companies.length) return null;
 
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 160 }}>
-      <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 99, padding: '2px 9px', fontSize: 10, fontWeight: 600, color: 'var(--ink3)' }}
-        title={homeCompany.name}>
-        {homeCompany.shortName}
-      </span>
+      {companies.map(c => (
+        <span key={c.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 99, padding: '2px 9px', fontSize: 10, fontWeight: 600, color: 'var(--ink3)' }}
+          title={c.name}>
+          {c.shortName}
+        </span>
+      ))}
     </div>
   );
 }
@@ -552,9 +558,6 @@ function GroupDetail({
                 return acc;
               }, {})
             );
-
-            console.log("overrideRows", memberId, overrideRows);
-            console.log("groupedOverrides", memberId, groupedOverrides);
             return (
               <div key={memberId} id={`rp-mrow-${memberId}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -972,6 +975,13 @@ function EditView({
 
         qc.refetchQueries({
           queryKey: ['rp', 'employee-overrides', group.id, overrideMemberId]
+        });
+
+        // Also refresh the inline overrides panel on the group detail screen —
+        // it reads a different cache key ('group-overrides'), so without this
+        // it keeps showing stale data after Save until the panel happens to remount.
+        qc.invalidateQueries({
+          queryKey: ['group-overrides', group.id, overrideMemberId]
         });
 
         showToast('✓ Employee override saved');

@@ -122,7 +122,7 @@ methods.reset({
       pay_register_location: employee.pay_register_location ?? '',
       saturday_off: employee.saturday_off, shift_id: employee.shift_id ?? undefined,
       grace_minutes: employee.grace_minutes,
-      l1_manager_id: employee.l1_manager_id ?? undefined, l2_manager_id: employee.l2_manager_id ?? undefined,
+      l1_manager_id: employee.l1_manager_id ?? null, l2_manager_id: employee.l2_manager_id ?? null,
       actual_doj: employee.actual_doj ?? '', current_doj: employee.current_doj ?? '',
       commitment: cp.commitment ?? false, commitment_term: (cp.commitment_term as any) ?? undefined,
       commitment_entered_on: cp.commitment_entered_on ?? '',

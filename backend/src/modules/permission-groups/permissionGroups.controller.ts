@@ -293,17 +293,33 @@ async setPermissions(
 
     if (!userGroups.length) return [];
 
-    const employeeIds = [...new Set(userGroups.map((x) => x.employee_id))];
-    return Employee.findAll({
+    const companiesByEmployee: Record<number, number[]> = {};
+    for (const ug of userGroups) {
+      (companiesByEmployee[ug.employee_id] ??= []).push(ug.company_id);
+    }
+
+    const employeeIds = Object.keys(companiesByEmployee).map(Number);
+    const employees = await Employee.findAll({
       where: { id: employeeIds },
-      attributes: [
-        "id",
-        "first_name",
-        "last_name",
-        "employee_code",
-        "company_id",
-      ],
+      attributes: ["id", "first_name", "last_name", "employee_code", "company_id"],
     });
+
+    return employees.map((e: any) => ({
+      ...e.toJSON(),
+      assigned_company_ids: companiesByEmployee[e.id] || [],
+    }));
+
+    // const employeeIds = [...new Set(userGroups.map((x) => x.employee_id))];
+    // return Employee.findAll({
+    //   where: { id: employeeIds },
+    //   attributes: [
+    //     "id",
+    //     "first_name",
+    //     "last_name",
+    //     "employee_code",
+    //     "company_id",
+    //   ],
+    // });
   }
 
   async addMember(

@@ -351,14 +351,6 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
 
       const saRole = rolesCreated.find(r => r.slug === 'super_admin')!;
 
-      // 3. Seed departments (unchanged)
-      await Department.bulkCreate([
-        { company_id: company.id, name: 'Human Resources', },
-        { company_id: company.id, name: 'Engineering', },
-        { company_id: company.id, name: 'Finance', },
-        { company_id: company.id, name: 'Operations', },
-      ], { transaction: t, ignoreDuplicates: true });
-
       // Step 3.5: Seed permission groups with default permissions
       const allPerms = await Permission.findAll({ attributes: ['id', 'slug'], transaction: t });
       const permMap = new Map(allPerms.map((p: any) => [p.slug, p.id]));

@@ -3,7 +3,7 @@ import { sequelize } from '../../config/database';
 
 interface DesignationAttributes {
   id: number;
-  company_id: number;
+  // company_id: number;
   // department_id?: number | null;
   name: string;
   grade?: string | null;
@@ -22,7 +22,7 @@ export class Designation
   extends Model<DesignationAttributes, DesignationCreationAttributes>
   implements DesignationAttributes {
   public id!: number;
-  public company_id!: number;
+  // public company_id!: number;
   // public department_id!: number | null;
   public name!: string;
   public grade!: string | null;
@@ -43,10 +43,10 @@ Designation.init(
       primaryKey: true,
     },
 
-    company_id: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      allowNull: false,
-    },
+    // company_id: {
+    //   type: DataTypes.INTEGER.UNSIGNED,
+    //   allowNull: false,
+    // },
 
     // department_id: {
     //   type: DataTypes.INTEGER.UNSIGNED,
@@ -91,14 +91,8 @@ Designation.init(
     deletedAt: 'deleted_at',
     indexes: [
       {
-        fields: ['company_id']
-      },
-      // {
-      //   fields: ['department_id']
-      // },
-      {
         unique: true,
-        fields: ['company_id', 'name']
+        fields: ['name']
       }
     ]
   }

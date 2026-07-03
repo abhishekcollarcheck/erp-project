@@ -56,7 +56,7 @@ export interface EmploymentDto {
 
 // ─── Step 3: Reporting & Official Contact ─────────────────────────────────────
 export interface ReportingDto {
-  l1_manager_id:     number;       
+  l1_manager_id:     number | null;       
   l2_manager_id?:    number | null;
   actual_doj:        string;       
   current_doj?:      string | null;

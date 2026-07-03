@@ -28,7 +28,7 @@ export class DesignationService {
 
   // ─── List ──────────────────────────────────────────────────────────────────
   async getAll(companyId: number, query: DesignationQueryParams = {}) {
-    const where: WhereOptions = { company_id: companyId };
+    const where: WhereOptions = { };
 
     if (query.is_active === 'false' || query.is_active === false) {
       where['is_active'] = false;
@@ -84,7 +84,7 @@ export class DesignationService {
   // ─── Single ────────────────────────────────────────────────────────────────
   async getById(id: number, companyId: number) {
     const designation = await Designation.findOne({
-      where: { id, company_id: companyId },
+      where: { id },
       include: [
         // {
         //   model:      Department,
@@ -108,10 +108,9 @@ export class DesignationService {
 
   // ─── Stats ─────────────────────────────────────────────────────────────────
   async getStats(companyId: number) {
-    const [total, active, withGrade,] = await Promise.all([
-      Designation.count({ where: { company_id: companyId } }),
-      Designation.count({ where: { company_id: companyId, is_active: true } }),
-      Designation.count({ where: { company_id: companyId, is_active: true, grade: { [Op.ne]: null } } }),
+    const [total, active] = await Promise.all([
+      Designation.count({ where: { is_active: true } }),
+      Designation.count({ where: { is_active: true, grade: { [Op.ne]: null } } }),
       // Designation.count({ where: { company_id: companyId, is_active: true, department_id: null } }),
     ]);
 
@@ -139,8 +138,6 @@ export class DesignationService {
       total,
       active,
       inactive:         total - active,
-      withGrade,
-      withoutGrade:     active - withGrade,
       // crossFunctional,
       // deptSpecific:     active - crossFunctional,
       topDesignation:   top ? { id: top.designation_id, name: top['designation.name'], count: Number(top.count) } : null,
@@ -171,7 +168,6 @@ export class DesignationService {
     // }
 
     const designation = await Designation.create({
-      company_id:    companyId,
       name:          dto.name.trim(),
       grade:         dto.grade?.trim() || null,
       // department_id: dto.department_id || null,
@@ -254,7 +250,7 @@ export class DesignationService {
 
   // ─── Private ───────────────────────────────────────────────────────────────
   private async findOrFail(id: number, companyId: number): Promise<Designation> {
-    const d = await Designation.findOne({ where: { id, company_id: companyId } });
+    const d = await Designation.findOne({ where: { id } });
     if (!d) throw new AppError('Designation not found', 404);
     return d;
   }

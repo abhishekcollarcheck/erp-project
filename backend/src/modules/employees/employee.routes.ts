@@ -93,6 +93,7 @@ employeeRoutes.patch('/:id/step/:step',
   idValidation,
   (req: Request, res: Response, next: NextFunction) => {
     const validators = STEP_VALIDATORS[req.params.step] || [];
+    console.log("validators", validators)
     if (!validators.length) return next();
     // Run validators sequentially
     Promise.all(validators.map((v: any) => v.run(req)))

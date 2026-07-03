@@ -183,7 +183,7 @@ async listOverrides(groupId: number, employeeId: number) {
     //   console.warn("[Override] socket emit failed for employee", employeeId, e);
     // }
 
-    await refreshEmployeePermission(employeeId, targetCompanyId)
+    await refreshEmployeePermission(employeeId, [targetCompanyId])
     return { updated: overrides.length };
   }
 
@@ -235,7 +235,7 @@ const targetCompanyId = membership.company_id;
     });
 
     // Push fresh permissions to the affected employee's portal
-    await refreshEmployeePermission(employeeId, targetCompanyId)
+    await refreshEmployeePermission(employeeId, [targetCompanyId])
 
     return { deleted: true };
   }

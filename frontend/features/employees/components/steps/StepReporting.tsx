@@ -25,7 +25,7 @@ export function StepReporting({ employeeId }: Props) {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <FormSelect name="l1_manager_id" label="L1 Manager (Direct)" required
+        <FormSelect name="l1_manager_id" label="L1 Manager (Direct)"
           placeholder={isLoading ? 'Loading employees…' : 'Select manager'}
           disabled={isLoading}
           options={managerOptions} />
