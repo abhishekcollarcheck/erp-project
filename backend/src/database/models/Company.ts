@@ -91,8 +91,8 @@ export class Company
 Company.init({
   id:                    { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   name:                  { type: DataTypes.STRING(200), allowNull: false },
-  slug:                  { type: DataTypes.STRING(100), allowNull: true, unique: true },
-  code:                  { type: DataTypes.STRING(20),  allowNull: true, unique: true },
+  slug:                  { type: DataTypes.STRING(100), allowNull: true},
+  code:                  { type: DataTypes.STRING(20),  allowNull: true},
   logo_url:              { type: DataTypes.STRING(500), allowNull: true },
   gstin:                 { type: DataTypes.STRING(20),  allowNull: true },
   pan:                   { type: DataTypes.STRING(20),  allowNull: true },
@@ -129,8 +129,20 @@ Company.init({
   updatedAt:  'updated_at',
   deletedAt:  'deleted_at',
   indexes: [
-    { fields: ['is_active'] },
-  ],
+  {
+    unique: true,
+    name: 'companies_slug_unique',
+    fields: ['slug'],
+  },
+  {
+    unique: true,
+    name: 'companies_code_unique',
+    fields: ['code'],
+  },
+  {
+    fields: ['is_active'],
+  },
+],
 });
 
 // ─── CompanySettings — flexible key-value store ───────────────────────────────

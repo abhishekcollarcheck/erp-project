@@ -108,12 +108,12 @@ const pgApi = {
   seed: () => apiClient.post<unknown, ApiResponse<any>>('/permission-groups/seed', {}),
   employees: () => apiClient.get<unknown, ApiResponse<any[]>>('/employees/managed'),
   // Employee-level override — PUT to override endpoint, never touches group permissions
-  setOverrides: (groupId: number, employeeId: number, overrides: { module: string; field_name: null; permission: string; granted: boolean }[]) =>
-    apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${groupId}/members/${employeeId}/overrides`, { overrides }),
+  setOverrides: (groupId: number, employeeId: number, companyId: number, overrides: { module: string; field_name: null; permission: string; granted: boolean }[]) =>
+    apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${groupId}/members/${employeeId}/overrides`, { company_id: companyId, overrides }),
   // Load existing overrides for an employee in a group
-  getOverrides: (groupId: number, employeeId: number) =>
+  getOverrides: (groupId: number, employeeId: number, companyId: number) =>
     apiClient.get<unknown, ApiResponse<{ module: string; permission: string; granted: boolean }[]>>(
-      `/permission-groups/${groupId}/members/${employeeId}/overrides`
+      `/permission-groups/${groupId}/members/${employeeId}/overrides?company_id=${companyId}`
     ),
   deleteOverride: (groupId: number, employeeId: number, overrideId: number) => {
     return apiClient.delete(
@@ -127,11 +127,11 @@ function useGroups() { return useQuery({ queryKey: ['rp', 'groups'], queryFn: ()
 function useGroupPerms(id: number) { return useQuery({ queryKey: ['rp', 'group-perms', id], queryFn: () => pgApi.getPerms(id), enabled: id > 0, select: r => r.data ?? [] }); }
 function useGroupMembers(id: number) { return useQuery({ queryKey: ['rp', 'group-members', id], queryFn: () => pgApi.getMembers(id), enabled: id > 0, select: r => r.data ?? [] }); }
 function useEmployees() { return useQuery({ queryKey: ['employees-light'], queryFn: () => pgApi.employees(), staleTime: 5 * 60_000, select: r => r.data ?? [] }); }
-function useEmployeeOverrides(groupId: number, employeeId: number | undefined) {
+function useEmployeeOverrides(groupId: number, employeeId: number | undefined, companyId: number | undefined) {
   return useQuery({
-    queryKey: ['rp', 'employee-overrides', groupId, employeeId],
-    queryFn: () => pgApi.getOverrides(groupId, employeeId!),
-    enabled: groupId > 0 && !!employeeId,
+    queryKey: ['rp', 'employee-overrides', groupId, employeeId, companyId],
+    queryFn: () => pgApi.getOverrides(groupId, employeeId!, companyId!),
+    enabled: groupId > 0 && !!employeeId && !!companyId,
     select: r => r.data ?? [],
     staleTime: 0,
     refetchOnMount: true,
@@ -364,6 +364,8 @@ function MemberCompanyBadges({ member, assignedCompanies }: {
   assignedCompanies: { id: number; name: string; shortName: string }[];
 }) {
   if (!member.assigned_company_ids?.length) return null;
+const availableToAdd = assignedCompanies.filter(co => !member.assigned_company_ids.includes(co.id))
+console.log("availableToAdd", availableToAdd)
 
   const companies = member.assigned_company_ids
     .map((id: number) => assignedCompanies.find(ac => ac.id === id))
@@ -414,12 +416,13 @@ function GroupDetail({
   const modPerms = slugsToModulePerms(slugs);
   const [search, setSearch] = useState('');
   const qc = useQueryClient();
+  const [addCompanyFor, setAddCompanyFor] = useState<number | null>(null);
+  const [selectedNewCompanies, setSelectedNewCompanies] = useState<Set<number>>(new Set());
 
   const permSummary = useMemo(() =>
     PERMS.map(p => ({ p, count: countPerm(modPerms, p) })).filter(x => x.count > 0),
     [slugs.join(',')]
   );
-
   const notMembers = useMemo(() => {
     const memberIds = new Set(members.map((m: any) => m.id));
     return employees.filter((e: any) => !memberIds.has(e.id) && (
@@ -428,11 +431,14 @@ function GroupDetail({
   }, [employees, members, search]);
 
   const overrideQueries = useQueries({
-    queries: members.map((m: any) => ({
-      queryKey: ['group-overrides', group?.id, m.id],
-      queryFn: () => pgApi.getOverrides(group!.id, m.id),
-      enabled: !!group && overrides[m.id] === true,
-    })),
+    queries: members.map((m: any) => {
+      const defaultCompanyId = m.assigned_company_ids?.[0];
+      return {
+        queryKey: ['group-overrides', group?.id, m.id, defaultCompanyId],
+        queryFn: () => pgApi.getOverrides(group!.id, m.id, defaultCompanyId!),
+        enabled: !!group && overrides[m.id] === true && !!defaultCompanyId,
+      }
+    }),
   });
 
   const memberOverridesMap = useMemo(() => {
@@ -558,6 +564,10 @@ function GroupDetail({
                 return acc;
               }, {})
             );
+
+            const memberAssignedIds = new Set(m.assigned_company_ids || []);
+             const availableToAdd = assignedCompanies.filter((co) => !memberAssignedIds.has(co.id));
+             console.log("availableToAdd for member", memberId, availableToAdd);
             return (
               <div key={memberId} id={`rp-mrow-${memberId}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -568,6 +578,7 @@ function GroupDetail({
                   </div>
                   {/* Company badge — shows member's home company */}
                   <MemberCompanyBadges member={m} assignedCompanies={assignedCompanies} />
+
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => onToggleOverrides(memberId)}
@@ -672,6 +683,64 @@ function GroupDetail({
                         ))}
                       </div>
                     )}
+{availableToAdd.length > 0 && (
+<button
+  className="btn btn-sec btn-sm"
+  style={{ fontSize: 11, marginLeft: 6 }}
+  onClick={() => {
+    const next = addCompanyFor === memberId ? null : memberId;
+    setAddCompanyFor(next);
+    setSelectedNewCompanies(new Set());   // ← naya: har baar fresh state
+  }}
+>
+  {addCompanyFor === memberId ? '✕ Cancel' : '+ Add Company'}
+</button>
+)}
+
+{addCompanyFor === memberId && (
+  <div style={{ marginTop: 8, padding: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
+    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink3)', marginBottom: 6 }}>
+      Select companies to add:
+    </div>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+      {availableToAdd.map((co) => {
+        const isSelected = selectedNewCompanies.has(co.id);
+        return (
+          <span
+            key={co.id}
+            onClick={() => {
+              setSelectedNewCompanies(prev => {
+                const n = new Set(prev);
+                isSelected ? n.delete(co.id) : n.add(co.id);
+                return n;
+              });
+            }}
+            style={{
+              cursor: 'pointer', borderRadius: 99, padding: '5px 12px', fontSize: 11, fontWeight: 600,
+              border: isSelected ? '1px solid var(--blue)' : '1px solid var(--border2)',
+              background: isSelected ? 'var(--blue-lt)' : 'var(--surface2)',
+              color: isSelected ? 'var(--blue)' : 'var(--ink3)',
+            }}
+          >
+            {co.name}
+          </span>
+        );
+      })}
+    </div>
+    <button
+  className="btn btn-pri btn-sm"
+  disabled={selectedNewCompanies.size === 0}
+  style={{ opacity: selectedNewCompanies.size === 0 ? 0.5 : 1 }}
+  onClick={() => {
+    onAddMember(memberId, [...selectedNewCompanies]);
+    setAddCompanyFor(null);
+    setSelectedNewCompanies(new Set());
+  }}
+>
+  ✓ Add Selected
+</button>
+  </div>
+)}            
                     <button className="btn btn-sec btn-sm" onClick={() => onEditOverride(memberId)} style={{ fontSize: 11 }}>
                       + Edit Override
                     </button>
@@ -849,18 +918,20 @@ function MemberPicker({ selected, onToggle }: { selected: Set<number>; onToggle:
 
 function EditView({
   group, onBack,
-  overrideMemberId, overrideMemberName, groupName,
+  overrideMemberId, overrideMemberName, overrideMemberCompanyId, groupName,
 }: {
   group: PermGroup | null;
   onBack: () => void;
   overrideMemberId?: number;
   overrideMemberName?: string;
+  overrideMemberCompanyId?: number;
   groupName?: string;
 }) {
   const qc = useQueryClient();
   const dispatch = useAppDispatch();
   const isNew = !group;
   const isOverrideMode = !!overrideMemberId;
+  const { companyId } = useCompanySelector();
 
   const [name, setName] = useState(group?.name || '');
   const [desc, setDesc] = useState(group?.description || '');
@@ -871,7 +942,7 @@ function EditView({
   const { data: existingSlugs = [] } = useGroupPerms(group?.id || 0);
   const { data: existingMembers = [] } = useGroupMembers(group?.id || 0);
   // Load saved overrides for this employee — only active in override mode
-  const { data: savedOverrides = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId);
+  const { data: savedOverrides = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId, overrideMemberCompanyId);
   const [baseModPerms, setBaseModPerms] = useState<ModulePerms>(() => initModulePerms(false));
 
   // Populate modPerms from server on mount (and when the employee changes).
@@ -945,7 +1016,7 @@ function EditView({
         }
         // PUT /permission-groups/:groupId/members/:employeeId/overrides
         // Writes to employee_permission_overrides ONLY — group table untouched
-        await pgApi.setOverrides(group!.id, overrideMemberId!, overrides);
+        await pgApi.setOverrides(group!.id, overrideMemberId!, overrideMemberCompanyId!, overrides);
         return;
       }
 
@@ -1059,10 +1130,10 @@ function EditView({
                 <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="What can this group do?" />
               </div>
             </div>
-            <MemberPicker
+            {/* <MemberPicker
               selected={selMembers}
               onToggle={(id, on) => setSelMembers(prev => { const n = new Set(prev); on ? n.add(id) : n.delete(id); return n; })}
-            />
+            /> */}
           </div>
         )}
 
@@ -1300,6 +1371,7 @@ export default function RolesPermissionsPage() {
   // Override mode — opens EditView for a specific member
   const [overrideMemberId, setOverrideMemberId] = useState<number | undefined>();
   const [overrideMemberName, setOverrideMemberName] = useState<string | undefined>();
+  const [overrideMemberCompanyId, setOverrideMemberCompanyId] = useState<number | undefined>();
 
   const { data: employees = [] } = useEmployees();
 
@@ -1383,6 +1455,7 @@ export default function RolesPermissionsPage() {
     const name = member ? `${member.first_name} ${member.last_name}`.trim() : '';
     setOverrideMemberId(memberId);
     setOverrideMemberName(name);
+    setOverrideMemberCompanyId(member?.assigned_company_ids?.[0]);
     setView('edit');
   };
 
@@ -1410,6 +1483,7 @@ export default function RolesPermissionsPage() {
           onBack={() => { setView('groups'); setEditGroup(null); setOverrideMemberId(undefined); setOverrideMemberName(undefined); }}
           overrideMemberId={overrideMemberId}
           overrideMemberName={overrideMemberName}
+          overrideMemberCompanyId={overrideMemberCompanyId}
           groupName={selectedGroup?.name}
         />
       </div>

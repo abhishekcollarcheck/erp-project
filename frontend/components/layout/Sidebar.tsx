@@ -11,13 +11,14 @@ import {
 import { useAuth, usePermission } from "../../features/auth/hooks/useAuth";
 import { useCompany } from "../../features/company/hooks/useCompany";
 import { authService } from "../../services/api/auth.service";
+import { ChevronDown, Brain, LayoutDashboard, SquareUserRound, Target, BookKey } from "lucide-react";
 
 // ─── Nav definition ───────────────────────────────────────────────────────────
 
 interface NavItem {
   id: string;
   label: string;
-  icon: string;
+  icon: React.ReactNode;
   href: string;
   count?: number;
   permission: string | null; // null = always show
@@ -37,7 +38,7 @@ const NAV: NavSection[] = [
       {
         id: "dashboard",
         label: "Dashboard",
-        icon: "⬡",
+        icon: <LayoutDashboard size={16} />,
         href: "/dashboard",
         permission: null,
       },
@@ -57,7 +58,7 @@ const NAV: NavSection[] = [
       {
         id: "ats-tests",
         label: "Aptitude Tests",
-        icon: "🧠",
+        icon: <Brain size={16} />,
         href: "/ats-tests",
         permission: "aptitude:view",
         module: "aptitude",
@@ -74,7 +75,7 @@ const NAV: NavSection[] = [
       {
         id: "employees",
         label: "Employees",
-        icon: "👥",
+        icon: <SquareUserRound size={16} />,
         href: "/employees",
         permission: "employees:view",
         module: "employees",
@@ -90,7 +91,7 @@ const NAV: NavSection[] = [
       {
         id: "designations",
         label: "Designations",
-        icon: "🎯",
+        icon: <Target size={16} />,
         href: "/designations",
         permission: "designation:view",
         module: "designations",
@@ -110,7 +111,7 @@ const NAV: NavSection[] = [
       {
         id: "roles",
         label: "Roles & Permissions",
-        icon: "🔑",
+        icon: <BookKey size={16} />,
         href: "/settings/roles",
         permission: "settings:view",
       },
@@ -224,7 +225,7 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
                 transform: open ? "rotate(180deg)" : "none",
               }}
             >
-              ▾
+              <ChevronDown size={16} />
             </div>
           </>
         )}

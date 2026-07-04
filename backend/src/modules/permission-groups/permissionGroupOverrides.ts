@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { body, param } from "express-validator";
+import { body, param, query } from "express-validator";
 import { Op } from "sequelize";
 import { EmployeePermissionOverride } from "../../database/models/EmployeePermissionOverride";
 import {
@@ -13,9 +13,6 @@ import { validate } from "../../middleware/validate.middleware";
 import { sendResponse } from "../../utils/response";
 import { logActivity } from "../../utils/activityLogger";
 import { clearPermissionCache } from "../../middleware/rbac.middleware";
-import { generateAccessToken } from "../../utils/jwt";
-import { loadPermissions } from "../auth/auth.service";
-import { getIO } from "../../socket/socket";
 import { refreshEmployeePermission } from "../../utils/refreshEmployeePermission";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -49,11 +46,12 @@ class EmployeeOverrideService {
     return emp;
   }
 
-async listOverrides(groupId: number, employeeId: number) {
+async listOverrides(groupId: number, employeeId: number, companyId: number) {
   const membership = await UserGroup.findOne({
     where: {
       group_id: groupId,
       employee_id: employeeId,
+      company_id: companyId
     },
   });
 
@@ -95,6 +93,7 @@ async listOverrides(groupId: number, employeeId: number) {
   async setOverrides(
     groupId: number,
     employeeId: number,
+    companyId: number,
     overrides: OverrideDto[],
     actorId: number,
   ) {
@@ -102,6 +101,7 @@ async listOverrides(groupId: number, employeeId: number) {
       where: {
         group_id: groupId,
         employee_id: employeeId,
+        company_id: companyId
       },
     });
 
@@ -336,10 +336,15 @@ async function listOverrides(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  console.log("req.user", req.user)
+  console.log("req.body", req.body)
+  console.log("req.query", req.query)
   try {
+    const companyId = +req.query.company_id!;
     const data = await overrideSvc.listOverrides(
       +req.params.id,
       +req.params.employeeId,
+      companyId
     );
 
     sendResponse(res, { data });
@@ -354,9 +359,11 @@ async function setOverrides(
   next: NextFunction,
 ): Promise<void> {
   try {
+    const companyId = +req.body.company_id;
     const data = await overrideSvc.setOverrides(
       +req.params.id,
       +req.params.employeeId,
+      companyId,
       req.body.overrides ?? [],
       req.user!.employeeId,
     );
@@ -442,7 +449,11 @@ employeeOverrideRouter.use(authenticate);
 
 employeeOverrideRouter.get(
   "/:id/members/:employeeId/overrides",
-  [param("id").isInt(), param("employeeId").isInt()],
+  [
+    param("id").isInt(),
+    param("employeeId").isInt(),
+    query("company_id").isInt()
+  ],
   validate,
   listOverrides,
 );
@@ -452,6 +463,7 @@ employeeOverrideRouter.put(
   [
     param("id").isInt(),
     param("employeeId").isInt(),
+    body("company_id").isInt(),
     body("overrides").isArray(),
     body("overrides.*.module").trim().notEmpty(),
     body("overrides.*.permission").trim().notEmpty(),
