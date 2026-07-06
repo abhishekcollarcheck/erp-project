@@ -14,10 +14,6 @@ const authSlice = createSlice({
   initialState,
   reducers: {
 setCredentials(state, action) {
-  console.log("SET CREDENTIALS");
-  console.log("USER COMPANY", action.payload.user.companyId);
-  console.log("OLD ACTIVE", state.activeCompanyId);
-
   const { user, accessToken } = action.payload;
 
   state.user = user;
@@ -26,9 +22,9 @@ setCredentials(state, action) {
 
   if (!state.activeCompanyId) {
     state.activeCompanyId = user.companyId;
-  }
+  };
+  state.permissions = user.permissions ?? [];
 
-  console.log("NEW ACTIVE", state.activeCompanyId);
 },
 
     switchCompany(state, action: PayloadAction<number>) {
@@ -58,7 +54,6 @@ setCredentials(state, action) {
     },
 
     setPermissions(state, action: PayloadAction<string[]>) {
-      console.log("🔥 SET PERMISSIONS REDUCER", action.payload);
       state.permissions = action.payload;
 
       if (!state.user) return;
@@ -72,7 +67,6 @@ setCredentials(state, action) {
       if (company) {
         company.permissions = action.payload;
       }
-      console.log("AFTER", state);
     },
 
     // Refresh managed companies list after assigning/removing

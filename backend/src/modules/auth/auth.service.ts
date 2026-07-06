@@ -180,6 +180,7 @@ async function buildPayload(employee: Employee, activeCompanyId?: number) {
     employee.id,
     companyId,
   );
+  console.log("after-login", companyId, permissions)
 
   const empRole = await EmployeeRole.findOne({
     where: { employee_id: employee.id, company_id: companyId },

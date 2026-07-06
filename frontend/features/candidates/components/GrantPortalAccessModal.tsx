@@ -35,8 +35,6 @@ export function GrantPortalAccessModal({ open, onClose, candidate }: Props) {
   }, [open]);
 
   const handleGrant = async () => {
-    console.log('useCustomPwd =>', useCustomPwd);
-  console.log('customPwd =>', customPwd);
 
     const payload: any = {
       send_email: sendEmail,

@@ -72,20 +72,14 @@ export function usePermissionSocket() {
 const unsubscribe = socketService.on("permissions:updated", (payload: any) => {
   console.log("🔥 PERMISSION EVENT RECEIVED", payload);
 
-  console.log("EVENT COMPANY", payload.companyId);
-  console.log("ACTIVE COMPANY", companyId);
-
   if (payload.companyId !== companyId) {
     console.log("❌ EVENT IGNORED");
     return;
   }
 
-  console.log("✅ BEFORE DISPATCH");
 
   if (payload?.permissions && Array.isArray(payload.permissions)) {
     dispatch(setPermissions(payload.permissions));
-
-    console.log("✅ AFTER DISPATCH");
 
     if (payload.accessToken) {
       dispatch(updateToken(payload.accessToken));

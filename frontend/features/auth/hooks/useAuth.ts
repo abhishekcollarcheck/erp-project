@@ -91,7 +91,7 @@ export function usePermission() {
   const user         = useAppSelector(selectUser);
   const permissions  = useAppSelector(selectPermissions);
   const isSuperAdmin = useAppSelector(selectIsSuperAdmin);
-   console.log("HOOK PERMISSIONS", permissions);
+  console.log("front-permissions", permissions)
 
   const hasPermission = (slug: string): boolean => {
     if (!user) return false;

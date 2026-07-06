@@ -272,7 +272,6 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 
                   try {
                     const response = await authService.getMe();
-                    console.log("response", response)
                     dispatch(updateCurrentUser(response.data));
                   } catch (e) {
                     console.error("Failed to refresh user", e);
@@ -387,11 +386,7 @@ export function Sidebar() {
   const activeModules: string[] = (company as any)?.active_modules ?? [];
   const auth = useAppSelector((state: any) => state.auth);
 const permissions = useAppSelector(selectPermissions);
-
-console.log("HAS EMPLOYEE VIEW", hasPermission("employees:view"));
-console.log("HAS DEPARTMENT VIEW", hasPermission("department:view"));
-console.log("SIDEBAR PERMISSIONS", permissions);
-  const initials = user?.fullName
+const initials = user?.fullName
     ? user.fullName
         .split(" ")
         .map((n: string) => n[0])
@@ -496,8 +491,7 @@ console.log("SIDEBAR PERMISSIONS", permissions);
             if (item.permission === null) return true;
             return hasPermission(item.permission);
           });
-          if (visibleItems.length === 0) return null;
-
+          if (visibleItems.length === 0) return null;    
           return (
             <div key={section.label}>
               {!collapsed && <div className="sb-sec">{section.label}</div>}

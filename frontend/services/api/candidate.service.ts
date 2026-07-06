@@ -185,10 +185,6 @@ export const portalService = {
     form_data: Record<string, unknown>,
     is_draft: boolean
   ) => {
-
-    console.log('FORM DATA =>', form_data);
-    console.log('IS DRAFT =>', is_draft);
-
     return portalClient.post(
       '/candidates/portal/preinterview',
       { form_data, is_draft },

@@ -90,26 +90,34 @@ async listOverrides(groupId: number, employeeId: number, companyId: number) {
     return counts;
   }
 
-  async setOverrides(
+async setOverrides(
     groupId: number,
     employeeId: number,
-    companyId: number,
+    companyIds: number[],
     overrides: OverrideDto[],
     actorId: number,
   ) {
-    const membership = await UserGroup.findOne({
+    if (!companyIds.length) {
+      throw new AppError("At least one company_id is required", 400);
+    }
+
+    const memberships = await UserGroup.findAll({
       where: {
         group_id: groupId,
         employee_id: employeeId,
-        company_id: companyId
+        company_id: companyIds,
       },
     });
 
-    if (!membership) {
-      throw new AppError("Employee is not a member of this group", 404);
-    }
+    const validCompanyIds = new Set(memberships.map((m) => m.company_id));
+    const invalidIds = companyIds.filter((id) => !validCompanyIds.has(id));
 
-    const targetCompanyId = membership.company_id;
+    if (invalidIds.length > 0) {
+      throw new AppError(
+        `Employee is not a member of this group in company_id(s): ${invalidIds.join(", ")}`,
+        404,
+      );
+    }
 
     const VALID = new Set(["view", "create", "edit", "delete", "download"]);
     for (const o of overrides) {
@@ -126,39 +134,41 @@ async listOverrides(groupId: number, employeeId: number, companyId: number) {
         );
     }
 
-    await EmployeePermissionOverride.destroy({
-      where: {
-        group_id: groupId,
-        employee_id: employeeId,
-        company_id: targetCompanyId,
-      },
-    });
-
-    if (overrides.length > 0) {
-      await EmployeePermissionOverride.bulkCreate(
-        overrides.map((o) => ({
-          company_id: targetCompanyId,
+    for (const companyId of companyIds) {
+      await EmployeePermissionOverride.destroy({
+        where: {
           group_id: groupId,
           employee_id: employeeId,
-          module: o.module.trim(),
-          field_name: null, // always null — module-level only
-          permission: o.permission,
-          granted: o.granted,
-          created_by: actorId,
-        })),
-        { ignoreDuplicates: true },
-      );
+          company_id: companyId,
+        },
+      });
+
+      if (overrides.length > 0) {
+        await EmployeePermissionOverride.bulkCreate(
+          overrides.map((o) => ({
+            company_id: companyId,
+            group_id: groupId,
+            employee_id: employeeId,
+            module: o.module.trim(),
+            field_name: null, // always null — module-level only
+            permission: o.permission,
+            granted: o.granted,
+            created_by: actorId,
+          })),
+          { ignoreDuplicates: true },
+        );
+      }
     }
 
     clearPermissionCache(employeeId);
 
     await logActivity({
-      companyId: targetCompanyId,
+      companyId: companyIds[0],
       employeeId: actorId,
       action: "EMPLOYEE_PERMISSION_OVERRIDES_SET",
       module: "settings",
       entityId: employeeId,
-      newValues: { groupId, overrideCount: overrides.length },
+      newValues: { groupId, companyIds, overrideCount: overrides.length },
     });
 
     // try {
@@ -183,8 +193,8 @@ async listOverrides(groupId: number, employeeId: number, companyId: number) {
     //   console.warn("[Override] socket emit failed for employee", employeeId, e);
     // }
 
-    await refreshEmployeePermission(employeeId, [targetCompanyId])
-    return { updated: overrides.length };
+    await refreshEmployeePermission(employeeId, companyIds);
+    return { updated: overrides.length, companiesUpdated: companyIds };
   }
 
   async deleteOverride(
@@ -359,11 +369,13 @@ async function setOverrides(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const companyId = +req.body.company_id;
+    const companyIds = Array.isArray(req.body.company_ids)
+      ? req.body.company_ids.map((id: any) => +id)
+      : [];
     const data = await overrideSvc.setOverrides(
       +req.params.id,
       +req.params.employeeId,
-      companyId,
+      companyIds,
       req.body.overrides ?? [],
       req.user!.employeeId,
     );
@@ -463,7 +475,8 @@ employeeOverrideRouter.put(
   [
     param("id").isInt(),
     param("employeeId").isInt(),
-    body("company_id").isInt(),
+    body("company_ids").isArray({ min: 1 }),
+    body("company_ids.*").isInt(),
     body("overrides").isArray(),
     body("overrides.*.module").trim().notEmpty(),
     body("overrides.*.permission").trim().notEmpty(),

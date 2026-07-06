@@ -22,3 +22,6 @@
 // ALTER TABLE designations
 // ADD CONSTRAINT designations_name_unique
 // UNIQUE (name);
+
+// UPDATE company_modules SET module = 'department' WHERE module = 'departments';
+// UPDATE company_modules SET module = 'designation' WHERE module = 'designations';

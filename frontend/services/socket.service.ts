@@ -140,12 +140,10 @@ class SocketService {
   on(event: string, handler: Function): () => void {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set());
     this.listeners.get(event)!.add(handler);
-    console.log(event, "listeners:", this.listeners.get(event)?.size);
     return () => this.listeners.get(event)?.delete(handler);
   }
 
   private trigger(event: string, data: any): void {
-    console.log("TRIGGER", event, data);
     this.listeners.get(event)?.forEach(fn => {
       try { fn(data); } catch (e) { console.error(`[Socket] Handler error [${event}]:`, e); }
     });

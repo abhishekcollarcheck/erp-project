@@ -199,9 +199,16 @@ async setPermissions(
   );
 
   const userGroups = await UserGroup.findAll({ where: { group_id: id } });
-  for (const ug of userGroups) {
-    clearPermissionCache(ug.employee_id);
-  }
+for (const ug of userGroups) {
+await refreshEmployeePermission(
+  ug.employee_id,
+  [ug.company_id],
+);
+  clearPermissionCache(ug.employee_id);
+}
+
+    // await refreshEmployeeCompanies(employee_Id);
+    // await refreshEmployeePermission(employeeId, added);
 
   return { groupId: id, slugs, updated: permissions.length };
 }
@@ -389,7 +396,6 @@ async setPermissions(
       newValues: { employeeId, companiesAdded: added },
     });
 
-    console.log("Companies Added:", added);
     await refreshEmployeeCompanies(employeeId);
     await refreshEmployeePermission(employeeId, added);
     return {
@@ -783,60 +789,18 @@ permissionGroupRouter.use(employeeOverrideRouter);
 
 permissionGroupRouter.get("/me", getMyGroups);
 permissionGroupRouter.get("/", listGroups);
-permissionGroupRouter.post(
-  "/",
-  [body("name").trim().notEmpty()],
-  validate,
-  createGroup,
-);
+permissionGroupRouter.post("/", [body("name").trim().notEmpty()], validate, createGroup,);
 permissionGroupRouter.put("/:id", [param("id").isInt()], validate, updateGroup);
-permissionGroupRouter.delete(
-  "/:id",
-  [param("id").isInt()],
-  validate,
-  deleteGroup,
-);
-
-permissionGroupRouter.get(
-  "/:id/permissions",
-  [param("id").isInt()],
-  validate,
-  getGroupPermissions,
-);
-permissionGroupRouter.put(
-  "/:id/permissions",
-  [param("id").isInt(), body("slugs").isArray()],
-  validate,
-  broadcastAfter("bulk_permissions_updated"),
-  setGroupPermissions,
-);
-permissionGroupRouter.get(
-  "/:id/members",
-  [param("id").isInt()],
-  validate,
-  getGroupMembers,
-);
-permissionGroupRouter.post(
-  "/:id/members",
-  [param("id").isInt(), body("employee_id").isInt()],
-  validate,
-  broadcastAfter("permissions_updated"),
-  addGroupMember,
-);
-permissionGroupRouter.delete(
-  "/:id/members/:employeeId",
-  [param("id").isInt(), param("employeeId").isInt()],
-  validate,
-  broadcastAfter("permissions_updated"),
-  removeGroupMember,
-);
-
+permissionGroupRouter.delete("/:id", [param("id").isInt()], validate, deleteGroup,);
+permissionGroupRouter.get("/:id/permissions",[param("id").isInt()],validate,getGroupPermissions,);
+permissionGroupRouter.put("/:id/permissions",[param("id").isInt(), body("slugs").isArray()],validate,setGroupPermissions,);
+permissionGroupRouter.get("/:id/members",[param("id").isInt()],validate,getGroupMembers,);
+permissionGroupRouter.post("/:id/members",[param("id").isInt(), body("employee_id").isInt()],validate,addGroupMember,);
+permissionGroupRouter.delete("/:id/members/:employeeId",[param("id").isInt(), param("employeeId").isInt()],validate,removeGroupMember,);
 permissionGroupRouter.post("/seed", seedGroups);
 
 // GET /permission-groups/company-modules?company_id=N
-permissionGroupRouter.get(
-  "/company-modules",
-  authenticate,
+permissionGroupRouter.get("/company-modules",authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const companyId = +(req.query.company_id || req.user!.companyId);

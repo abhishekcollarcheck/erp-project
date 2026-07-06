@@ -247,8 +247,8 @@ CompanyModule.init({
 export const DEFAULT_MODULES = [
   // Core — always on
   { module: 'employees',    label: 'Employees',         is_active: true,  is_core: true,  display_order: 1 },
-  { module: 'departments',  label: 'Departments',        is_active: true,  is_core: true,  display_order: 2 },
-  { module: 'designations', label: 'Designations',       is_active: true,  is_core: true,  display_order: 3 },
+  { module: 'department',  label: 'Department',        is_active: true,  is_core: true,  display_order: 2 },
+  { module: 'designation', label: 'Designation',       is_active: true,  is_core: true,  display_order: 3 },
   { module: 'settings',     label: 'Settings & RBAC',    is_active: true,  is_core: true,  display_order: 4 },
   // Default on
   { module: 'attendance',   label: 'Attendance',         is_active: true,  is_core: false, display_order: 5 },

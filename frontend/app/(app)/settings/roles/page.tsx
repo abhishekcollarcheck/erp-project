@@ -13,6 +13,7 @@ import { Eye, SquarePen, Trash2, Download, Pen } from 'lucide-react';
 import { usePermission } from '../../../../features/auth/hooks/useAuth';
 import { PageHeaderWithCompany, useCompanySelector } from '../../../../components/company/CompanySelector';
 import { PermissionGuard } from '../../../../utils/permissionGuard';
+import { useCompanyModulesMap } from '../../../../hooks/useCompanyModulesMap';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,8 +109,8 @@ const pgApi = {
   seed: () => apiClient.post<unknown, ApiResponse<any>>('/permission-groups/seed', {}),
   employees: () => apiClient.get<unknown, ApiResponse<any[]>>('/employees/managed'),
   // Employee-level override — PUT to override endpoint, never touches group permissions
-  setOverrides: (groupId: number, employeeId: number, companyId: number, overrides: { module: string; field_name: null; permission: string; granted: boolean }[]) =>
-    apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${groupId}/members/${employeeId}/overrides`, { company_id: companyId, overrides }),
+  setOverrides: (groupId: number, employeeId: number, companyIds: number[], overrides: { module: string; field_name: null; permission: string; granted: boolean }[]) =>
+    apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${groupId}/members/${employeeId}/overrides`, { company_ids: companyIds, overrides }),
   // Load existing overrides for an employee in a group
   getOverrides: (groupId: number, employeeId: number, companyId: number) =>
     apiClient.get<unknown, ApiResponse<{ module: string; permission: string; granted: boolean }[]>>(
@@ -364,8 +365,7 @@ function MemberCompanyBadges({ member, assignedCompanies }: {
   assignedCompanies: { id: number; name: string; shortName: string }[];
 }) {
   if (!member.assigned_company_ids?.length) return null;
-const availableToAdd = assignedCompanies.filter(co => !member.assigned_company_ids.includes(co.id))
-console.log("availableToAdd", availableToAdd)
+  const availableToAdd = assignedCompanies.filter(co => !member.assigned_company_ids.includes(co.id))
 
   const companies = member.assigned_company_ids
     .map((id: number) => assignedCompanies.find(ac => ac.id === id))
@@ -566,8 +566,7 @@ function GroupDetail({
             );
 
             const memberAssignedIds = new Set(m.assigned_company_ids || []);
-             const availableToAdd = assignedCompanies.filter((co) => !memberAssignedIds.has(co.id));
-             console.log("availableToAdd for member", memberId, availableToAdd);
+            const availableToAdd = assignedCompanies.filter((co) => !memberAssignedIds.has(co.id));
             return (
               <div key={memberId} id={`rp-mrow-${memberId}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -683,64 +682,64 @@ function GroupDetail({
                         ))}
                       </div>
                     )}
-{availableToAdd.length > 0 && (
-<button
-  className="btn btn-sec btn-sm"
-  style={{ fontSize: 11, marginLeft: 6 }}
-  onClick={() => {
-    const next = addCompanyFor === memberId ? null : memberId;
-    setAddCompanyFor(next);
-    setSelectedNewCompanies(new Set());   // ← naya: har baar fresh state
-  }}
->
-  {addCompanyFor === memberId ? '✕ Cancel' : '+ Add Company'}
-</button>
-)}
+                    {availableToAdd.length > 0 && (
+                      <button
+                        className="btn btn-sec btn-sm"
+                        style={{ fontSize: 11, marginLeft: 6 }}
+                        onClick={() => {
+                          const next = addCompanyFor === memberId ? null : memberId;
+                          setAddCompanyFor(next);
+                          setSelectedNewCompanies(new Set());   // ← naya: har baar fresh state
+                        }}
+                      >
+                        {addCompanyFor === memberId ? '✕ Cancel' : '+ Add Company'}
+                      </button>
+                    )}
 
-{addCompanyFor === memberId && (
-  <div style={{ marginTop: 8, padding: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
-    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink3)', marginBottom: 6 }}>
-      Select companies to add:
-    </div>
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-      {availableToAdd.map((co) => {
-        const isSelected = selectedNewCompanies.has(co.id);
-        return (
-          <span
-            key={co.id}
-            onClick={() => {
-              setSelectedNewCompanies(prev => {
-                const n = new Set(prev);
-                isSelected ? n.delete(co.id) : n.add(co.id);
-                return n;
-              });
-            }}
-            style={{
-              cursor: 'pointer', borderRadius: 99, padding: '5px 12px', fontSize: 11, fontWeight: 600,
-              border: isSelected ? '1px solid var(--blue)' : '1px solid var(--border2)',
-              background: isSelected ? 'var(--blue-lt)' : 'var(--surface2)',
-              color: isSelected ? 'var(--blue)' : 'var(--ink3)',
-            }}
-          >
-            {co.name}
-          </span>
-        );
-      })}
-    </div>
-    <button
-  className="btn btn-pri btn-sm"
-  disabled={selectedNewCompanies.size === 0}
-  style={{ opacity: selectedNewCompanies.size === 0 ? 0.5 : 1 }}
-  onClick={() => {
-    onAddMember(memberId, [...selectedNewCompanies]);
-    setAddCompanyFor(null);
-    setSelectedNewCompanies(new Set());
-  }}
->
-  ✓ Add Selected
-</button>
-  </div>
-)}            
+                    {addCompanyFor === memberId && (
+                      <div style={{ marginTop: 8, padding: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink3)', marginBottom: 6 }}>
+                          Select companies to add:
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                          {availableToAdd.map((co) => {
+                            const isSelected = selectedNewCompanies.has(co.id);
+                            return (
+                              <span
+                                key={co.id}
+                                onClick={() => {
+                                  setSelectedNewCompanies(prev => {
+                                    const n = new Set(prev);
+                                    isSelected ? n.delete(co.id) : n.add(co.id);
+                                    return n;
+                                  });
+                                }}
+                                style={{
+                                  cursor: 'pointer', borderRadius: 99, padding: '5px 12px', fontSize: 11, fontWeight: 600,
+                                  border: isSelected ? '1px solid var(--blue)' : '1px solid var(--border2)',
+                                  background: isSelected ? 'var(--blue-lt)' : 'var(--surface2)',
+                                  color: isSelected ? 'var(--blue)' : 'var(--ink3)',
+                                }}
+                              >
+                                {co.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <button
+                          className="btn btn-pri btn-sm"
+                          disabled={selectedNewCompanies.size === 0}
+                          style={{ opacity: selectedNewCompanies.size === 0 ? 0.5 : 1 }}
+                          onClick={() => {
+                            onAddMember(memberId, [...selectedNewCompanies]);
+                            setAddCompanyFor(null);
+                            setSelectedNewCompanies(new Set());
+                          }}
+                        >
+                          ✓ Add Selected
+                        </button>
+                      </div>
+                    )}
                     <button className="btn btn-sec btn-sm" onClick={() => onEditOverride(memberId)} style={{ fontSize: 11 }}>
                       + Edit Override
                     </button>
@@ -760,11 +759,14 @@ function GroupDetail({
 
 // ─── NEW UI: Module matrix with "All" toggle col and section grouping ─────────
 
-function ModuleMatrix({ modPerms, onChange, isOverrideMode = false }: {
+function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompanyMap, assignedCompanies }: {
   modPerms: ModulePerms;
   onChange: (mp: ModulePerms) => void;
   isOverrideMode?: boolean;
+  moduleCompanyMap: Record<string, { label: string; companies: any[] }>;
+  assignedCompanies: { id: number; name: string; shortName: string }[];
 }) {
+  const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
   const toggle = (mod: string, perm: string) => {
     onChange({ ...modPerms, [mod]: { ...modPerms[mod], [perm]: !modPerms[mod][perm] } });
   };
@@ -782,7 +784,7 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false }: {
     for (const m of MODULES) { next[m.key] = {}; for (const p of PERMS) next[m.key][p] = on; }
     onChange(next);
   };
-
+  console.log('ModuleMatrix received moduleCompanyMap', moduleCompanyMap);
   return (
     <div className="card cp">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -794,7 +796,36 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false }: {
           <button className="btn btn-ghost btn-sm" onClick={() => setAll(false)}>All Off</button>
         </div>
       </div>
-
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10, padding: '8px 10px', background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink4)', marginRight: 4 }}>
+          Company
+        </span>
+        <span
+          onClick={() => setCompanyFilter('all')}
+          style={{
+            cursor: 'pointer', borderRadius: 99, padding: '4px 10px', fontSize: 11, fontWeight: 600,
+            border: companyFilter === 'all' ? '1px solid var(--blue)' : '1px solid var(--border2)',
+            background: companyFilter === 'all' ? 'var(--blue-lt)' : 'var(--surface)',
+            color: companyFilter === 'all' ? 'var(--blue)' : 'var(--ink3)',
+          }}
+        >
+          🌐 All companies (baseline)
+        </span>
+        {assignedCompanies.map(co => (
+          <span
+            key={co.id}
+            onClick={() => setCompanyFilter(co.id)}
+            style={{
+              cursor: 'pointer', borderRadius: 99, padding: '4px 10px', fontSize: 11, fontWeight: 600,
+              border: companyFilter === co.id ? '1px solid var(--blue)' : '1px solid var(--border2)',
+              background: companyFilter === co.id ? 'var(--blue-lt)' : 'var(--surface)',
+              color: companyFilter === co.id ? 'var(--blue)' : 'var(--ink3)',
+            }}
+          >
+            {co.shortName}
+          </span>
+        ))}
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ minWidth: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -812,36 +843,58 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false }: {
             </tr>
           </thead>
           <tbody>
-            {MODULE_SECTIONS.map(section => (
-              <>
-                {/* Section group header row */}
-                <tr key={section.label}>
-                  <td colSpan={PERMS.length + 2} style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
-                    {section.label}
-                  </td>
-                </tr>
-                {section.modules.map(m => {
-                  const cur = modPerms[m.key] || {};
-                  const allOn = PERMS.every(p => cur[p]);
-                  return (
-                    <tr key={m.key} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
-                        {m.label}
-                      </td>
-                      {/* Row "All" toggle */}
-                      <td style={{ padding: '8px 6px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-                        <PermToggle on={allOn} onClick={() => toggleRow(m.key)} />
-                      </td>
-                      {PERMS.map(p => (
-                        <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}>
-                          <PermToggle on={!!cur[p]} onClick={() => toggle(m.key, p)} />
+            {MODULE_SECTIONS.map(section => {
+              const visibleModules = section.modules.filter(m => {
+                if (companyFilter === 'all') return true;
+                const companiesForModule = moduleCompanyMap[m.key]?.companies || [];
+                return companiesForModule.some(co => co.id === companyFilter);
+              });
+              if (visibleModules.length === 0) return null;
+              return (
+                <>
+                  {/* Section group header row */}
+                  <tr key={section.label}>
+                    <td colSpan={PERMS.length + 2} style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+                      {section.label}
+                    </td>
+                  </tr>
+                  {visibleModules.map(m => {
+                    const cur = modPerms[m.key] || {};
+                    const allOn = PERMS.every(p => cur[p]);
+                    const companiesForModule = moduleCompanyMap[m.key]?.companies || [];
+                    return (
+                      <tr key={m.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
+                          {m.label}
+                          {companiesForModule.map(co => (
+                            <span
+                              key={co.id}
+                              title={co.name}
+                              style={{
+                                marginLeft: 5, fontSize: 9, fontWeight: 700,
+                                background: 'var(--surface2)', border: '1px solid var(--border)',
+                                borderRadius: 4, padding: '1px 5px', color: 'var(--ink4)',
+                              }}
+                            >
+                              {co.shortName}
+                            </span>
+                          ))}
                         </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </>
-            ))}
+                        {/* Row "All" toggle */}
+                        <td style={{ padding: '8px 6px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+                          <PermToggle on={allOn} onClick={() => toggleRow(m.key)} />
+                        </td>
+                        {PERMS.map(p => (
+                          <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}>
+                            <PermToggle on={!!cur[p]} onClick={() => toggle(m.key, p)} />
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -918,14 +971,17 @@ function MemberPicker({ selected, onToggle }: { selected: Set<number>; onToggle:
 
 function EditView({
   group, onBack,
-  overrideMemberId, overrideMemberName, overrideMemberCompanyId, groupName,
+  overrideMemberId, overrideMemberName, overrideMemberCompanyId, overrideMemberCompanyIds, groupName, moduleCompanyMap, assignedCompanies,
 }: {
   group: PermGroup | null;
   onBack: () => void;
   overrideMemberId?: number;
   overrideMemberName?: string;
   overrideMemberCompanyId?: number;
+  overrideMemberCompanyIds?: number[];
   groupName?: string;
+  moduleCompanyMap: Record<string, { label: string; companies: { id: number; name: string; shortName: string }[] }>;
+  assignedCompanies: { id: number; name: string; shortName: string }[];
 }) {
   const qc = useQueryClient();
   const dispatch = useAppDispatch();
@@ -951,7 +1007,15 @@ function EditView({
   //   Effect B: runs when saved overrides load → patches the employees module
   // Neither runs after the user edits — modPerms state is the source of truth while editing.
   const [baseLoaded, setBaseLoaded] = useState(false);
+  const [selectedOverrideCompanyIds, setSelectedOverrideCompanyIds] = useState<number[]>(
+    overrideMemberCompanyId ? [overrideMemberCompanyId] : []
+  );
 
+  useEffect(() => {
+    if (overrideMemberCompanyId) {
+      setSelectedOverrideCompanyIds([overrideMemberCompanyId]);
+    }
+  }, [overrideMemberId]);   // jab member badle, selection reset ho, default first company select ho
   // Effect A: load group base permissions
   useEffect(() => {
     if (!existingSlugs.length) return;
@@ -1014,9 +1078,15 @@ function EditView({
             }
           }
         }
-        // PUT /permission-groups/:groupId/members/:employeeId/overrides
-        // Writes to employee_permission_overrides ONLY — group table untouched
-        await pgApi.setOverrides(group!.id, overrideMemberId!, overrideMemberCompanyId!, overrides);
+
+        const targetCompanyIds = selectedOverrideCompanyIds.length > 0
+          ? selectedOverrideCompanyIds
+          : (overrideMemberCompanyId ? [overrideMemberCompanyId] : []);
+
+        if (targetCompanyIds.length === 0) {
+          throw new Error('Select at least one company to save overrides for');
+        }
+        await pgApi.setOverrides(group!.id, overrideMemberId!, targetCompanyIds, overrides);
         return;
       }
 
@@ -1083,7 +1153,14 @@ function EditView({
             : isNew ? 'New Permission Group' : `Editing: ${group!.name}`}
         </div>
         <button className="btn btn-sec btn-sm" onClick={onBack}>Cancel</button>
-        <button className="btn btn-pri btn-sm" onClick={() => saveMutation.mutate()} disabled={(isOverrideMode ? false : !name.trim()) || saveMutation.isPending}>
+        <button
+          className="btn btn-pri btn-sm"
+          onClick={() => saveMutation.mutate()}
+          disabled={
+            (isOverrideMode ? selectedOverrideCompanyIds.length === 0 : !name.trim())
+            || saveMutation.isPending
+          }
+        >
           {saveMutation.isPending ? '…' : '✓ Save Group'}
         </button>
       </div>
@@ -1103,6 +1180,40 @@ function EditView({
                   <div style={{ fontSize: 11, color: 'var(--ink4)' }}>Individual override</div>
                 </div>
               </div>
+        {isOverrideMode && overrideMemberCompanyIds && overrideMemberCompanyIds.length > 1 && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', display: 'block', marginBottom: 8 }}>
+              Override applies to
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {overrideMemberCompanyIds.map((cid) => {
+                const co = assignedCompanies.find(c => c.id === cid);
+                const isSelected = selectedOverrideCompanyIds.includes(cid);
+                return (
+                  <span
+                    key={cid}
+                    onClick={() => {
+                      setSelectedOverrideCompanyIds(prev =>
+                        isSelected ? prev.filter(id => id !== cid) : [...prev, cid]
+                      );
+                    }}
+                    style={{
+                      cursor: 'pointer', borderRadius: 99, padding: '5px 12px', fontSize: 11, fontWeight: 600,
+                      border: isSelected ? '1px solid var(--purple)' : '1px solid var(--border2)',
+                      background: isSelected ? 'var(--purple-lt, #f3e8ff)' : 'var(--surface)',
+                      color: isSelected ? 'var(--purple)' : 'var(--ink3)',
+                    }}
+                  >
+                    {co?.name || cid}
+                  </span>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--ink4)', marginTop: 6, lineHeight: 1.5 }}>
+              Editing overrides for: {selectedOverrideCompanyIds.map(id => assignedCompanies.find(c => c.id === id)?.name).join(', ') || 'none selected'}.
+            </div>
+          </div>
+        )}              
               <div className="info" style={{ fontSize: 11, marginTop: 10, background: 'var(--amber-lt)', borderColor: 'var(--amber-bd)', color: 'var(--amber)' }}>
                 Changes apply only to this person. Everyone else in <strong>{groupName}</strong> keeps the group defaults.
               </div>
@@ -1137,8 +1248,10 @@ function EditView({
           </div>
         )}
 
+
+
         {/* Col 2: Module permission matrix — new UI with All col + section grouping */}
-        <ModuleMatrix modPerms={modPerms} onChange={setModPerms} isOverrideMode={isOverrideMode} />
+        <ModuleMatrix modPerms={modPerms} onChange={setModPerms} isOverrideMode={isOverrideMode} moduleCompanyMap={moduleCompanyMap} assignedCompanies={assignedCompanies} />
 
         {/* Col 3: Summary */}
         <PermSummary modPerms={modPerms} />
@@ -1372,6 +1485,7 @@ export default function RolesPermissionsPage() {
   const [overrideMemberId, setOverrideMemberId] = useState<number | undefined>();
   const [overrideMemberName, setOverrideMemberName] = useState<string | undefined>();
   const [overrideMemberCompanyId, setOverrideMemberCompanyId] = useState<number | undefined>();
+  const [overrideMemberCompanyIds, setOverrideMemberCompanyIds] = useState<number[]>([]);
 
   const { data: employees = [] } = useEmployees();
 
@@ -1450,12 +1564,22 @@ export default function RolesPermissionsPage() {
     setMemberOverrides(prev => ({ ...prev, [memberId]: !prev[memberId] }));
   };
 
+  // const handleEditOverride = (memberId: number) => {
+  //   const member = groupMembersMap[selectedGroup?.id || 0]?.find((m: any) => m.id === memberId);
+  //   const name = member ? `${member.first_name} ${member.last_name}`.trim() : '';
+  //   setOverrideMemberId(memberId);
+  //   setOverrideMemberName(name);
+  //   setOverrideMemberCompanyId(member?.assigned_company_ids?.[0]);
+  //   setView('edit');
+  // };
+
   const handleEditOverride = (memberId: number) => {
     const member = groupMembersMap[selectedGroup?.id || 0]?.find((m: any) => m.id === memberId);
     const name = member ? `${member.first_name} ${member.last_name}`.trim() : '';
     setOverrideMemberId(memberId);
     setOverrideMemberName(name);
-    setOverrideMemberCompanyId(member?.assigned_company_ids?.[0]);
+    setOverrideMemberCompanyId(member?.assigned_company_ids?.[0]);       // purana, default company (GET ke liye use hoga)
+    setOverrideMemberCompanyIds(member?.assigned_company_ids || []);      // ← naya, poori list (chips ke liye)
     setView('edit');
   };
 
@@ -1474,6 +1598,9 @@ export default function RolesPermissionsPage() {
       ),
   });
 
+  const moduleCompanyMap = useCompanyModulesMap(assignedCompanies);   // ← naya
+  console.log('moduleCompanyMap', moduleCompanyMap);
+
   // Views
   if (view === 'edit') return (
     <AppShell>
@@ -1484,7 +1611,10 @@ export default function RolesPermissionsPage() {
           overrideMemberId={overrideMemberId}
           overrideMemberName={overrideMemberName}
           overrideMemberCompanyId={overrideMemberCompanyId}
+          overrideMemberCompanyIds={overrideMemberCompanyIds}
           groupName={selectedGroup?.name}
+          moduleCompanyMap={moduleCompanyMap}
+          assignedCompanies={assignedCompanies}
         />
       </div>
     </AppShell>

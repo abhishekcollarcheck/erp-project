@@ -24,7 +24,6 @@ export function useCompany() {
   }, [dispatch]);
 
 useEffect(() => {
-  console.log("ACTIVE COMPANY", activeCompany);
 }, [activeCompany]);
 
   // For super admins managing many companies, also load from API
