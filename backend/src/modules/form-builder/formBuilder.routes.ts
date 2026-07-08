@@ -33,13 +33,13 @@ router.delete('/roles/:id/members/:userId', authorize('settings:delete'), [param
 router.get   ('/permissions', authorize('settings:view'), listAllPermissions);
 
 // ─── Modules ──────────────────────────────────────────────────────────────────
-router.get   ('/modules', authorize('settings:view'), listModules);
+router.get   ('/modules', listModules);
 router.post  ('/modules', authorize('settings:edit'), [body('name').trim().notEmpty()], validate, createModule);
 router.put   ('/modules/:id', authorize('settings:edit'), [param('id').isInt()], validate, updateModule);
 router.delete('/modules/:id', authorize('settings:delete'), [param('id').isInt()], validate, deleteModule);
 
 // ─── Forms ────────────────────────────────────────────────────────────────────
-router.get   ('/modules/:moduleId/forms', authorize('settings:view'), [param('moduleId').isInt()], validate, listForms);
+router.get   ('/modules/:moduleId/forms', [param('moduleId').isInt()], validate, listForms);
 router.post  ('/modules/:moduleId/forms', authorize('settings:edit'), [param('moduleId').isInt(), body('name').trim().notEmpty()], validate, createForm);
 router.get   ('/forms/:formId', authorize('settings:view'), [param('formId').isInt()], validate, getForm);
 router.put   ('/forms/:formId', authorize('settings:edit'), [param('formId').isInt()], validate, updateForm);

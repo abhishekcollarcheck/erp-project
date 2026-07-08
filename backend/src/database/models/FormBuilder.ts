@@ -83,8 +83,12 @@ FormDefinition.init({
 
 // ─── DynamicField ─────────────────────────────────────────────────────────────
 interface DynFieldAttrs {
-  id: number; company_id: number; form_id: number;
-  field_type: FieldType; label: string; field_key: string;
+  id: number; 
+  company_id: number; 
+  form_id: number;
+  field_type: FieldType; 
+  label: string; 
+  field_key: string;
   section?: string | null;
   placeholder?: string | null; help_text?: string | null;
   is_required: boolean; is_readonly: boolean; is_hidden: boolean;

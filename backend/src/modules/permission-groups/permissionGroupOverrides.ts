@@ -46,34 +46,34 @@ class EmployeeOverrideService {
     return emp;
   }
 
-async listOverrides(groupId: number, employeeId: number, companyId: number) {
-  const membership = await UserGroup.findOne({
-    where: {
-      group_id: groupId,
-      employee_id: employeeId,
-      company_id: companyId
-    },
-  });
+  async listOverrides(groupId: number, employeeId: number, companyId: number) {
+    const membership = await UserGroup.findOne({
+      where: {
+        group_id: groupId,
+        employee_id: employeeId,
+        company_id: companyId
+      },
+    });
 
-  if (!membership) {
-    throw new AppError("Employee is not a member of this group", 404);
+    if (!membership) {
+      throw new AppError("Employee is not a member of this group", 404);
+    }
+
+    const targetCompanyId = membership.company_id;
+
+    return EmployeePermissionOverride.findAll({
+      where: {
+        group_id: groupId,
+        employee_id: employeeId,
+        company_id: targetCompanyId,
+      },
+      order: [
+        ["module", "ASC"],
+        ["field_name", "ASC"],
+        ["permission", "ASC"],
+      ],
+    });
   }
-
-  const targetCompanyId = membership.company_id;
-
-  return EmployeePermissionOverride.findAll({
-    where: {
-      group_id: groupId,
-      employee_id: employeeId,
-      company_id: targetCompanyId,
-    },
-    order: [
-      ["module", "ASC"],
-      ["field_name", "ASC"],
-      ["permission", "ASC"],
-    ],
-  });
-}
 
   async getOverrideCountsForGroup(
     groupId: number,
@@ -90,7 +90,7 @@ async listOverrides(groupId: number, employeeId: number, companyId: number) {
     return counts;
   }
 
-async setOverrides(
+  async setOverrides(
     groupId: number,
     employeeId: number,
     companyIds: number[],
@@ -170,29 +170,6 @@ async setOverrides(
       entityId: employeeId,
       newValues: { groupId, companyIds, overrideCount: overrides.length },
     });
-
-    // try {
-    //   const { permissions: fullPerms, isSuperAdmin } = await loadPermissions(
-    //     employeeId,
-    //     targetCompanyId,
-    //   );
-    //   const freshToken = generateAccessToken({
-    //     employeeId,
-    //     companyId: targetCompanyId,
-    //     permissions: fullPerms,
-    //     isSuperAdmin,
-    //   } as any);
-    //   getIO()?.to(`employee:${employeeId}`).emit("permissions:updated", {
-    //     eventType: "permissions_updated",
-    //     companyId: targetCompanyId,
-    //     permissions: fullPerms,
-    //     accessToken: freshToken,
-    //     timestamp: new Date().toISOString(),
-    //   });
-    // } catch (e) {
-    //   console.warn("[Override] socket emit failed for employee", employeeId, e);
-    // }
-
     await refreshEmployeePermission(employeeId, companyIds);
     return { updated: overrides.length, companiesUpdated: companyIds };
   }
@@ -203,27 +180,17 @@ async setOverrides(
     overrideId: number,
     actorId: number,
   ) {
-const membership = await UserGroup.findOne({
-  where: {
-    group_id: groupId,
-    employee_id: employeeId,
-  },
-});
-
-if (!membership) {
-  throw new AppError("Employee is not a member of this group", 404);
-}
-
-const targetCompanyId = membership.company_id;    
+    console.log("delete-override", groupId, employeeId, overrideId, actorId)
     const row = await EmployeePermissionOverride.findOne({
       where: {
         id: overrideId,
         group_id: groupId,
         employee_id: employeeId,
-        company_id: targetCompanyId,
       },
     });
     if (!row) throw new AppError("Override not found", 404);
+
+    const targetCompanyId = row.company_id;
 
     const snapshot = {
       module: row.module,

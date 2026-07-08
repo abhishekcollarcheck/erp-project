@@ -3,7 +3,7 @@ import authRoutes from '../modules/auth/auth.routes';
 import {employeeRoutes} from '../modules/employees/employee.routes';
 import departmentRoutes from '../modules/departments/department.routes';
 import designationRoutes from '../modules/designations/designation.routes';
-import attendanceRoutes from '../modules/attendance/attendance.routes';
+// import attendanceRoutes from '../modules/attendance/attendance.routes';
 import leaveRoutes from '../modules/leaves/leave.routes';
 import payrollRoutes from '../modules/payroll/payroll.routes';
 import candidateRoutes from '../modules/candidates/candidate.routes';
@@ -20,6 +20,7 @@ import { permissionGroupRouter } from '../modules/permission-groups/permissionGr
 // import { companyUsersRouter, companyEmployeesRouter } from '../modules/admin/company-users-controller';
 import { companyRouter } from '../modules/company/company.controller';
 import mssqlAttendanceRouter from "../modules/attendance/attendance.routes"
+import {groupFieldPermissionRouter} from '../modules/field-permissions/fieldPermissions.routes';
 
 const router = Router();
 
@@ -45,5 +46,6 @@ router.use('/permission-groups', permissionGroupRouter);
 // router.use('/admin/companies/:companyId/users',      companyUsersRouter);
 // router.use('/admin/companies/:companyId/employees',  companyEmployeesRouter);
 router.use('/companies', companyRouter);
+router.use("/field-permissions", groupFieldPermissionRouter);
 
 export default router;
