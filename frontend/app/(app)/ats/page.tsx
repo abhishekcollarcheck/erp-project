@@ -324,6 +324,7 @@ export default function ATSPage() {
 
   return (
     <PermissionGuard permission="recruitment:view">
+    <MultiStepForm formId={2} roleId={1} onSubmit={() => {}} />
     <AppShell>
       <div className="pg-enter">
 

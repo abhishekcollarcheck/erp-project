@@ -53,8 +53,8 @@ router.delete('/fields/:fieldId',              [param('fieldId').isInt()], valid
 
 // ─── Field Permissions ────────────────────────────────────────────────────────
 router.get   ('/forms/:formId/permission-matrix',   [param('formId').isInt()], validate, getPermissionMatrix);
-router.put   ('/fields/:fieldId/permissions',        [param('fieldId').isInt(), body('role_id').isInt()], validate, setFieldPermission);
-router.post  ('/permissions/bulk',                   [body('role_id').isInt(), body('permissions').isArray()], validate, bulkSetPermissions);
+router.put('/fields/:fieldId/permissions', authorize('settings:edit'), [param('fieldId').isInt(), body('group_id').isInt()], validate, setFieldPermission);
+router.post('/permissions/bulk', [body('group_id').isInt(), body('permissions').isArray()], validate, bulkSetPermissions);
 router.get   ('/forms/:formId/resolve',              [param('formId').isInt()], validate, resolveFormPermissions);
 
 router.get(

@@ -14,6 +14,7 @@ import { usePermission } from '../../../../features/auth/hooks/useAuth';
 import { PageHeaderWithCompany, useCompanySelector } from '../../../../components/company/CompanySelector';
 import { PermissionGuard } from '../../../../utils/permissionGuard';
 import { useCompanyModulesMap } from '../../../../hooks/useCompanyModulesMap';
+import { useFieldPermissions } from '../../../../hooks/useFieldPermissions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,9 +112,12 @@ const pgApi = {
   setOverrides: (groupId: number, employeeId: number, companyIds: number[], overrides: { module: string; field_name: null; permission: string; granted: boolean }[]) => apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${groupId}/members/${employeeId}/overrides`, { company_ids: companyIds, overrides }),
   getOverrides: (groupId: number, employeeId: number, companyId: number) => apiClient.get<unknown, ApiResponse<{ module: string; permission: string; granted: boolean }[]>>(`/permission-groups/${groupId}/members/${employeeId}/overrides?company_id=${companyId}`),
   deleteOverride: (groupId: number, employeeId: number, overrideId: number) => apiClient.delete(`/permission-groups/${groupId}/members/${employeeId}/overrides/${overrideId}`),
-  fieldPermissionMatrix: (formId: number) => apiClient.get(`/field-permissions/forms/${formId}/group-permission-matrix`),
-  setFieldPermission: (fieldId: number, data: any) => apiClient.put(`/field-permissions/fields/${fieldId}/group-permissions`, data),
+  resolveMyFieldPermissions: (formId: number) => apiClient.get<unknown, ApiResponse<Record<string, { can_view: boolean; can_edit: boolean; can_copy: boolean; can_download: boolean; is_masked: boolean }>>>(`/field-permissions/forms/${formId}/resolve`),
+  listModules: () => apiClient.get<unknown, ApiResponse<any[]>>('/rbac/modules'),
   listForms: (moduleId: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/rbac/modules/${moduleId}/forms`),
+  fieldPermissionMatrix: (formId: number) => apiClient.get<unknown, ApiResponse<{ groups: any[]; fields: any[]; matrix: Record<number, Record<number, any>> }>>(`/rbac/forms/${formId}/permission-matrix`),
+  setFieldPermission: (fieldId: number, groupId: number, dto: any) => apiClient.put<unknown, ApiResponse<any>>(`/rbac/fields/${fieldId}/permissions`, { group_id: groupId, ...dto }),
+  bulkSetFieldPermissions: (groupId: number, permissions: any[]) => apiClient.post<unknown, ApiResponse<any>>('/rbac/permissions/bulk', { group_id: groupId, permissions }),
 };
 
 // Existing hooks (unchanged)
@@ -132,10 +136,22 @@ function useEmployeeOverrides(groupId: number, employeeId: number | undefined, c
   });
 }
 function useGroupFieldPermissionMatrix(formId: number) {
-  return useQuery({ queryKey: ['field-perm-matrix', formId], queryFn: () => pgApi.fieldPermissionMatrix(formId), enabled: formId > 0, select: r => r.data })
+  return useQuery({
+    queryKey: ['field-perm-matrix', formId],
+    queryFn: () => pgApi.fieldPermissionMatrix(formId),
+    enabled: formId > 0,
+    select: r => r.data,
+  });
 }
+
 function useEmployeeModuleForms(moduleId: number) {
-  return useQuery({ queryKey: ['field-perm-forms', moduleId], queryFn: () => pgApi.listForms(moduleId), enabled: moduleId > 0, select: r => r.data ?? [], staleTime: 5 * 60_000, });
+  return useQuery({
+    queryKey: ['field-perm-forms', moduleId],
+    queryFn: () => pgApi.listForms(moduleId),
+    enabled: moduleId > 0,
+    select: r => r.data ?? [],
+    staleTime: 5 * 60_000,
+  });
 }
 
 // ─── Existing slug ↔ modPerms helpers (unchanged) ────────────────────────────
@@ -1281,8 +1297,17 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
   const { data: groups = [] } = useGroups();
   const [selectedGroupId, setSelectedGroupId] = useState(groupId);
 
-  const EMPLOYEE_MODULE_ID = 2;
-  const { data: forms = [] } = useEmployeeModuleForms(EMPLOYEE_MODULE_ID);
+  const { data: modules = [] } = useQuery({
+    queryKey: ['field-perm-modules'],
+    queryFn: () => pgApi.listModules(),
+    select: r => r.data ?? [],
+    staleTime: 5 * 60_000,
+  });
+  const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
+  useEffect(() => {
+    if (modules.length && !selectedModuleId) setSelectedModuleId(modules[0].id);
+  }, [modules]);
+  const { data: forms = [] } = useEmployeeModuleForms(selectedModuleId || 0);
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -1333,12 +1358,15 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      // Har field ke liye ek PUT — bulk endpoint abhi nahi hai, isliye Promise.all se parallel
-      // await Promise.all(
-      //   fields.map((f: any) =>
-      //     pgApi.setPerms(f.id, selectedGroupId, localPerms[f.id] || {})
-      //   )
-      // );
+      const permissions = fields.map((f: any) => ({
+        field_id: f.id,
+        can_view: !!localPerms[f.id]?.can_view,
+        can_edit: !!localPerms[f.id]?.can_edit,
+        can_copy: !!localPerms[f.id]?.can_copy,
+        can_download: !!localPerms[f.id]?.can_download,
+        is_masked: !!localPerms[f.id]?.is_masked,
+      }));
+      await pgApi.bulkSetFieldPermissions(selectedGroupId, permissions);
     },
     onSuccess: () => {
       showToast('✓ Field permissions saved');
@@ -1347,7 +1375,6 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
     },
     onError: (e: any) => showToast(e?.message || 'Failed to save'),
   });
-
   const selectedForm = forms.find((f: any) => f.id === selectedFormId);
 
   return (
@@ -1453,6 +1480,8 @@ export default function RolesPermissionsPage() {
   const { canView, canEdit, canCreate, canDelete } = usePermission();
   const { companyId } = useCompanySelector();
   const managedCompanies = useAppSelector(selectManagedCompanies);
+  const { data: perms } = useFieldPermissions(2);  // apna emergency-contacts formId daalo
+  console.log('field perms', perms);
 
   // Build assignedCompanies with shortNames for chips and badges
   const assignedCompanies = useMemo(() =>

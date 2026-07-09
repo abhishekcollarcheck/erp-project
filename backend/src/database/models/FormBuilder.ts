@@ -189,20 +189,20 @@ FieldOption.init({
 
 // ─── FieldPermissionV2 (role × dynamic field permissions) ────────────────────
 interface FPV2Attrs {
-  id: number; role_id: number; field_id: number; company_id: number;
+  id: number; group_id: number; field_id: number; company_id: number;
   can_view: boolean; can_edit: boolean; can_copy: boolean;
   can_download: boolean; is_masked: boolean;
 }
 export class FieldPermissionV2
   extends Model<FPV2Attrs, Optional<FPV2Attrs, 'id' | 'can_view' | 'can_edit' | 'can_copy' | 'can_download' | 'is_masked'>>
   implements FPV2Attrs {
-  public id!: number; public role_id!: number; public field_id!: number; public company_id!: number;
+  public id!: number; public group_id!: number; public field_id!: number; public company_id!: number;
   public can_view!: boolean; public can_edit!: boolean; public can_copy!: boolean;
   public can_download!: boolean; public is_masked!: boolean;
 }
 FieldPermissionV2.init({
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  role_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  group_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   field_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   can_view: { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -210,7 +210,7 @@ FieldPermissionV2.init({
   can_copy: { type: DataTypes.BOOLEAN, defaultValue: false },
   can_download: { type: DataTypes.BOOLEAN, defaultValue: false },
   is_masked: { type: DataTypes.BOOLEAN, defaultValue: false },
-}, { sequelize, tableName: 'field_permissions_v2', modelName: 'FieldPermissionV2', timestamps: false, indexes: [{ unique: true, fields: ['role_id', 'field_id'] }] });
+}, { sequelize, tableName: 'field_permissions_v2', modelName: 'FieldPermissionV2', timestamps: false, indexes: [{ unique: true, fields: ['group_id', 'field_id'] }] });
 
 // ─── RoleAssignment (kept for backward compat — use employee_roles instead) ──
 export class RoleAssignment extends Model { 

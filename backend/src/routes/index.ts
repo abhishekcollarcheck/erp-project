@@ -20,7 +20,6 @@ import { permissionGroupRouter } from '../modules/permission-groups/permissionGr
 // import { companyUsersRouter, companyEmployeesRouter } from '../modules/admin/company-users-controller';
 import { companyRouter } from '../modules/company/company.controller';
 import mssqlAttendanceRouter from "../modules/attendance/attendance.routes"
-import {groupFieldPermissionRouter} from '../modules/field-permissions/fieldPermissions.routes';
 
 const router = Router();
 
@@ -46,6 +45,5 @@ router.use('/permission-groups', permissionGroupRouter);
 // router.use('/admin/companies/:companyId/users',      companyUsersRouter);
 // router.use('/admin/companies/:companyId/employees',  companyEmployeesRouter);
 router.use('/companies', companyRouter);
-router.use("/field-permissions", groupFieldPermissionRouter);
 
 export default router;

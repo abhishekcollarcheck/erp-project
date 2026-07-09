@@ -45,7 +45,6 @@ interface ResolvedField {
 
 interface MultiStepFormProps {
   formId:         number;
-  roleId:         number;
   initialValues?: Record<string, any>;
   onSubmit:       (values: Record<string, any>) => void | Promise<void>;
   onCancel?:      () => void;
@@ -287,15 +286,15 @@ function StepIndicator({ sections, currentStep }: { sections: string[]; currentS
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function MultiStepForm({
-  formId, roleId, initialValues = {}, onSubmit, onCancel,
+  formId, initialValues = {}, onSubmit, onCancel,
   submitLabel = 'Submit', isSubmitting = false, readOnly = false,
 }: MultiStepFormProps) {
 
   const { data: resolvedFields = [], isLoading } = useQuery({
-    queryKey: ['resolved-form', formId, roleId],
-    queryFn:  () => apiClient.get<any,any>(`/rbac/forms/${formId}/resolve?role_id=${roleId}`),
+    queryKey: ['resolved-form', formId],
+    queryFn:  () => apiClient.get<any,any>(`/rbac/forms/${formId}/resolve`),
     select:   (r:any) => (r.data as ResolvedField[]).filter(f => f.resolved.can_view),
-    enabled:  !!formId && !!roleId,
+    enabled:  !!formId,
   });
 
   const [values, setValues]   = useState<Record<string,any>>(initialValues);

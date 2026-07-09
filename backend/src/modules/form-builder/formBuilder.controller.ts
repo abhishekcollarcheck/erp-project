@@ -124,22 +124,21 @@ export async function getPermissionMatrix(req: Request, res: Response, next: Nex
 
 export async function setFieldPermission(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await fbSvc.setFieldPermission(req.user!.companyId, +req.body.role_id, +req.params.fieldId, req.body, req.user!.employeeId);
+    const data = await fbSvc.setFieldPermission(req.user!.companyId, +req.body.group_id, +req.params.fieldId, req.body, req.user!.employeeId);
     sendResponse(res, { data });
   } catch(e){ next(e); }
 }
 
 export async function bulkSetPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await fbSvc.bulkSetFieldPermissions(req.user!.companyId, +req.body.role_id, req.body.permissions, req.user!.employeeId);
+    const data = await fbSvc.bulkSetFieldPermissions(req.user!.companyId, +req.body.group_id, req.body.permissions, req.user!.employeeId);
     sendResponse(res, { data, message: `${data.updated} permissions updated` });
   } catch(e){ next(e); }
 }
 
 export async function resolveFormPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const roleId = req.user!.roleId || 0;
-    const data = await fbSvc.resolveFormPermissions(+req.params.formId, roleId, req.user!.companyId);
+    const data = await fbSvc.resolveFormPermissions(+req.params.formId, req.user!.employeeId, req.user!.companyId);
     sendResponse(res, { data });
   } catch(e){ next(e); }
 }

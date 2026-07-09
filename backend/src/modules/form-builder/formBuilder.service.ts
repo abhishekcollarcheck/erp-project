@@ -4,10 +4,11 @@ import {
   HrModule, FormDefinition, DynamicField, FieldOption,
   FieldPermissionV2, FIELD_TYPES,
 } from '../../database/models/FormBuilder';
-import { Role }            from '../../database/models/RoleModels';
+// import { Role }            from '../../database/models/RoleModels';
 import type { DynamicSource } from '../../database/models/FormBuilder';
 import { AppError }        from '../../middleware/errorHandler.middleware';
 import { logActivity }     from '../../utils/activityLogger';
+import { PermissionGroup, UserGroup } from '../../database/models/PermissionGroups';
 
 
 // ─── Default system modules seeded on company creation ────────────────────────
@@ -220,96 +221,200 @@ export class FormBuilderService {
 
   // ════════════════════════ FIELD PERMISSIONS ════════════════════════
 
-  async getPermissionMatrix(companyId: number, formId: number) {
-    const [form, roles] = await Promise.all([
-      this.getFormWithFields(formId, companyId),
-      Role.findAll({ where: { company_id: companyId }, order: [['is_system','DESC'],['name','ASC']] }),
-    ]);
+  // async getPermissionMatrix(companyId: number, formId: number) {
+  //   const [form, roles] = await Promise.all([
+  //     this.getFormWithFields(formId, companyId),
+  //           Role.findAll({ where: { company_id: companyId }, order: [['is_system','DESC'],['name','ASC']] }),
+  //   ]);
 
-    const fields = (form.fields || []) as DynamicField[];
-    if (!fields.length) return { roles, fields, matrix: {} };
+  //   const fields = (form.fields || []) as DynamicField[];
+  //   if (!fields.length) return { roles, fields, matrix: {} };
 
-    const fieldIds = fields.map(f => f.id);
-    const perms = await FieldPermissionV2.findAll({
-      where: { company_id: companyId, field_id: fieldIds },
-    });
+  //   const fieldIds = fields.map(f => f.id);
+  //   const perms = await FieldPermissionV2.findAll({
+  //     where: { company_id: companyId, field_id: fieldIds },
+  //   });
 
-    // Build matrix: role_id → field_id → perms
-    const matrix: Record<number, Record<number, {
-      can_view: boolean; can_edit: boolean; can_copy: boolean;
-      can_download: boolean; is_masked: boolean;
-    }>> = {};
+  //   // Build matrix: role_id → field_id → perms
+  //   const matrix: Record<number, Record<number, {
+  //     can_view: boolean; can_edit: boolean; can_copy: boolean;
+  //     can_download: boolean; is_masked: boolean;
+  //   }>> = {};
 
-    for (const role of roles) {
-      matrix[role.id] = {};
-      for (const field of fields) {
-        const existing = perms.find(p => p.role_id === role.id && p.field_id === field.id);
-        matrix[role.id][field.id] = existing
-          ? { can_view: existing.can_view, can_edit: existing.can_edit, can_copy: existing.can_copy, can_download: existing.can_download, is_masked: existing.is_masked }
-          : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-      }
-    }
+  //   for (const role of roles) {
+  //     matrix[role.id] = {};
+  //     for (const field of fields) {
+  //       const existing = perms.find(p => p.role_id === role.id && p.field_id === field.id);
+  //       matrix[role.id][field.id] = existing
+  //         ? { can_view: existing.can_view, can_edit: existing.can_edit, can_copy: existing.can_copy, can_download: existing.can_download, is_masked: existing.is_masked }
+  //         : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+  //     }
+  //   }
 
-    return { roles, fields, matrix };
-  }
+  //   return { roles, fields, matrix };
+  // }
 
-  async setFieldPermission(companyId: number, roleId: number, fieldId: number, dto: {
-    can_view?: boolean; can_edit?: boolean; can_copy?: boolean;
-    can_download?: boolean; is_masked?: boolean;
-  }, updatedBy?: number) {
-    const [perm, created] = await FieldPermissionV2.findOrCreate({
-      where: { role_id: roleId, field_id: fieldId },
-      defaults: { role_id: roleId, field_id: fieldId, company_id: companyId, ...dto },
-    });
 
-    if (!created) await perm.update(dto as any);
+async getPermissionMatrix(companyId: number, formId: number) {
+  const [form, groups] = await Promise.all([
+    this.getFormWithFields(formId, companyId),
+    PermissionGroup.findAll({ where: { company_id: companyId }, order: [['is_system','DESC'],['name','ASC']] }),
+  ]);
 
-    await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_PERMISSION_UPDATED', module: 'settings', entityId: fieldId, newValues: { roleId, ...dto } });
-    return perm;
-  }
+  const fields = (form.fields || []) as DynamicField[];
+  if (!fields.length) return { groups, fields, matrix: {} };
 
-  async bulkSetFieldPermissions(companyId: number, roleId: number, permissions: {
-    field_id: number;
+  const fieldIds = fields.map(f => f.id);
+  const perms = await FieldPermissionV2.findAll({
+    where: { company_id: companyId, field_id: fieldIds },
+  });
+
+  const matrix: Record<number, Record<number, {
     can_view: boolean; can_edit: boolean; can_copy: boolean;
     can_download: boolean; is_masked: boolean;
-  }[], updatedBy?: number) {
-    const t = await sequelize.transaction();
-    try {
-      for (const p of permissions) {
-        await FieldPermissionV2.upsert({
-          role_id: roleId, field_id: p.field_id, company_id: companyId,
-          can_view: p.can_view, can_edit: p.can_edit, can_copy: p.can_copy,
-          can_download: p.can_download, is_masked: p.is_masked,
-        }, { transaction: t });
-      }
-      await t.commit();
-      await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_PERMISSIONS_BULK_UPDATED', module: 'settings', newValues: { roleId, count: permissions.length } });
-      return { updated: permissions.length };
-    } catch(e) { await t.rollback(); throw e; }
+  }>> = {};
+
+  for (const group of groups) {
+    matrix[group.id] = {};
+    for (const field of fields) {
+      const existing = perms.find(p => p.group_id === group.id && p.field_id === field.id);
+      matrix[group.id][field.id] = existing
+        ? { can_view: existing.can_view, can_edit: existing.can_edit, can_copy: existing.can_copy, can_download: existing.can_download, is_masked: existing.is_masked }
+        : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+    }
   }
+
+  return { groups, fields, matrix };
+}
+
+
+  // async setFieldPermission(companyId: number, roleId: number, fieldId: number, dto: {
+  //   can_view?: boolean; can_edit?: boolean; can_copy?: boolean;
+  //   can_download?: boolean; is_masked?: boolean;
+  // }, updatedBy?: number) {
+  //   const [perm, created] = await FieldPermissionV2.findOrCreate({
+  //     where: { role_id: roleId, field_id: fieldId },
+  //     defaults: { role_id: roleId, field_id: fieldId, company_id: companyId, ...dto },
+  //   });
+
+  //   if (!created) await perm.update(dto as any);
+
+  //   await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_PERMISSION_UPDATED', module: 'settings', entityId: fieldId, newValues: { roleId, ...dto } });
+  //   return perm;
+  // }
+
+async setFieldPermission(companyId: number, groupId: number, fieldId: number, dto: {
+  can_view?: boolean; can_edit?: boolean; can_copy?: boolean;
+  can_download?: boolean; is_masked?: boolean;
+}, updatedBy?: number) {
+  const [perm, created] = await FieldPermissionV2.findOrCreate({
+    where: { group_id: groupId, field_id: fieldId },
+    defaults: { group_id: groupId, field_id: fieldId, company_id: companyId, ...dto },
+  });
+
+  if (!created) await perm.update(dto as any);
+
+  await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_PERMISSION_UPDATED', module: 'settings', entityId: fieldId, newValues: { groupId, ...dto } });
+  return perm;
+}
+
+  // async bulkSetFieldPermissions(companyId: number, roleId: number, permissions: {
+  //   field_id: number;
+  //   can_view: boolean; can_edit: boolean; can_copy: boolean;
+  //   can_download: boolean; is_masked: boolean;
+  // }[], updatedBy?: number) {
+  //   const t = await sequelize.transaction();
+  //   try {
+  //     for (const p of permissions) {
+  //       await FieldPermissionV2.upsert({
+  //         role_id: roleId, field_id: p.field_id, company_id: companyId,
+  //         can_view: p.can_view, can_edit: p.can_edit, can_copy: p.can_copy,
+  //         can_download: p.can_download, is_masked: p.is_masked,
+  //       }, { transaction: t });
+  //     }
+  //     await t.commit();
+  //     await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_PERMISSIONS_BULK_UPDATED', module: 'settings', newValues: { roleId, count: permissions.length } });
+  //     return { updated: permissions.length };
+  //   } catch(e) { await t.rollback(); throw e; }
+  // }
+
+  async bulkSetFieldPermissions(companyId: number, groupId: number, permissions: {
+  field_id: number;
+  can_view: boolean; can_edit: boolean; can_copy: boolean;
+  can_download: boolean; is_masked: boolean;
+}[], updatedBy?: number) {
+  const t = await sequelize.transaction();
+  try {
+    for (const p of permissions) {
+      await FieldPermissionV2.upsert({
+        group_id: groupId, field_id: p.field_id, company_id: companyId,
+        can_view: p.can_view, can_edit: p.can_edit, can_copy: p.can_copy,
+        can_download: p.can_download, is_masked: p.is_masked,
+      }, { transaction: t });
+    }
+    await t.commit();
+    await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_PERMISSIONS_BULK_UPDATED', module: 'settings', newValues: { groupId, count: permissions.length } });
+    return { updated: permissions.length };
+  } catch(e) { await t.rollback(); throw e; }
+}
 
   // ─── Runtime: resolve permissions for a user role on a form ──────────────────
-  async resolveFormPermissions(formId: number, roleId: number, companyId: number) {
-    const [fields, perms] = await Promise.all([
-      DynamicField.findAll({ where: { form_id: formId, company_id: companyId, is_active: true }, include: [{ model: FieldOption, as: 'options', required: false }], order: [['sort_order','ASC']] }),
-      FieldPermissionV2.findAll({ where: { role_id: roleId, company_id: companyId } }),
-    ]);
+  // async resolveFormPermissions(formId: number, roleId: number, companyId: number) {
+  //   const [fields, perms] = await Promise.all([
+  //     DynamicField.findAll({ where: { form_id: formId, company_id: companyId, is_active: true }, include: [{ model: FieldOption, as: 'options', required: false }], order: [['sort_order','ASC']] }),
+  //     FieldPermissionV2.findAll({ where: { role_id: roleId, company_id: companyId } }),
+  //   ]);
 
-    const permMap = new Map(perms.map(p => [p.field_id, p]));
+  //   const permMap = new Map(perms.map(p => [p.field_id, p]));
 
-    return fields.map(field => {
-      const perm = permMap.get(field.id);
-      return {
-        ...field.toJSON(),
-        // Permission-resolved view of the field
-        resolved: {
-          can_view:     perm ? perm.can_view     : true,
-          can_edit:     perm ? perm.can_edit     : false,
-          can_copy:     perm ? perm.can_copy     : false,
-          can_download: perm ? perm.can_download : false,
-          is_masked:    perm ? perm.is_masked    : false,
-        },
-      };
-    });
+  //   return fields.map(field => {
+  //     const perm = permMap.get(field.id);
+  //     return {
+  //       ...field.toJSON(),
+  //       // Permission-resolved view of the field
+  //       resolved: {
+  //         can_view:     perm ? perm.can_view     : true,
+  //         can_edit:     perm ? perm.can_edit     : false,
+  //         can_copy:     perm ? perm.can_copy     : false,
+  //         can_download: perm ? perm.can_download : false,
+  //         is_masked:    perm ? perm.is_masked    : false,
+  //       },
+  //     };
+  //   });
+  // }
+
+  async resolveFormPermissions(formId: number, employeeId: number, companyId: number) {
+  const [fields, memberships] = await Promise.all([
+    DynamicField.findAll({ where: { form_id: formId, company_id: companyId, is_active: true }, include: [{ model: FieldOption, as: 'options', required: false }], order: [['sort_order','ASC']] }),
+    UserGroup.findAll({ where: { employee_id: employeeId, company_id: companyId } }),
+  ]);
+
+  const groupIds = memberships.map(m => m.group_id);
+  if (!groupIds.length || !fields.length) {
+    return fields.map(field => ({
+      ...field.toJSON(),
+      resolved: { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false },
+    }));
   }
+
+  const fieldIds = fields.map(f => f.id);
+  const perms = await FieldPermissionV2.findAll({
+    where: { company_id: companyId, group_id: groupIds, field_id: fieldIds },
+  });
+
+  return fields.map(field => {
+    const matchingRows = perms.filter(p => p.field_id === field.id);
+    const can_view     = matchingRows.some(r => r.can_view);
+    const can_edit     = matchingRows.some(r => r.can_edit);
+    const can_copy     = matchingRows.some(r => r.can_copy);
+    const can_download = matchingRows.some(r => r.can_download);
+    const viewGranting  = matchingRows.filter(r => r.can_view);
+    const is_masked     = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
+
+    return {
+      ...field.toJSON(),
+      resolved: { can_view, can_edit, can_copy, can_download, is_masked },
+    };
+  });
+}
 }

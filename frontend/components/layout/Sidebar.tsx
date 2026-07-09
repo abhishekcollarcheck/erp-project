@@ -42,6 +42,13 @@ const NAV: NavSection[] = [
         href: "/dashboard",
         permission: null,
       },
+      {
+        id: "test",
+        label: "Test",
+        icon: <LayoutDashboard size={16} />,
+        href: "/test",
+        permission: null,
+      }, 
     ],
   },
   {
