@@ -28,12 +28,8 @@ export class FormBuilderService {
 
   // ════════════════════════ MODULES ════════════════════════
 
-  async listModules(companyId: number) {
-    return HrModule.findAll({
-      where: { company_id: companyId },
-      include: [{ model: FormDefinition, as: 'forms', required: false, where: { is_active: true }, attributes: ['id','name','slug'] }],
-      order: [['sort_order','ASC'],['name','ASC']],
-    });
+  async listModules() {
+    return HrModule.findAll({ order: [['sort_order', 'ASC']] });
   }
 
   async createModule(companyId: number, dto: {
@@ -75,22 +71,14 @@ export class FormBuilderService {
 
   // ════════════════════════ FORMS ════════════════════════
 
-  async listForms(moduleId: number, companyId: number) {
-    return FormDefinition.findAll({
-      where: { module_id: moduleId, company_id: companyId },
-      order: [['sort_order','ASC'],['name','ASC']],
-      include: [{ model: DynamicField, as: 'fields', where: { is_active: true }, required: false, attributes: ['id','label','field_key','field_type','sort_order','is_required'] }],
-    });
+  async listForms(moduleId: number) {
+    return FormDefinition.findAll({ where: { module_id: moduleId }, order: [['sort_order', 'ASC']] });
   }
 
-  async getFormWithFields(formId: number, companyId: number) {
+  async getFormWithFields(formId: number) {
     const form = await FormDefinition.findOne({
-      where: { id: formId, company_id: companyId },
-      include: [{
-        model: DynamicField, as: 'fields',
-        order: [['sort_order','ASC']],
-        include: [{ model: FieldOption, as: 'options', where: { is_active: true }, required: false, order: [['sort_order','ASC']] }],
-      }],
+      where: { id: formId },
+      include: [{ model: DynamicField, as: 'fields', where: { is_active: true }, required: false, order: [['sort_order', 'ASC']] }],
     });
     if (!form) throw new AppError('Form not found', 404);
     return form;
@@ -220,44 +208,9 @@ export class FormBuilderService {
   }
 
   // ════════════════════════ FIELD PERMISSIONS ════════════════════════
-
-  // async getPermissionMatrix(companyId: number, formId: number) {
-  //   const [form, roles] = await Promise.all([
-  //     this.getFormWithFields(formId, companyId),
-  //           Role.findAll({ where: { company_id: companyId }, order: [['is_system','DESC'],['name','ASC']] }),
-  //   ]);
-
-  //   const fields = (form.fields || []) as DynamicField[];
-  //   if (!fields.length) return { roles, fields, matrix: {} };
-
-  //   const fieldIds = fields.map(f => f.id);
-  //   const perms = await FieldPermissionV2.findAll({
-  //     where: { company_id: companyId, field_id: fieldIds },
-  //   });
-
-  //   // Build matrix: role_id → field_id → perms
-  //   const matrix: Record<number, Record<number, {
-  //     can_view: boolean; can_edit: boolean; can_copy: boolean;
-  //     can_download: boolean; is_masked: boolean;
-  //   }>> = {};
-
-  //   for (const role of roles) {
-  //     matrix[role.id] = {};
-  //     for (const field of fields) {
-  //       const existing = perms.find(p => p.role_id === role.id && p.field_id === field.id);
-  //       matrix[role.id][field.id] = existing
-  //         ? { can_view: existing.can_view, can_edit: existing.can_edit, can_copy: existing.can_copy, can_download: existing.can_download, is_masked: existing.is_masked }
-  //         : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-  //     }
-  //   }
-
-  //   return { roles, fields, matrix };
-  // }
-
-
 async getPermissionMatrix(companyId: number, formId: number) {
   const [form, groups] = await Promise.all([
-    this.getFormWithFields(formId, companyId),
+    this.getFormWithFields(formId),
     PermissionGroup.findAll({ where: { company_id: companyId }, order: [['is_system','DESC'],['name','ASC']] }),
   ]);
 
@@ -359,33 +312,9 @@ async setFieldPermission(companyId: number, groupId: number, fieldId: number, dt
 }
 
   // ─── Runtime: resolve permissions for a user role on a form ──────────────────
-  // async resolveFormPermissions(formId: number, roleId: number, companyId: number) {
-  //   const [fields, perms] = await Promise.all([
-  //     DynamicField.findAll({ where: { form_id: formId, company_id: companyId, is_active: true }, include: [{ model: FieldOption, as: 'options', required: false }], order: [['sort_order','ASC']] }),
-  //     FieldPermissionV2.findAll({ where: { role_id: roleId, company_id: companyId } }),
-  //   ]);
-
-  //   const permMap = new Map(perms.map(p => [p.field_id, p]));
-
-  //   return fields.map(field => {
-  //     const perm = permMap.get(field.id);
-  //     return {
-  //       ...field.toJSON(),
-  //       // Permission-resolved view of the field
-  //       resolved: {
-  //         can_view:     perm ? perm.can_view     : true,
-  //         can_edit:     perm ? perm.can_edit     : false,
-  //         can_copy:     perm ? perm.can_copy     : false,
-  //         can_download: perm ? perm.can_download : false,
-  //         is_masked:    perm ? perm.is_masked    : false,
-  //       },
-  //     };
-  //   });
-  // }
-
   async resolveFormPermissions(formId: number, employeeId: number, companyId: number) {
   const [fields, memberships] = await Promise.all([
-    DynamicField.findAll({ where: { form_id: formId, company_id: companyId, is_active: true }, include: [{ model: FieldOption, as: 'options', required: false }], order: [['sort_order','ASC']] }),
+    DynamicField.findAll({ where: { form_id: formId, is_active: true }, include: [{ model: FieldOption, as: 'options', required: false }], order: [['sort_order','ASC']] }),
     UserGroup.findAll({ where: { employee_id: employeeId, company_id: companyId } }),
   ]);
 

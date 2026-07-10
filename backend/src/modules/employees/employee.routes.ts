@@ -2,7 +2,6 @@ import { Request, Response, Router, NextFunction } from 'express';
 import {employeeController} from "./employee.controller"
 import { authenticate, resolveCompanyContext } from '../auth/auth.middleware';
 import { asyncHandler } from '../../middleware/errorHandler.middleware';
-import { rbacCheck } from '../../middleware/rbac.middleware';
 import {getManagedEmployees} from "./employee.controller";
 import fs from 'fs';
 import multer         from 'multer';

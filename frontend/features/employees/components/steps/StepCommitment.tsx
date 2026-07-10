@@ -11,6 +11,7 @@ import {
   PROBATION_PERIOD,
   CONFIRMATION_STATUS,
 } from '../../constants/employee.constants';
+import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -27,6 +28,9 @@ function addMonths(dateStr: string, termStr: string): string | null {
 }
 
 export function StepCommitment(_: Props) {
+  const { data: fp } = useFieldPermissions();
+  const f = (n: string) => resolveFieldPerm(fp, n);
+
   const { setValue } = useFormContext();
 
   // ── Source fields ────────────────────────────────────────────────────────────
@@ -62,8 +66,8 @@ export function StepCommitment(_: Props) {
     <div style={{ display: 'grid', gap: 16 }}>
 
       {/* ── Commitment Bond ────────────────────────────────────────────────── */}
-      <SectionTitle title="Commitment Bond" />
-      <FormToggle name="commitment" label="Has Commitment Bond" showValue />
+      <SectionTitle title="Commitment Bond" fields={[f('commitment')]} />
+      <FormToggle name="commitment" label="Has Commitment Bond" showValue fieldPerm={f('commitment')} />
 
       {commitment && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
@@ -72,11 +76,13 @@ export function StepCommitment(_: Props) {
             label="Commitment Term"
             options={toOpts(COMMITMENT_TERM)}
             placeholder="Select term"
+            fieldPerm={f('commitment_term')}
           />
           <FormDatePicker
             name="commitment_entered_on"
             label="Commitment Entered On"
             disableFuture
+            fieldPerm={f('commitment_entered_on')}
           />
           {/* Read-only computed field — registered in RHF via FormDatePicker */}
           <FormDatePicker
@@ -84,13 +90,14 @@ export function StepCommitment(_: Props) {
             label="Commitment End Date"
             disabled
             hint="Auto-calculated: entered date + term"
+            fieldPerm={f('commitment_end_date')}
           />
         </div>
       )}
 
       {/* ── Probation ─────────────────────────────────────────────────────── */}
-      <SectionTitle title="Probation Details" />
-      <FormToggle name="on_probation" label="On Probation" showValue />
+      <SectionTitle title="Probation Details" fields={[f('on_probation')]} />
+      <FormToggle name="on_probation" label="On Probation" showValue fieldPerm={f('on_probation')} />
 
       {on_probation && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
@@ -99,6 +106,7 @@ export function StepCommitment(_: Props) {
             label="Probation Period"
             options={toOpts(PROBATION_PERIOD)}
             placeholder="Select period"
+            fieldPerm={f('probation_period')}
           />
           {/* Read-only computed field — registered in RHF via FormDatePicker */}
           <FormDatePicker
@@ -106,12 +114,14 @@ export function StepCommitment(_: Props) {
             label="Probation End Date"
             disabled
             hint={actual_doj ? 'Auto-calculated: DOJ + period' : 'Set Actual DOJ in Reporting step first'}
+            fieldPerm={f('probation_end_date')}
           />
           <FormSelect
             name="probation_extended_period"
             label="Extended Period (if any)"
             options={toOpts(PROBATION_PERIOD)}
             placeholder="None"
+            fieldPerm={f('probation_extended_period')}
           />
         </div>
       )}
@@ -120,6 +130,7 @@ export function StepCommitment(_: Props) {
       <SectionTitle
         title="Confirmation"
         subtitle="Fill after probation period ends"
+        fields={[f('confirmation_status')]}
       />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <FormSelect
@@ -127,8 +138,9 @@ export function StepCommitment(_: Props) {
           label="Confirmation Status"
           options={toOpts(CONFIRMATION_STATUS)}
           placeholder="Pending — fill after probation"
+          fieldPerm={f('confirmation_status')}
         />
-        <FormDatePicker name="confirmed_on" label="Confirmed On" />
+        <FormDatePicker name="confirmed_on" label="Confirmed On" fieldPerm={f('confirmed_on')} />
       </div>
 
     </div>

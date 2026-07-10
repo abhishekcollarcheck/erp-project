@@ -220,27 +220,6 @@ class EmployeeOverrideService {
 
 const overrideSvc = new EmployeeOverrideService();
 
-// ─── Exported helpers for rbac.middleware.ts ──────────────────────────────────
-
-/**
- * resolvePermissionsForEmployee
- *
- * Called from rbac.middleware.ts after group slugs are loaded.
- * Applies module-level overrides to the slug set.
- *
- * The cache in your existing rbac middleware is keyed by employeeId
- * (confirmed: UserGroup.findAll({ where: { employee_id: employeeId } })).
- * clearPermissionCache(employeeId) is called on every override change.
- *
- * Usage — add these 2 lines inside loadPermissions() in auth.service.ts
- * or inside your rbac middleware after the slugs Set is built:
- *
- *   import { resolvePermissionsForEmployee } from '../modules/permission-groups/permissionGroupOverrides';
- *
- *   // After: for (const ug of groups) { slugs.add(p.slug); }
- *   const groupIds = groups.map((ug: any) => ug.group_id).filter(Boolean);
- *   await resolvePermissionsForEmployee(employeeId, companyId, groupIds, slugs);
- */
 export async function resolvePermissionsForEmployee(
   employeeId: number,
   companyId: number,

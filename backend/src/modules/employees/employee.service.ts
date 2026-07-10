@@ -8,7 +8,8 @@ import {
   computeProbationEndDate, computeRdMaturity, computeAssetDeduction,
   computeCompletionPct, parseDdMmYyyy,
 } from './employee.helper';
-import { FieldPermission } from '../../database/models/RoleModels';
+import { FieldPermissionV2, DynamicField } from '../../database/models/FormBuilder';
+import { UserGroup } from '../../database/models/PermissionGroups';
 import type {
   EmployeeQueryParams, BasicInfoDto, EmploymentDto, ReportingDto,
   CommitmentProbationDto, SchemesDto, PersonalDto, AddressDto,
@@ -22,25 +23,42 @@ import { Transaction } from 'sequelize';
 import { normalizePhone } from '../../utils/normalizeNumber';
 
 // ─── Field permission cache ───────────────────────────────────────────────────
-const fpCache = new Map<number, { data: FieldPermissionMap; ts: number }>();
+const fpCache = new Map<string, { data: FieldPermissionMap; ts: number }>();
 const FP_TTL = 5 * 60 * 1000;
 
-async function loadFieldPerms(roleId: number): Promise<FieldPermissionMap> {
-  const cached = fpCache.get(roleId);
+async function loadFieldPerms(groupIds: number[], companyId: number): Promise<FieldPermissionMap> {
+  if (!groupIds.length) return {};
+
+  const cacheKey = `${companyId}:${[...groupIds].sort((a, b) => a - b).join(',')}`;
+  const cached = fpCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < FP_TTL) return cached.data;
 
-  const perms = await FieldPermission.findAll({ where: { role_id: roleId, module: 'employees' } });
+  const perms = await FieldPermissionV2.findAll({
+    where: { company_id: companyId, group_id: groupIds },
+    include: [{ model: DynamicField, as: 'field', attributes: ['field_key'] }],
+  });
+
   const map: FieldPermissionMap = {};
+  // Group by field_key, then OR across all matching groups (most-permissive)
+  const byFieldKey = new Map<string, typeof perms>();
   for (const p of perms) {
-    map[(p as any).field_name] = {
-      can_view:     (p as any).can_view,
-      can_edit:     (p as any).can_edit,
-      can_copy:     (p as any).can_copy,
-      can_download: (p as any).can_download,
-      is_masked:    (p as any).is_masked,
-    };
+    const key = (p as any).field?.field_key;
+    if (!key) continue;
+    if (!byFieldKey.has(key)) byFieldKey.set(key, []);
+    byFieldKey.get(key)!.push(p);
   }
-  fpCache.set(roleId, { data: map, ts: Date.now() });
+
+  for (const [fieldKey, rows] of byFieldKey) {
+    const can_view     = rows.some(r => r.can_view);
+    const can_edit     = rows.some(r => r.can_edit);
+    const can_copy     = rows.some(r => r.can_copy);
+    const can_download = rows.some(r => r.can_download);
+    const viewGranting = rows.filter(r => r.can_view);
+    const is_masked     = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
+    map[fieldKey] = { can_view, can_edit, can_copy, can_download, is_masked };
+  }
+
+  fpCache.set(cacheKey, { data: map, ts: Date.now() });
   return map;
 }
 
@@ -449,7 +467,11 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
 
   async getDraft(sessionId: string, actorId: number) { return repo.getDraft(sessionId, actorId); }
   async discardDraft(sessionId: string, actorId: number) { return repo.deleteDraft(sessionId, actorId); }
-  async getFieldPermissions(roleId: number) { return loadFieldPerms(roleId); }
+  async getFieldPermissions(employeeId: number, companyId: number) {
+  const memberships = await UserGroup.findAll({ where: { employee_id: employeeId, company_id: companyId } });
+  const groupIds = memberships.map(m => m.group_id);
+  return loadFieldPerms(groupIds, companyId);
+}
   async getSummary(companyId: number) { return repo.getSummary(companyId); }
 
   // ✅ FIXED bulkUpload METHOD - Handles all required fields
@@ -642,10 +664,10 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
     return result;
   }
 
-  private async hasSensitiveAccess(roleId: number): Promise<boolean> {
-    const perms = await loadFieldPerms(roleId);
-    return SENSITIVE_FIELDS.some(f => perms[f]?.can_view !== false);
-  }
+private async hasSensitiveAccess(employeeId: number, companyId: number): Promise<boolean> {
+  const perms = await this.getFieldPermissions(employeeId, companyId);
+  return SENSITIVE_FIELDS.some(f => perms[f]?.can_view !== false);
+}
 }
 
 export const employeeService = new EmployeeService();

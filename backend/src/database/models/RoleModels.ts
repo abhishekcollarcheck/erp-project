@@ -89,55 +89,55 @@ Permission.init(
 
 // ─── FieldPermission (role × field masking) ───────────────────────────────────
 
-interface FieldPermissionAttributes {
-  id:           number;
-  role_id:      number;
-  module:       string;
-  field_name:   string;
-  can_view:     boolean;
-  can_edit:     boolean;
-  can_delete:    boolean;
-  can_download: boolean;
-  is_masked:    boolean;
-}
+// interface FieldPermissionAttributes {
+//   id:           number;
+//   role_id:      number;
+//   module:       string;
+//   field_name:   string;
+//   can_view:     boolean;
+//   can_edit:     boolean;
+//   can_delete:    boolean;
+//   can_download: boolean;
+//   is_masked:    boolean;
+// }
 
-export class FieldPermission
-  extends Model<FieldPermissionAttributes, Optional<FieldPermissionAttributes,
-    'id' | 'can_view' | 'can_edit' | 'can_delete' | 'can_download' | 'is_masked'>>
-  implements FieldPermissionAttributes
-{
-  public id!:           number;
-  public role_id!:      number;
-  public module!:       string;
-  public field_name!:   string;
-  public can_view!:     boolean;
-  public can_edit!:     boolean;
-  public can_delete!:    boolean;
-  public can_download!: boolean;
-  public can_copy!:     boolean;
-  public is_masked!:    boolean;
-}
+// export class FieldPermission
+//   extends Model<FieldPermissionAttributes, Optional<FieldPermissionAttributes,
+//     'id' | 'can_view' | 'can_edit' | 'can_delete' | 'can_download' | 'is_masked'>>
+//   implements FieldPermissionAttributes
+// {
+//   public id!:           number;
+//   public role_id!:      number;
+//   public module!:       string;
+//   public field_name!:   string;
+//   public can_view!:     boolean;
+//   public can_edit!:     boolean;
+//   public can_delete!:    boolean;
+//   public can_download!: boolean;
+//   public can_copy!:     boolean;
+//   public is_masked!:    boolean;
+// }
 
-FieldPermission.init(
-  {
-    id:           { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-    role_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-    module:       { type: DataTypes.STRING(100), allowNull: false },
-    field_name:   { type: DataTypes.STRING(200), allowNull: false },
-    can_view:     { type: DataTypes.BOOLEAN, defaultValue: true },
-    can_edit:     { type: DataTypes.BOOLEAN, defaultValue: false },
-    can_delete:    { type: DataTypes.BOOLEAN, defaultValue: false },
-    can_download: { type: DataTypes.BOOLEAN, defaultValue: false },
-    is_masked:    { type: DataTypes.BOOLEAN, defaultValue: false },
-  },
-  {
-    sequelize,
-    tableName:  'field_permissions',
-    modelName:  'FieldPermission',
-    timestamps: false,
-    indexes: [{ unique: true, fields: ['role_id', 'module', 'field_name'] }],
-  },
-);
+// FieldPermission.init(
+//   {
+//     id:           { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+//     role_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+//     module:       { type: DataTypes.STRING(100), allowNull: false },
+//     field_name:   { type: DataTypes.STRING(200), allowNull: false },
+//     can_view:     { type: DataTypes.BOOLEAN, defaultValue: true },
+//     can_edit:     { type: DataTypes.BOOLEAN, defaultValue: false },
+//     can_delete:    { type: DataTypes.BOOLEAN, defaultValue: false },
+//     can_download: { type: DataTypes.BOOLEAN, defaultValue: false },
+//     is_masked:    { type: DataTypes.BOOLEAN, defaultValue: false },
+//   },
+//   {
+//     sequelize,
+//     tableName:  'field_permissions',
+//     modelName:  'FieldPermission',
+//     timestamps: false,
+//     indexes: [{ unique: true, fields: ['role_id', 'module', 'field_name'] }],
+//   },
+// );
 
 // ─── RolePermission — join: role ↔ permission slug ───────────────────────────
 // This is the existing slug-based join (role_id + permission_id → permissions.slug)

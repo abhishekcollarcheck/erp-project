@@ -6,9 +6,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { employeeService } from '../../../services/api/employee.service';
 import { showToast } from '../../../utils/toast';
 import type { StepSchemaKey } from '../validations/employee.schema';
-import { PaginatedResponse } from '../../../types/api.types';
-import { Employee } from '../types/employee.types';
 import { useCompany } from '../../../features/company/hooks/useCompany';
+
+const DENY_ALL = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
 
 // ─── Query key factory ────────────────────────────────────────────────────────
 export const EMP_KEYS = {
@@ -44,7 +44,7 @@ export function useEmployee(id: number) {
     queryKey: EMP_KEYS.detail(id),
     queryFn: () => employeeService.getById(id),
     enabled: id > 0,
-    staleTime: 30_000,
+    staleTime: 0,
     select: (res) => res.data,
   });
 }
@@ -54,7 +54,7 @@ export function useEmployeeSummary() {
   return useQuery({
     queryKey: EMP_KEYS.summary,
     queryFn: () => employeeService.summary(),
-    staleTime: 60_000,
+    staleTime: 0,
     select: (res: any) => res.data,
   });
 }
@@ -74,7 +74,7 @@ export function useFieldPermissions() {
   return useQuery({
     queryKey: EMP_KEYS.fieldPerms,
     queryFn: () => employeeService.fieldPermissions(),
-    staleTime: 5 * 60_000,
+    staleTime: 0,
     select: (res: any) => res.data as Record<string, { can_view: boolean; can_edit: boolean; is_masked: boolean; can_copy: boolean; can_download: boolean }>,
   });
 }
@@ -86,7 +86,7 @@ export function useManagerById(managerId: number | null | undefined) {
     queryKey: ['employees', 'manager', managerId ?? 0],
     queryFn: () => employeeService.managerById(managerId!),
     enabled: !!managerId && managerId > 0,
-    staleTime: 5 * 60_000,
+    staleTime: 0,
     select: (res: any) => res.data as { id: number; employee_code: string; first_name: string; last_name: string; },
   });
 }
@@ -156,4 +156,11 @@ export function useBulkUpload() {
     },
     onError: (err: any) => showToast(err?.message || 'Upload failed'),
   });
+}
+
+export function resolveFieldPerm(
+  fp: Record<string, { can_view: boolean; can_edit: boolean; can_copy: boolean; can_download: boolean; is_masked: boolean }> | undefined,
+  fieldName: string,
+) {
+  return fp?.[fieldName] ?? DENY_ALL;
 }

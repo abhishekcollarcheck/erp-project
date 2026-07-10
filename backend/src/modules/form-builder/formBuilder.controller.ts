@@ -55,7 +55,7 @@ export async function listAllPermissions(req: Request, res: Response, next: Next
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function listModules(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.listModules(req.user!.companyId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.listModules() }); } catch(e){ next(e); }
 }
 
 export async function createModule(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -75,11 +75,11 @@ export async function deleteModule(req: Request, res: Response, next: NextFuncti
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function listForms(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.listForms(+req.params.moduleId, req.user!.companyId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.listForms(+req.params.moduleId) }); } catch(e){ next(e); }
 }
 
 export async function getForm(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.getFormWithFields(+req.params.formId, req.user!.companyId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.getFormWithFields(+req.params.formId) }); } catch(e){ next(e); }
 }
 
 export async function createForm(req: Request, res: Response, next: NextFunction): Promise<void> {

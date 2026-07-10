@@ -24,7 +24,7 @@ export type DynamicSource = typeof DYNAMIC_SOURCES[number];
 
 // ─── HrModule ─────────────────────────────────────────────────────────────────
 interface ModuleAttrs {
-  id: number; company_id: number; name: string; slug: string;
+  id: number; company_id: number | null; name: string; slug: string;
   icon?: string | null; description?: string | null;
   sort_order: number; is_active: boolean; is_system: boolean;
   created_at?: Date; updated_at?: Date;
@@ -32,7 +32,7 @@ interface ModuleAttrs {
 export class HrModule
   extends Model<ModuleAttrs, Optional<ModuleAttrs, 'id' | 'sort_order' | 'is_active' | 'is_system'>>
   implements ModuleAttrs {
-  public id!: number; public company_id!: number; public name!: string; public slug!: string;
+  public id!: number; public company_id!: number | null; public name!: string; public slug!: string;
   public icon!: string | null; public description!: string | null;
   public sort_order!: number; public is_active!: boolean; public is_system!: boolean;
   public readonly created_at!: Date; public readonly updated_at!: Date;
@@ -40,7 +40,7 @@ export class HrModule
 }
 HrModule.init({
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   name: { type: DataTypes.STRING(150), allowNull: false },
   slug: { type: DataTypes.STRING(150), allowNull: false },
   icon: { type: DataTypes.STRING(100), allowNull: true },
@@ -48,11 +48,11 @@ HrModule.init({
   sort_order: { type: DataTypes.INTEGER, defaultValue: 0 },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
   is_system: { type: DataTypes.BOOLEAN, defaultValue: false },
-}, { sequelize, tableName: 'hr_modules', modelName: 'HrModule', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at', indexes: [{ unique: true, fields: ['company_id', 'slug'] }] });
+}, { sequelize, tableName: 'hr_modules', modelName: 'HrModule', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at', indexes: [{ unique: true, fields: ['slug'] }] });
 
 // ─── FormDefinition ───────────────────────────────────────────────────────────
 interface FormDefAttrs {
-  id: number; company_id: number; module_id: number;
+  id: number; company_id: number | null; module_id: number;
   name: string; slug: string; description?: string | null;
   sort_order: number; is_active: boolean; is_system: boolean;
   created_by?: number | null; updated_by?: number | null;
@@ -60,7 +60,7 @@ interface FormDefAttrs {
 export class FormDefinition
   extends Model<FormDefAttrs, Optional<FormDefAttrs, 'id' | 'sort_order' | 'is_active' | 'is_system' | 'description' | 'created_by' | 'updated_by'>>
   implements FormDefAttrs {
-  public id!: number; public company_id!: number; public module_id!: number;
+  public id!: number; public company_id!: number | null; public module_id!: number;
   public name!: string; public slug!: string; public description!: string | null;
   public sort_order!: number; public is_active!: boolean; public is_system!: boolean;
   public created_by!: number | null; public updated_by!: number | null;
@@ -69,7 +69,7 @@ export class FormDefinition
 }
 FormDefinition.init({
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   module_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   name: { type: DataTypes.STRING(200), allowNull: false },
   slug: { type: DataTypes.STRING(200), allowNull: false },
@@ -79,12 +79,12 @@ FormDefinition.init({
   is_system: { type: DataTypes.BOOLEAN, defaultValue: false },
   created_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   updated_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-}, { sequelize, tableName: 'form_definitions', modelName: 'FormDefinition', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at', indexes: [{ unique: true, fields: ['company_id', 'module_id', 'slug'] }] });
+}, { sequelize, tableName: 'form_definitions', modelName: 'FormDefinition', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at', indexes: [{ unique: true, fields: ['module_id', 'slug'] }] });
 
 // ─── DynamicField ─────────────────────────────────────────────────────────────
 interface DynFieldAttrs {
   id: number; 
-  company_id: number; 
+  company_id: number | null; 
   form_id: number;
   field_type: FieldType; 
   label: string; 
@@ -116,7 +116,7 @@ export class DynamicField
     | 'regex_pattern' | 'custom_validation' | 'dynamic_source' | 'dynamic_source_label'
     | 'dynamic_source_value' | 'dynamic_source_filter' | 'created_by' | 'updated_by'>>
   implements DynFieldAttrs {
-  public id!: number; public company_id!: number; public form_id!: number;
+  public id!: number; public company_id!: number | null; public form_id!: number;
   public field_type!: FieldType; public label!: string; public field_key!: string;
   public section!: string | null; public placeholder!: string | null; public help_text!: string | null;
   public is_required!: boolean; public is_readonly!: boolean; public is_hidden!: boolean;
@@ -135,7 +135,7 @@ export class DynamicField
 }
 DynamicField.init({
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   form_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   field_type: { type: DataTypes.ENUM(...FIELD_TYPES), allowNull: false },
   label: { type: DataTypes.STRING(200), allowNull: false },

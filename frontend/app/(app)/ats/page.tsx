@@ -30,7 +30,6 @@ import {
 } from '../../../features/candidates/types/candidate.types';
 import { formatDate } from '../../../utils/formatters';
 import { Dropdown } from 'primereact/dropdown';
-import { MultiStepForm } from '../../../components/form-builder/MultiStepForm';
 import { PermissionGuard } from '../../../utils/permissionGuard';
 
 export default function ATSPage() {
@@ -324,7 +323,6 @@ export default function ATSPage() {
 
   return (
     <PermissionGuard permission="recruitment:view">
-    <MultiStepForm formId={2} roleId={1} onSubmit={() => {}} />
     <AppShell>
       <div className="pg-enter">
 

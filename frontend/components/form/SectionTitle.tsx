@@ -12,11 +12,16 @@ import { ReactNode } from 'react';
 
 type Variant = 'default' | 'compact' | 'card';
 
+interface FieldPerm {
+  can_view?: boolean;
+}
+
 interface Props {
   title:     string;
   subtitle?: string;
   action?:   ReactNode;
   variant?:  Variant;
+  fields?: FieldPerm[];
 }
 
 const STYLES: Record<Variant, React.CSSProperties> = {
@@ -39,7 +44,14 @@ const STYLES: Record<Variant, React.CSSProperties> = {
   },
 };
 
-export function SectionTitle({ title, subtitle, action, variant = 'default' }: Props) {
+export function SectionTitle({ title, subtitle, action, variant = 'default', fields }: Props) {
+  if (
+    fields &&
+    fields.length > 0 &&
+    !fields.some(field => field?.can_view !== false)
+  ) {
+    return null;
+  }  
   return (
     <div style={{ ...STYLES[variant], display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
       <div>

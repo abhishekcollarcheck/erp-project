@@ -16,7 +16,6 @@ import {
 import {
   Role,
   Permission,
-  FieldPermission,
   RolePermission,
   RoleModulePermission,
 } from './RoleModels';
@@ -173,8 +172,8 @@ RolePermission.belongsTo(Permission, { foreignKey: 'permission_id', as: 'permiss
 RolePermission.belongsTo(Role,       { foreignKey: 'role_id',       as: 'role'       });
 
 // ─── Role ↔ FieldPermission ───────────────────────────────────────────────────
-Role.hasMany(FieldPermission,    { foreignKey: 'role_id', as: 'fieldPermissions' });
-FieldPermission.belongsTo(Role,  { foreignKey: 'role_id', as: 'role'             });
+// Role.hasMany(FieldPermission,    { foreignKey: 'role_id', as: 'fieldPermissions' });
+// FieldPermission.belongsTo(Role,  { foreignKey: 'role_id', as: 'role'             });
 
 // ─── RoleTemplate ↔ RoleTemplatePermission ───────────────────────────────────
 RoleTemplate.hasMany(RoleTemplatePermission,    { foreignKey: 'template_id', as: 'permissions' });
@@ -265,7 +264,7 @@ export {
   Company, Department, Designation,
 
   // Roles & Permissions
-  Role, Permission, FieldPermission,
+  Role, Permission,
   RolePermission, RoleModulePermission,
 
   // HR modules

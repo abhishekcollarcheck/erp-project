@@ -10,6 +10,12 @@
 
 import { useFormContext, Controller } from 'react-hook-form';
 
+interface FieldPerm {
+  can_view?: boolean;
+  can_edit?: boolean;
+  is_masked?: boolean;
+}
+
 interface Props {
   name:       string;
   label:      string;
@@ -19,24 +25,26 @@ interface Props {
   disabled?:  boolean;
   showValue?: boolean;  // show Yes/No label beside toggle
   onChange?:  (value: boolean) => void;
+  fieldPerm?: FieldPerm;
 }
 
 export function FormToggle({
   name, label, onLabel = 'Yes', offLabel = 'No',
-  hint, disabled, showValue = false, onChange,
+  hint, disabled, showValue = false, onChange, fieldPerm
 }: Props) {
   const { control, formState: { errors } } = useFormContext();
   const error = (errors as any)[name]?.message as string | undefined;
-
+  if (fieldPerm?.can_view === false) return null;
   return (
     <Controller
       name={name}
       control={control}
       render={({ field }) => {
         const checked = !!field.value;
+        const isReadOnly = fieldPerm?.can_edit === false;
 
         const toggle = () => {
-          if (disabled) return;
+          if (disabled || isReadOnly) return;
           field.onChange(!checked);
           onChange?.(!checked);
         };
@@ -48,7 +56,7 @@ export function FormToggle({
                 display:    'flex',
                 alignItems: 'center',
                 gap:        10,
-                cursor:     disabled ? 'not-allowed' : 'pointer',
+                cursor:     (disabled || isReadOnly) ? 'not-allowed' : 'pointer',
                 userSelect: 'none',
               }}
               onClick={toggle}
@@ -60,8 +68,8 @@ export function FormToggle({
               }}
               role="switch"
               aria-checked={checked}
-              aria-disabled={disabled}
-              tabIndex={disabled ? -1 : 0}
+              aria-disabled={disabled || isReadOnly}
+              tabIndex={(disabled || isReadOnly) ? -1 : 0}
             >
               {/* Track */}
               <div

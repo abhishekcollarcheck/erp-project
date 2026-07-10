@@ -1,23 +1,5 @@
-/**
- * rbac.middleware.ts — Full Role-Based Access Control
- *
- * This is the production-grade RBAC layer that sits on top of auth.middleware.ts.
- * It loads permissions from the database (with Redis cache) and enforces:
- *
- *   1. Module-level permissions  (can user perform this action on this module?)
- *   2. Field-level permissions   (can user view/edit/mask specific fields?)
- *   3. Scope restrictions        (can user access records outside their team?)
- *
- * Architecture:
- *   authenticate → rbacCheck('employees', 'read') → handler
- *
- * Cache strategy:
- *   Permissions are loaded once per role and cached in memory with a TTL.
- *   On role permission changes, call clearPermissionCache(roleId).
- */
-
 import { Request, Response, NextFunction } from 'express';
-import { Role, Permission, FieldPermission } from '../database/models/RoleModels';
+import { Role, Permission } from '../database/models/RoleModels';
 import { PermissionGroup, UserGroup, GroupPermission } from '../database/models/PermissionGroups';
 import { User } from '../database/models/User';
 import { sendError } from '../utils/response';
@@ -28,19 +10,19 @@ import { clearUserPermCache } from '../modules/user-permissions/userPermissions.
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface FieldPermissionMap {
-  [fieldName: string]: {
-    can_view:     boolean;
-    can_edit:     boolean;
-    can_delete:    boolean;
-    can_download: boolean;
-    is_masked:    boolean;
-  };
-}
+// export interface FieldPermissionMap {
+//   [fieldName: string]: {
+//     can_view:     boolean;
+//     can_edit:     boolean;
+//     can_delete:    boolean;
+//     can_download: boolean;
+//     is_masked:    boolean;
+//   };
+// }
 
 export interface RolePermissionCache {
   slugs: Set<string>;                            // e.g. 'employees:read', 'payroll:approve'
-  fieldPermissions: Record<string, FieldPermissionMap>; // module → field → flags
+  // fieldPermissions: Record<string, FieldPermissionMap>; // module → field → flags
   loadedAt: number;                              // epoch ms — for TTL check
 }
 
@@ -94,21 +76,21 @@ async function loadPermissionsForRole(roleId: number): Promise<RolePermissionCac
   }
 
   // ── Load field-level permissions grouped by module ────────────────────────
-  const fieldPerms = await FieldPermission.findAll({ where: { role_id: roleId } });
+  // const fieldPerms = await FieldPermission.findAll({ where: { role_id: roleId } });
 
-  const fieldPermissions: Record<string, FieldPermissionMap> = {};
-  for (const fp of fieldPerms) {
-    if (!fieldPermissions[fp.module]) fieldPermissions[fp.module] = {};
-    fieldPermissions[fp.module][fp.field_name] = {
-      can_view:     fp.can_view,
-      can_edit:     fp.can_edit,
-      can_delete:    fp.can_delete,
-      can_download: fp.can_download,
-      is_masked:    fp.is_masked,
-    };
-  }
+  // const fieldPermissions: Record<string, FieldPermissionMap> = {};
+  // for (const fp of fieldPerms) {
+  //   if (!fieldPermissions[fp.module]) fieldPermissions[fp.module] = {};
+  //   fieldPermissions[fp.module][fp.field_name] = {
+  //     can_view:     fp.can_view,
+  //     can_edit:     fp.can_edit,
+  //     can_delete:    fp.can_delete,
+  //     can_download: fp.can_download,
+  //     is_masked:    fp.is_masked,
+  //   };
+  // }
 
-  const entry: RolePermissionCache = { slugs, fieldPermissions, loadedAt: Date.now() };
+  const entry: RolePermissionCache = { slugs, loadedAt: Date.now() };
   permissionCache.set(roleId, entry);
   return entry;
 }
@@ -266,36 +248,36 @@ export const authorize = rbacCheck;
  */
 
 // Extend Request
-declare global {
-  namespace Express {
-    interface Request {
-      fieldPermissions?: FieldPermissionMap;
-    }
-  }
-}
+// declare global {
+//   namespace Express {
+//     interface Request {
+//       fieldPermissions?: FieldPermissionMap;
+//     }
+//   }
+// }
 
-export function attachFieldPermissions(module: string) {
-  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user) { next(); return; }
+// export function attachFieldPermissions(module: string) {
+//   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+//     if (!req.user) { next(); return; }
 
-    const { roleSlug, roleId } = req.user;
+//     const { roleSlug, roleId } = req.user;
 
-    // Superusers see everything — no masking
-    if (roleSlug === 'hr' || roleSlug === 'admin') {
-      next();
-      return;
-    }
+//     // Superusers see everything — no masking
+//     if (roleSlug === 'hr' || roleSlug === 'admin') {
+//       next();
+//       return;
+//     }
 
-    try {
-      const cache = await loadPermissionsForRole(roleId);
-      req.fieldPermissions = cache.fieldPermissions[module] ?? {};
-    } catch {
-      req.fieldPermissions = {};
-    }
+//     try {
+//       const cache = await loadPermissionsForRole(roleId);
+//       req.fieldPermissions = cache.fieldPermissions[module] ?? {};
+//     } catch {
+//       req.fieldPermissions = {};
+//     }
 
-    next();
-  };
-}
+//     next();
+//   };
+// }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // filterFieldsByPermission — response utility
@@ -308,35 +290,35 @@ export function attachFieldPermissions(module: string) {
  *   const safeEmployee = filterFieldsByPermission(employee.toJSON(), req.fieldPermissions);
  *   sendResponse(res, { data: safeEmployee });
  */
-export function filterFieldsByPermission<T extends Record<string, unknown>>(
-  data: T,
-  fieldPermissions?: FieldPermissionMap,
-): Partial<T> {
-  if (!fieldPermissions || Object.keys(fieldPermissions).length === 0) {
-    return data; // No restrictions defined → return everything
-  }
+// export function filterFieldsByPermission<T extends Record<string, unknown>>(
+//   data: T,
+//   fieldPermissions?: FieldPermissionMap,
+// ): Partial<T> {
+//   if (!fieldPermissions || Object.keys(fieldPermissions).length === 0) {
+//     return data; // No restrictions defined → return everything
+//   }
 
-  const result = { ...data };
+//   const result = { ...data };
 
-  for (const [field, perms] of Object.entries(fieldPermissions)) {
-    if (!(field in result)) continue;
+//   for (const [field, perms] of Object.entries(fieldPermissions)) {
+//     if (!(field in result)) continue;
 
-    if (!perms.can_view) {
-      // Remove the field entirely
-      delete result[field as keyof T];
-    } else if (perms.is_masked) {
-      // Mask the value (show only last 4 characters)
-      const val = result[field as keyof T];
-      if (typeof val === 'string' && val.length > 4) {
-        (result as any)[field] = '•'.repeat(val.length - 4) + val.slice(-4);
-      } else if (typeof val === 'string') {
-        (result as any)[field] = '••••';
-      }
-    }
-  }
+//     if (!perms.can_view) {
+//       // Remove the field entirely
+//       delete result[field as keyof T];
+//     } else if (perms.is_masked) {
+//       // Mask the value (show only last 4 characters)
+//       const val = result[field as keyof T];
+//       if (typeof val === 'string' && val.length > 4) {
+//         (result as any)[field] = '•'.repeat(val.length - 4) + val.slice(-4);
+//       } else if (typeof val === 'string') {
+//         (result as any)[field] = '••••';
+//       }
+//     }
+//   }
 
-  return result;
-}
+//   return result;
+// }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // scopeToCompany — multi-tenant isolation guard

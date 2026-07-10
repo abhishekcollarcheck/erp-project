@@ -1,16 +1,14 @@
 'use client';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { FormToggle } from '../../../../components/form/FormToggle';
-import { SectionTitle } from '../../../../components/form/SectionTitle';
-import { useFieldPermissions } from '../../hooks/useEmployees';
+import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { WORKING_SITE_OPTIONS, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS, REGISTRATION_LOCATION_OPTIONS, SATURDAY_OFF_OPTIONS, SHIFT_TIMING_OPTIONS } from "../../constants/employee.constants"
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepEmployment({ }: Props) {
   const { data: fp } = useFieldPermissions();
-  const f = (n: string) => fp?.[n];
+  const f = (n: string) => resolveFieldPerm(fp, n);
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
@@ -47,6 +45,7 @@ export function StepEmployment({ }: Props) {
           required
           placeholder='Select'
           options={[...REGISTRATION_LOCATION_OPTIONS]}
+          fieldPerm={f('pay_register_location')}
         />
       </div>
 
@@ -57,6 +56,7 @@ export function StepEmployment({ }: Props) {
           required
           placeholder='Select'
           options={[...SATURDAY_OFF_OPTIONS]}
+          fieldPerm={f('saturday_off')}
         />
         <FormSelect
           name="shift_id"
@@ -64,8 +64,9 @@ export function StepEmployment({ }: Props) {
           required
           placeholder='Select'
           options={[...SHIFT_TIMING_OPTIONS]}
+          fieldPerm={f('shift_id')}
         />
-        <FormInput name="grace_minutes" label="Grace (Minutes)" type="number" hint="Allowed late arrival in minutes" />
+        <FormInput name="grace_minutes" label="Grace (Minutes)" type="number" hint="Allowed late arrival in minutes" fieldPerm={f('grace_minutes')} />
       </div>
     </div>
   );

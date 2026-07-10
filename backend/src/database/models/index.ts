@@ -18,7 +18,6 @@ import {
 import {
   Role,
   Permission,
-  FieldPermission,
   RolePermission,
   RoleModulePermission,
 } from './RoleModels';
@@ -64,7 +63,7 @@ export {
   Company, Department, Designation,
 
   // Roles & Permissions
-  Role, Permission, FieldPermission,
+  Role, Permission,
   RolePermission, RoleModulePermission,
 
   // HR modules

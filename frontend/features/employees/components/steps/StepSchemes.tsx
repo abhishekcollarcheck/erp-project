@@ -1,16 +1,4 @@
 'use client';
-/**
- * StepSchemes — PF, ESIC, Mediclaim, RD Scheme
- *
- * Auto-calculated fields:
- *   rd_maturity_date   = rd_opening_date + rd_term (months)
- *   rd_maturity_amount = (rd_amount_employee + rd_amount_employer) × term_months
- *   rd_status          = 'Active' when rd_scheme=true, 'Inactive' otherwise
- *
- * Mirrors computeRdMaturity() from employees.helper.ts exactly.
- * All three fields are registered in RHF, included in the step payload,
- * and correctly restored from the DB in edit mode via methods.reset().
- */
 import { useEffect } from 'react';
 import { useWatch, useFormContext } from 'react-hook-form';
 import { FormToggle }        from '../../../../components/form/FormToggle';
@@ -26,6 +14,8 @@ import {
   RD_TERM,
   DEDUCTION_FROM,
 } from '../../constants/employee.constants';
+import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -59,6 +49,9 @@ function formatINR(n: number): string {
 }
 
 export function StepSchemes(_: Props) {
+  const { data: fp } = useFieldPermissions();
+  const f = (n: string) => resolveFieldPerm(fp, n);
+
   const { setValue } = useFormContext();
 
   const pfStatus   = useWatch({ name: 'pf_status' });
@@ -99,54 +92,54 @@ export function StepSchemes(_: Props) {
 
       {/* ── PF ──────────────────────────────────────────────────────────── */}
       <div style={{ background: 'var(--surface2)', borderRadius: 'var(--r2)', padding: 16 }}>
-        <SectionTitle title="PF (Provident Fund)" />
-        <FormToggle name="pf_status" label="PF Applicable" showValue />
+        <SectionTitle title="PF (Provident Fund)" fields={[f('pf_status')]} />
+        <FormToggle name="pf_status" label="PF Applicable" showValue fieldPerm={f('pf_status')} />
         {pfStatus && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 12 }}>
-            <FormInput name="uan_number" label="UAN Number" placeholder="12 digits" maxLength={12} hint="Universal Account Number" />
-            <FormInput name="epfo_member_id" label="EPFO Member ID" />
-            <FormInput name="pf_contribution_pct" label="PF Contribution % of Basic" type="number" hint="e.g. 12" />
-            <FormSelect name="pf_employer_from" label="Employer Contribution From" options={toOpts(PF_EMPLOYER_FROM)} placeholder="Select" />
+            <FormInput name="uan_number" label="UAN Number" placeholder="12 digits" maxLength={12} hint="Universal Account Number" fieldPerm={f('uan_number')} />
+            <FormInput name="epfo_member_id" label="EPFO Member ID" fieldPerm={f('epfo_member_id')} />
+            <FormInput name="pf_contribution_pct" label="PF Contribution % of Basic" type="number" hint="e.g. 12" fieldPerm={f('pf_contribution_pct')} />
+            <FormSelect name="pf_employer_from" label="Employer Contribution From" options={toOpts(PF_EMPLOYER_FROM)} placeholder="Select" fieldPerm={f('pf_employer_from')} />
           </div>
         )}
       </div>
 
       {/* ── ESIC ────────────────────────────────────────────────────────── */}
       <div style={{ background: 'var(--surface2)', borderRadius: 'var(--r2)', padding: 16 }}>
-        <SectionTitle title="ESIC (Health Insurance)" />
-        <FormToggle name="esic_status" label="ESIC Applicable" showValue />
+        <SectionTitle title="ESIC (Health Insurance)" fields={[f('esic_status')]} />
+        <FormToggle name="esic_status" label="ESIC Applicable" showValue fieldPerm={f('esic_status')} />
         {esicStatus && (
           <div style={{ marginTop: 12 }}>
-            <FormInput name="esic_number" label="ESIC Number" />
+            <FormInput name="esic_number" label="ESIC Number" fieldPerm={f('esic_number')} />
           </div>
         )}
       </div>
 
       {/* ── Mediclaim ───────────────────────────────────────────────────── */}
       <div style={{ background: 'var(--surface2)', borderRadius: 'var(--r2)', padding: 16 }}>
-        <SectionTitle title="Mediclaim (Health Insurance)" />
-        <FormSelect name="mediclaim_status" label="Mediclaim Status" required options={toOpts(MEDICLAIM_STATUS)} />
+        <SectionTitle title="Mediclaim (Health Insurance)" fields={[f('mediclaim_status'), f('mediclaim_number'), f('mediclaim_amount')]} />
+        <FormSelect name="mediclaim_status" label="Mediclaim Status" required options={toOpts(MEDICLAIM_STATUS)} fieldPerm={f('mediclaim_status')} />
         {mediStatus === 'Yes' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-            <FormInput name="mediclaim_number" label="Mediclaim Policy Number" />
-            <FormCurrencyInput name="mediclaim_amount" label="Mediclaim Amount" />
+            <FormInput name="mediclaim_number" label="Mediclaim Policy Number" fieldPerm={f('mediclaim_number')} />
+            <FormCurrencyInput name="mediclaim_amount" label="Mediclaim Amount" fieldPerm={f('mediclaim_amount')} />
           </div>
         )}
       </div>
 
       {/* ── RD Scheme ───────────────────────────────────────────────────── */}
       <div style={{ background: 'var(--surface2)', borderRadius: 'var(--r2)', padding: 16 }}>
-        <SectionTitle title="RD Scheme (Retention Scheme)" subtitle="Recurring Deposit deducted from salary" />
-        <FormToggle name="rd_scheme" label="RD Scheme Applicable" showValue />
+        <SectionTitle title="RD Scheme (Retention Scheme)" subtitle="Recurring Deposit deducted from salary" fields={[f('rd_scheme')]} />
+        <FormToggle name="rd_scheme" label="RD Scheme Applicable" showValue fieldPerm={f('rd_scheme')} />
 
         {rdScheme && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 12 }}>
-            <FormSelect name="rd_term" label="RD Term" options={toOpts(RD_TERM)} placeholder="Select term" />
-            <FormDatePicker name="rd_opening_date" label="RD Opening Date" />
-            <FormInput name="rd_account_number" label="RD Account Number" />
-            <FormSelect name="rd_deduction_from" label="Deduction From" options={toOpts(DEDUCTION_FROM)} placeholder="Select" />
-            <FormCurrencyInput name="rd_amount_employee" label="RD Amount (Employee)" />
-            <FormCurrencyInput name="rd_amount_employer" label="RD Amount (Employer)" />
+            <FormSelect name="rd_term" label="RD Term" options={toOpts(RD_TERM)} placeholder="Select term" fieldPerm={f('rd_term')} />
+            <FormDatePicker name="rd_opening_date" label="RD Opening Date" fieldPerm={f('rd_opening_date')} />
+            <FormInput name="rd_account_number" label="RD Account Number" fieldPerm={f('rd_account_number')} />
+            <FormSelect name="rd_deduction_from" label="Deduction From" options={toOpts(DEDUCTION_FROM)} placeholder="Select" fieldPerm={f('rd_deduction_from')} />
+            <FormCurrencyInput name="rd_amount_employee" label="RD Amount (Employee)" fieldPerm={f('rd_amount_employee')} />
+            <FormCurrencyInput name="rd_amount_employer" label="RD Amount (Employer)" fieldPerm={f('rd_amount_employer')} />
 
             {/* Computed — registered in RHF via FormDatePicker / hidden input */}
             <FormDatePicker
@@ -154,6 +147,7 @@ export function StepSchemes(_: Props) {
               label="RD Maturity Date"
               disabled
               hint="Auto-calculated: opening date + term"
+              fieldPerm={f('rd_maturity_date')}
             />
             <div className="form-field fg">
               <label className="field-label">RD Maturity Amount</label>
@@ -172,7 +166,6 @@ export function StepSchemes(_: Props) {
           </div>
         )}
       </div>
-
     </div>
   );
 }

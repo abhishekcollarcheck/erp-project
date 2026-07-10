@@ -14,7 +14,7 @@ import { usePermission } from '../../../../features/auth/hooks/useAuth';
 import { PageHeaderWithCompany, useCompanySelector } from '../../../../components/company/CompanySelector';
 import { PermissionGuard } from '../../../../utils/permissionGuard';
 import { useCompanyModulesMap } from '../../../../hooks/useCompanyModulesMap';
-import { useFieldPermissions } from '../../../../hooks/useFieldPermissions';
+import { useFieldPermissions } from '../../../../features/employees/hooks/useEmployees';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,7 +131,6 @@ function useEmployeeOverrides(groupId: number, employeeId: number | undefined, c
     queryFn: () => pgApi.getOverrides(groupId, employeeId!, companyId!),
     enabled: groupId > 0 && !!employeeId && !!companyId,
     select: r => r.data ?? [],
-    staleTime: 0,
     refetchOnMount: true,
   });
 }
@@ -150,7 +149,6 @@ function useEmployeeModuleForms(moduleId: number) {
     queryFn: () => pgApi.listForms(moduleId),
     enabled: moduleId > 0,
     select: r => r.data ?? [],
-    staleTime: 5 * 60_000,
   });
 }
 
@@ -1480,8 +1478,7 @@ export default function RolesPermissionsPage() {
   const { canView, canEdit, canCreate, canDelete } = usePermission();
   const { companyId } = useCompanySelector();
   const managedCompanies = useAppSelector(selectManagedCompanies);
-  const { data: perms } = useFieldPermissions(2);  // apna emergency-contacts formId daalo
-  console.log('field perms', perms);
+  const { data: perms } = useFieldPermissions();  // apna emergency-contacts formId daalo
 
   // Build assignedCompanies with shortNames for chips and badges
   const assignedCompanies = useMemo(() =>

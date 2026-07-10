@@ -144,7 +144,7 @@ export const employeeController = {
   },
 
   async fieldPermissions(req: Request, res: Response) {
-    const perms = await employeeService.getFieldPermissions(req.user!.roleId);
+    const perms = await employeeService.getFieldPermissions(req.user!.employeeId, req.user!.companyId);
     sendResponse(res, { data: perms });
   },
 
@@ -180,241 +180,241 @@ export const employeeController = {
     sendResponse(res, { data: null, message: "Draft discarded" });
   },
 
-bulkUpload: async function(
-  req: Request,
-  res: Response,
-  next: NextFunction): Promise<void> {
-  try {
-    if (!req.file) {
-      sendError(res, 'No file uploaded', 400);
-      return;
-    }
-
-    const ext = path
-      .extname(req.file.originalname)
-      .toLowerCase();
-
-    let rows: any[] = [];
-
-    // ─────────────────────────────────────────────
-    // CSV Parsing
-    // ─────────────────────────────────────────────
-
-    if (ext === '.csv') {
-      const fileContent = fs.readFileSync(
-        req.file.path,
-        'utf-8',
-      );
-
-      const lines = fileContent
-        .split('\n')
-        .filter(l => l.trim());
-
-      if (lines.length < 2) {
-        sendError(
-          res,
-          'CSV must contain a header row and at least one data row',
-          400,
-        );
-
+  bulkUpload: async function (
+    req: Request,
+    res: Response,
+    next: NextFunction): Promise<void> {
+    try {
+      if (!req.file) {
+        sendError(res, 'No file uploaded', 400);
         return;
       }
 
-      const headers = lines[0]
-        .split(',')
-        .map(h =>
-          h
-            .trim()
-            .replace(/^"|"$/g, '')
-            .toLowerCase()
-            .replace(/\s+/g, '_'),
+      const ext = path
+        .extname(req.file.originalname)
+        .toLowerCase();
+
+      let rows: any[] = [];
+
+      // ─────────────────────────────────────────────
+      // CSV Parsing
+      // ─────────────────────────────────────────────
+
+      if (ext === '.csv') {
+        const fileContent = fs.readFileSync(
+          req.file.path,
+          'utf-8',
         );
 
-      rows = lines.slice(1).map(line => {
-        const values: string[] = [];
+        const lines = fileContent
+          .split('\n')
+          .filter(l => l.trim());
 
-        let current = '';
-        let inQuotes = false;
+        if (lines.length < 2) {
+          sendError(
+            res,
+            'CSV must contain a header row and at least one data row',
+            400,
+          );
 
-        for (const char of line) {
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if (char === ',' && !inQuotes) {
-            values.push(current.trim());
-            current = '';
-          } else {
-            current += char;
-          }
+          return;
         }
 
-        values.push(current.trim());
+        const headers = lines[0]
+          .split(',')
+          .map(h =>
+            h
+              .trim()
+              .replace(/^"|"$/g, '')
+              .toLowerCase()
+              .replace(/\s+/g, '_'),
+          );
 
-        return Object.fromEntries(
-          headers.map((h, i) => [
-            h,
-            (values[i] || '').replace(/^"|"$/g, ''),
-          ]),
-        );
-      });
-    }
+        rows = lines.slice(1).map(line => {
+          const values: string[] = [];
 
-    // ─────────────────────────────────────────────
-    // XLS / XLSX Parsing
-    // ─────────────────────────────────────────────
+          let current = '';
+          let inQuotes = false;
 
-    else if (ext === '.xlsx' || ext === '.xls') {
-      const workbook = XLSX.readFile(req.file.path, {
-        cellDates: true,
-      });
+          for (const char of line) {
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              values.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
 
-      const sheetName = workbook.SheetNames[0];
+          values.push(current.trim());
 
-      if (!sheetName) {
-        sendError(
-          res,
-          'Excel file does not contain any sheets',
-          400,
-        );
-
-        return;
+          return Object.fromEntries(
+            headers.map((h, i) => [
+              h,
+              (values[i] || '').replace(/^"|"$/g, ''),
+            ]),
+          );
+        });
       }
 
-      const worksheet = workbook.Sheets[sheetName];
+      // ─────────────────────────────────────────────
+      // XLS / XLSX Parsing
+      // ─────────────────────────────────────────────
 
-      rows = XLSX.utils.sheet_to_json(worksheet, {
-        defval: '',
-        raw: false,
-      });
-      rows = rows.map((row: any) => {
-        const normalized: any = {};
-
-        Object.keys(row).forEach(key => {
-          const normalizedKey = key
-            .trim()
-            .toLowerCase()
-            .replace(/\s+/g, '_');
-
-          normalized[normalizedKey] = row[key];
+      else if (ext === '.xlsx' || ext === '.xls') {
+        const workbook = XLSX.readFile(req.file.path, {
+          cellDates: true,
         });
 
-        return normalized;
-      });
+        const sheetName = workbook.SheetNames[0];
 
-      if (!rows.length) {
+        if (!sheetName) {
+          sendError(
+            res,
+            'Excel file does not contain any sheets',
+            400,
+          );
+
+          return;
+        }
+
+        const worksheet = workbook.Sheets[sheetName];
+
+        rows = XLSX.utils.sheet_to_json(worksheet, {
+          defval: '',
+          raw: false,
+        });
+        rows = rows.map((row: any) => {
+          const normalized: any = {};
+
+          Object.keys(row).forEach(key => {
+            const normalizedKey = key
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, '_');
+
+            normalized[normalizedKey] = row[key];
+          });
+
+          return normalized;
+        });
+
+        if (!rows.length) {
+          sendError(
+            res,
+            'Excel file must contain at least one data row',
+            400,
+          );
+
+          return;
+        }
+      }
+
+      // ─────────────────────────────────────────────
+      // Unsupported File
+      // ─────────────────────────────────────────────
+
+      else {
         sendError(
           res,
-          'Excel file must contain at least one data row',
+          'Unsupported file format. Please upload CSV or Excel file.',
           400,
         );
 
         return;
       }
-    }
 
-    // ─────────────────────────────────────────────
-    // Unsupported File
-    // ─────────────────────────────────────────────
+      // ─────────────────────────────────────────────
+      // Header Validation
+      // ─────────────────────────────────────────────
 
-    else {
-      sendError(
-        res,
-        'Unsupported file format. Please upload CSV or Excel file.',
-        400,
-      );
+      if (!rows.length || !Object.keys(rows[0]).length) {
+        sendError(
+          res,
+          'File contains invalid or empty headers',
+          400,
+        );
 
-      return;
-    }
-
-    // ─────────────────────────────────────────────
-    // Header Validation
-    // ─────────────────────────────────────────────
-
-    if (!rows.length || !Object.keys(rows[0]).length) {
-      sendError(
-        res,
-        'File contains invalid or empty headers',
-        400,
-      );
-
-      return;
-    }
-
-    const fileHeaders = Object.keys(rows[0]);
-
-    const missingHeaders = REQUIRED_HEADERS.filter(
-      h => !fileHeaders.includes(h),
-    );
-
-    if (missingHeaders.length) {
-      sendError(
-        res,
-        `Missing required columns: ${missingHeaders.join(', ')}`,
-        400,
-      );
-
-      return;
-    }
-
-    // ─────────────────────────────────────────────
-    // Row Limit Validation
-    // ─────────────────────────────────────────────
-
-    if (rows.length > MAX_ROWS) {
-      sendError(
-        res,
-        `Maximum ${MAX_ROWS} rows allowed per upload`,
-        400,
-      );
-
-      return;
-    }
-
-    // ─────────────────────────────────────────────
-    // Upload
-    // ─────────────────────────────────────────────
-
-    const result = await employeeService.bulkUpload(
-      rows,
-      req.user!.companyId,
-      req.user!.employeeId,
-    );
-
-    sendResponse(res, {
-      data: result,
-
-      message:
-        `Bulk upload complete: ` +
-        `${result.success} added, ` +
-        `${result.failed} failed`,
-
-      statusCode:
-        result.failed === 0 ? 201 : 207,
-    });
-
-  } catch (e) {
-    next(e);
-  }
-
-  // ─────────────────────────────────────────────
-  // Cleanup Temp File
-  // ─────────────────────────────────────────────
-
-  finally {
-    try {
-      if (
-        req.file?.path &&
-        fs.existsSync(req.file.path)
-      ) {
-        fs.unlinkSync(req.file.path);
+        return;
       }
-    } catch (cleanupError) {
-      console.error(
-        'Failed to cleanup uploaded file:',
-        cleanupError,
+
+      const fileHeaders = Object.keys(rows[0]);
+
+      const missingHeaders = REQUIRED_HEADERS.filter(
+        h => !fileHeaders.includes(h),
       );
+
+      if (missingHeaders.length) {
+        sendError(
+          res,
+          `Missing required columns: ${missingHeaders.join(', ')}`,
+          400,
+        );
+
+        return;
+      }
+
+      // ─────────────────────────────────────────────
+      // Row Limit Validation
+      // ─────────────────────────────────────────────
+
+      if (rows.length > MAX_ROWS) {
+        sendError(
+          res,
+          `Maximum ${MAX_ROWS} rows allowed per upload`,
+          400,
+        );
+
+        return;
+      }
+
+      // ─────────────────────────────────────────────
+      // Upload
+      // ─────────────────────────────────────────────
+
+      const result = await employeeService.bulkUpload(
+        rows,
+        req.user!.companyId,
+        req.user!.employeeId,
+      );
+
+      sendResponse(res, {
+        data: result,
+
+        message:
+          `Bulk upload complete: ` +
+          `${result.success} added, ` +
+          `${result.failed} failed`,
+
+        statusCode:
+          result.failed === 0 ? 201 : 207,
+      });
+
+    } catch (e) {
+      next(e);
+    }
+
+    // ─────────────────────────────────────────────
+    // Cleanup Temp File
+    // ─────────────────────────────────────────────
+
+    finally {
+      try {
+        if (
+          req.file?.path &&
+          fs.existsSync(req.file.path)
+        ) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (cleanupError) {
+        console.error(
+          'Failed to cleanup uploaded file:',
+          cleanupError,
+        );
+      }
     }
   }
-}
 
   // downloadTemplate(_req: Request, res: Response) {
   //   const headers = [
@@ -498,12 +498,12 @@ export async function getManagedEmployees(
         portal_access: true,
         ...(search
           ? {
-              [Op.or]: [
-                { first_name: { [Op.like]: `%${search}%` } },
-                { last_name: { [Op.like]: `%${search}%` } },
-                { email: { [Op.like]: `%${search}%` } },
-              ],
-            }
+            [Op.or]: [
+              { first_name: { [Op.like]: `%${search}%` } },
+              { last_name: { [Op.like]: `%${search}%` } },
+              { email: { [Op.like]: `%${search}%` } },
+            ],
+          }
           : {}),
       },
       attributes: [

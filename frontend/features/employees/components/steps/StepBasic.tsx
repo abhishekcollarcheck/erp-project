@@ -3,16 +3,17 @@ import { useEffect } from 'react';
 import { useFormContext} from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { useFieldPermissions, useNextCode } from '../../hooks/useEmployees';
+import { useFieldPermissions, useNextCode, resolveFieldPerm } from '../../hooks/useEmployees';
 import { toOpts, EMPLOYEE_STATUS, EMPLOYMENT_TYPE, DEPARTMENT_OPTIONS, SUB_DEPARTMENT_OPTIONS, DESIGNATION_OPTIONS } from '../../constants/employee.constants';
 import { useCompany } from '../../../company/hooks/useCompany';
+import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepBasic({ isEdit }: Props) {
   const { data: fp } = useFieldPermissions();
+  const f = (n: string) => resolveFieldPerm(fp, n);
   const { data: codes } = useNextCode();
-  const f = (n: string) => fp?.[n];
   const { setValue, watch } = useFormContext();
   const { company } = useCompany();
   // ── Auto-fill employee code on create ─────────────────────────────────────
@@ -36,6 +37,7 @@ useEffect(() => {
 }, [company])
 
   return (
+    <FormSection fields={[f('reference_code'), f('company_id'), f('status'), f('first_name'), f('middle_name'), f('last_name'), f('employment_type'), f('email'), f('phone')]}>
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <FormInput
@@ -50,7 +52,7 @@ useEffect(() => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
         <FormInput name="first_name" label="First Name" required placeholder="Rahul" fieldPerm={f('first_name')} />
-        <FormInput name="middle_name" label="Middle Name" placeholder="Kumar" />
+        <FormInput name="middle_name" label="Middle Name" placeholder="Kumar" fieldPerm={f('middle_name')} />
         <FormInput name="last_name" label="Last Name" required placeholder="Sharma" fieldPerm={f('last_name')} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -109,8 +111,10 @@ useEffect(() => {
           label="Sub Designation"
           placeholder="e.g. Senior, Lead"
           hint="Optional — free text"
+          fieldPerm={f('sub_designation')}
         />
       </div>
     </div>
+    </FormSection>
   );
 }

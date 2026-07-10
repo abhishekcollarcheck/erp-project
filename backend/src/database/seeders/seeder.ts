@@ -182,91 +182,42 @@ export async function seedDatabase(): Promise<void> {
       });
     }
 
-    // async function seedEmergencyContactsFieldsForTesting(companyId: number) {
-    //   const [mod] = await HrModule.findOrCreate({
-    //     where: { company_id: companyId, slug: 'employee' },
-    //     defaults: { company_id: companyId, name: 'Employee', slug: 'employee', icon: '', description: 'Employee records and profile management', sort_order: 1, is_active: true, is_system: true, }
-    //   })
-
-    //   const [form] = await FormDefinition.findOrCreate({
-    //     where: { company_id: companyId, module_id: mod.id, slug: 'emergency_contacts' },
-    //     defaults: {
-    //       company_id: companyId, module_id: mod.id, name: 'Emergency Contacts', slug: 'emergency_contacts',
-    //       description: 'Emergency contact details', sort_order: 1, is_active: true, is_system: true
-    //     }
-    //   })
-
-    //   const fields = [
-    //     { field_key: 'contact_name', label: 'Contact Name', field_type: 'text' },
-    //     { field_key: 'contact_number', label: 'Contact Number', field_type: 'text' },
-    //     { field_key: 'relationship', label: 'Relationship', field_type: 'text' },
-    //     { field_key: 'is_primary', label: 'Is Primary', field_type: 'checkbox' }
-    //   ]
-
-    //   for (const [idx, f] of fields.entries()) {
-    //     await DynamicField.findOrCreate({
-    //       where: { company_id: companyId, form_id: form.id, field_key: f.field_key },
-    //       defaults: {
-    //         company_id: companyId, form_id: form.id, field_type: f.field_type as any, label: f.label, field_key: f.field_key,
-    //         is_required: false, is_readonly: false, is_hidden: false, is_unique: false, is_active: true, sort_order: idx
-    //       }
-    //     })
-    //   }
-    //   return form.id
-    // }
-
-    // const formId = await seedEmergencyContactsFieldsForTesting(COMPANY_ID);
-
-    // logger.info(`Emergency Contacts form id: ${formId}`);
-
     type SeedField = { field_key: string; label: string; field_type: string };
 
-    async function seedFormSection(
-      companyId: number,
-      moduleId: number,
-      formDef: { slug: string; name: string; description: string; sort_order: number },
-      fields: SeedField[],
-    ) {
-      const [form] = await FormDefinition.findOrCreate({
-        where: { company_id: companyId, module_id: moduleId, slug: formDef.slug },
-        defaults: {
-          company_id: companyId, module_id: moduleId,
-          name: formDef.name, slug: formDef.slug,
-          description: formDef.description, sort_order: formDef.sort_order,
-          is_active: true, is_system: true,
-        },
-      });
-
+    async function seedFormField(formId: number, section: string, fields: SeedField[], startOrder: number) {
       for (const [idx, f] of fields.entries()) {
         await DynamicField.findOrCreate({
-          where: { company_id: companyId, form_id: form.id, field_key: f.field_key },
+          where: { form_id: formId, field_key: f.field_key },   // ← no company_id in the lookup key
           defaults: {
-            company_id: companyId, form_id: form.id,
+            form_id: formId, section,
             field_type: f.field_type as any, label: f.label, field_key: f.field_key,
             is_required: false, is_readonly: false, is_hidden: false, is_unique: false,
-            is_active: true, sort_order: idx,
+            is_active: true, sort_order: startOrder + idx,
           },
         });
       }
-      return form.id;
     }
 
-    async function seedAllEmployeeFieldSections(companyId: number) {
+    async function seedAllEmployeeFieldSections() {
+      // Shared module — no company_id, matches the "forms are common for all companies" decision
       const [mod] = await HrModule.findOrCreate({
-        where: { company_id: companyId, slug: 'employee' },
-        defaults: {
-          company_id: companyId, name: 'Employee', slug: 'employee',
-          icon: '👤', description: 'Employee records and profile management',
-          sort_order: 1, is_active: true, is_system: true,
-        },
+        where: { slug: 'employee' },
+        defaults: { name: 'Employee', slug: 'employee', icon: '👤', description: 'Employee records and profile management', sort_order: 1, is_active: true, is_system: true },
       });
 
-      const sections: { formDef: { slug: string; name: string; description: string; sort_order: number }; fields: SeedField[] }[] = [
+      // ONE shared form for the whole wizard — matches the already-consolidated form_id 3
+      const [form] = await FormDefinition.findOrCreate({
+        where: { slug: 'employee_onboarding' },
+        defaults: { module_id: mod.id, name: 'Employee Onboarding', slug: 'employee_onboarding', description: 'Full employee onboarding wizard', sort_order: 1, is_active: true, is_system: true },
+      });
+
+      const sections: { section: string; fields: SeedField[] }[] = [
         {
-          formDef: { slug: 'core_info', name: 'Core Info', description: 'Basic employment details', sort_order: 1 },
+          section: 'Core Info',
           fields: [
             { field_key: 'employee_code', label: 'Employee Code', field_type: 'text' },
             { field_key: 'reference_code', label: 'Reference Code', field_type: 'text' },
+            { field_key: 'company_id', label: 'Company', field_type: 'text' },
             { field_key: 'first_name', label: 'First Name', field_type: 'text' },
             { field_key: 'middle_name', label: 'Middle Name', field_type: 'text' },
             { field_key: 'last_name', label: 'Last Name', field_type: 'text' },
@@ -293,7 +244,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'commitment_probation', name: 'Commitment & Probation', description: 'Bond and probation tracking', sort_order: 2 },
+          section: 'Commitment & Probation',
           fields: [
             { field_key: 'commitment', label: 'Commitment', field_type: 'checkbox' },
             { field_key: 'commitment_term', label: 'Commitment Term', field_type: 'select' },
@@ -311,7 +262,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'schemes', name: 'Schemes (PF/ESIC/Mediclaim/RD)', description: 'Statutory schemes and benefits', sort_order: 3 },
+          section: 'Schemes (PF/ESIC/Mediclaim/RD)',
           fields: [
             { field_key: 'pf_status', label: 'PF Status', field_type: 'checkbox' },
             { field_key: 'uan_number', label: 'UAN Number', field_type: 'text' },
@@ -336,7 +287,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'personal', name: 'Personal', description: 'Personal details', sort_order: 4 },
+          section: 'Personal',
           fields: [
             { field_key: 'personal_email', label: 'Personal Email', field_type: 'text' },
             { field_key: 'personal_mobile', label: 'Personal Mobile', field_type: 'text' },
@@ -360,7 +311,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'family', name: 'Family', description: 'Family details', sort_order: 5 },
+          section: 'Family',
           fields: [
             { field_key: 'father_salutation', label: 'Father Salutation', field_type: 'text' },
             { field_key: 'father_name', label: 'Father Name', field_type: 'text' },
@@ -374,7 +325,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'address', name: 'Address', description: 'Present and permanent address', sort_order: 6 },
+          section: 'Address',
           fields: [
             { field_key: 'address_type', label: 'Address Type', field_type: 'select' },
             { field_key: 'house_type', label: 'House Type', field_type: 'select' },
@@ -389,7 +340,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'statutory', name: 'Statutory', description: 'Government IDs and documents', sort_order: 7 },
+          section: 'Statutory',
           fields: [
             { field_key: 'passport_number', label: 'Passport Number', field_type: 'text' },
             { field_key: 'passport_expiry', label: 'Passport Expiry', field_type: 'date' },
@@ -406,7 +357,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'bank_details', name: 'Bank Details', description: 'Bank account information', sort_order: 8 },
+          section: 'Bank Details',
           fields: [
             { field_key: 'bank_type', label: 'Bank Type', field_type: 'select' },
             { field_key: 'bank_name', label: 'Bank Name', field_type: 'text' },
@@ -416,7 +367,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'salary', name: 'Salary', description: 'Salary breakup', sort_order: 9 },
+          section: 'Salary',
           fields: [
             { field_key: 'salary_type', label: 'Salary Type', field_type: 'select' },
             { field_key: 'salary_mode', label: 'Salary Mode', field_type: 'select' },
@@ -430,7 +381,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'asset_deduction', name: 'Asset Deduction', description: 'Company asset deduction', sort_order: 10 },
+          section: 'Asset Deduction',
           fields: [
             { field_key: 'asset_deduction_applicable', label: 'Applicable', field_type: 'checkbox' },
             { field_key: 'security_amount', label: 'Security Amount', field_type: 'number' },
@@ -441,7 +392,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'experience', name: 'Experience', description: 'Prior work experience', sort_order: 11 },
+          section: 'Experience',
           fields: [
             { field_key: 'is_experienced', label: 'Is Experienced', field_type: 'checkbox' },
             { field_key: 'last_company_name', label: 'Last Company Name', field_type: 'text' },
@@ -454,7 +405,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'education', name: 'Education', description: 'Educational qualifications', sort_order: 12 },
+          section: 'Education',
           fields: [
             { field_key: 'highest_education', label: 'Highest Education', field_type: 'text' },
             { field_key: 'education_stream', label: 'Education Stream', field_type: 'text' },
@@ -465,7 +416,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'onboarding_docs', name: 'Onboarding Docs', description: 'Onboarding document checklist', sort_order: 13 },
+          section: 'Onboarding Docs',
           fields: [
             { field_key: 'offer_letter', label: 'Offer Letter', field_type: 'checkbox' },
             { field_key: 'address_verification', label: 'Address Verification', field_type: 'checkbox' },
@@ -477,7 +428,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'transfers', name: 'Transfers', description: 'Inter-company/location transfers', sort_order: 14 },
+          section: 'Transfers',
           fields: [
             { field_key: 'transfer_order', label: 'Transfer Order', field_type: 'number' },
             { field_key: 'transferred_on', label: 'Transferred On', field_type: 'date' },
@@ -495,7 +446,7 @@ export async function seedDatabase(): Promise<void> {
           ],
         },
         {
-          formDef: { slug: 'exit', name: 'Exit', description: 'Resignation and exit formalities', sort_order: 15 },
+          section: 'Exit',
           fields: [
             { field_key: 'resignation_submitted', label: 'Resignation Submitted', field_type: 'checkbox' },
             { field_key: 'resignation_date', label: 'Resignation Date', field_type: 'date' },
@@ -511,16 +462,17 @@ export async function seedDatabase(): Promise<void> {
         },
       ];
 
-      const formIds: Record<string, number> = {};
-      for (const section of sections) {
-        formIds[section.formDef.slug] = await seedFormSection(companyId, mod.id, section.formDef, section.fields);
+      let order = 0;
+      for (const s of sections) {
+        await seedFormField(form.id, s.section, s.fields, order);
+        order += s.fields.length;
       }
-      return { moduleId: mod.id, formIds };
+
+      return { moduleId: mod.id, formId: form.id };
     }
 
-    const { moduleId, formIds } = await seedAllEmployeeFieldSections(COMPANY_ID);
-    logger.info(`Employee module id: ${moduleId}`);
-    logger.info(`Form ids: ${JSON.stringify(formIds, null, 2)}`);
+    const { moduleId, formId } = await seedAllEmployeeFieldSections();
+    logger.info(`Employee module id: ${moduleId}, form id: ${formId}`);
 
     await Permission.bulkCreate(PERMISSIONS, {
       ignoreDuplicates: true,
