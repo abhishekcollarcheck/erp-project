@@ -256,19 +256,29 @@ async getPermissionMatrix(companyId: number, formId: number) {
   //   return perm;
   // }
 
-async setFieldPermission(companyId: number, groupId: number, fieldId: number, dto: {
+async setFieldPermission(companyIds: number[], groupId: number, fieldId: number, dto: {
   can_view?: boolean; can_edit?: boolean; can_copy?: boolean;
   can_download?: boolean; is_masked?: boolean;
 }, updatedBy?: number) {
-  const [perm, created] = await FieldPermissionV2.findOrCreate({
-    where: { group_id: groupId, field_id: fieldId },
-    defaults: { group_id: groupId, field_id: fieldId, company_id: companyId, ...dto },
+  if (!companyIds.length) throw new AppError('At least one company_id is required', 400);
+  console.log("companyIds", companyIds)
+  const results = [];
+  for (const companyId of companyIds) {
+    const [perm, created] = await FieldPermissionV2.findOrCreate({
+      where: { company_id: companyId, group_id: groupId, field_id: fieldId },
+      defaults: { company_id: companyId, group_id: groupId, field_id: fieldId, ...dto },
+    });
+    if (!created) await perm.update(dto as any);
+    results.push(perm);
+  }
+
+  await logActivity({
+    companyId: companyIds[0], employeeId: updatedBy,
+    action: 'FIELD_PERMISSION_UPDATED', module: 'settings',
+    entityId: fieldId, newValues: { groupId, companyIds, ...dto },
   });
 
-  if (!created) await perm.update(dto as any);
-
-  await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_PERMISSION_UPDATED', module: 'settings', entityId: fieldId, newValues: { groupId, ...dto } });
-  return perm;
+  return results;
 }
 
   // async bulkSetFieldPermissions(companyId: number, roleId: number, permissions: {
@@ -291,24 +301,27 @@ async setFieldPermission(companyId: number, groupId: number, fieldId: number, dt
   //   } catch(e) { await t.rollback(); throw e; }
   // }
 
-  async bulkSetFieldPermissions(companyId: number, groupId: number, permissions: {
-  field_id: number;
-  can_view: boolean; can_edit: boolean; can_copy: boolean;
+async bulkSetFieldPermissions(companyIds: number[], groupId: number, permissions: {
+  field_id: number; can_view: boolean; can_edit: boolean; can_copy: boolean;
   can_download: boolean; is_masked: boolean;
 }[], updatedBy?: number) {
+  if (!companyIds.length) throw new AppError('At least one company_id is required', 400);
+   console.log("companyIds", companyIds)
   const t = await sequelize.transaction();
   try {
-    for (const p of permissions) {
-      await FieldPermissionV2.upsert({
-        group_id: groupId, field_id: p.field_id, company_id: companyId,
-        can_view: p.can_view, can_edit: p.can_edit, can_copy: p.can_copy,
-        can_download: p.can_download, is_masked: p.is_masked,
-      }, { transaction: t });
+    for (const companyId of companyIds) {
+      for (const p of permissions) {
+        await FieldPermissionV2.upsert({
+          company_id: companyId, group_id: groupId, field_id: p.field_id,
+          can_view: p.can_view, can_edit: p.can_edit, can_copy: p.can_copy,
+          can_download: p.can_download, is_masked: p.is_masked,
+        }, { transaction: t });
+      }
     }
     await t.commit();
-    await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_PERMISSIONS_BULK_UPDATED', module: 'settings', newValues: { groupId, count: permissions.length } });
-    return { updated: permissions.length };
-  } catch(e) { await t.rollback(); throw e; }
+    await logActivity({ companyId: companyIds[0], employeeId: updatedBy, action: 'FIELD_PERMISSIONS_BULK_UPDATED', module: 'settings', newValues: { groupId, companyIds, count: permissions.length } });
+    return { updated: permissions.length * companyIds.length };
+  } catch (e) { await t.rollback(); throw e; }
 }
 
   // ─── Runtime: resolve permissions for a user role on a form ──────────────────

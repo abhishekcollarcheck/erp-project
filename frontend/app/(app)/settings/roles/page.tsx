@@ -18,10 +18,11 @@ import { useFieldPermissions } from '../../../../features/employees/hooks/useEmp
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type View = 'groups' | 'edit' | 'field-perms';
+type View = 'groups' | 'edit';
 
 interface PermGroup {
   id: number;
+  company_id: number;
   name: string;
   slug: string;
   description?: string | null;
@@ -116,8 +117,8 @@ const pgApi = {
   listModules: () => apiClient.get<unknown, ApiResponse<any[]>>('/rbac/modules'),
   listForms: (moduleId: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/rbac/modules/${moduleId}/forms`),
   fieldPermissionMatrix: (formId: number) => apiClient.get<unknown, ApiResponse<{ groups: any[]; fields: any[]; matrix: Record<number, Record<number, any>> }>>(`/rbac/forms/${formId}/permission-matrix`),
-  setFieldPermission: (fieldId: number, groupId: number, dto: any) => apiClient.put<unknown, ApiResponse<any>>(`/rbac/fields/${fieldId}/permissions`, { group_id: groupId, ...dto }),
-  bulkSetFieldPermissions: (groupId: number, permissions: any[]) => apiClient.post<unknown, ApiResponse<any>>('/rbac/permissions/bulk', { group_id: groupId, permissions }),
+  setFieldPermission: (fieldId: number, groupId: number, companyId: number, dto: any) => apiClient.put<unknown, ApiResponse<any>>(`/rbac/fields/${fieldId}/permissions`, { group_id: groupId, company_ids: [companyId], ...dto }),
+  bulkSetFieldPermissions: (groupId: number, companyIds: number[], permissions: any[]) => apiClient.post<unknown, ApiResponse<any>>('/rbac/permissions/bulk', { group_id: groupId, company_ids: companyIds, permissions }),
 };
 
 // Existing hooks (unchanged)
@@ -489,7 +490,7 @@ function GroupDetail({
           <div style={{ fontSize: 12, color: 'var(--ink4)', marginTop: 2 }}>{group.description || 'No description'}</div>
         </div>
         <button className="btn btn-sec btn-sm" onClick={onEdit}>✎ Edit Permissions</button>
-        <button className="btn btn-sec btn-sm" onClick={onFieldPerms} title="Field Permissions">☷</button>
+        {/* <button className="btn btn-sec btn-sm" onClick={onFieldPerms} title="Field Permissions">☷</button> */}
         {!group.is_system && (
           <button className="btn btn-sec btn-sm" onClick={onDelete} style={{ color: 'var(--red)' }}>🗑</button>
         )}
@@ -1109,6 +1110,10 @@ function EditView({
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
 
+  const fieldModuleAccessGranted = isOverrideMode
+  ? !!baseModPerms['employees']?.view
+  : !!modPerms['employees']?.view;
+
   return (
     <div>
       {/* Toolbar — matches new UI */}
@@ -1239,62 +1244,38 @@ function EditView({
         {/* Col 3: Summary */}
         <PermSummary modPerms={modPerms} isOverrideMode={isOverrideMode} />
       </div>
+{group && (
+  <div style={{ marginTop: 20 }}>
+    <FieldPermissionsPanel
+      groupId={group.id}
+      assignedCompanies={assignedCompanies}
+      isOverrideMode={isOverrideMode}
+      overrideMemberId={overrideMemberId}
+      overrideMemberCompanyIds={overrideMemberCompanyIds}
+      selectedOverrideCompanyIds={selectedOverrideCompanyIds}
+      overrideMemberName={overrideMemberName}
+      moduleAccessGranted={fieldModuleAccessGranted}
+    />
+  </div>
+)}
     </div>
   );
 }
 
 // ─── Existing FieldPermissionsView (unchanged — only wired into new nav) ──────
-
-const FP_FIELD_MODULES = [
-  {
-    key: 'employee', label: 'Employee Directory', sub: 'Personal data, statutory, bank, payroll fields', fields: [
-      { k: 'full_name', label: 'Full Name', section: 'Personal' },
-      { k: 'date_of_birth', label: 'Date of Birth', section: 'Personal' },
-      { k: 'gender', label: 'Gender', section: 'Personal' },
-      { k: 'personal_email', label: 'Personal Email', section: 'Personal' },
-      { k: 'phone', label: 'Phone', section: 'Personal' },
-      { k: 'address_line1', label: 'Address', section: 'Address' },
-      { k: 'city', label: 'City', section: 'Address' },
-      { k: 'aadhaar_number', label: 'Aadhaar Number', section: 'Statutory', sensitive: true },
-      { k: 'pan_number', label: 'PAN Number', section: 'Statutory', sensitive: true },
-      { k: 'bank_account_number', label: 'Bank Account', section: 'Statutory', sensitive: true },
-      { k: 'basic_salary', label: 'Basic Salary', section: 'Payroll', sensitive: true },
-      { k: 'net_pay', label: 'Net Pay', section: 'Payroll', sensitive: true },
-      { k: 'pf_number', label: 'PF Number', section: 'Statutory', sensitive: true },
-      { k: 'esi_number', label: 'ESI Number', section: 'Statutory', sensitive: true },
-    ]
-  },
-  {
-    key: 'candidate', label: 'Candidate / ATS', sub: 'Resume, offer, aptitude data', fields: [
-      { k: 'candidate_name', label: 'Candidate Name', section: 'Basic' },
-      { k: 'email', label: 'Email', section: 'Basic' },
-      { k: 'phone_number', label: 'Phone', section: 'Basic' },
-      { k: 'current_salary', label: 'Current Salary', section: 'Offer', sensitive: true },
-      { k: 'expected_salary', label: 'Expected Salary', section: 'Offer', sensitive: true },
-      { k: 'offered_ctc', label: 'Offered CTC', section: 'Offer', sensitive: true },
-      { k: 'resume_url', label: 'Resume', section: 'Basic' },
-      { k: 'aadhaar', label: 'Aadhaar', section: 'KYC', sensitive: true },
-      { k: 'pan', label: 'PAN', section: 'KYC', sensitive: true },
-    ]
-  },
-  {
-    key: 'payroll', label: 'Payroll', sub: 'Salary breakup and payslip data', fields: [
-      { k: 'basic', label: 'Basic', section: 'Components' },
-      { k: 'hra', label: 'HRA', section: 'Components' },
-      { k: 'gross', label: 'Gross Pay', section: 'Summary', sensitive: true },
-      { k: 'tds', label: 'TDS', section: 'Deductions', sensitive: true },
-      { k: 'net_pay', label: 'Net Pay', section: 'Summary', sensitive: true },
-    ]
-  },
-];
-
-type FPPermission = { view: boolean; create: boolean; edit: boolean; delete: boolean; download: boolean };
-type FPPerms = Record<string, FPPermission>;
-
-function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: () => void }) {
-  const { data: groups = [] } = useGroups();
-  const [selectedGroupId, setSelectedGroupId] = useState(groupId);
-
+function FieldPermissionsPanel({
+  groupId, assignedCompanies, isOverrideMode = false,
+  overrideMemberId, overrideMemberCompanyIds, selectedOverrideCompanyIds, overrideMemberName, moduleAccessGranted
+}: {
+  groupId: number;
+  assignedCompanies: { id: number; name: string; shortName: string }[];
+  isOverrideMode?: boolean;
+  overrideMemberId?: number;
+  overrideMemberCompanyIds?: number[];
+  selectedOverrideCompanyIds?: number[];
+  overrideMemberName?: string;
+  moduleAccessGranted: boolean;
+}) {
   const { data: modules = [] } = useQuery({
     queryKey: ['field-perm-modules'],
     queryFn: () => pgApi.listModules(),
@@ -1302,88 +1283,84 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
     staleTime: 5 * 60_000,
   });
   const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
-  useEffect(() => {
-    if (modules.length && !selectedModuleId) setSelectedModuleId(modules[0].id);
-  }, [modules]);
+  useEffect(() => { if (modules.length && !selectedModuleId) setSelectedModuleId(modules[0].id); }, [modules]);
+
   const { data: forms = [] } = useEmployeeModuleForms(selectedModuleId || 0);
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (forms.length && !selectedFormId) setSelectedFormId(forms[0].id);
-  }, [forms]);
+  useEffect(() => { if (forms.length && !selectedFormId) setSelectedFormId(forms[0].id); }, [forms]);
 
   const { data: matrixData, refetch } = useGroupFieldPermissionMatrix(selectedFormId || 0);
-
   const fields = matrixData?.fields || [];
   const matrix = matrixData?.matrix || {};
 
-  // Local editable copy — matrix se initialize, save hone tak yahi source-of-truth
   const [localPerms, setLocalPerms] = useState<Record<number, any>>({});
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    if (matrix[selectedGroupId]) {
-      setLocalPerms(matrix[selectedGroupId]);
-      setDirty(false);
-    }
-  }, [selectedGroupId, matrixData]);
+    if (matrix[groupId]) { setLocalPerms(matrix[groupId]); setDirty(false); }
+  }, [groupId, matrixData]);
 
   const toggleFP = (fieldId: number, perm: 'can_view' | 'can_edit' | 'can_copy' | 'can_download' | 'is_masked') => {
-    setLocalPerms(prev => ({
-      ...prev,
-      [fieldId]: { ...prev[fieldId], [perm]: !prev[fieldId]?.[perm] },
-    }));
+    setLocalPerms(prev => ({ ...prev, [fieldId]: { ...prev[fieldId], [perm]: !prev[fieldId]?.[perm] } }));
     setDirty(true);
   };
+  const grantAll = () => { setLocalPerms(prev => { const n = { ...prev }; for (const f of fields) n[f.id] = { can_view: true, can_edit: true, can_copy: true, can_download: true, is_masked: false }; return n; }); setDirty(true); };
+  const revokeAll = () => { setLocalPerms(prev => { const n = { ...prev }; for (const f of fields) n[f.id] = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false }; return n; }); setDirty(true); };
 
-  const grantAll = () => {
-    setLocalPerms(prev => {
-      const n = { ...prev };
-      for (const f of fields) n[f.id] = { can_view: true, can_edit: true, can_copy: true, can_download: true, is_masked: false };
-      return n;
-    });
-    setDirty(true);
-  };
-
-  const revokeAll = () => {
-    setLocalPerms(prev => {
-      const n = { ...prev };
-      for (const f of fields) n[f.id] = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-      return n;
-    });
-    setDirty(true);
-  };
+  const { data: members = [] } = useGroupMembers(groupId);
+  const groupCompanyIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const m of members) (m.assigned_company_ids || []).forEach((id: number) => ids.add(id));
+    return [...ids];
+  }, [members]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!groupCompanyIds.length) throw new Error('This group has no members in any company yet');
       const permissions = fields.map((f: any) => ({
         field_id: f.id,
-        can_view: !!localPerms[f.id]?.can_view,
-        can_edit: !!localPerms[f.id]?.can_edit,
-        can_copy: !!localPerms[f.id]?.can_copy,
-        can_download: !!localPerms[f.id]?.can_download,
+        can_view: !!localPerms[f.id]?.can_view, can_edit: !!localPerms[f.id]?.can_edit,
+        can_copy: !!localPerms[f.id]?.can_copy, can_download: !!localPerms[f.id]?.can_download,
         is_masked: !!localPerms[f.id]?.is_masked,
       }));
-      await pgApi.bulkSetFieldPermissions(selectedGroupId, permissions);
+      await pgApi.bulkSetFieldPermissions(groupId, groupCompanyIds, permissions);
     },
-    onSuccess: () => {
-      showToast('✓ Field permissions saved');
-      setDirty(false);
-      refetch();
-    },
+    onSuccess: () => { showToast('✓ Field permissions saved'); setDirty(false); refetch(); },
     onError: (e: any) => showToast(e?.message || 'Failed to save'),
   });
+
   const selectedForm = forms.find((f: any) => f.id === selectedFormId);
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button className="btn btn-ghost btn-sm" onClick={onBack}>← Back to Groups</button>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', flex: 1 }}>Field-Level Permissions</div>
-        <select value={selectedGroupId} onChange={e => setSelectedGroupId(Number(e.target.value))}
-          style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12 }}>
-          {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-        </select>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div className="ct" style={{ flex: 1 }}>{isOverrideMode ? 'Field-Level Overrides' : 'Field-Level Permissions'}</div>
+        {moduleAccessGranted && groupCompanyIds.length > 0 && (
+          <div style={{ fontSize: 11, color: 'var(--ink4)' }}>
+            Applies to: {groupCompanyIds.map(id => assignedCompanies.find(c => c.id === id)?.name).filter(Boolean).join(', ')}
+          </div>
+        )}
+        {moduleAccessGranted && dirty && (
+          <button className="btn btn-pri btn-sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? '…' : '✓ Save Changes'}
+          </button>
+        )}
+      </div>      
+       {!moduleAccessGranted ? (
+        <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--ink4)', fontSize: 13 }}>
+          {isOverrideMode
+            ? 'This group has no granted modules — there are no fields to override for this person.'
+            : <>This group has no module access — there are no fields to configure.<br /><span style={{ fontSize: 11 }}>Grant module view access above to manage field-level rules.</span></>}
+        </div>
+      ): (
+        <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div className="ct" style={{ flex: 1 }}>{isOverrideMode ? 'Field-Level Overrides' : 'Field-Level Permissions'}</div>
+        {groupCompanyIds.length > 0 && (
+          <div style={{ fontSize: 11, color: 'var(--ink4)' }}>
+            Applies to: {groupCompanyIds.map(id => assignedCompanies.find(c => c.id === id)?.name).filter(Boolean).join(', ')}
+          </div>
+        )}
         {dirty && (
           <button className="btn btn-pri btn-sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             {saveMutation.isPending ? '…' : '✓ Save Changes'}
@@ -1391,11 +1368,9 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
         )}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 220px', gap: 14 }}>
-        {/* ── Naya: real sections/forms sidebar ── */}
+
         <div className="card" style={{ overflow: 'hidden' }}>
-          <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)' }}>
-            Sections
-          </div>
+          <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)' }}>Sections</div>
           <div style={{ padding: '6px 0' }}>
             {forms.map((f: any) => (
               <div key={f.id} onClick={() => setSelectedFormId(f.id)}
@@ -1406,67 +1381,70 @@ function FieldPermissionsView({ groupId, onBack }: { groupId: number; onBack: ()
             ))}
           </div>
         </div>
-
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 14 }}>
-          {/* Field table — abhi single form, section-grouping baad mein */}
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <div style={{ padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink3)' }}>
-                {selectedForm?.name || '...'}
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={grantAll}>Grant all</button>
-                <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={revokeAll}>Revoke all</button>
-              </div>
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink3)' }}>{selectedForm?.name || '...'}</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={grantAll}>Grant all</button>
+              <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={revokeAll}>Revoke all</button>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', padding: '7px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)' }}>Field</th>
-                  {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => (
-                    <th key={p} style={{ padding: '7px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>
-                      {p.replace('can_', '').replace('is_', '')}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {fields.map((f: any) => {
-                  const fp = localPerms[f.id] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-                  return (
-                    <tr key={f.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>{f.label}</td>
-                      {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => (
-                        <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}>
-                          <PermToggle on={!!fp[p]} onClick={() => toggleFP(f.id, p)} />
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-                {fields.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: 20, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>No fields found for this form.</td></tr>
-                )}
-              </tbody>
-            </table>
           </div>
-
-          {/* Stats */}
-          <div className="card cp">
-            <div className="ct" style={{ marginBottom: 10 }}>Stats</div>
-            {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
-              const on = fields.filter((f: any) => localPerms[f.id]?.[p]).length;
-              return (
-                <div key={p} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 11 }}>
-                  <span style={{ color: 'var(--ink3)' }}>{p.replace('can_', '').replace('is_', '')}</span>
-                  <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: on > 0 ? 'var(--blue)' : 'var(--ink4)' }}>{on}/{fields.length}</span>
-                </div>
-              );
-            })}
-          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <th style={{ textAlign: 'left', padding: '7px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)' }}>Field</th>
+              {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => (
+                <th key={p} style={{ padding: '7px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{p.replace('can_', '').replace('is_', '')}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {fields.map((f: any) => {
+                const fp = localPerms[f.id] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+                return (
+                  <tr key={f.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>{f.label}</td>
+                    {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => (
+                      <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}><PermToggle on={!!fp[p]} onClick={() => toggleFP(f.id, p)} /></td>
+                    ))}
+                  </tr>
+                );
+              })}
+              {fields.length === 0 && <tr><td colSpan={6} style={{ padding: 20, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>No fields found for this form.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="card cp">
+          <div className="ct" style={{ marginBottom: 10 }}>Stats</div>
+          {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
+            const on = fields.filter((f: any) => localPerms[f.id]?.[p]).length;
+            return (
+              <div key={p} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 11 }}>
+                <span style={{ color: 'var(--ink3)' }}>{p.replace('can_', '').replace('is_', '')}</span>
+                <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: on > 0 ? 'var(--blue)' : 'var(--ink4)' }}>{on}/{fields.length}</span>
+              </div>
+            );
+          })}        
         </div>
       </div>
+       {/* ── How it works — mode-aware copy ── */}
+      <div style={{ fontSize: 11, color: 'var(--ink4)', lineHeight: 1.6, marginTop: 14, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
+        {isOverrideMode ? (
+          <>
+            <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: 5 }}>🔒 Member overrides</strong>
+            Choose which companies this override applies to above. You can set different overrides per company or apply one rule to all assigned companies.<br /><br />
+            <strong style={{ color: 'var(--amber)' }}>Mask</strong> shows the value as •••• — useful for salary &amp; ID numbers.
+          </>
+        ) : (
+          <>
+            <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: 5 }}>🔒 How it works</strong>
+            Field rules override module rules. A field blocked here won't show even if the module is visible.<br /><br />
+            <strong style={{ color: 'var(--amber)' }}>Mask</strong> shows the value as •••• — useful for salary &amp; ID numbers.
+          </>
+        )}
+      </div> 
+      </>
+      )
+    }
+       
     </div>
   );
 }
@@ -1644,13 +1622,13 @@ export default function RolesPermissionsPage() {
     </AppShell>
   );
 
-  if (view === 'field-perms') return (
-    <AppShell>
-      <div className="pg-enter">
-        <FieldPermissionsView groupId={fpGroupId} onBack={() => setView('groups')} />
-      </div>
-    </AppShell>
-  );
+// if (view === 'field-perms') return (
+//   <AppShell>
+//     <div className="pg-enter">
+//       <FieldPermissionsView groupId={fpGroupId} onBack={() => setView('groups')} />
+//     </div>
+//   </AppShell>
+// );
 
   return (
     <PermissionGuard permission="settings:view">
@@ -1723,7 +1701,7 @@ export default function RolesPermissionsPage() {
                   group={selectedGroup}
                   members={groupMembersMap[selectedGroup.id] || []}
                   onEdit={() => { setEditGroup(selectedGroup); setView('edit'); }}
-                  onFieldPerms={() => { setFpGroupId(selectedGroup.id); setView('field-perms'); }}
+                  onFieldPerms={() => { setFpGroupId(selectedGroup.id); setView('edit'); }}
                   onDelete={() => setDeleteTarget(selectedGroup)}
                   addPersonOpen={addPersonOpen}
                   setAddPersonOpen={setAddPersonOpen}

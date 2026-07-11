@@ -210,7 +210,7 @@ FieldPermissionV2.init({
   can_copy: { type: DataTypes.BOOLEAN, defaultValue: false },
   can_download: { type: DataTypes.BOOLEAN, defaultValue: false },
   is_masked: { type: DataTypes.BOOLEAN, defaultValue: false },
-}, { sequelize, tableName: 'field_permissions_v2', modelName: 'FieldPermissionV2', timestamps: false, indexes: [{ unique: true, fields: ['group_id', 'field_id'] }] });
+}, { sequelize, tableName: 'field_permissions_v2', modelName: 'FieldPermissionV2', timestamps: false, indexes: [{ unique: true, fields: ['company_id', 'group_id', 'field_id'] }] });
 
 // ─── RoleAssignment (kept for backward compat — use employee_roles instead) ──
 export class RoleAssignment extends Model { 

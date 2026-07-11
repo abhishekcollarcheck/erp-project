@@ -39,7 +39,7 @@ const pgService = {
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 function useGroups() {
-  return useQuery({ queryKey: ['perm-groups'], queryFn: () => pgService.list(), staleTime: 60_000, select: r => r.data ?? [] });
+  return useQuery({ queryKey: ['perm-groups'], queryFn: () => pgService.list(), staleTime: 0, select: r => r.data ?? [] });
 }
 function useGroupMembers(id: number) {
   return useQuery({ queryKey: ['perm-group-members', id], queryFn: () => pgService.getMembers(id), enabled: id > 0, select: r => r.data ?? [] });

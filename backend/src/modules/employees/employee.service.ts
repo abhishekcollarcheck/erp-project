@@ -21,10 +21,11 @@ import type { StepKey } from './employee.constants';
 import { SENSITIVE_FIELDS } from './employee.constants';
 import { Transaction } from 'sequelize';
 import { normalizePhone } from '../../utils/normalizeNumber';
+import { getEmployeeFieldOverrides } from '../permission-groups/permissionGroupOverrides';
 
 // ─── Field permission cache ───────────────────────────────────────────────────
 const fpCache = new Map<string, { data: FieldPermissionMap; ts: number }>();
-const FP_TTL = 5 * 60 * 1000;
+const FP_TTL = 0 * 60 * 1000;
 
 async function loadFieldPerms(groupIds: number[], companyId: number): Promise<FieldPermissionMap> {
   if (!groupIds.length) return {};
@@ -467,11 +468,42 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
 
   async getDraft(sessionId: string, actorId: number) { return repo.getDraft(sessionId, actorId); }
   async discardDraft(sessionId: string, actorId: number) { return repo.deleteDraft(sessionId, actorId); }
-  async getFieldPermissions(employeeId: number, companyId: number) {
-  const memberships = await UserGroup.findAll({ where: { employee_id: employeeId, company_id: companyId } });
-  const groupIds = memberships.map(m => m.group_id);
-  return loadFieldPerms(groupIds, companyId);
+
+
+async getFieldPermissions(employeeId: number) {
+  const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } });
+
+  const byCompany: Record<number, number[]> = {};
+  for (const m of memberships) {
+    (byCompany[m.company_id] ??= []).push(m.group_id);
+  }
+
+  const result: Record<number, FieldPermissionMap> = {};
+  for (const [companyIdStr, groupIds] of Object.entries(byCompany)) {
+    const companyId = +companyIdStr;
+    const groupPerms = await loadFieldPerms(groupIds, companyId);
+
+    // ── Layer employee-specific field overrides on top — override wins ──
+    const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, 'employees');
+    const merged: FieldPermissionMap = { ...groupPerms };
+
+    for (const [fieldName, permMap] of Object.entries(fieldOverrides)) {
+      const base = merged[fieldName] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+      merged[fieldName] = {
+        can_view: permMap.view !== undefined ? permMap.view : base.can_view,
+        can_edit: permMap.edit !== undefined ? permMap.edit : base.can_edit,
+        can_copy: permMap.copy !== undefined ? permMap.copy : base.can_copy,
+        can_download: permMap.download !== undefined ? permMap.download : base.can_download,
+        is_masked: permMap.mask !== undefined ? permMap.mask : base.is_masked,
+      };
+    }
+
+    result[companyId] = merged;
+  }
+  return result;
 }
+
+
   async getSummary(companyId: number) { return repo.getSummary(companyId); }
 
   // ✅ FIXED bulkUpload METHOD - Handles all required fields
@@ -664,10 +696,10 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
     return result;
   }
 
-private async hasSensitiveAccess(employeeId: number, companyId: number): Promise<boolean> {
-  const perms = await this.getFieldPermissions(employeeId, companyId);
-  return SENSITIVE_FIELDS.some(f => perms[f]?.can_view !== false);
-}
+// private async hasSensitiveAccess(employeeId: number, companyId: number): Promise<boolean> {
+//   const perms = await this.getFieldPermissions(employeeId, companyId);
+//   return SENSITIVE_FIELDS.some(f => perms[f]?.can_view !== false);
+// }
 }
 
 export const employeeService = new EmployeeService();

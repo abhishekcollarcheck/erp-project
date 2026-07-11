@@ -11,7 +11,7 @@ import {
 import { useAuth, usePermission } from "../../features/auth/hooks/useAuth";
 import { useCompany } from "../../features/company/hooks/useCompany";
 import { authService } from "../../services/api/auth.service";
-import { ChevronDown, Brain, LayoutDashboard, SquareUserRound, Target, BookKey } from "lucide-react";
+import { ChevronDown, ChevronRight, Brain, LayoutDashboard, SquareUserRound, Target, BookKey, ArrowUpNarrowWide, BookA, Settings, Building2, ShieldUser, Form, Shrink } from "lucide-react";
 
 // ─── Nav definition ───────────────────────────────────────────────────────────
 
@@ -19,21 +19,20 @@ interface NavItem {
   id: string;
   label: string;
   icon: React.ReactNode;
-  href: string;
-  count?: number;
-  permission: string | null; // null = always show
-  module?: string; // if set, only show when this module is active for the company
-  superOnly?: boolean; // only show to super admins
+  href?: string;
+  permission: string | null;
+  module?: string;
+  superOnly?: boolean;
+  children?: NavItem[];
 }
 interface NavSection {
-  label: string;
   items: NavItem[];
   superOnly?: boolean;
 }
 
 const NAV: NavSection[] = [
   {
-    label: "Overview",
+    // label: "Overview",
     items: [
       {
         id: "dashboard",
@@ -48,100 +47,106 @@ const NAV: NavSection[] = [
         icon: <LayoutDashboard size={16} />,
         href: "/test",
         permission: null,
-      }, 
-    ],
-  },
-  {
-    label: "Talent Acquisition",
-    items: [
-      {
-        id: "ats",
-        label: "Sourcing (ATS)",
-        icon: "⇧",
-        href: "/ats",
-        permission: "recruitment:view",
-        module: "recruitment",
-      },
-      {
-        id: "ats-tests",
-        label: "Aptitude Tests",
-        icon: <Brain size={16} />,
-        href: "/ats-tests",
-        permission: "aptitude:view",
-        module: "aptitude",
-      },
-      // { id: 'pipeline', label: 'Pipeline / Kanban', icon: '▤', href: '/pipeline', permission: 'recruitment:view' },
-      // { id: 'interviews', label: 'Interviews', icon: '📅', href: '/interviews', permission: 'recruitment:view' },
-      // { id: 'evaluation', label: 'Evaluation Forms', icon: '★', href: '/evaluation', permission: 'recruitment:view' },
-      // { id: 'pool', label: 'Candidate Pool', icon: '◙', href: '/pool', permission: 'recruitment:view' },
-    ],
-  },
-  {
-    label: "People & Performance",
-    items: [
-      {
-        id: "employees",
-        label: "Employees",
-        icon: <SquareUserRound size={16} />,
-        href: "/employees",
-        permission: "employees:view",
-        module: "employees",
-      },
-      {
-        id: "departments",
-        label: "Departments",
-        icon: "🏢",
-        href: "/departments",
-        permission: "department:view",
-        module: "departments",
-      },
-      {
-        id: "designations",
-        label: "Designations",
-        icon: <Target size={16} />,
-        href: "/designations",
-        permission: "designation:view",
-        module: "designations",
       },
     ],
   },
   {
-    label: "Settings",
     items: [
       {
-        id: "settings",
-        label: "Settings Overview",
-        icon: "⚙",
-        href: "/settings",
-        permission: "settings:view",
+        id: "hrms",
+        label: "Hrms",
+        icon: <Shrink size={16} />,
+        permission: null,
+        children: [
+          {
+            id: "ats",
+            label: "Sourcing (ATS)",
+            icon: <ArrowUpNarrowWide size={16} />,
+            href: "/ats",
+            permission: "recruitment:view",
+            module: "recruitment",
+          },
+          {
+            id: "ats-tests",
+            label: "Aptitude Tests",
+            icon: <Brain size={16} />,
+            href: "/ats-tests",
+            permission: "aptitude:view",
+            module: "aptitude",
+          },
+          {
+            id: "employees",
+            label: "Employees",
+            icon: <SquareUserRound size={16} />,
+            href: "/employees",
+            permission: "employees:view",
+            module: "employees",
+          },
+          {
+            id: "departments",
+            label: "Departments",
+            icon: <BookA size={16} />,
+            href: "/departments",
+            permission: "department:view",
+            module: "departments",
+          },
+          {
+            id: "designations",
+            label: "Designations",
+            icon: <Target size={16} />,
+            href: "/designations",
+            permission: "designation:view",
+            module: "designations",
+          },
+        ],
       },
+    ],
+  },
+  {
+    items: [
       {
-        id: "roles",
-        label: "Roles & Permissions",
-        icon: <BookKey size={16} />,
-        href: "/settings/roles",
-        permission: "settings:view",
+        id: "setting",
+        label: "Settings",
+        icon: <Settings size={16} />,
+        permission: null,
+        children: [
+          {
+            id: "settings",
+            label: "Settings Overview",
+            icon: <Form size={16} />,
+            href: "/settings",
+            permission: "settings:view",
+          },
+          {
+            id: "roles",
+            label: "Roles & Permissions",
+            icon: <BookKey size={16} />,
+            href: "/settings/roles",
+            permission: "settings:view",
+          },
+          {
+            id: "companies",
+            label: "Companies",
+            icon: <Building2 size={16} />,
+            href: "/settings/companies",
+            permission: "companies:view",
+          },
+          {
+            id: "super-admins",
+            label: "Super Admins",
+            icon: <ShieldUser size={16} />,
+            href: "/settings/super-admins",
+            permission: "super_admin:manage",
+          },
+        ],
       },
+
       // { id: 'perm-groups', label: 'Permission Groups', icon: '🔐', href: '/settings/permission-groups', permission: 'settings:view' },
       // { id: 'forms', label: 'Form Builder', icon: '🧩', href: '/settings/forms', permission: 'settings:view' },
       // { id: 'perm-matrix', label: 'Permission Matrix', icon: '▦', href: '/settings/permissions', permission: 'settings:view' },
       // { id: 'user-perms', label: 'User Permissions', icon: '👤', href: '/settings/user-permissions', permission: 'settings:view' },
       // { id: 'email-tpl', label: 'Email Templates', icon: '📧', href: '/settings/email-templates', permission: 'settings:view' },
       // Super admin only items
-      {
-        id: "companies",
-        label: "Companies",
-        icon: "🏢",
-        href: "/settings/companies",
-        permission: "companies:view",
-      },
-      {
-        id: "super-admins",
-        label: "Super Admins",
-        icon: "⚡",
-        href: "/settings/super-admins",
-        permission: "super_admin:manage",
-      },
     ],
   },
 ];
@@ -381,6 +386,7 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 // ─── Sidebar component ────────────────────────────────────────────────────────
 
 export function Sidebar() {
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = useAppSelector((s: any) => s.ui.sidebarCollapsed);
@@ -391,9 +397,7 @@ export function Sidebar() {
   const { company, companyId, companies } = useCompany();
   // Active modules for the current company — filters sidebar items
   const activeModules: string[] = (company as any)?.active_modules ?? [];
-  const auth = useAppSelector((state: any) => state.auth);
-const permissions = useAppSelector(selectPermissions);
-const initials = user?.fullName
+  const initials = user?.fullName
     ? user.fullName
         .split(" ")
         .map((n: string) => n[0])
@@ -498,25 +502,132 @@ const initials = user?.fullName
             if (item.permission === null) return true;
             return hasPermission(item.permission);
           });
-          if (visibleItems.length === 0) return null;    
+          if (visibleItems.length === 0) return null;
+
           return (
-            <div key={section.label}>
-              {!collapsed && <div className="sb-sec">{section.label}</div>}
+            <div>
+              {/* {!collapsed && <div className="sb-sec">{section.label}</div>} */}
               {visibleItems.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== "/" && pathname.startsWith(item.href));
+                // Parent active state
+                const isActive = item.children
+                  ? item.children.some(
+                      (child) =>
+                        child.href &&
+                        (pathname === child.href ||
+                          pathname.startsWith(child.href)),
+                    )
+                  : !!item.href &&
+                    (pathname === item.href || pathname.startsWith(item.href));
+
+                // ==========================
+                // Dropdown Menu (HRMS)
+                // ==========================
+                if (item.children) {
+                  const visibleChildren = item.children.filter((child) => {
+                    if (child.superOnly && !isSuperAdmin) return false;
+
+                    if (
+                      child.module &&
+                      !isSuperAdmin &&
+                      activeModules.length > 0 &&
+                      !activeModules.includes(child.module)
+                    ) {
+                      return false;
+                    }
+
+                    if (child.permission === null) return true;
+
+                    return hasPermission(child.permission);
+                  });
+
+                  if (visibleChildren.length === 0) return null;
+
+                  return (
+                    <div key={item.id}>
+                      {/* Parent */}
+                      <div
+                        className={`ni${isActive ? " on" : ""}`}
+                        title={collapsed ? item.label : undefined}
+                        onClick={() =>
+                          setOpenMenus((prev) => ({
+                            ...prev,
+                            [item.id]: !prev[item.id],
+                          }))
+                        }
+                      >
+                        <span className="ni-ic">{item.icon}</span>
+
+                        {!collapsed && (
+                          <>
+                            <span className="ni-lb">{item.label}</span>
+
+                            <span
+                              style={{
+                                marginLeft: "auto",
+                                transition: "transform .2s",
+                                transform: openMenus[item.id]
+                                  ? "rotate(90deg)"
+                                  : "rotate(0deg)",
+                              }}
+                            >
+                              <ChevronRight size={16} />
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Children */}
+                      {!collapsed &&
+                        openMenus[item.id] &&
+                        visibleChildren.map((child) => {
+                          const childActive =
+                            !!child.href &&
+                            (pathname === child.href ||
+                              (child.href !== "/" &&
+                                pathname.startsWith(child.href)));
+
+                          return (
+                            <div
+                              key={child.id}
+                              className={`ni${childActive ? " on" : ""}`}
+                              style={{ paddingLeft: 36 }}
+                              title={child.label}
+                              onClick={() => {
+                                if (child.href) {
+                                  router.push(child.href);
+                                }
+                              }}
+                            >
+                              <span className="ni-ic">{child.icon}</span>
+
+                              <span className="ni-lb">{child.label}</span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  );
+                }
+
+                // ==========================
+                // Normal Menu Item
+                // ==========================
                 return (
                   <div
                     key={item.id}
                     className={`ni${isActive ? " on" : ""}`}
-                    onClick={() => router.push(item.href)}
                     title={collapsed ? item.label : undefined}
+                    onClick={() => {
+                      if (item.href) {
+                        router.push(item.href);
+                      }
+                    }}
                   >
                     <span className="ni-ic">{item.icon}</span>
-                    {!collapsed && <span className="ni-lb">{item.label}</span>}
-                    {!collapsed && item.count !== undefined && (
-                      <span className="ni-ct">{item.count}</span>
+
+                    {!collapsed && (
+                      <>
+                        <span className="ni-lb">{item.label}</span>
+                      </>
                     )}
                   </div>
                 );

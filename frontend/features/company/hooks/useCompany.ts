@@ -32,7 +32,7 @@ useEffect(() => {
     queryFn:  () => apiClient.get<any,any>('/companies/mine'),
     enabled:  isSuperAdmin || managedCompanies.length > 1,
     select:   (r: any) => r.data as ManagedCompany[],
-    staleTime: 5 * 60_000,
+    staleTime: 0,
   });
 
   // Use managedCompanies from JWT first, fall back to API data for super admins

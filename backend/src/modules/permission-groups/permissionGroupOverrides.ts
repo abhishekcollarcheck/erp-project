@@ -31,6 +31,86 @@ class EmployeeOverrideService {
    * Confirm employee exists in this company AND is a member of this group.
    * UserGroup uses employee_id directly — no user lookup needed.
    */
+async setFieldOverrides(
+    groupId: number,
+    employeeId: number,
+    companyIds: number[],
+    module: string,
+    overrides: { field_name: string; permission: string; granted: boolean }[],
+    actorId: number,
+  ) {
+    if (!companyIds.length) {
+      throw new AppError("At least one company_id is required", 400);
+    }
+    if (!module?.trim()) {
+      throw new AppError("module is required", 400);
+    }
+
+    const memberships = await UserGroup.findAll({
+      where: { group_id: groupId, employee_id: employeeId, company_id: companyIds },
+    });
+    const validCompanyIds = new Set(memberships.map((m) => m.company_id));
+    const invalidIds = companyIds.filter((id) => !validCompanyIds.has(id));
+    if (invalidIds.length > 0) {
+      throw new AppError(
+        `Employee is not a member of this group in company_id(s): ${invalidIds.join(", ")}`,
+        404,
+      );
+    }
+
+    const VALID_PERMS = new Set(["view", "edit", "copy", "download", "mask"]);
+    for (const o of overrides) {
+      if (!o.field_name?.trim()) throw new AppError("field_name is required", 400);
+      if (!VALID_PERMS.has(o.permission))
+        throw new AppError(
+          `Invalid permission "${o.permission}". Allowed: view, edit, copy, download, mask`,
+          400,
+        );
+    }
+
+    for (const companyId of companyIds) {
+      await EmployeePermissionOverride.destroy({
+        where: {
+          group_id: groupId,
+          employee_id: employeeId,
+          company_id: companyId,
+          module,
+          field_name: { [Op.ne]: null },   // only clear THIS module's field-level rows — never module-level rows
+        },
+      });
+
+      if (overrides.length > 0) {
+        await EmployeePermissionOverride.bulkCreate(
+          overrides.map((o) => ({
+            company_id: companyId,
+            group_id: groupId,
+            employee_id: employeeId,
+            module,
+            field_name: o.field_name.trim(),
+            permission: o.permission,
+            granted: o.granted,
+            created_by: actorId,
+          })),
+          { ignoreDuplicates: true },
+        );
+      }
+    }
+
+    clearPermissionCache(employeeId);
+
+    await logActivity({
+      companyId: companyIds[0],
+      employeeId: actorId,
+      action: "EMPLOYEE_FIELD_OVERRIDES_SET",
+      module: "settings",
+      entityId: employeeId,
+      newValues: { groupId, companyIds, module, overrideCount: overrides.length },
+    });
+
+    await refreshEmployeePermission(employeeId, companyIds);
+    return { updated: overrides.length, companiesUpdated: companyIds };
+  }
+
   private async assertMembership(groupId: number, employeeId: number) {
     const emp = await Employee.findOne({
       where: { id: employeeId },
@@ -66,6 +146,7 @@ class EmployeeOverrideService {
         group_id: groupId,
         employee_id: employeeId,
         company_id: targetCompanyId,
+        field_name: null,
       },
       order: [
         ["module", "ASC"],
@@ -140,6 +221,7 @@ class EmployeeOverrideService {
           group_id: groupId,
           employee_id: employeeId,
           company_id: companyId,
+          field_name: null,
         },
       });
 
@@ -287,14 +369,26 @@ export async function getEmployeeFieldOverrides(
 
 // ─── Controllers ──────────────────────────────────────────────────────────────
 
+async function setFieldOverrides(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const companyIds = Array.isArray(req.body.company_ids) ? req.body.company_ids.map((id: any) => +id) : [];
+    const data = await overrideSvc.setFieldOverrides(
+      +req.params.id,
+      +req.params.employeeId,
+      companyIds,
+      req.body.module,
+      req.body.overrides ?? [],
+      req.user!.employeeId,
+    );
+    sendResponse(res, { data });
+  } catch (e) { next(e); }
+}
+
 async function listOverrides(
   req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  console.log("req.user", req.user)
-  console.log("req.body", req.body)
-  console.log("req.query", req.query)
   try {
     const companyId = +req.query.company_id!;
     const data = await overrideSvc.listOverrides(
@@ -391,6 +485,13 @@ export function patchGroupMembersWithOverrideCounts(router: Router): void {
   );
 }
 
+async function listFieldOverrides(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await getEmployeeFieldOverrides(+req.params.employeeId, +req.query.company_id!, req.query.module as string);
+    sendResponse(res, { data });
+  } catch (e) { next(e); }
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 /**
@@ -441,4 +542,28 @@ employeeOverrideRouter.delete(
   ],
   validate,
   deleteOverride,
+);
+
+employeeOverrideRouter.put(
+  "/:id/members/:employeeId/field-overrides",
+  [
+    param("id").isInt(),
+    param("employeeId").isInt(),
+    body("company_ids").isArray({ min: 1 }),
+    body("company_ids.*").isInt(),
+    body("module").trim().notEmpty(),
+    body("overrides").isArray(),
+    body("overrides.*.field_name").trim().notEmpty(),
+    body("overrides.*.permission").trim().notEmpty(),
+    body("overrides.*.granted").isBoolean(),
+  ],
+  validate,
+  setFieldOverrides,
+);
+
+employeeOverrideRouter.get(
+  "/:id/members/:employeeId/field-overrides",
+  [param("id").isInt(), param("employeeId").isInt(), query("company_id").isInt(), query("module").notEmpty()],
+  validate,
+  listFieldOverrides,
 );

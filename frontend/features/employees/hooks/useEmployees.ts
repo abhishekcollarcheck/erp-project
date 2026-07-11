@@ -7,6 +7,8 @@ import { employeeService } from '../../../services/api/employee.service';
 import { showToast } from '../../../utils/toast';
 import type { StepSchemaKey } from '../validations/employee.schema';
 import { useCompany } from '../../../features/company/hooks/useCompany';
+import { selectActiveCompanyId } from '../../../store/slices/authSlice';
+import { useAppSelector } from '../../../store';
 
 const DENY_ALL = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
 
@@ -70,12 +72,23 @@ export function useNextCode() {
 }
 
 // ─── Field permissions ────────────────────────────────────────────────────────
+// export function useFieldPermissions() {
+//   return useQuery({
+//     queryKey: EMP_KEYS.fieldPerms,
+//     queryFn: () => employeeService.fieldPermissions(),
+//     staleTime: 0,
+//     select: (res: any) => res.data as Record<string, { can_view: boolean; can_edit: boolean; is_masked: boolean; can_copy: boolean; can_download: boolean }>,
+//   });
+// }
+
 export function useFieldPermissions() {
+  const activeCompanyId = useAppSelector(selectActiveCompanyId);
   return useQuery({
     queryKey: EMP_KEYS.fieldPerms,
     queryFn: () => employeeService.fieldPermissions(),
+    enabled: activeCompanyId != null,
+    select: (res: any) => (activeCompanyId != null ? res.data?.[activeCompanyId] : {}) ?? {},
     staleTime: 0,
-    select: (res: any) => res.data as Record<string, { can_view: boolean; can_edit: boolean; is_masked: boolean; can_copy: boolean; can_download: boolean }>,
   });
 }
 

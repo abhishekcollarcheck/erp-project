@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { RolesService }       from '../roles/roles.service';
 import { FormBuilderService } from './formBuilder.service';
 import { sendResponse, sendError } from '../../utils/response';
+import { AppError } from '../../middleware/errorHandler.middleware';
 
 const rolesSvc = new RolesService();
 const fbSvc    = new FormBuilderService();
@@ -124,14 +125,19 @@ export async function getPermissionMatrix(req: Request, res: Response, next: Nex
 
 export async function setFieldPermission(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await fbSvc.setFieldPermission(req.user!.companyId, +req.body.group_id, +req.params.fieldId, req.body, req.user!.employeeId);
+    const companyIds = Array.isArray(req.body.company_ids) ? req.body.company_ids.map((id: any) => +id) : [req.user!.companyId];
+    const data = await fbSvc.setFieldPermission(companyIds, +req.body.group_id, +req.params.fieldId, req.body, req.user!.employeeId);
     sendResponse(res, { data });
   } catch(e){ next(e); }
 }
 
 export async function bulkSetPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await fbSvc.bulkSetFieldPermissions(req.user!.companyId, +req.body.group_id, req.body.permissions, req.user!.employeeId);
+    if (!Array.isArray(req.body.company_ids) || !req.body.company_ids.length) {
+      throw new AppError('company_ids is required', 400);
+    }
+    const companyIds = req.body.company_ids.map((id: any) => +id);
+    const data = await fbSvc.bulkSetFieldPermissions(companyIds, +req.body.group_id, req.body.permissions, req.user!.employeeId);
     sendResponse(res, { data, message: `${data.updated} permissions updated` });
   } catch(e){ next(e); }
 }

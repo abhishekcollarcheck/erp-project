@@ -324,6 +324,15 @@ export async function seedDatabase(): Promise<void> {
             { field_key: 'mother_occupation', label: 'Mother Occupation', field_type: 'text' },
           ],
         },
+{
+  section: 'Emergency Contacts',
+  fields: [
+    { field_key: 'contact_name', label: 'Contact Name', field_type: 'text' },
+    { field_key: 'contact_number', label: 'Contact Number', field_type: 'text' },
+    { field_key: 'relationship', label: 'Relationship', field_type: 'text' },
+    { field_key: 'is_primary', label: 'Is Primary', field_type: 'checkbox' },
+  ],
+},        
         {
           section: 'Address',
           fields: [

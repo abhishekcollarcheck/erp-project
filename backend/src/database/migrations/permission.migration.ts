@@ -25,3 +25,6 @@
 
 // UPDATE company_modules SET module = 'department' WHERE module = 'departments';
 // UPDATE company_modules SET module = 'designation' WHERE module = 'designations';
+
+
+// ALTER TABLE field_permissions_v2 DROP INDEX field_permissions_v2_group_id_field_id;

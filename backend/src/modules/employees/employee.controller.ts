@@ -143,10 +143,15 @@ export const employeeController = {
     sendResponse(res, { data: mgr });
   },
 
+  // async fieldPermissions(req: Request, res: Response) {
+  //   const perms = await employeeService.getFieldPermissions(req.user!.employeeId, req.user!.companyId);
+  //   sendResponse(res, { data: perms });
+  // },
+
   async fieldPermissions(req: Request, res: Response) {
-    const perms = await employeeService.getFieldPermissions(req.user!.employeeId, req.user!.companyId);
-    sendResponse(res, { data: perms });
-  },
+  const perms = await employeeService.getFieldPermissions(req.user!.employeeId);
+  sendResponse(res, { data: perms });
+},
 
   async summary(req: Request, res: Response) {
     const s = await employeeService.getSummary(req.user!.companyId);

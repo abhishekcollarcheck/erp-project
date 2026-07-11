@@ -166,7 +166,7 @@ div#sb.slim {
 
 .ni {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 9px; margin: 1px 7px; border-radius: var(--r);
+  padding: 6px 9px; margin: 4px 7px; border-radius: var(--r);
   cursor: pointer; color: var(--ink3);
   transition: background .1s, color .1s;
   white-space: nowrap; overflow: hidden;
