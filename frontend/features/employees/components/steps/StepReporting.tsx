@@ -2,6 +2,7 @@
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { useFieldPermissions, useEmployees, resolveFieldPerm } from '../../hooks/useEmployees';
+import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -24,6 +25,7 @@ export function StepReporting({ employeeId }: Props) {
     .map(e => ({ value: e.id, label: `${e.first_name} ${e.last_name} (${e.employee_code})` }));
 
   return (
+    <FormSection fields={[f('l1_manager_id'), f('l2_manager_id'), f('actual_doj'), f('current_doj')]}>
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <FormSelect name="l1_manager_id" label="L1 Manager (Direct)"
@@ -45,5 +47,6 @@ export function StepReporting({ employeeId }: Props) {
         <FormDatePicker name="current_doj" label="Current DOJ" hint="Leave blank to use Actual DOJ" fieldPerm={f('current_doj')} />
       </div>
     </div>
+    </FormSection>
   );
 }

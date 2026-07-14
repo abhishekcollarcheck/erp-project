@@ -16,9 +16,7 @@ export function FormSection({
   noAccessMessage = "You don't have access to view this section.",
 }: Props) {
 
-  console.log("fields", fields)
   const canView = fields.some(f => f?.can_view);
-  console.log("canView", canView)
   return (
     <>
       {canView ? (

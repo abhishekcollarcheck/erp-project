@@ -5,6 +5,7 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { toOpts, GENDER, BLOOD_GROUP, MARITAL_STATUS } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -16,6 +17,7 @@ export function StepPersonal(_: Props) {
   const f = (n: string) => resolveFieldPerm(fp, n);
 
   return (
+    <FormSection fields={[f('personal_email'), f('personal_mobile'), f('date_of_birth'), f('gender'), f('blood_group'), f('shirt_size'), f('tshirt_size'), f('nationality'), f('religion'), f('marital_status'), f('marriage_date'), f('spouse_name'), f('spouse_dob'), f('child1_name'), f('child1_dob'), f('child2_name'), f('child2_dob'), f('child3_name'), f('child3_dob')]}>
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <FormInput name="personal_email"  label="Personal Email"  type="email" required placeholder="rahul@gmail.com" fieldPerm={f('personal_email')} />
@@ -49,5 +51,6 @@ export function StepPersonal(_: Props) {
         </div>
       )}
     </div>
+    </FormSection>
   );
 }

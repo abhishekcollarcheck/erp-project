@@ -774,7 +774,6 @@ async function listManagers(req: Request, res: Response, next: NextFunction): Pr
 
 export const companyRouter = Router();
 companyRouter.use(authenticate);
-companyRouter.use(resolveCompanyContext)
 
 companyRouter.get('/platform-stats', requireSuperAdmin => authenticate, getPlatformStats);
 companyRouter.get('/eligible-managers', getGlobalEligibleManagers);

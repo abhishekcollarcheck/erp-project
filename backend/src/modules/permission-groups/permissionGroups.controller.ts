@@ -414,6 +414,7 @@ await refreshEmployeePermission(
       where: {
         group_id: groupId,
         employee_id: employeeId,
+        company_id: companyId,
       },
     });
 
@@ -660,11 +661,12 @@ async function getGroupPermissions(
   try {
     const group = await svc.getById(+req.params.id, req.user!.companyId);
     const cid = req.user!.companyId;
-    const slugs = ((group as any).permissions ?? [])
-      .filter(
-        (p: any) => !p.GroupPermission || p.GroupPermission.company_id === cid,
-      )
-      .map((p: any) => p.slug);
+    // const slugs = ((group as any).permissions ?? [])
+    //   .filter(
+    //     (p: any) => !p.GroupPermission || p.GroupPermission.company_id === cid,
+    //   )
+    //   .map((p: any) => p.slug);
+    const slugs = (group.permissions ?? []).filter(p => !p.GroupPermission || p.GroupPermission.company_id === cid).map(p => p.slug);  
     sendResponse(res, { data: slugs });
   } catch (e) {
     next(e);
@@ -736,10 +738,11 @@ async function removeGroupMember(
   next: NextFunction,
 ): Promise<void> {
   try {
+    const companyId = req.query.company_id ? +req.query.company_id : req.user!.companyId;
     sendResponse(res, {
       data: await svc.removeMember(
         +req.params.id,
-        req.user!.companyId,
+        companyId,
         +req.params.employeeId,
         req.user!.employeeId,
       ),
@@ -780,7 +783,6 @@ async function seedGroups(
 export { PermissionGroupService, svc as permissionGroupService };
 
 // ─── Router ───────────────────────────────────────────────────────────────────
-
 export const permissionGroupRouter = Router();
 permissionGroupRouter.use(authenticate);
 permissionGroupRouter.use(employeeOverrideRouter);

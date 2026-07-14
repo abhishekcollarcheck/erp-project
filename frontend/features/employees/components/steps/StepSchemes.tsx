@@ -15,7 +15,7 @@ import {
   DEDUCTION_FROM,
 } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
-
+import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -88,6 +88,7 @@ export function StepSchemes(_: Props) {
   const rd_maturity_amount = useWatch({ name: 'rd_maturity_amount' });
 
   return (
+    <FormSection fields={[f('pf_status'), f('uan_number'), f('epfo_member_id'), f('pf_contribution_pct'), f('pf_employer_from'), f('esic_status'), f('esic_number'), f('mediclaim_status'), f('mediclaim_number'), f('mediclaim_amount'), f('rd_scheme'), f('rd_opening_date'), f('rd_account_number'), f('rd_deduction_from'), f('rd_amount_employee'), f('rd_amount_employer'), f('rd_maturity_date')]}>
     <div style={{ display: 'grid', gap: 20 }}>
 
       {/* ── PF ──────────────────────────────────────────────────────────── */}
@@ -167,5 +168,6 @@ export function StepSchemes(_: Props) {
         )}
       </div>
     </div>
+    </FormSection>
   );
 }

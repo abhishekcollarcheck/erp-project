@@ -12,6 +12,7 @@ import {
   CONFIRMATION_STATUS,
 } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -63,6 +64,7 @@ export function StepCommitment(_: Props) {
   }, [on_probation, actual_doj, probation_period, setValue]);
 
   return (
+    <FormSection fields={[f('commitment'), f('commitment_term'), f('commitment_entered_on'), f('commitment_end_date'), f('on_probation'), f('probation_period'), f('probation_end_date'), f('probation_extended_period'), f('confirmation_status'), f('confirmed_on')]}>
     <div style={{ display: 'grid', gap: 16 }}>
 
       {/* ── Commitment Bond ────────────────────────────────────────────────── */}
@@ -144,5 +146,6 @@ export function StepCommitment(_: Props) {
       </div>
 
     </div>
+    </FormSection>
   );
 }

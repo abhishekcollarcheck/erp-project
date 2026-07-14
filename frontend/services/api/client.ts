@@ -58,7 +58,6 @@ apiClient.interceptors.request.use(
       config.headers["x-company-id"] =
         String(activeCompanyId);
     }
-    console.log("axios-header", activeCompanyId)
     return config;
   },
   (error) => Promise.reject(error)

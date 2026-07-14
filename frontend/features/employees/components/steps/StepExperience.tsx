@@ -6,6 +6,7 @@ import { FormToggle } from '../../../../components/form/FormToggle';
 import { FormCurrencyInput } from '../../../../components/form/FormCurrencyInput';
 import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { FormSection } from '@/components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -14,6 +15,7 @@ export function StepExperience(_: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
   return (
+    <FormSection fields={[f('is_experienced'), f('last_company_name'), f('last_designation'), f('last_working_day'), f('exp_contact_name'), f('exp_contact_number'), f('exp_contact_designation'), f('last_inhand_salary'), f('highest_education'), f('education_stream'), f('education_mode'), f('institute_name'), f('passing_year'), f('education_marks')]}>
     <div style={{ display: 'grid', gap: 16 }}>
       <SectionTitle title="Past Experience" fields={[f('is_experienced')]} />
       <FormToggle name="is_experienced" label="Previously Employed" fieldPerm={f('is_experienced')} />
@@ -47,5 +49,6 @@ export function StepExperience(_: Props) {
         <FormInput name="education_marks" label="Marks / Grade"         placeholder="72% or A+" fieldPerm={f('education_marks')} />
       </div>
     </div>
+    </FormSection>
   );
 }

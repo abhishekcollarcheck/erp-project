@@ -4,7 +4,7 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { toOpts, FATHER_SALUTATION, MOTHER_SALUTATION, PARENT_STATUS, MOTHER_STATUS } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
-
+import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -12,6 +12,7 @@ export function StepFamily(_: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
   return (
+    <FormSection fields={[f('father_salutation'), f('father_name'), f('father_age_dob'), f('father_occupation'), f('father_status'), f('mother_salutation'), f('mother_name'), f('mother_age_dob'), f('mother_occupation')]}>
     <div style={{ display: 'grid', gap: 16 }}>
       <SectionTitle title="Father's Details" fields={[f('father_salutation'), f('father_name'), f('father_age_dob')]} />
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr', gap: 12 }}>
@@ -34,5 +35,6 @@ export function StepFamily(_: Props) {
         <FormSelect name="mother_occupation" label="Occupation Status" options={toOpts(MOTHER_STATUS)} placeholder="Select" fieldPerm={f('mother_occupation')} />
       </div>
     </div>
+    </FormSection>
   );
 }

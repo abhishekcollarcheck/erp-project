@@ -9,6 +9,7 @@ import type { DynamicSource } from '../../database/models/FormBuilder';
 import { AppError }        from '../../middleware/errorHandler.middleware';
 import { logActivity }     from '../../utils/activityLogger';
 import { PermissionGroup, UserGroup } from '../../database/models/PermissionGroups';
+import { refreshEmployeePermission } from '../../utils/refreshEmployeePermission';
 
 
 // ─── Default system modules seeded on company creation ────────────────────────
@@ -261,7 +262,6 @@ async setFieldPermission(companyIds: number[], groupId: number, fieldId: number,
   can_download?: boolean; is_masked?: boolean;
 }, updatedBy?: number) {
   if (!companyIds.length) throw new AppError('At least one company_id is required', 400);
-  console.log("companyIds", companyIds)
   const results = [];
   for (const companyId of companyIds) {
     const [perm, created] = await FieldPermissionV2.findOrCreate({
@@ -278,6 +278,17 @@ async setFieldPermission(companyIds: number[], groupId: number, fieldId: number,
     entityId: fieldId, newValues: { groupId, companyIds, ...dto },
   });
 
+  const memberships = await UserGroup.findAll({where: {group_id: groupId, company_id: companyIds}});
+  const byCompany = new Map<number, Set<number>>();
+  for (const m of memberships) {
+    if(!byCompany.has(m.company_id)) byCompany.set(m.company_id, new Set());
+    byCompany.get(m.company_id)!.add(m.employee_id);
+  }
+  for (const [companyId, employeeIds] of byCompany) {
+    for (const employeeId of employeeIds) {
+      await refreshEmployeePermission(employeeId, [companyId]);
+    }
+  } 
   return results;
 }
 
@@ -306,7 +317,6 @@ async bulkSetFieldPermissions(companyIds: number[], groupId: number, permissions
   can_download: boolean; is_masked: boolean;
 }[], updatedBy?: number) {
   if (!companyIds.length) throw new AppError('At least one company_id is required', 400);
-   console.log("companyIds", companyIds)
   const t = await sequelize.transaction();
   try {
     for (const companyId of companyIds) {
@@ -320,6 +330,17 @@ async bulkSetFieldPermissions(companyIds: number[], groupId: number, permissions
     }
     await t.commit();
     await logActivity({ companyId: companyIds[0], employeeId: updatedBy, action: 'FIELD_PERMISSIONS_BULK_UPDATED', module: 'settings', newValues: { groupId, companyIds, count: permissions.length } });
+      const memberships = await UserGroup.findAll({ where: { group_id: groupId, company_id: companyIds } });
+    const byCompany = new Map<number, Set<number>>();
+    for (const m of memberships) {
+      if (!byCompany.has(m.company_id)) byCompany.set(m.company_id, new Set());
+      byCompany.get(m.company_id)!.add(m.employee_id);
+    }
+    for (const [companyId, employeeIds] of byCompany) {
+      for (const employeeId of employeeIds) {
+        await refreshEmployeePermission(employeeId, [companyId]);
+      }
+    }
     return { updated: permissions.length * companyIds.length };
   } catch (e) { await t.rollback(); throw e; }
 }

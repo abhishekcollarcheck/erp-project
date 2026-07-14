@@ -120,7 +120,11 @@ export async function reorderFields(req: Request, res: Response, next: NextFunct
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function getPermissionMatrix(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.getPermissionMatrix(req.user!.companyId, +req.params.formId) }); } catch(e){ next(e); }
+  try {
+    const companyId = req.query.company_id ? +req.query.company_id : req.user!.companyId;
+    const data = await fbSvc.getPermissionMatrix(companyId, +req.params.formId);
+    sendResponse(res, { data });
+  } catch (e) { next(e); }
 }
 
 export async function setFieldPermission(req: Request, res: Response, next: NextFunction): Promise<void> {

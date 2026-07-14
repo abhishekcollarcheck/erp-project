@@ -5,6 +5,7 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { toOpts, HOUSE_TYPE, PERM_ADDRESS_TYPE } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -16,8 +17,9 @@ export function StepAddress(_: Props) {
   const f = (n: string) => resolveFieldPerm(fp, n);  
 
   return (
+    <FormSection fields={[f('present_house_type'), f('present_house_no'), f('present_area'), f('present_district'), f('present_city'), f('present_state'), f('present_country'), f('present_pincode'), f('perm_address_type'), f('perm_house_type'), f('perm_area'), f('perm_district'), f('perm_city'), f('perm_state'), f('perm_country'), f('perm_pincode')]}>
     <div style={{ display: 'grid', gap: 16 }}>
-      <SectionTitle title="Present Address" />
+      <SectionTitle title="Present Address" fields={[f('present_house_type'), f('present_house_no')]} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <FormSelect name="present_house_type" label="House Type" required options={toOpts(HOUSE_TYPE)} placeholder="Own or Rent" fieldPerm={f('present_house_type')} />
         <FormInput  name="present_house_no"   label="House No." required placeholder="Flat 4B, Building XYZ" fieldPerm={f('present_house_no')} />
@@ -29,9 +31,9 @@ export function StepAddress(_: Props) {
         <FormInput name="present_state"    label="State"    required placeholder="Maharashtra" fieldPerm={f('present_state')} />
         <FormInput name="present_country"  label="Country"  required placeholder="India" fieldPerm={f('present_country')} />
       </div>
-      <FormInput name="present_pincode" label="Pin Code" required placeholder="400058" maxLength={6} />
+      <FormInput name="present_pincode" label="Pin Code" required placeholder="400058" maxLength={6} fieldPerm={f('present_pincode')} />
 
-      <SectionTitle title="Permanent Address" />
+      <SectionTitle title="Permanent Address" fields={[f('perm_address_type')]} />
       <FormSelect name="perm_address_type" label="Permanent Address Type" required options={toOpts(PERM_ADDRESS_TYPE)} fieldPerm={f('perm_address_type')} />
 
       {isOther && (
@@ -56,5 +58,6 @@ export function StepAddress(_: Props) {
         </div>
       )}
     </div>
+    </FormSection>
   );
 }

@@ -35,9 +35,12 @@ import { store }                          from '../store';
 import { useCompany } from '../features/company/hooks/useCompany';
 import apiClient from '../services/api/client';
 import { setManagedCompanies } from '../store/slices/authSlice';
+import { useQueryClient } from '@tanstack/react-query';
+import { EMP_KEYS } from '../features/employees/hooks/useEmployees';
 
 export function usePermissionSocket() {
   const dispatch        = useAppDispatch();
+  const queryClient     = useQueryClient()
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const employeeId      = useAppSelector(selectEmployeeId);
   const {companyId} = useCompany(); 
@@ -71,12 +74,12 @@ export function usePermissionSocket() {
 
 const unsubscribe = socketService.on("permissions:updated", (payload: any) => {
   console.log("🔥 PERMISSION EVENT RECEIVED", payload);
+  queryClient.invalidateQueries({queryKey: EMP_KEYS.fieldPerms}) 
 
   if (payload.companyId !== companyId) {
     console.log("❌ EVENT IGNORED");
     return;
   }
-
 
   if (payload?.permissions && Array.isArray(payload.permissions)) {
     dispatch(setPermissions(payload.permissions));
@@ -107,4 +110,8 @@ dispatch(setManagedCompanies(res.data));
       socketService.disconnect();
     }
   }, [isAuthenticated]);
+  
+  useEffect(() => {
+  queryClient.invalidateQueries({ queryKey: EMP_KEYS.fieldPerms });
+}, [companyId, queryClient]);
 }
