@@ -51,6 +51,14 @@ export async function listAllPermissions(req: Request, res: Response, next: Next
   try { sendResponse(res, { data: await rolesSvc.listAllPermissions() }); } catch(e){ next(e); }
 }
 
+export async function getGroupFieldPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const companyId = req.query.company_id ? +req.query.company_id : req.user!.companyId;
+    const data = await fbSvc.getGroupFieldPermissionsForCompany(companyId, +req.params.groupId, +req.params.formId);
+    sendResponse(res, { data });
+  } catch (e) { next(e); }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MODULES
 // ─────────────────────────────────────────────────────────────────────────────

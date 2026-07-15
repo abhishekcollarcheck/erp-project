@@ -118,6 +118,10 @@ const pgApi = {
   listModules: () => apiClient.get<unknown, ApiResponse<any[]>>('/rbac/modules'),
   listForms: (moduleId: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/rbac/modules/${moduleId}/forms`),
   fieldPermissionMatrix: (formId: number, companyId: number) => apiClient.get<unknown, ApiResponse<{ groups: any[]; fields: any[]; matrix: Record<number, Record<number, any>> }>>(`/rbac/forms/${formId}/permission-matrix?company_id=${companyId}`),
+  groupFieldPermissions: (formId: number, groupId: number, companyId: number) =>
+    apiClient.get<unknown, ApiResponse<{ fields: any[]; perms: Record<number, any> }>>(
+      `/rbac/forms/${formId}/groups/${groupId}/permissions?company_id=${companyId}`
+    ),
   setFieldPermission: (fieldId: number, groupId: number, companyId: number, dto: any) => apiClient.put<unknown, ApiResponse<any>>(`/rbac/fields/${fieldId}/permissions`, { group_id: groupId, company_ids: [companyId], ...dto }),
   bulkSetFieldPermissions: (groupId: number, companyIds: number[], permissions: any[]) => apiClient.post<unknown, ApiResponse<any>>('/rbac/permissions/bulk', { group_id: groupId, company_ids: companyIds, permissions }),
   listFieldOverrides: (groupId: number, employeeId: number, companyId: number, module: string) =>
@@ -151,6 +155,15 @@ function useGroupFieldPermissionMatrix(formId: number, companyId: number) {
     queryKey: ['field-perm-matrix', formId, companyId],
     queryFn: () => pgApi.fieldPermissionMatrix(formId, companyId),
     enabled: formId > 0 && companyId > 0,
+    select: r => r.data,
+  });
+}
+
+function useGroupFieldPermissions(formId: number, groupId: number, companyId: number) {
+  return useQuery({
+    queryKey: ['group-field-perms', formId, groupId, companyId],
+    queryFn: () => pgApi.groupFieldPermissions(formId, groupId, companyId),
+    enabled: formId > 0 && groupId > 0 && companyId > 0,
     select: r => r.data,
   });
 }
@@ -1094,7 +1107,7 @@ function EditView({
   const { data: existingSlugs = [] } = useGroupPerms(group?.id || 0);
   const { data: savedOverrides = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId, overrideMemberCompanyId);
   const [baseModPerms, setBaseModPerms] = useState<ModulePerms>(() => initModulePerms(false));
-
+  
   const [baseLoaded, setBaseLoaded] = useState(false);
   const [selectedOverrideCompanyIds, setSelectedOverrideCompanyIds] = useState<number[]>(
     overrideMemberCompanyId ? [overrideMemberCompanyId] : []
@@ -1412,6 +1425,10 @@ const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : group
   const fields = matrixData?.fields || [];
   const matrix = matrixData?.matrix || {};
 
+  const { data: groupPermsData, refetch: refetchGroupPerms } = useGroupFieldPermissions(
+    selectedFormId || 0, groupId, matrixCompanyId || 0
+  );
+
   const [localPerms, setLocalPerms] = useState<Record<number, any>>({});
   const [dirty, setDirty] = useState(false);
 
@@ -1424,8 +1441,8 @@ const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : group
     if (isOverrideMode) {
       if (!fields.length) return;
       const merged: Record<number, any> = {};
-      for (const f of fields) {
-        const groupBase = matrix[groupId]?.[f.id] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+ for (const f of fields) {
+        const groupBase = groupPermsData?.perms?.[f.id] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
         const ov = overrideData?.[f.field_key] || {};
         merged[f.id] = {
           can_view: ov.view !== undefined ? ov.view : groupBase.can_view,
@@ -1437,11 +1454,11 @@ const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : group
       }
       setLocalPerms(merged);
       setDirty(false);
-    } else if (matrix[groupId]) {
-      setLocalPerms(matrix[groupId]);
+    } else if (groupPermsData?.perms) {
+      setLocalPerms(groupPermsData.perms);
       setDirty(false);
     }
-  }, [groupId, matrixData, isOverrideMode, overrideData, fields]);
+  }, [groupId, groupPermsData, isOverrideMode, overrideData, fields]);
 
   const toggleFP = (
     fieldId: number,
@@ -1547,7 +1564,7 @@ const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : group
         // sending everything would create unnecessary override rows for untouched fields.
         const overrides: { field_name: string; permission: string; granted: boolean }[] = [];
         for (const f of fields) {
-          const groupBase = matrix[groupId]?.[f.id] || {};
+          const groupBase = groupPermsData?.perms?.[f.id] || {};
           const cur = localPerms[f.id] || {};
           (['view', 'edit', 'copy', 'download'] as const).forEach(p => {
             const key = `can_${p}` as const;

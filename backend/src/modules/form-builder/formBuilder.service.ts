@@ -48,7 +48,7 @@ export class FormBuilderService {
   async updateModule(id: number, companyId: number, dto: {
     name?: string; icon?: string; description?: string; sort_order?: number; is_active?: boolean;
   }, updatedBy?: number) {
-    const mod = await HrModule.findOne({ where: { id, company_id: companyId } });
+    const mod = await HrModule.findOne({ where: { id} });
     if (!mod) throw new AppError('Module not found', 404);
     await mod.update(dto as any);
     await logActivity({ companyId, employeeId: updatedBy, action: 'MODULE_UPDATED', module: 'settings', entityId: id });
@@ -56,7 +56,7 @@ export class FormBuilderService {
   }
 
   async deleteModule(id: number, companyId: number, deletedBy?: number) {
-    const mod = await HrModule.findOne({ where: { id, company_id: companyId } });
+    const mod = await HrModule.findOne({ where: { id} });
     if (!mod) throw new AppError('Module not found', 404);
     if (mod.is_system) throw new AppError('System modules cannot be deleted', 403);
     // Cascade: destroy forms and their fields
@@ -100,14 +100,14 @@ export class FormBuilderService {
   async updateForm(formId: number, companyId: number, dto: {
     name?: string; description?: string; sort_order?: number; is_active?: boolean;
   }, updatedBy?: number) {
-    const form = await FormDefinition.findOne({ where: { id: formId, company_id: companyId } });
+    const form = await FormDefinition.findOne({ where: { id: formId} });
     if (!form) throw new AppError('Form not found', 404);
     await form.update({ ...dto, updated_by: updatedBy||null } as any);
     return form;
   }
 
   async deleteForm(formId: number, companyId: number) {
-    const form = await FormDefinition.findOne({ where: { id: formId, company_id: companyId } });
+    const form = await FormDefinition.findOne({ where: { id: formId } });
     if (!form) throw new AppError('Form not found', 404);
     if (form.is_system) throw new AppError('System forms cannot be deleted', 403);
     await DynamicField.destroy({ where: { form_id: formId } });
@@ -127,12 +127,12 @@ export class FormBuilderService {
     regex_pattern?: string; sort_order?: number;
     options?: { label: string; value: string; is_default?: boolean }[];
   }, createdBy?: number) {
-    const form = await FormDefinition.findOne({ where: { id: formId, company_id: companyId } });
+    const form = await FormDefinition.findOne({ where: { id: formId} });
     if (!form) throw new AppError('Form not found', 404);
     if (!FIELD_TYPES.includes(dto.field_type as any)) throw new AppError('Invalid field type', 400);
 
     const field_key = dto.field_key || dto.label.toLowerCase().replace(/[^a-z0-9]+/g,'_');
-    const duplicate = await DynamicField.findOne({ where: { form_id: formId, company_id: companyId, field_key } });
+    const duplicate = await DynamicField.findOne({ where: { form_id: formId, field_key } });
     if (duplicate) throw new AppError('A field with this key already exists in this form', 409);
 
     const t: Transaction = await sequelize.transaction();
@@ -165,7 +165,7 @@ export class FormBuilderService {
   }
 
   async updateField(fieldId: number, companyId: number, dto: any, updatedBy?: number) {
-    const field = await DynamicField.findOne({ where: { id: fieldId, company_id: companyId } });
+    const field = await DynamicField.findOne({ where: { id: fieldId } });
     if (!field) throw new AppError('Field not found', 404);
 
     const { options, ...rest } = dto;
@@ -184,7 +184,7 @@ export class FormBuilderService {
   }
 
   async deleteField(fieldId: number, companyId: number) {
-    const field = await DynamicField.findOne({ where: { id: fieldId, company_id: companyId } });
+    const field = await DynamicField.findOne({ where: { id: fieldId } });
     if (!field) throw new AppError('Field not found', 404);
     await FieldOption.destroy({ where: { field_id: fieldId } });
     await FieldPermissionV2.destroy({ where: { field_id: fieldId } });
@@ -194,7 +194,7 @@ export class FormBuilderService {
 
   async getFieldById(fieldId: number, companyId: number) {
     const field = await DynamicField.findOne({
-      where: { id: fieldId, company_id: companyId },
+      where: { id: fieldId },
       include: [{ model: FieldOption, as: 'options', required: false, order: [['sort_order','ASC']] }],
     });
     if (!field) throw new AppError('Field not found', 404);
@@ -379,5 +379,25 @@ async bulkSetFieldPermissions(companyIds: number[], groupId: number, permissions
       resolved: { can_view, can_edit, can_copy, can_download, is_masked },
     };
   });
+}
+
+async getGroupFieldPermissionsForCompany(companyId: number, groupId: number, formId: number) {
+  const form = await this.getFormWithFields(formId);
+  const fields = (form.fields || []) as DynamicField[];
+  if (!fields.length) return { fields, perms: {} };
+
+  const fieldIds = fields.map(f => f.id);
+  const rows = await FieldPermissionV2.findAll({
+    where: { company_id: companyId, group_id: groupId, field_id: fieldIds },
+  });
+
+  const perms: Record<number, any> = {};
+  for (const field of fields) {
+    const row = rows.find(r => r.field_id === field.id);
+    perms[field.id] = row
+      ? { can_view: row.can_view, can_edit: row.can_edit, can_copy: row.can_copy, can_download: row.can_download, is_masked: row.is_masked }
+      : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+  }
+  return { fields, perms };
 }
 }
