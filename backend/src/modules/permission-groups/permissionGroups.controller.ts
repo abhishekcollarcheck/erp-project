@@ -659,14 +659,9 @@ async function getGroupPermissions(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const group = await svc.getById(+req.params.id, req.user!.companyId);
-    const cid = req.user!.companyId;
-    // const slugs = ((group as any).permissions ?? [])
-    //   .filter(
-    //     (p: any) => !p.GroupPermission || p.GroupPermission.company_id === cid,
-    //   )
-    //   .map((p: any) => p.slug);
-    const slugs = (group.permissions ?? []).filter(p => !p.GroupPermission || p.GroupPermission.company_id === cid).map(p => p.slug);  
+    const companyId = req.query.company_id ? +req.query.company_id : req.user!.companyId;
+    const group = await svc.getById(+req.params.id, companyId);
+    const slugs = (group.permissions ?? []).map(p => p.slug);
     sendResponse(res, { data: slugs });
   } catch (e) {
     next(e);

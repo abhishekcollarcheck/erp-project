@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate }                  from '../../middleware/validate.middleware';
-import { authenticate, resolveCompanyContext} from '../auth/auth.middleware';
+import { authenticate} from '../auth/auth.middleware';
 import {
   getDesignations, getDesignationStats, getDesignation,
   createDesignation, updateDesignation, toggleDesignation, deleteDesignation,

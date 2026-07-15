@@ -7,46 +7,17 @@ import { AppShell } from '../../../../layouts/AppLayout';
 import { Modal } from '../../../../components/ui/Modal';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
 import { showToast } from '../../../../utils/toast';
-import apiClient from '../../../../services/api/client';
-import type { ApiResponse } from '../../../../types/api.types';
 import { Eye, SquarePen, Trash2, Download, Pen } from 'lucide-react';
 import { usePermission } from '../../../../features/auth/hooks/useAuth';
 import { PageHeaderWithCompany, useCompanySelector } from '../../../../components/company/CompanySelector';
 import { PermissionGuard } from '../../../../utils/permissionGuard';
 import { useCompanyModulesMap } from '../../../../hooks/useCompanyModulesMap';
 import { useFieldPermissions } from '../../../../features/employees/hooks/useEmployees';
+import { pgApi } from '../../../../features/setting/services/permissions.services';
+import { PermGroup, Employee, } from '@/features/setting/types/permissions.types';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type View = 'groups' | 'edit';
-
-interface PermGroup {
-  id: number;
-  company_id: number;
-  name: string;
-  slug: string;
-  description?: string | null;
-  color?: string | null;
-  is_system: boolean;
-  is_active: boolean;
-  member_count: number;
-  permissions?: { id: number; slug: string; module: string; action: string }[];
-}
-
-interface Employee {
-  id: number;
-  first_name: string;
-  last_name: string;
-  employee_code: string;
-  designation?: string;
-  user?: { id: number; email: string };
-}
-
-// ─── New UI: Module definitions with sections ─────────────────────────────────
-// Matches the HTML matrix exactly — 4 sections, 16 modules
-
-// Only the 6 modules that exist in the project.
-// employees is the only module whose permissions can be modified per employee.
 const MODULE_SECTIONS = [
   {
     label: 'Modules',
@@ -97,43 +68,7 @@ function cssForKey(key: string | null | undefined) {
 }
 
 
-// ─── Existing API layer (unchanged) ───────────────────────────────────────────
 
-const pgApi = {
-  list: () => apiClient.get<unknown, ApiResponse<PermGroup[]>>('/permission-groups'),
-  create: (d: any) => apiClient.post<unknown, ApiResponse<PermGroup>>('/permission-groups', d),
-  update: (id: number, d: any) => apiClient.put<unknown, ApiResponse<PermGroup>>(`/permission-groups/${id}`, d),
-  delete: (id: number) => apiClient.delete<unknown, ApiResponse<any>>(`/permission-groups/${id}`),
-  getPerms: (id: number) => apiClient.get<unknown, ApiResponse<string[]>>(`/permission-groups/${id}/permissions`),
-  setPerms: (id: number, slugs: string[]) => apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${id}/permissions`, { slugs }),
-  getMembers: (id: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/permission-groups/${id}/members`),
-  addMember: (id: number, uid: number, companyIds?: number[]) => apiClient.post<unknown, ApiResponse<any>>(`/permission-groups/${id}/members`, { employee_id: uid, company_ids: companyIds }),
-  removeMember: (id: number, companyId: number, uid: number) => apiClient.delete<unknown, ApiResponse<any>>(`/permission-groups/${id}/members/${uid}?company_id=${companyId}`),
-  seed: () => apiClient.post<unknown, ApiResponse<any>>('/permission-groups/seed', {}),
-  employees: () => apiClient.get<unknown, ApiResponse<any[]>>('/employees/managed'),
-  setOverrides: (groupId: number, employeeId: number, companyIds: number[], overrides: { module: string; field_name: null; permission: string; granted: boolean }[]) => apiClient.put<unknown, ApiResponse<any>>(`/permission-groups/${groupId}/members/${employeeId}/overrides`, { company_ids: companyIds, overrides }),
-  getOverrides: (groupId: number, employeeId: number, companyId: number) => apiClient.get<unknown, ApiResponse<{ module: string; permission: string; granted: boolean }[]>>(`/permission-groups/${groupId}/members/${employeeId}/overrides?company_id=${companyId}`),
-  deleteOverride: (groupId: number, employeeId: number, overrideId: number) => apiClient.delete(`/permission-groups/${groupId}/members/${employeeId}/overrides/${overrideId}`),
-  resolveMyFieldPermissions: (formId: number) => apiClient.get<unknown, ApiResponse<Record<string, { can_view: boolean; can_edit: boolean; can_copy: boolean; can_download: boolean; is_masked: boolean }>>>(`/field-permissions/forms/${formId}/resolve`),
-  listModules: () => apiClient.get<unknown, ApiResponse<any[]>>('/rbac/modules'),
-  listForms: (moduleId: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/rbac/modules/${moduleId}/forms`),
-  fieldPermissionMatrix: (formId: number, companyId: number) => apiClient.get<unknown, ApiResponse<{ groups: any[]; fields: any[]; matrix: Record<number, Record<number, any>> }>>(`/rbac/forms/${formId}/permission-matrix?company_id=${companyId}`),
-  groupFieldPermissions: (formId: number, groupId: number, companyId: number) =>
-    apiClient.get<unknown, ApiResponse<{ fields: any[]; perms: Record<number, any> }>>(
-      `/rbac/forms/${formId}/groups/${groupId}/permissions?company_id=${companyId}`
-    ),
-  setFieldPermission: (fieldId: number, groupId: number, companyId: number, dto: any) => apiClient.put<unknown, ApiResponse<any>>(`/rbac/fields/${fieldId}/permissions`, { group_id: groupId, company_ids: [companyId], ...dto }),
-  bulkSetFieldPermissions: (groupId: number, companyIds: number[], permissions: any[]) => apiClient.post<unknown, ApiResponse<any>>('/rbac/permissions/bulk', { group_id: groupId, company_ids: companyIds, permissions }),
-  listFieldOverrides: (groupId: number, employeeId: number, companyId: number, module: string) =>
-    apiClient.get<unknown, ApiResponse<Record<string, Record<string, boolean>>>>(
-      `/permission-groups/${groupId}/members/${employeeId}/field-overrides?company_id=${companyId}&module=${module}`
-    ),
-  setFieldOverrides: (groupId: number, employeeId: number, companyIds: number[], module: string, overrides: { field_name: string; permission: string; granted: boolean }[]) =>
-    apiClient.put<unknown, ApiResponse<any>>(
-      `/permission-groups/${groupId}/members/${employeeId}/field-overrides`,
-      { company_ids: companyIds, module, overrides }
-    ),
-};
 
 // Existing hooks (unchanged)
 function useGroups() { return useQuery({ queryKey: ['rp', 'groups'], queryFn: () => pgApi.list(), staleTime: 0, select: r => r.data ?? [] }); }
@@ -306,6 +241,7 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
   assignedCompanies: { id: number; name: string; shortName: string }[];
   onAdd: (empId: number, companyIds: number[]) => void;
 }) {
+
   const [selectedEmp, setSelectedEmp] = useState<number | null>(null);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<number>>(new Set());
   const [allCompanies, setAllCompanies] = useState(false);
@@ -551,7 +487,7 @@ function GroupDetail({
   };
 
   const { data: groupSlugs = [] } = useGroupPerms(group.id);
-const groupBaseModPerms = useMemo(() => slugsToModulePerms(groupSlugs), [groupSlugs]);
+  const groupBaseModPerms = useMemo(() => slugsToModulePerms(groupSlugs), [groupSlugs]);
 
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
@@ -624,11 +560,10 @@ const groupBaseModPerms = useMemo(() => slugsToModulePerms(groupSlugs), [groupSl
                   }
                   acc[row.module].overrideIds.push(row.id);
                   acc[row.module].changes.push({
-  permission: row.permission,
-  previous: !!groupBaseModPerms[row.module]?.[row.permission],
-  current: row.granted,
-});
-                  console.log(acc[row.module].changes);
+                    permission: row.permission,
+                    previous: !!groupBaseModPerms[row.module]?.[row.permission],
+                    current: row.granted,
+                  });
                   return acc;
                 }, {})
               );
@@ -1107,7 +1042,7 @@ function EditView({
   const { data: existingSlugs = [] } = useGroupPerms(group?.id || 0);
   const { data: savedOverrides = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId, overrideMemberCompanyId);
   const [baseModPerms, setBaseModPerms] = useState<ModulePerms>(() => initModulePerms(false));
-  
+
   const [baseLoaded, setBaseLoaded] = useState(false);
   const [selectedOverrideCompanyIds, setSelectedOverrideCompanyIds] = useState<number[]>(
     overrideMemberCompanyId ? [overrideMemberCompanyId] : []
@@ -1400,6 +1335,7 @@ function FieldPermissionsPanel({
   overrideMemberName?: string;
   moduleAccessGranted: boolean;
 }) {
+  const qc = useQueryClient();
   const { data: modules = [] } = useQuery({
     queryKey: ['field-perm-modules'],
     queryFn: () => pgApi.listModules(),
@@ -1414,13 +1350,13 @@ function FieldPermissionsPanel({
   useEffect(() => { if (forms.length && !selectedFormId) setSelectedFormId(forms[0].id); }, [forms]);
 
   const { data: members = [] } = useGroupMembers(groupId);
-const groupCompanyIds = useMemo(() => {
-  const ids = new Set<number>();
-  for (const m of members) (m.assigned_company_ids || []).forEach((id: number) => ids.add(id));
-  return [...ids].sort((a, b) => a - b);
-}, [members]);
+  const groupCompanyIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const m of members) (m.assigned_company_ids || []).forEach((id: number) => ids.add(id));
+    return [...ids].sort((a, b) => a - b);
+  }, [members]);
 
-const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : groupCompanyIds[0];
+  const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : groupCompanyIds[0];
   const { data: matrixData, refetch } = useGroupFieldPermissionMatrix(selectedFormId || 0, matrixCompanyId || 0);
   const fields = matrixData?.fields || [];
   const matrix = matrixData?.matrix || {};
@@ -1433,32 +1369,42 @@ const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : group
   const [dirty, setDirty] = useState(false);
 
   const displayCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : undefined;
-  const { data: overrideData } = useEmployeeFieldOverrides(
+  const { data: overrideData, refetch: refetchOverrides } = useEmployeeFieldOverrides(
     groupId, overrideMemberId, displayCompanyId, 'employees'  // 'employees' matches the module key used elsewhere
   );
 
-  useEffect(() => {
-    if (isOverrideMode) {
-      if (!fields.length) return;
-      const merged: Record<number, any> = {};
- for (const f of fields) {
-        const groupBase = groupPermsData?.perms?.[f.id] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-        const ov = overrideData?.[f.field_key] || {};
-        merged[f.id] = {
-          can_view: ov.view !== undefined ? ov.view : groupBase.can_view,
-          can_edit: ov.edit !== undefined ? ov.edit : groupBase.can_edit,
-          can_copy: ov.copy !== undefined ? ov.copy : groupBase.can_copy,
-          can_download: ov.download !== undefined ? ov.download : groupBase.can_download,
-          is_masked: ov.mask !== undefined ? ov.mask : groupBase.is_masked,
-        };
-      }
-      setLocalPerms(merged);
-      setDirty(false);
-    } else if (groupPermsData?.perms) {
-      setLocalPerms(groupPermsData.perms);
-      setDirty(false);
+useEffect(() => {
+  if (isOverrideMode) {
+    if (!fields.length) return;
+    const merged: Record<number, any> = {};
+    for (const f of fields) {
+      const groupBase =
+        groupPermsData?.perms?.[f.id] ||
+        matrixData?.matrix?.[f.id]?.[groupId] ||
+        { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+      const ov = overrideData?.[f.field_key] || {};
+      merged[f.id] = {
+        can_view: ov.view !== undefined ? ov.view : groupBase.can_view,
+        can_edit: ov.edit !== undefined ? ov.edit : groupBase.can_edit,
+        can_copy: ov.copy !== undefined ? ov.copy : groupBase.can_copy,
+        can_download: ov.download !== undefined ? ov.download : groupBase.can_download,
+        is_masked: ov.mask !== undefined ? ov.mask : groupBase.is_masked,
+      };
     }
-  }, [groupId, groupPermsData, isOverrideMode, overrideData, fields]);
+    setLocalPerms(merged);
+    setDirty(false);
+  } else if (fields.length) {
+    const merged: Record<number, any> = {};
+    for (const f of fields) {
+      merged[f.id] =
+        groupPermsData?.perms?.[f.id] ||
+        matrixData?.matrix?.[f.id]?.[groupId] ||
+        { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+    }
+    setLocalPerms(merged);
+    setDirty(false);
+  }
+}, [groupId, groupPermsData, isOverrideMode, overrideData, fields, matrixData]);
 
   const toggleFP = (
     fieldId: number,
@@ -1585,7 +1531,15 @@ const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : group
         await pgApi.bulkSetFieldPermissions(groupId, groupCompanyIds, permissions);
       }
     },
-    onSuccess: () => { showToast(isOverrideMode ? '✓ Field overrides saved' : '✓ Field permissions saved'); setDirty(false); refetch(); },
+onSuccess: () => {
+  showToast(isOverrideMode ? '✓ Field overrides saved' : '✓ Field permissions saved');
+  setDirty(false);
+  refetch();
+  refetchGroupPerms();
+  if (isOverrideMode) {
+    refetchOverrides();
+  }
+},
     onError: (e: any) => showToast(e?.message || 'Failed to save'),
   });
 
@@ -1806,12 +1760,12 @@ export default function RolesPermissionsPage() {
   }, [groups]);
 
   // Stats — existing computation
-  const { data: stats } = useQuery({
-    queryKey: ['rbac-stats', companyId],
-    queryFn: () => apiClient.get<any, any>(`/permission-groups/stats?company_id=${companyId}`),
-    enabled: !!companyId,
-    select: (r: any) => r.data,
-  });
+  // const { data: stats } = useQuery({
+  //   queryKey: ['rbac-stats', companyId],
+  //   queryFn: () => apiClient.get<any, any>(`/permission-groups/stats?company_id=${companyId}`),
+  //   enabled: !!companyId,
+  //   select: (r: any) => r.data,
+  // });
 
   const totalAssigned = groups.reduce((s, g) => s + (groupMembersMap[g.id]?.length || 0), 0);
   const fieldRuleCount = groups.reduce((s, g) => s + (g.permissions?.length || 0) * 3, 0);
@@ -1942,9 +1896,9 @@ export default function RolesPermissionsPage() {
           {/* Stats — existing logic, new styling */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'Permission Groups', value: stats?.totalGroups ?? groups.length, color: 'var(--blue)' },
+              { label: 'Permission Groups', value: groups.length ? groups.length : '—', color: 'var(--blue)' },
               { label: 'Employees Assigned', value: totalAssigned ?? '—', color: 'var(--green)' },
-              { label: 'Unassigned', value: stats?.unassigned ?? '—', color: 'var(--amber)' },
+              // { label: 'Unassigned', value: stats?.unassigned ?? '—', color: 'var(--amber)' },
               { label: 'Field Rules', value: fieldRuleCount ?? '—', color: 'var(--purple)' },
             ].map(s => (
               <div key={s.label} style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r3)', padding: '14px 18px', boxShadow: 'var(--sh)' }}>

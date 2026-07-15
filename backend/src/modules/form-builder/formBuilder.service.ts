@@ -210,11 +210,11 @@ export class FormBuilderService {
 
   // ════════════════════════ FIELD PERMISSIONS ════════════════════════
 async getPermissionMatrix(companyId: number, formId: number) {
+  console.log("getPermissionMatrix", companyId, formId)
   const [form, groups] = await Promise.all([
     this.getFormWithFields(formId),
     PermissionGroup.findAll({ where: { company_id: companyId }, order: [['is_system','DESC'],['name','ASC']] }),
   ]);
-
   const fields = (form.fields || []) as DynamicField[];
   if (!fields.length) return { groups, fields, matrix: {} };
 
@@ -237,7 +237,6 @@ async getPermissionMatrix(companyId: number, formId: number) {
         : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
     }
   }
-
   return { groups, fields, matrix };
 }
 
@@ -261,6 +260,7 @@ async setFieldPermission(companyIds: number[], groupId: number, fieldId: number,
   can_view?: boolean; can_edit?: boolean; can_copy?: boolean;
   can_download?: boolean; is_masked?: boolean;
 }, updatedBy?: number) {
+  console.log("set field permissions", companyIds, groupId, fieldId)
   if (!companyIds.length) throw new AppError('At least one company_id is required', 400);
   const results = [];
   for (const companyId of companyIds) {

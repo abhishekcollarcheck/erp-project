@@ -20,7 +20,7 @@
  * The affected employee receives the Type B event with their new permissions directly.
  */
 
-import { useEffect, useCallback }         from 'react';
+import { useEffect, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
 import {
   setCredentials,
@@ -28,10 +28,11 @@ import {
   updateToken,
   selectEmployeeId,
   selectIsAuthenticated,
+  selectManagedCompanies
 } from '../store/slices/authSlice';
-import { socketService }                  from '../services/socket.service';
-import { authService }                    from '../services/api/auth.service';
-import { store }                          from '../store';
+import { socketService } from '../services/socket.service';
+import { authService } from '../services/api/auth.service';
+import { store } from '../store';
 import { useCompany } from '../features/company/hooks/useCompany';
 import apiClient from '../services/api/client';
 import { setManagedCompanies } from '../store/slices/authSlice';
@@ -39,16 +40,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { EMP_KEYS } from '../features/employees/hooks/useEmployees';
 
 export function usePermissionSocket() {
-  const dispatch        = useAppDispatch();
-  const queryClient     = useQueryClient()
+  const dispatch = useAppDispatch();
+  const queryClient = useQueryClient()
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
-  const employeeId      = useAppSelector(selectEmployeeId);
-  const {companyId} = useCompany(); 
+  const employeeId = useAppSelector(selectEmployeeId);
+  const { companyId } = useCompany();
+  const managedCompanies = useAppSelector(selectManagedCompanies)
   // Called when the event has no embedded permissions (Type A — broadcast middleware).
   // Fetches the current user's own fresh permissions from the server.
   const refreshFromServer = useCallback(async () => {
     try {
-      const res  = await authService.getMe();
+      const res = await authService.getMe();
       const user = (res as any)?.data ?? res;
       if (!user) return;
       const currentToken = store.getState().auth.accessToken ?? '';
@@ -60,30 +62,32 @@ export function usePermissionSocket() {
 
   useEffect(() => {
     if (!isAuthenticated || !employeeId) return;
-  console.log(
-    "INIT SOCKET",
-    {
-      employeeId,
-      connected: socketService.isConnected()
-    }
-  );
+    console.log(
+      "INIT SOCKET",
+      {
+        employeeId,
+        connected: socketService.isConnected()
+      }
+    );
     if (!socketService.isConnected()) {
-      socketService.connect();
+      socketService.connect(managedCompanies.map((c: any) => c.id));
+    }else{
+      socketService.joinCompanyRooms(managedCompanies.map((c: any) => c.id));
     }
     socketService.register(employeeId);
 
 const unsubscribe = socketService.on("permissions:updated", (payload: any) => {
   console.log("🔥 PERMISSION EVENT RECEIVED", payload);
-  queryClient.invalidateQueries({queryKey: EMP_KEYS.fieldPerms}) 
 
-  if (payload.companyId !== companyId) {
-    console.log("❌ EVENT IGNORED");
+  if (Number(payload.companyId) !== Number(companyId)) {
+    console.log("❌ EVENT IGNORED", { eventCompany: payload.companyId, activeCompany: companyId });
     return;
   }
 
+  queryClient.invalidateQueries({ queryKey: EMP_KEYS.fieldPerms });
+
   if (payload?.permissions && Array.isArray(payload.permissions)) {
     dispatch(setPermissions(payload.permissions));
-
     if (payload.accessToken) {
       dispatch(updateToken(payload.accessToken));
     }
@@ -91,27 +95,27 @@ const unsubscribe = socketService.on("permissions:updated", (payload: any) => {
     refreshFromServer();
   }
 });
-const unsubscribeCompanies = socketService.on("companies:updated", async () => {
-  try {
-    const res = await apiClient.get("/companies/mine");
+    const unsubscribeCompanies = socketService.on("companies:updated", async () => {
+      try {
+        const res = await apiClient.get("/companies/mine");
 
-dispatch(setManagedCompanies(res.data));
+        dispatch(setManagedCompanies(res.data));
 
-  } catch (err) {
-    console.error("Failed to refresh companies", err);
-  }
-});
+      } catch (err) {
+        console.error("Failed to refresh companies", err);
+      }
+    });
 
-    return () => { unsubscribe(); unsubscribeCompanies();};
-  }, [isAuthenticated, employeeId, dispatch, refreshFromServer, companyId]);
+    return () => { unsubscribe(); unsubscribeCompanies(); };
+  }, [isAuthenticated, employeeId, dispatch, refreshFromServer, companyId, managedCompanies]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       socketService.disconnect();
     }
   }, [isAuthenticated]);
-  
+
   useEffect(() => {
-  queryClient.invalidateQueries({ queryKey: EMP_KEYS.fieldPerms });
-}, [companyId, queryClient]);
+    queryClient.invalidateQueries({ queryKey: EMP_KEYS.fieldPerms });
+  }, [companyId, queryClient]);
 }
