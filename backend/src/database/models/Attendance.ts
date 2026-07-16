@@ -6,7 +6,7 @@ export type AttendanceSource = 'Biometric' | 'Manual' | 'Mobile' | 'System';
 
 interface AttendanceAttributes {
   id: number;
-  company_id: number;    // ← added for data isolation
+  company_id: number;
   employee_id: number;
   date: string;
   status: AttendanceStatus;

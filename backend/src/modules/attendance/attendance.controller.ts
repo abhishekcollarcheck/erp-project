@@ -1,147 +1,166 @@
-// import { Request, Response, NextFunction } from 'express';
-// import { AttendanceService } from './attendance.service';
-// import { sendResponse, sendPaginated } from '../../utils/response';
+import { Request, Response, NextFunction } from 'express';
+import { AttendanceService } from './attendance.service';
+import { sendResponse, sendPaginated } from '../../utils/response';
 
-// const attendanceService = new AttendanceService();
+const attendanceService = new AttendanceService();
 
-// /**
-//  * GET /api/attendance/today-summary
-//  */
-// export async function getTodaySummary(
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ): Promise<void> {
-//   try {
-//     const data = await attendanceService.getTodaySummary(req.user!.companyId);
+/**
+ * GET /api/attendance/today-summary
+ */
+export async function getTodaySummary(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await attendanceService.getTodaySummary(req.user!.companyId);
+    sendResponse(res, { data, message: 'Today attendance summary' });
+  } catch (e) {
+    next(e);
+  }
+}
 
-//     sendResponse(res, {
-//       data,
-//       message: 'Today attendance summary',
-//     });
-//   } catch (e) {
-//     next(e);
-//   }
-// }
+/**
+ * GET /api/attendance/employee/:employeeId
+ */
+export async function getByEmployee(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const employeeId = parseInt(req.params.employeeId, 10);
+    const month = Number(req.query.month ?? new Date().getMonth() + 1);
+    const year = Number(req.query.year ?? new Date().getFullYear());
+    const data = await attendanceService.getByEmployee(employeeId, month, year, req.user!.companyId);
+    sendResponse(res, { data, message: 'Attendance records fetched' });
+  } catch (e) {
+    next(e);
+  }
+}
 
-// /**
-//  * GET /api/attendance/employee/:employeeId
-//  */
-// export async function getByEmployee(
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ): Promise<void> {
-//   try {
-//     const employeeId = parseInt(req.params.employeeId, 10);
-//     const month = Number(req.query.month ?? new Date().getMonth() + 1);
-//     const year = Number(req.query.year ?? new Date().getFullYear());
+/**
+ * GET /api/attendance
+ * Supports: page, limit, employee_id, search, status, source,
+ *           date_from, date_to, month, year, sort
+ */
+export async function getAllAttendance(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { data, meta } = await attendanceService.getAll(req.query as any, req.user!.companyId);
+    sendPaginated(res, data, meta, 'Attendance records fetched');
+  } catch (e) {
+    next(e);
+  }
+}
 
-//     const data = await attendanceService.getByEmployee(employeeId, month, year, req.user!.companyId);
+/**
+ * POST /api/attendance
+ */
+export async function markAttendance(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { record, created } = await attendanceService.mark({
+      company_id: req.user!.companyId,
+      employee_id: req.body.employee_id,
+      date: req.body.date,
+      status: req.body.status,
+      check_in: req.body.check_in,
+      check_out: req.body.check_out,
+      remarks: req.body.remarks,
+      created_by: req.user!.employeeId,
+    });
+    sendResponse(res, {
+      data: record,
+      message: created ? 'Attendance marked' : 'Attendance updated',
+      statusCode: created ? 201 : 200,
+    });
+  } catch (e) {
+    next(e);
+  }
+}
 
-//     sendResponse(res, {
-//       data,
-//       message: 'Attendance records fetched',
-//     });
-//   } catch (e) {
-//     next(e);
-//   }
-// }
+/**
+ * POST /api/attendance/bulk
+ */
+export async function bulkMarkAttendance(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await attendanceService.bulkMark(req.body.records, req.user!.employeeId, req.user!.companyId);
+    sendResponse(res, { data: result, message: `Bulk mark: ${result.success} succeeded, ${result.failed} failed` });
+  } catch (e) {
+    next(e);
+  }
+}
 
-// /**
-//  * GET /api/attendance
-//  */
-// export async function getAllAttendance(
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ): Promise<void> {
-//   try {
-//     const { data, meta } = await attendanceService.getAll(
-//       req.query as any,
-//       req.user!.companyId
-//     );
+/**
+ * PUT /api/attendance/:id
+ */
+export async function updateAttendance(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const record = await attendanceService.update(
+      parseInt(req.params.id, 10),
+      { status: req.body.status, check_in: req.body.check_in, check_out: req.body.check_out, remarks: req.body.remarks },
+      req.user!.companyId,
+    );
+    sendResponse(res, { data: record, message: 'Attendance updated' });
+  } catch (e) {
+    next(e);
+  }
+}
 
-//     sendPaginated(res, data, meta, 'Attendance records fetched');
-//   } catch (e) {
-//     next(e);
-//   }
-// }
+// ═══════════════════════════════════════════════════════════════════════
+// Regularization
+// ═══════════════════════════════════════════════════════════════════════
 
-// /**
-//  * POST /api/attendance
-//  */
-// export async function markAttendance(
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ): Promise<void> {
-//   try {
-//     const { record, created } = await attendanceService.mark({
-//       ...req.body,
-//       company_id: req.user!.companyId,   // always from JWT — never trust body
-//       created_by: req.user!.employeeId,
-//     });
+/**
+ * POST /api/attendance/regularization
+ */
+export async function createRegularization(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const record = await attendanceService.createRegularization({
+      company_id: req.user!.companyId,
+      employee_id: req.user!.employeeId,
+      date: req.body.date,
+      requested_check_in: req.body.requested_check_in,
+      requested_check_out: req.body.requested_check_out,
+      reason: req.body.reason,
+      created_by: req.user!.employeeId,
+    });
+    sendResponse(res, { data: record, message: 'Regularization request submitted', statusCode: 201 });
+  } catch (e) {
+    next(e);
+  }
+}
 
-//     sendResponse(res, {
-//       data: record,
-//       message: created ? 'Attendance marked' : 'Attendance updated',
-//       statusCode: created ? 201 : 200,
-//     });
-//   } catch (e) {
-//     next(e);
-//   }
-// }
+/**
+ * GET /api/attendance/regularization/my
+ */
+export async function getMyRegularizations(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await attendanceService.listMyRegularizations(req.user!.employeeId, req.user!.companyId);
+    sendResponse(res, { data, message: 'Your regularization requests' });
+  } catch (e) {
+    next(e);
+  }
+}
 
-// /**
-//  * POST /api/attendance/bulk
-//  */
-// export async function bulkMarkAttendance(
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ): Promise<void> {
-//   try {
-//     // Inject company_id from JWT into every record — never trust body
-//     const records = (req.body.records as any[]).map(r => ({
-//       ...r,
-//       company_id: req.user!.companyId,
-//     }));
-//     const result = await attendanceService.bulkMark(
-//       records,
-//       req.user!.employeeId
-//     );
+/**
+ * GET /api/attendance/regularization/pending
+ */
+export async function getPendingRegularizations(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await attendanceService.listPendingRegularizations(req.user!.companyId);
+    sendResponse(res, { data, message: `${data.length} pending request(s)` });
+  } catch (e) {
+    next(e);
+  }
+}
 
-//     sendResponse(res, {
-//       data: result,
-//       message: `Bulk mark: ${result.success} succeeded, ${result.failed} failed`,
-//     });
-//   } catch (e) {
-//     next(e);
-//   }
-// }
-
-// /**
-//  * PUT /api/attendance/:id
-//  */
-// export async function updateAttendance(
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ): Promise<void> {
-//   try {
-//     const record = await attendanceService.update(
-//       parseInt(req.params.id, 10),
-//       req.user!.companyId,
-//       req.body,
-//       req.user!.employeeId
-//     );
-
-//     sendResponse(res, {
-//       data: record,
-//       message: 'Attendance updated',
-//     });
-//   } catch (e) {
-//     next(e);
-//   }
-// }
+/**
+ * PUT /api/attendance/regularization/:id/review
+ * body: { decision: 'Approved' | 'Rejected', remarks?: string }
+ */
+export async function reviewRegularization(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const record = await attendanceService.reviewRegularization(
+      parseInt(req.params.id, 10),
+      req.user!.companyId,
+      req.body.decision,
+      req.user!.employeeId,
+      req.body.remarks,
+    );
+    sendResponse(res, { data: record, message: `Request ${req.body.decision.toLowerCase()}` });
+  } catch (e) {
+    next(e);
+  }
+}

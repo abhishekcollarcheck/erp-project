@@ -44,6 +44,8 @@ import {
   AssetRequest, AssetMaintenance,
 }                                                        from './AssetModels';
 
+import { AttendanceRegularization } from './AttendanceRegularization';
+
 import { CompanyManager } from './CompanyManager';
 import { EmployeePermission } from './EmployeePermission';
 import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary } from './Employee';
@@ -255,6 +257,8 @@ Employee.hasMany(AssetAssignment,   { foreignKey: 'employee_id', as: 'assetAssig
 AssetRequest.belongsTo(Employee,    { foreignKey: 'employee_id', as: 'employee'        });
 Employee.hasMany(AssetRequest,      { foreignKey: 'employee_id', as: 'assetRequests'   });
 
+AttendanceRegularization.belongsTo(Employee, { foreignKey: 'employee_id' })
+
 export {
   // Auth / Identity
   Employee, OtpRequest, EmployeeRole,
@@ -280,5 +284,5 @@ export {
   UserModulePermission, UserFieldPermission,
   PermissionGroup, GroupPermission, UserGroup,
   Asset, AssetCategory, AssetAssignment, AssetRequest, AssetMaintenance, CompanyManager,
-  EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary
+  EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, AttendanceRegularization
 };

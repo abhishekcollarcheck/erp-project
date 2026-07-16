@@ -48,6 +48,7 @@ import {
 import { CompanyManager } from './CompanyManager';
 import { EmployeePermission } from './EmployeePermission';
 import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary } from './Employee';
+import { AttendanceRegularization } from './Associations';
 
 // IMPORTANT
 import './Associations';
@@ -80,5 +81,5 @@ export {
   PermissionGroup, GroupPermission, UserGroup,
   Asset, AssetCategory, AssetAssignment, AssetRequest, AssetMaintenance,
   CompanyManager,   EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, CompanySetting,
-  CompanyModule, DEFAULT_MODULES 
+  CompanyModule, DEFAULT_MODULES, AttendanceRegularization
 };
