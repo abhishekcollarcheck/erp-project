@@ -1,29 +1,5 @@
-/**
- * attendance.mssql.service.ts
- *
- * Reads attendance data from the local MSSQL Realtime database.
- *
- * SCHEMA CONFIRMED (via /mssql/sample/Tran_MachineRawPunch):
- *   This table stores RAW PUNCH EVENTS, not one row per employee per day.
- *   Each row is a single IN or OUT event:
- *     CardNo         - employee identifier, e.g. "00002229" (empid/id columns are always NULL — unused)
- *     PunchDatetime   - the actual punch timestamp (USE THIS for filtering/ordering)
- *     Dateime1        - when the row was synced into this table (often hours/days
- *                       AFTER PunchDatetime for offline devices — never use this for date filtering)
- *     inout           - 'IN' or 'OUT'
- *     senddata        - verification method, e.g. "Face" or "FP" (fingerprint)
- *
- * A single employee can have 2+ punches a day (IN + OUT), sometimes with
- * duplicate/extra punches (device retries). We aggregate per (CardNo, day):
- *   check_in  = earliest punch tagged IN that day
- *   check_out = latest punch tagged OUT that day
- *
- * Place at: backend/src/modules/attendance/attendance.mssql.service.ts
- */
-
 import { queryMSSQL, sql } from '../../config/mssql.config';
 
-// Confirmed via schema discovery — update if your instance differs
 const MSSQL_TABLE_NAME = 'Tran_MachineRawPunch';
 
 const COL = {
@@ -49,8 +25,8 @@ export interface MSSQLAttendanceRow {
 interface RawAggregatedRow {
   card_no: string;
   punch_date: string;       // e.g. "2026-07-15"
-  first_in: Date | string | null;
-  last_out: Date | string | null;
+  first_in: string | null;
+  last_out: string | null;
   punch_count: number;
 }
 
@@ -83,10 +59,6 @@ export class AttendanceMSSQLService {
     return queryMSSQL(`SELECT TOP 5 * FROM ${MSSQL_TABLE_NAME}`);
   }
 
-  // ── Sample ANY table by name, with columns + row count ─────────────────────
-  // Table name is validated against INFORMATION_SCHEMA.TABLES before use —
-  // never interpolated raw, so this stays injection-safe even though it
-  // takes a caller-supplied string.
   async getSampleFromTable(tableName: string): Promise<{
     table: string;
     rowCount: number;
@@ -123,11 +95,12 @@ export class AttendanceMSSQLService {
 
   // ── Today's attendance from MSSQL ─────────────────────────────────────────
   async getTodayAttendance(): Promise<MSSQLAttendanceRow[]> {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA', {
+  timeZone: 'Asia/Kolkata',
+});
     return this.getAttendanceByDate(today, today);
   }
 
-  // ── Attendance by date range — aggregates raw punches into daily rows ──────
   async getAttendanceByDate(
     dateFrom: string,
     dateTo: string,
@@ -144,15 +117,21 @@ export class AttendanceMSSQLService {
       empFilter = `AND ${COL.cardNo} = @empCode`;
     }
 
-    // Aggregate raw punches per (CardNo, calendar day):
-    //   earliest IN punch  -> check-in
-    //   latest  OUT punch  -> check-out
     const rows = await queryMSSQL<RawAggregatedRow>(`
       SELECT
         ${COL.cardNo} AS card_no,
         CONVERT(VARCHAR(10), ${COL.punchDatetime}, 23) AS punch_date,
-        MIN(CASE WHEN ${COL.inout} = 'IN'  THEN ${COL.punchDatetime} END) AS first_in,
-        MAX(CASE WHEN ${COL.inout} = 'OUT' THEN ${COL.punchDatetime} END) AS last_out,
+        CONVERT(
+        VARCHAR(8),
+        MIN(${COL.punchDatetime}),
+        108
+    ) AS first_in,
+
+CONVERT(
+        VARCHAR(8),
+        MAX(${COL.punchDatetime}),
+        108
+    ) AS last_out,        
         COUNT(*) AS punch_count
       FROM ${MSSQL_TABLE_NAME}
       WHERE CONVERT(VARCHAR(10), ${COL.punchDatetime}, 23) BETWEEN @dateFrom AND @dateTo
@@ -161,6 +140,7 @@ export class AttendanceMSSQLService {
       ORDER BY punch_date DESC, ${COL.cardNo}
     `, params);
 
+    console.log("rows", rows) 
     return rows.map((r) => this.mapAggregatedRow(r));
   }
 
@@ -178,30 +158,36 @@ export class AttendanceMSSQLService {
   }
 
   // ── Map an aggregated (per-day) row to our output format ───────────────────
-  private mapAggregatedRow(r: RawAggregatedRow): MSSQLAttendanceRow {
-    const firstIn = r.first_in ? new Date(r.first_in) : null;
-    const lastOut = r.last_out ? new Date(r.last_out) : null;
+private mapAggregatedRow(r: RawAggregatedRow): MSSQLAttendanceRow {
 
-    let working_hours: number | null = null;
-    if (firstIn && lastOut && lastOut.getTime() > firstIn.getTime()) {
-      working_hours = Math.round(((lastOut.getTime() - firstIn.getTime()) / 3600000) * 100) / 100;
-    }
+  let working_hours: number | null = null;
 
-    let status: MSSQLDayStatus = 'No Punches';
-    if (firstIn && lastOut) status = 'Present';
-    else if (firstIn || lastOut) status = 'Incomplete'; // missing punch (forgot to tap in/out, or device miss)
-
-    return {
-      employee_code: String(r.card_no || '').trim(),
-      date: r.punch_date,
-      check_in: firstIn ? this.toTimeString(firstIn) : null,
-      check_out: lastOut ? this.toTimeString(lastOut) : null,
-      status,
-      working_hours,
-      punch_count: r.punch_count,
-      source: 'Biometric',
-    };
+  if (r.first_in && r.last_out) {
+    working_hours = this.calculateWorkingHours(
+      r.first_in,
+      r.last_out,
+    );
   }
+
+  let status: MSSQLDayStatus = 'No Punches';
+
+  if (r.first_in && r.last_out) {
+    status = 'Present';
+  } else if (r.first_in || r.last_out) {
+    status = 'Incomplete';
+  }
+
+  return {
+    employee_code: String(r.card_no || '').trim(),
+    date: r.punch_date,
+    check_in: r.first_in,
+    check_out: r.last_out,
+    status,
+    working_hours,
+    punch_count: r.punch_count,
+    source: 'Biometric',
+  };
+}
 
   private toTimeString(d: Date): string {
     const hh = String(d.getHours()).padStart(2, '0');
@@ -209,6 +195,31 @@ export class AttendanceMSSQLService {
     const ss = String(d.getSeconds()).padStart(2, '0');
     return `${hh}:${mm}:${ss}`;
   }
+
+private calculateWorkingHours(
+    checkIn: string,
+    checkOut: string,
+): number {
+
+    const [ih, im, is] = checkIn.split(':').map(Number);
+    const [oh, om, os] = checkOut.split(':').map(Number);
+
+    let inSeconds =
+        ih * 3600 +
+        im * 60 +
+        is;
+
+    let outSeconds =
+        oh * 3600 +
+        om * 60 +
+        os;
+
+    if (outSeconds < inSeconds) {
+        outSeconds += 24 * 3600;
+    }
+
+    return Math.round(((outSeconds - inSeconds) / 3600) * 100) / 100;
+}  
 }
 
 export const attendanceMSSQLService = new AttendanceMSSQLService();

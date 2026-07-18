@@ -31,14 +31,18 @@ export async function connectDatabase(): Promise<void> {
       await sequelize.sync();
     }
 
-  } catch (error: any) {
-    logger.error('🔥 DATABASE ERROR FULL:', {
-      message: error.message,
-      name: error.name,
-      original: error.original,
-      sql: error.sql,
-    });
+  }catch (error: any) {
+  console.error("========== DATABASE ERROR ==========");
+  console.error(error);
+  console.error("Message:", error?.message);
+  console.error("Name:", error?.name);
+  console.error("Code:", error?.code);
+  console.error("Errno:", error?.errno);
+  console.error("SQL State:", error?.sqlState);
+  console.error("Stack:", error?.stack);
+  console.error("Original:", error?.original);
+  console.error("====================================");
 
-    process.exit(1);
-  }
+  process.exit(1);
+}
 }

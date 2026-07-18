@@ -42,10 +42,10 @@ const NAV: NavSection[] = [
         permission: null,
       },
       {
-        id: "test",
-        label: "Test",
+        id: "attendance",
+        label: "Attendance",
         icon: <LayoutDashboard size={16} />,
-        href: "/test",
+        href: "/attendance",
         permission: null,
       },
     ],

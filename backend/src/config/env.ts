@@ -58,4 +58,9 @@ export const env = {
     authKey: process.env.MSG91_AUTH_KEY!,
     templateId: process.env.MSG91_TEMPLATE_ID!
   },  
+
+  trackolap: {
+    authId: process.env.TC_CUSTOMERID,
+    authKey: process.env.TC_KEY 
+  }
 } as const;

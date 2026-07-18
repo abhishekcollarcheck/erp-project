@@ -565,9 +565,9 @@ async getFieldPermissions(employeeId: number) {
 
     const companyMapBulk: Record<string, number> = {
       'Narula Exports': 1,
-      'Med Freshe': 5,
-      'Greenvac Solutions': 3,
-      'Collarcheck': 4,
+      'Med Freshe': 4,
+      'Greenvac Solutions': 2,
+      'Collarcheck': 3,
     };
 
     // ✅ Helper function to safely convert to string
