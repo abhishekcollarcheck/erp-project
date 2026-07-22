@@ -63,7 +63,6 @@ export const employeeController = {
         req.user!.employeeId,
         req.ip,
       );
-      console.log("form-data", req.body)
       sendResponse(res, {
         data: emp,
         message: "Employee created",

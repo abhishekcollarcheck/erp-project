@@ -56,7 +56,7 @@ export class AttendanceMSSQLService {
 
   // ── Get sample rows (first 5) to see raw data ─────────────────────────────
   async getSampleRows(): Promise<any[]> {
-    return queryMSSQL(`SELECT TOP 5 * FROM ${MSSQL_TABLE_NAME}`);
+    return queryMSSQL(`SELECT TOP 15 * FROM ${MSSQL_TABLE_NAME}`);
   }
 
   async getSampleFromTable(tableName: string): Promise<{
@@ -139,8 +139,6 @@ CONVERT(
       GROUP BY ${COL.cardNo}, CONVERT(VARCHAR(10), ${COL.punchDatetime}, 23)
       ORDER BY punch_date DESC, ${COL.cardNo}
     `, params);
-
-    console.log("rows", rows) 
     return rows.map((r) => this.mapAggregatedRow(r));
   }
 

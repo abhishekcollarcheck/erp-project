@@ -1,4 +1,3 @@
-
 import { Router, Request, Response, NextFunction } from 'express';
 import { query, param }                             from 'express-validator';
 import { validate }                                 from '../../middleware/validate.middleware';

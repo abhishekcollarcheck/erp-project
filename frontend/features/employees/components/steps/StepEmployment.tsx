@@ -4,12 +4,14 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { WORKING_SITE_OPTIONS, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS, REGISTRATION_LOCATION_OPTIONS, SATURDAY_OFF_OPTIONS, SHIFT_TIMING_OPTIONS } from "../../constants/employee.constants"
 import { FormSection } from '../../../../components/form/FormSection';
+import { useShifts } from '../../../../features/shift/hooks/useShift';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepEmployment({ }: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
+  const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
 
   return (
     <FormSection fields={[f('working_site'), f('working_city'), f('working_state_country'), f('pay_register_location'), f('saturday_off'), f('shift_id'), f('grace_minutes')]}>
@@ -64,8 +66,8 @@ export function StepEmployment({ }: Props) {
             name="shift_id"
             label="Working Shift"
             required
-            placeholder='Select'
-            options={[...SHIFT_TIMING_OPTIONS]}
+            placeholder={shiftsLoading ? 'Loading shifts…' : 'Select'}
+            options={shiftOptions}
             fieldPerm={f('shift_id')}
           />
           <FormInput name="grace_minutes" label="Grace (Minutes)" type="number" hint="Allowed late arrival in minutes" fieldPerm={f('grace_minutes')} />

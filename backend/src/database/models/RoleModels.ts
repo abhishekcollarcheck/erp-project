@@ -81,10 +81,18 @@ Permission.init(
     id:          { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     module:      { type: DataTypes.STRING(100), allowNull: false },
     action:      { type: DataTypes.STRING(100), allowNull: false },
-    slug:        { type: DataTypes.STRING(200), allowNull: false, unique: true },
+    slug:        { type: DataTypes.STRING(200), allowNull: false },
     description: { type: DataTypes.STRING(300), allowNull: true },
   },
-  { sequelize, tableName: 'permissions', modelName: 'Permission', timestamps: false },
+  { sequelize, tableName: 'permissions', modelName: 'Permission', timestamps: false,
+        indexes: [
+      {
+        name: "uk_permissions_slug",
+        unique: true,
+        fields: ["slug"],
+      },
+    ],
+   },
 );
 
 // ─── FieldPermission (role × field masking) ───────────────────────────────────

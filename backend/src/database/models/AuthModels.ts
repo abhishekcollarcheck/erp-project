@@ -66,7 +66,7 @@ export class RoleTemplate extends Model {
 
 RoleTemplate.init({
   id:          { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  slug:        { type: DataTypes.STRING(100), allowNull: false, unique: true },
+  slug:        { type: DataTypes.STRING(100), allowNull: false },
   name:        { type: DataTypes.STRING(100), allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: true },
   is_system:   { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -74,6 +74,13 @@ RoleTemplate.init({
 }, {
   sequelize, tableName: 'role_templates', modelName: 'RoleTemplate',
   timestamps: true, createdAt: 'created_at', updatedAt: false,
+      indexes: [
+      {
+        name: "uk_role_templates_slug",
+        unique: true,
+        fields: ["slug"],
+      },
+    ],
 });
 
 // ─── RoleTemplatePermission ────────────────────────────────────────────────────

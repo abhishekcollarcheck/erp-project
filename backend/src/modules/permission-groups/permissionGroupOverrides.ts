@@ -262,7 +262,6 @@ async setFieldOverrides(
     overrideId: number,
     actorId: number,
   ) {
-    console.log("delete-override", groupId, employeeId, overrideId, actorId)
     const row = await EmployeePermissionOverride.findOne({
       where: {
         id: overrideId,

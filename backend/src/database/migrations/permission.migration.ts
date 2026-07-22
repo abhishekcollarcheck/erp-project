@@ -28,3 +28,11 @@
 
 
 // ALTER TABLE field_permissions_v2 DROP INDEX field_permissions_v2_group_id_field_id;
+
+// ALTER TABLE employees
+// MODIFY shift_id BIGINT UNSIGNED NULL;
+
+// ALTER TABLE employees
+// ADD CONSTRAINT fk_employee_shift
+// FOREIGN KEY (shift_id)
+// REFERENCES shifts(id);

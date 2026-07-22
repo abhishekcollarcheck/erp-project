@@ -10,6 +10,7 @@ import { Role, RoleModulePermission } from '../models/RoleModels';
 import { EmployeeRole, RoleTemplate, RoleTemplatePermission } from '../models/AuthModels';
 import { logger } from '../../config/logger';
 import { DynamicField, FormDefinition, HrModule } from "../models";
+import { seedShifts } from "./shift-seed-data";
 
 
 const COMPANY_ID = 1;
@@ -134,6 +135,9 @@ export async function seedDatabase(): Promise<void> {
       desigMap.set(name, d.id);
     }
     logger.info('✅ Departments + designations ready');
+
+    // ── 5b. Shifts ───────────────────────────────────────────────────────────
+    await seedShifts(transaction);
 
     // ── 6. Super admin employee ───────────────────────────────────────────────
     const [superAdminEmp, saCreated] = await Employee.findOrCreate({

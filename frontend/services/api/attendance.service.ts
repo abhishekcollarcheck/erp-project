@@ -76,6 +76,18 @@ export interface MSSQLAttendanceRow {
   source: 'Biometric';
 }
 
+export type CombinedDayStatus = 'Present' | 'Incomplete' | 'No Punches';
+export type AttendanceSourceTag = 'Biometric' | 'Trakola';
+
+export interface CombinedAttendanceRow {
+  date: string;
+  check_in: string | null;
+  check_out: string | null;
+  working_hours: number | null;
+  sources: AttendanceSourceTag[];
+  status: CombinedDayStatus;
+}
+
 export interface AttendanceQueryParams {
   page?: number;
   limit?: number;
@@ -177,4 +189,8 @@ export const attendanceService = {
 
   getBiometricRange: (params: { date_from?: string; date_to?: string; employee_code?: string }) =>
     apiClient.get<unknown, ApiResponse<MSSQLAttendanceRow[]>>('/attendance/mssql', { params }),
+
+  // Combined — Biometric + Trakola merged per day
+  getMyCombinedAttendance: (params: { date_from: string; date_to: string }) =>
+    apiClient.get<unknown, ApiResponse<CombinedAttendanceRow[]>>('/attendance/combined/my', { params }),
 };

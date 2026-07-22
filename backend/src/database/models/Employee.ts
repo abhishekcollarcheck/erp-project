@@ -168,7 +168,7 @@ Employee.init({
   working_city:           { type: DataTypes.STRING(100), allowNull: true },
   working_state_country:  { type: DataTypes.STRING(200), allowNull: true },
   pay_register_location:  { type: DataTypes.STRING(200), allowNull: true },
-  shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: undefined },
+  shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'shifts', key: 'id' } },
   saturday_off:           { type: DataTypes.STRING(200), allowNull: true },
   grace_minutes:          { type: DataTypes.SMALLINT.UNSIGNED, defaultValue: 0 },
   form_completion_pct:    { type: DataTypes.TINYINT.UNSIGNED, defaultValue: 0 },

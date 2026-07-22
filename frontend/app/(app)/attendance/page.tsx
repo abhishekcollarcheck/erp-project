@@ -14,6 +14,7 @@ import {
   useMyRegularizations,
   usePendingRegularizations,
   useMyBiometricAttendance,
+  useMyCombinedAttendance,
 } from '../../../features/attendance/hooks/useAttendance';
 import { usePermission } from '../../../features/auth/hooks/useAuth';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -67,6 +68,10 @@ export default function AttendancePage() {
   const { data: myRequests = [] } = useMyRegularizations();
   const { data: pending } = usePendingRegularizations(); // undefined/[] if not a manager — hook has retry:false
   const { data: myBiometric } = useMyBiometricAttendance({ date_from: bioRange.date_from, date_to: bioRange.date_to });
+  const { data: myCombined, isLoading: combinedLoading, error: combinedError } = useMyCombinedAttendance({
+    date_from: bioRange.date_from,
+    date_to: bioRange.date_to,
+  });
 
   const avgAttendancePct = summary && summary.total > 0
     ? (((summary.present + summary.wfh) / summary.total) * 100).toFixed(1) + '%'
@@ -145,9 +150,9 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* My Biometric Attendance */}
+          {/* My Attendance — Combined (Biometric + Trakola) */}
           <div className="card cp mb14">
-            <div className="ct">My Biometric Attendance</div>
+            <div className="ct">My Attendance — Combined (Biometric + Trakola)</div>
             <div style={{ marginBottom: 12 }}>
               <DateRangePresetPicker
                 value={bioPreset}
@@ -155,6 +160,46 @@ export default function AttendancePage() {
                 onChange={(preset, range) => { setBioPreset(preset); setBioRange(range); }}
               />
             </div>
+
+            {combinedError && (
+              <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>
+                Failed to load combined attendance: {(combinedError as any)?.message || 'Unknown error'}
+              </div>
+            )}
+
+            {combinedLoading ? (
+              <div style={{ fontSize: 12, padding: 20, textAlign: 'center' }}>Loading…</div>
+            ) : !myCombined || myCombined.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--ink4)' }}>No punches found for this period.</div>
+            ) : (
+              <div className="tw">
+                <table>
+                  <thead><tr><th>Date</th><th>Status</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Sources</th></tr></thead>
+                  <tbody>
+                    {myCombined.map((r) => (
+                      <tr key={r.date}>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.date}</td>
+                        <td><Chip variant={r.status === 'Present' ? 'green' : r.status === 'Incomplete' ? 'amber' : 'gray'}>{r.status}</Chip></td>
+                        {/* Missing punch → dash, never a guessed value */}
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_in ?? '—'}</td>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_out ?? '—'}</td>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.working_hours ?? '—'}</td>
+                        <td style={{ display: 'flex', gap: 4 }}>
+                          {r.sources.map((s) => (
+                            <Chip key={s} variant={s === 'Biometric' ? 'blue' : 'amber'}>{s}</Chip>
+                          ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* My Biometric Attendance (kept separate — biometric-only view for comparison/debugging) */}
+          <div className="card cp mb14">
+            <div className="ct">My Biometric Attendance (Biometric-only)</div>
             {!myBiometric || myBiometric.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--ink4)' }}>No punches found for this period.</div>
             ) : (

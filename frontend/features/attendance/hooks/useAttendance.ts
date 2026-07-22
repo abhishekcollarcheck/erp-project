@@ -174,3 +174,13 @@ export function useBiometricToday() {
     select:    (res) => res.data,
   });
 }
+
+// ─── Combined — Biometric + Trakola merged per day ─────────────────────────
+export function useMyCombinedAttendance(params: { date_from: string; date_to: string }) {
+  return useQuery({
+    queryKey:  ['attendance', 'combined', 'my', params],
+    queryFn:   () => attendanceService.getMyCombinedAttendance(params),
+    staleTime: 60_000,
+    select:    (res) => res.data,
+  });
+}

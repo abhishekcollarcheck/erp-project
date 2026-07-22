@@ -20,6 +20,9 @@ import { permissionGroupRouter } from '../modules/permission-groups/permissionGr
 // import { companyUsersRouter, companyEmployeesRouter } from '../modules/admin/company-users-controller';
 import { companyRouter } from '../modules/company/company.controller';
 import mssqlAttendanceRouter from "../modules/attendance/attendance.mssql.routes"
+import attendanceCombinedRouter from '../modules/attendance/attendance-combined.routes';
+import trackolaRouter from '../modules/attendance/trackola.routes';
+import shiftRouter from '../modules/shifts/shift.routes';
 
 const router = Router();
 
@@ -32,6 +35,8 @@ router.use('/departments', departmentRoutes);
 router.use('/designations', designationRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/attendance/mssql', mssqlAttendanceRouter);
+router.use('/attendance/combined', attendanceCombinedRouter);
+router.use('/attendance/trackola', trackolaRouter);
 router.use('/leaves', leaveRoutes);
 router.use('/payroll', payrollRoutes);
 router.use('/candidates', candidateRoutes);
@@ -46,5 +51,6 @@ router.use('/permission-groups', permissionGroupRouter);
 // router.use('/admin/companies/:companyId/users',      companyUsersRouter);
 // router.use('/admin/companies/:companyId/employees',  companyEmployeesRouter);
 router.use('/companies', companyRouter);
+router.use('/shifts', shiftRouter)
 
 export default router;

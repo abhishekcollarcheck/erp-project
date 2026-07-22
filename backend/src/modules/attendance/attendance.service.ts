@@ -54,7 +54,10 @@ interface EmployeeSummary {
 export class AttendanceService {
   // ─── Today summary for dashboard ──────────────────────────────────────────
   async getTodaySummary(companyId: number) {
-    const today = new Date().toISOString().split('T')[0];
+    // Fixed: toISOString() is UTC — between 00:00–05:30 IST this returned
+    // yesterday's date, same bug already fixed in attendance.mssql.service.ts.
+    // Using the identical approach here so both services agree on "today".
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
     const companyEmployeeIds = (
       await Employee.findAll({ where: { company_id: companyId }, attributes: ['id'] })
@@ -81,10 +84,7 @@ export class AttendanceService {
     return summary;
   }
 
-  // ─── Monthly records for one employee (tenant-scoped, fixed last-day bug) ─
   async getByEmployee(employeeId: number, month: number, year: number, companyId: number) {
-    // Fixed: same alias issue — verify tenant ownership with a direct
-    // Employee lookup instead of an aliased include.
     const employee = await Employee.findOne({ where: { id: employeeId, company_id: companyId } });
     if (!employee) throw new AppError('Employee not found', 404);
 
