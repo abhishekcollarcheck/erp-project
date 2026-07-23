@@ -18,7 +18,7 @@ import {
 } from '../../../features/attendance/hooks/useAttendance';
 import { usePermission } from '../../../features/auth/hooks/useAuth';
 import { useDebounce } from '../../../hooks/useDebounce';
-import type { AttendanceStatus, AttendanceSource, RegularizationRequest } from '../../../services/api/attendance.service';
+import type { AttendanceStatus, AttendanceSource, RegularizationRequest, FinalAttendanceStatus } from '../../../services/api/attendance.service';
 import { PermissionGuard } from '../../../utils/permissionGuard';
 
 const STATUS_VARIANT: Record<AttendanceStatus, 'green' | 'red' | 'blue' | 'amber' | 'gray'> = {
@@ -26,6 +26,17 @@ const STATUS_VARIANT: Record<AttendanceStatus, 'green' | 'red' | 'blue' | 'amber
 };
 const REG_STATUS_VARIANT: Record<string, 'green' | 'red' | 'amber'> = {
   Approved: 'green', Rejected: 'red', Pending: 'amber',
+};
+const FINAL_STATUS_VARIANT: Record<FinalAttendanceStatus, 'green' | 'red' | 'amber' | 'gray' | 'blue'> = {
+  'Full Day Present': 'green',
+  'First Half Present': 'amber',
+  'Second Half Present': 'amber',
+  'Full Day Absent': 'red',
+  Holiday: 'blue',
+  'Weekly Off': 'gray',
+  // Unclassified means the rule set didn't cover this combination — flagged
+  // gray ("needs review") rather than colored like a confident answer.
+  Unclassified: 'gray',
 };
 
 export default function AttendancePage() {
@@ -45,6 +56,7 @@ export default function AttendancePage() {
 
   const [bioPreset, setBioPreset] = useState<DateRangePreset>('today');
   const [bioRange, setBioRange] = useState<DateRange>(() => computeRangeForPreset('today'));
+  const [attendanceTab, setAttendanceTab] = useState<'combined' | 'biometric'>('biometric');
 
   const debouncedSearch = useDebounce(search, 350);
 
@@ -72,6 +84,14 @@ export default function AttendancePage() {
     date_from: bioRange.date_from,
     date_to: bioRange.date_to,
   });
+
+  // Same finalStatus values as the Combined table above, keyed by date —
+  // reused here so this table can never disagree with Combined on what a
+  // given day's status actually is (Holiday/Weekly Off/Present/Absent/etc.),
+  // since it's literally the same computed value, just looked up by date.
+  const finalStatusByDate = new Map(
+    (myCombined ?? []).map((r) => [r.date, { finalStatus: r.finalStatus, matchedRule: r.matchedRule, isRegularized: r.isRegularized }]),
+  );
 
   const avgAttendancePct = summary && summary.total > 0
     ? (((summary.present + summary.wfh) / summary.total) * 100).toFixed(1) + '%'
@@ -150,10 +170,35 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* My Attendance — Combined (Biometric + Trakola) */}
+          {/* My Attendance — tabbed: Combined (Biometric + Trakola) / Biometric-only */}
           <div className="card cp mb14">
-            <div className="ct">My Attendance — Combined (Biometric + Trakola)</div>
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+              <div style={{ display: 'flex', gap: 4, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: 3 }}>
+                {(['combined', 'biometric'] as const).map((tab) => {
+                  const active = attendanceTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setAttendanceTab(tab)}
+                      style={{
+                        padding: '7px 14px',
+                        border: 'none',
+                        borderRadius: 8,
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: active ? 'var(--surface)' : 'transparent',
+                        color: active ? 'var(--ink)' : 'var(--ink4)',
+                        boxShadow: active ? 'var(--sh)' : 'none',
+                        fontFamily: 'var(--font)',
+                        transition: 'background 0.15s ease, color 0.15s ease',
+                      }}
+                    >
+                      {tab === 'combined' ? 'Combined (Biometric + Trakola)' : 'Biometric Only'}
+                    </button>
+                  );
+                })}
+              </div>
               <DateRangePresetPicker
                 value={bioPreset}
                 range={bioRange}
@@ -161,65 +206,88 @@ export default function AttendancePage() {
               />
             </div>
 
-            {combinedError && (
-              <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>
-                Failed to load combined attendance: {(combinedError as any)?.message || 'Unknown error'}
-              </div>
-            )}
+            {attendanceTab === 'combined' ? (
+              <>
+                {combinedError && (
+                  <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>
+                    Failed to load combined attendance: {(combinedError as any)?.message || 'Unknown error'}
+                  </div>
+                )}
 
-            {combinedLoading ? (
-              <div style={{ fontSize: 12, padding: 20, textAlign: 'center' }}>Loading…</div>
-            ) : !myCombined || myCombined.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--ink4)' }}>No punches found for this period.</div>
+                {combinedLoading ? (
+                  <div style={{ fontSize: 12, padding: 20, textAlign: 'center' }}>Loading…</div>
+                ) : !myCombined || myCombined.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--ink4)' }}>No punches found for this period.</div>
+                ) : (
+                  <div className="tw">
+                    <table>
+                      <thead><tr><th>Date</th><th>Status</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Late</th><th>Sources</th></tr></thead>
+                      <tbody>
+                        {myCombined.map((r) => (
+                          <tr key={r.date}>
+                            <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.date}</td>
+                            <td title={r.matchedRule ?? undefined}>
+                              {r.finalStatus === null ? (
+                                <Chip variant="gray">No Shift Assigned</Chip>
+                              ) : (
+                                <Chip variant={FINAL_STATUS_VARIANT[r.finalStatus]}>{r.finalStatus}</Chip>
+                              )}
+                            </td>
+                            {/* Missing punch → dash, never a guessed value */}
+                            <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_in ?? '—'}</td>
+                            <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_out ?? '—'}</td>
+                            <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.working_hours ?? '—'}</td>
+                            <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+                              {r.lateMinutes && r.lateMinutes > 0 ? `${r.lateMinutes}m` : '—'}
+                            </td>
+                            <td style={{ display: 'flex', gap: 4 }}>
+                              {r.sources.map((s) => (
+                                <Chip key={s} variant={s === 'Biometric' ? 'blue' : s === 'Regularized' ? 'green' : 'amber'}>{s}</Chip>
+                              ))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="tw">
-                <table>
-                  <thead><tr><th>Date</th><th>Status</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Sources</th></tr></thead>
-                  <tbody>
-                    {myCombined.map((r) => (
-                      <tr key={r.date}>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.date}</td>
-                        <td><Chip variant={r.status === 'Present' ? 'green' : r.status === 'Incomplete' ? 'amber' : 'gray'}>{r.status}</Chip></td>
-                        {/* Missing punch → dash, never a guessed value */}
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_in ?? '—'}</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_out ?? '—'}</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.working_hours ?? '—'}</td>
-                        <td style={{ display: 'flex', gap: 4 }}>
-                          {r.sources.map((s) => (
-                            <Chip key={s} variant={s === 'Biometric' ? 'blue' : 'amber'}>{s}</Chip>
-                          ))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* My Biometric Attendance (kept separate — biometric-only view for comparison/debugging) */}
-          <div className="card cp mb14">
-            <div className="ct">My Biometric Attendance (Biometric-only)</div>
-            {!myBiometric || myBiometric.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--ink4)' }}>No punches found for this period.</div>
-            ) : (
-              <div className="tw">
-                <table>
-                  <thead><tr><th>Date</th><th>Status</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Punches</th></tr></thead>
-                  <tbody>
-                    {myBiometric.map((r) => (
-                      <tr key={r.date}>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.date}</td>
-                        <td><Chip variant={r.status === 'Present' ? 'green' : r.status === 'Incomplete' ? 'amber' : 'gray'}>{r.status}</Chip></td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_in ?? '—'}</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_out ?? '—'}</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.working_hours ?? '—'}</td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.punch_count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {!myBiometric || myBiometric.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--ink4)' }}>No punches found for this period.</div>
+                ) : (
+                  <div className="tw">
+                    <table>
+                      <thead><tr><th>Date</th><th>Status</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Punches</th></tr></thead>
+                      <tbody>
+                        {myBiometric.map((r) => {
+                          const dayStatus = finalStatusByDate.get(r.date);
+                          return (
+                            <tr key={r.date}>
+                              <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.date}</td>
+                              <td title={dayStatus?.matchedRule ?? undefined} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                {combinedLoading ? (
+                                  <Chip variant="gray">…</Chip>
+                                ) : dayStatus?.finalStatus == null ? (
+                                  <Chip variant="gray">No Shift Assigned</Chip>
+                                ) : (
+                                  <Chip variant={FINAL_STATUS_VARIANT[dayStatus.finalStatus]}>{dayStatus.finalStatus}</Chip>
+                                )}
+                                {dayStatus?.isRegularized && <Chip variant="green">Regularized</Chip>}
+                              </td>
+                              <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_in ?? '—'}</td>
+                              <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.check_out ?? '—'}</td>
+                              <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.working_hours ?? '—'}</td>
+                              <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{r.punch_count}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

@@ -31,6 +31,7 @@ attendanceCombinedRouter.get(
         req.user!.employeeId,
         req.query.date_from as string,
         req.query.date_to as string,
+        req.user!.companyId,
       );
       sendResponse(res, {
         data: rows,

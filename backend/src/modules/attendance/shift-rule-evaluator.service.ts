@@ -52,6 +52,8 @@ export type FinalAttendanceStatus =
   | 'First Half Present'
   | 'Second Half Present'
   | 'Full Day Absent'
+  | 'Holiday'
+  | 'Weekly Off'
   | 'Unclassified';
 
 export interface RuleEvaluationResult {

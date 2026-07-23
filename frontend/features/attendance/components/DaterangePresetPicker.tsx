@@ -84,34 +84,92 @@ export function DateRangePresetPicker({ value, range, onChange }: Props) {
   };
 
   return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-      <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 2, gap: 2 }}>
-        {(['today', 'yesterday', 'last7', 'last14', 'lastMonth', 'custom'] as const).map((p) => (
-          <button
-            key={p}
-            onClick={() => selectPreset(p)}
-            style={{
-              padding: '4px 10px', border: 'none', borderRadius: 6,
-              fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              background: value === p ? 'var(--surface)' : 'transparent',
-              color: value === p ? 'var(--ink)' : 'var(--ink4)',
-              boxShadow: value === p ? 'var(--sh)' : 'none',
-              fontFamily: 'var(--font)',
-            }}
-          >
-            {PRESET_LABELS[p]}
-          </button>
-        ))}
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          background: 'var(--surface2)',
+          border: '1px solid var(--border)',
+          borderRadius: 10,
+          padding: 3,
+          gap: 2,
+        }}
+      >
+        {(['today', 'yesterday', 'last7', 'last14', 'lastMonth', 'custom'] as const).map((p) => {
+          const active = value === p;
+          return (
+            <button
+              key={p}
+              onClick={() => selectPreset(p)}
+              style={{
+                padding: '6px 12px',
+                border: 'none',
+                borderRadius: 8,
+                fontSize: 11.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: active ? 'var(--surface)' : 'transparent',
+                color: active ? 'var(--ink)' : 'var(--ink4)',
+                boxShadow: active ? 'var(--sh)' : 'none',
+                fontFamily: 'var(--font)',
+                transition: 'background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => {
+                if (!active) e.currentTarget.style.color = 'var(--ink)';
+              }}
+              onMouseLeave={(e) => {
+                if (!active) e.currentTarget.style.color = 'var(--ink4)';
+              }}
+            >
+              {PRESET_LABELS[p]}
+            </button>
+          );
+        })}
       </div>
 
       {value === 'custom' && (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-          <span style={{ fontSize: 11, color: 'var(--ink4)' }}>to</span>
-          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
-          <button className="btn btn-sec btn-sm" onClick={applyCustom}>Apply</button>
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            background: 'var(--surface2)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: '5px 8px',
+          }}
+        >
+          <CalendarIcon />
+          <input
+            type="date"
+            value={customFrom}
+            onChange={(e) => setCustomFrom(e.target.value)}
+            style={{ border: 'none', background: 'transparent', fontSize: 11.5, fontFamily: 'var(--font)', color: 'var(--ink)' }}
+          />
+          <span style={{ fontSize: 11, color: 'var(--ink4)' }}>→</span>
+          <input
+            type="date"
+            value={customTo}
+            onChange={(e) => setCustomTo(e.target.value)}
+            style={{ border: 'none', background: 'transparent', fontSize: 11.5, fontFamily: 'var(--font)', color: 'var(--ink)' }}
+          />
+          <button className="btn btn-pri btn-sm" onClick={applyCustom} style={{ marginLeft: 2 }}>
+            Apply
+          </button>
         </div>
       )}
     </div>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ink4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
   );
 }

@@ -11,6 +11,7 @@ import { EmployeeRole, RoleTemplate, RoleTemplatePermission } from '../models/Au
 import { logger } from '../../config/logger';
 import { DynamicField, FormDefinition, HrModule } from "../models";
 import { seedShifts } from "./shift-seed-data";
+import { seedHolidays } from "./holiday-seed-data";
 
 
 const COMPANY_ID = 1;
@@ -138,6 +139,9 @@ export async function seedDatabase(): Promise<void> {
 
     // ── 5b. Shifts ───────────────────────────────────────────────────────────
     await seedShifts(transaction);
+
+    // ── 5c. Holidays ───────────────────────────────────────────────────────────
+    await seedHolidays();
 
     // ── 6. Super admin employee ───────────────────────────────────────────────
     const [superAdminEmp, saCreated] = await Employee.findOrCreate({

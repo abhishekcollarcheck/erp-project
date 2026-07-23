@@ -77,7 +77,15 @@ export interface MSSQLAttendanceRow {
 }
 
 export type CombinedDayStatus = 'Present' | 'Incomplete' | 'No Punches';
-export type AttendanceSourceTag = 'Biometric' | 'Trakola';
+export type AttendanceSourceTag = 'Biometric' | 'Trakola' | 'Regularized';
+export type FinalAttendanceStatus =
+  | 'Full Day Present'
+  | 'First Half Present'
+  | 'Second Half Present'
+  | 'Full Day Absent'
+  | 'Holiday'
+  | 'Weekly Off'
+  | 'Unclassified';
 
 export interface CombinedAttendanceRow {
   date: string;
@@ -85,7 +93,11 @@ export interface CombinedAttendanceRow {
   check_out: string | null;
   working_hours: number | null;
   sources: AttendanceSourceTag[];
-  status: CombinedDayStatus;
+  isRegularized: boolean;                      // true if an approved regularization contributed to this day
+  status: CombinedDayStatus;                  // raw merge status — kept for debugging
+  finalStatus: FinalAttendanceStatus | null;   // rule-evaluated status; null if no shift assigned
+  matchedRule: string | null;
+  lateMinutes: number | null;
 }
 
 export interface AttendanceQueryParams {
