@@ -254,6 +254,11 @@ export default function AttendancePage() {
               </>
             ) : (
               <>
+                {combinedError && (
+                  <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>
+                    Status column unavailable — combined attendance failed to load: {(combinedError as any)?.message || 'Unknown error'}
+                  </div>
+                )}
                 {!myBiometric || myBiometric.length === 0 ? (
                   <div style={{ fontSize: 12, color: 'var(--ink4)' }}>No punches found for this period.</div>
                 ) : (
@@ -269,6 +274,10 @@ export default function AttendancePage() {
                               <td title={dayStatus?.matchedRule ?? undefined} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                                 {combinedLoading ? (
                                   <Chip variant="gray">…</Chip>
+                                ) : combinedError ? (
+                                  // Combined API failed — NOT the same thing as "no shift
+                                  // assigned". Don't claim an answer we don't actually have.
+                                  <Chip variant="gray">Status Unavailable</Chip>
                                 ) : dayStatus?.finalStatus == null ? (
                                   <Chip variant="gray">No Shift Assigned</Chip>
                                 ) : (

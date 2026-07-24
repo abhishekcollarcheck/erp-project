@@ -71,7 +71,20 @@ export class AttendanceCombinedService {
 
     const [bioRows, trakRows, holidayMap, regRows] = await Promise.all([
       attendanceMSSQLService.getAttendanceByDate(startDate, endDate, employee.employee_code),
-      trakolaService.getNormalizedAttendance(startDate, endDate, employee.employee_code),
+      // FIX: Trakola is a third-party dependency outside our control — a
+      // failure/outage on their end should degrade gracefully (fall back to
+      // Biometric-only data for the affected days), not 502 the entire
+      // Combined endpoint. This was the root cause of the reported 502:
+      // Promise.all rejects the whole batch the moment any one promise
+      // rejects, so a single Trakola error was taking Biometric data down
+      // with it even though Biometric had nothing wrong.
+      trakolaService.getNormalizedAttendance(startDate, endDate, employee.employee_code).catch((e: any) => {
+        console.error(
+          `[attendance-combined] Trakola fetch failed for employee ${employeeId} (${startDate} to ${endDate}) — ` +
+          `continuing with Biometric-only data. Error: ${e.message}`,
+        );
+        return [];
+      }),
       holidayService.getHolidaysInRange(startDate, endDate, companyId),
       this.getApprovedRegularizations(employeeId, startDate, endDate),
     ]);

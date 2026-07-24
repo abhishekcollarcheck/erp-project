@@ -6,6 +6,13 @@
  * employee's shift + grace period, and computes the final attendance
  * status per the business rules you provided.
  *
+ * All internal time math is done in MINUTES (converted from earlier
+ * seconds-based version) — seconds in raw punch timestamps are truncated
+ * (floored) down to the containing minute during parsing, so e.g.
+ * "10:14:59" is treated as minute 10:14, never rounded up to 10:15. This
+ * is a deliberate choice: never let a stray second push someone past a
+ * grace/threshold boundary in their disfavor.
+ *
  * ═══════════════════════════════════════════════════════════════════════
  * ASSUMPTIONS BAKED INTO THIS FILE — NOT YET CONFIRMED BY YOU:
  * ═══════════════════════════════════════════════════════════════════════
@@ -62,70 +69,77 @@ export interface RuleEvaluationResult {
   lateMinutes: number;        // actual lateness that day, floored at 0 (the "Late Coming Minute" value)
 }
 
-interface ShiftBoundariesSeconds {
+interface ShiftBoundariesMinutes {
   start: number;
-  end: number;       // already adjusted +86400 if the shift crosses midnight
+  end: number;       // already adjusted +1440 if the shift crosses midnight
   halfShift: number;
-  durationSec: number;
-  graceSec: number;
-}
-
-function parseTimeToSeconds(time: string): number {
-  const [h, m, s] = time.split(':').map(Number);
-  return h * 3600 + m * 60 + (s || 0);
-}
-
-function computeShiftBoundaries(shift: Shift, graceMinutes: number): ShiftBoundariesSeconds {
-  const start = parseTimeToSeconds(shift.start_time);
-  const durationSec = shift.duration_minutes * 60;
-  const end = shift.crosses_midnight ? start + durationSec : parseTimeToSeconds(shift.end_time);
-  const halfShift = start + durationSec / 2;
-  const graceSec = graceMinutes * 60;
-  return { start, end, halfShift, durationSec, graceSec };
+  durationMin: number;
+  graceMin: number;
 }
 
 /**
- * Normalizes raw check_in/check_out (HH:MM:SS, no date) into seconds
+ * Parses "HH:MM:SS" into total minutes since midnight. Seconds are
+ * truncated (floored), not rounded — see file header note.
+ */
+function parseTimeToMinutes(time: string): number {
+  const [h, m, s] = time.split(':').map(Number);
+  const totalSeconds = h * 3600 + m * 60 + (s || 0);
+  return Math.floor(totalSeconds / 60);
+}
+
+function computeShiftBoundaries(shift: Shift, graceMinutes: number): ShiftBoundariesMinutes {
+  const start = parseTimeToMinutes(shift.start_time);
+  const durationMin = shift.duration_minutes; // already stored in minutes — no conversion needed
+  const end = shift.crosses_midnight ? start + durationMin : parseTimeToMinutes(shift.end_time);
+  const halfShift = start + durationMin / 2;
+  return { start, end, halfShift, durationMin, graceMin: graceMinutes };
+}
+
+/**
+ * Normalizes raw check_in/check_out (HH:MM:SS, no date) into minutes
  * comparable against shift boundaries — using the shift's OWN
  * crosses_midnight flag as ground truth, not a per-punch guess.
  */
-function normalizePunchSeconds(
+function normalizePunchMinutes(
   checkIn: string,
   checkOut: string,
   shift: Shift,
-): { inSec: number; outSec: number } {
-  const inSec = parseTimeToSeconds(checkIn);
-  let outSec = parseTimeToSeconds(checkOut);
-  if (shift.crosses_midnight && outSec < inSec) {
-    outSec += 86400;
+): { inMin: number; outMin: number } {
+  const inMin = parseTimeToMinutes(checkIn);
+  let outMin = parseTimeToMinutes(checkOut);
+  if (shift.crosses_midnight && outMin < inMin) {
+    outMin += 1440; // minutes in a day (was +86400 seconds)
   }
-  return { inSec, outSec };
+  return { inMin, outMin };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 // STEP 1: Full Day Present
 // ═══════════════════════════════════════════════════════════════════════
 function evaluatePresent(
-  inSec: number,
-  outSec: number,
-  b: ShiftBoundariesSeconds,
+  inMin: number,
+  outMin: number,
+  b: ShiftBoundariesMinutes,
   lateMinutes: number,
 ): string | null {
   // Rule A (+ old Rule B merged in via crosses_midnight normalization above):
   // arrived at/before shift start, stayed through to shift end.
-  if (inSec <= b.start && outSec >= b.end) {
+  if (inMin <= b.start && outMin >= b.end) {
+    return 'PRESENT_STRICT';
+  }
+
+  if (inMin <= b.start && outMin < inMin) {
     return 'PRESENT_STRICT';
   }
 
   // Rule C: arrived within grace, but only counts if they stayed late
   // enough to cover their own lateness.
-  const lateSec = lateMinutes * 60;
-  if (inSec <= b.start + b.graceSec && outSec >= b.end + lateSec) {
+  if (inMin <= b.start + b.graceMin && outMin >= b.end + lateMinutes) {
     return 'PRESENT_GRACE_WITH_MAKEUP';
   }
 
   // Rule D: duration-only fallback, ignores clock alignment entirely.
-  if (outSec - inSec >= b.durationSec) {
+  if (outMin - inMin >= b.durationMin) {
     return 'PRESENT_DURATION_ONLY';
   }
 
@@ -136,43 +150,41 @@ function evaluatePresent(
 // STEP 2: Half Day (First Half Present / Second Half Present)
 // ═══════════════════════════════════════════════════════════════════════
 function evaluateHalfDay(
-  inSec: number,
-  outSec: number,
-  b: ShiftBoundariesSeconds,
+  inMin: number,
+  outMin: number,
+  b: ShiftBoundariesMinutes,
   lateMinutes: number,
 ): { status: 'First Half Present' | 'Second Half Present'; rule: string } | null {
-  const lateSec = lateMinutes * 60;
-
   // ── First Half Present: on time, left somewhere in the back half ──────
-  if (inSec <= b.start && outSec >= b.halfShift && outSec < b.end) {
+  if (inMin <= b.start && outMin >= b.halfShift && outMin < b.end) {
     return { status: 'First Half Present', rule: 'FIRST_HALF_STRICT' };
   }
   if (
-    inSec <= b.start + b.graceSec &&
-    outSec >= b.halfShift + lateSec &&
-    outSec < b.end
+    inMin <= b.start + b.graceMin &&
+    outMin >= b.halfShift + lateMinutes &&
+    outMin < b.end
   ) {
     return { status: 'First Half Present', rule: 'FIRST_HALF_GRACE_WITH_MAKEUP' };
   }
-  if (outSec - inSec >= b.halfShift - b.start) {
+  if (outMin - inMin >= b.halfShift - b.start) {
     return { status: 'First Half Present', rule: 'FIRST_HALF_DURATION_ONLY' };
   }
 
   // ── Second Half Present: arrived late, stayed through to shift end ────
-  if (inSec <= b.halfShift && inSec > b.start + b.graceSec && outSec >= b.end) {
+  if (inMin <= b.halfShift && inMin > b.start + b.graceMin && outMin >= b.end) {
     return { status: 'Second Half Present', rule: 'SECOND_HALF_STRICT' };
   }
   if (
-    inSec <= b.halfShift + b.graceSec &&
-    inSec > b.start + b.graceSec &&
-    outSec >= b.end + lateSec
+    inMin <= b.halfShift + b.graceMin &&
+    inMin > b.start + b.graceMin &&
+    outMin >= b.end + lateMinutes
   ) {
     return { status: 'Second Half Present', rule: 'SECOND_HALF_GRACE_WITH_MAKEUP' };
   }
   // ASSUMPTION #4 applied here — see file header. Using (end - halfShift),
   // the corrected mirror of First Half's duration rule, not the literal
   // (halfShift - end) from the source table.
-  if (outSec - inSec >= b.end - b.halfShift) {
+  if (outMin - inMin >= b.end - b.halfShift) {
     return { status: 'Second Half Present', rule: 'SECOND_HALF_DURATION_ONLY' };
   }
 
@@ -183,39 +195,38 @@ function evaluateHalfDay(
 // STEP 3: Full Day Absent (punch-based rules — "no punch" handled earlier)
 // ═══════════════════════════════════════════════════════════════════════
 function evaluateAbsent(
-  inSec: number,
-  outSec: number,
-  b: ShiftBoundariesSeconds,
+  inMin: number,
+  outMin: number,
+  b: ShiftBoundariesMinutes,
   lateMinutes: number,
 ): string | null {
-  const lateSec = lateMinutes * 60;
-
   // Rule A: arrived beyond grace, and didn't stay late enough to compensate.
-  if (inSec > b.start + b.graceSec && outSec < b.end + lateSec) {
+  if (inMin > b.start + b.graceMin && outMin < b.end + lateMinutes) {
     return 'ABSENT_LATE_NO_MAKEUP';
   }
 
   // Rule B: arrived at/before shift start OR within grace, but left before
   // even reaching the half-shift mark.
-  // FIX APPLIED: the original condition also required `inSec > b.start`
-  // (i.e. only covered "slightly late but within grace" arrivals). That
-  // left a real gap — an employee arriving exactly on time or early, then
-  // leaving after only an hour or two, matched NONE of the rules and fell
-  // through to 'Unclassified'. Dropping the lower bound so this rule
-  // covers "arrived on time or within grace, left too early" as one
-  // continuous case — lateMinutes is already floored at 0 for on-time/early
-  // arrivals, so the outSec comparison degrades correctly to
-  // "left before halfShift" with no special-casing needed.
-  if (inSec <= b.start + b.graceSec && outSec < b.halfShift + lateSec) {
+  // FIX APPLIED (carried over from the seconds-based version): the
+  // original condition also required `inMin > b.start` (i.e. only covered
+  // "slightly late but within grace" arrivals). That left a real gap — an
+  // employee arriving exactly on time or early, then leaving after only an
+  // hour or two, matched NONE of the rules and fell through to
+  // 'Unclassified'. Dropping the lower bound so this rule covers "arrived
+  // on time or within grace, left too early" as one continuous case —
+  // lateMinutes is already floored at 0 for on-time/early arrivals, so the
+  // outMin comparison degrades correctly to "left before halfShift" with
+  // no special-casing needed.
+  if (inMin <= b.start + b.graceMin && outMin < b.halfShift + lateMinutes) {
     return 'ABSENT_LEFT_TOO_EARLY';
   }
 
   // Rule C: arrived very late (past half-shift, within grace of it), and
   // still didn't stay late enough to compensate.
   if (
-    inSec <= b.halfShift + b.graceSec &&
-    inSec > b.halfShift &&
-    outSec < b.end + lateSec
+    inMin <= b.halfShift + b.graceMin &&
+    inMin > b.halfShift &&
+    outMin < b.end + lateMinutes
   ) {
     return 'ABSENT_ARRIVED_TOO_LATE';
   }
@@ -244,20 +255,33 @@ export function evaluateAttendanceStatus(
   }
 
   const b = computeShiftBoundaries(shift, graceMinutes);
-  const { inSec, outSec } = normalizePunchSeconds(row.check_in, row.check_out, shift);
-  const lateMinutes = Math.max(0, Math.round((inSec - b.start) / 60));
+  const { inMin, outMin } = normalizePunchMinutes(row.check_in, row.check_out, shift);
 
-  const presentRule = evaluatePresent(inSec, outSec, b, lateMinutes);
+  // ANOMALY GUARD: if check_out is still before check_in after the
+  // crosses_midnight adjustment, the data itself is broken — e.g. a bad
+  // regularization time, a stray/erroneous punch, or a shift misconfigured
+  // as not-crossing-midnight when it should. Evaluating the rules against
+  // this would silently produce a confidently WRONG answer (a huge
+  // negative-looking gap between in/out reads as "left almost immediately",
+  // which the Absent rules then confirm as a real absence). Surface it
+  // instead of guessing.
+  if (outMin < inMin) {
+    return { status: 'Unclassified', matchedRule: 'ANOMALY_CHECKOUT_BEFORE_CHECKIN', lateMinutes: 0 };
+  }
+
+  const lateMinutes = Math.max(0, inMin - b.start);
+
+  const presentRule = evaluatePresent(inMin, outMin, b, lateMinutes);
   if (presentRule) {
     return { status: 'Full Day Present', matchedRule: presentRule, lateMinutes };
   }
 
-  const halfDayResult = evaluateHalfDay(inSec, outSec, b, lateMinutes);
+  const halfDayResult = evaluateHalfDay(inMin, outMin, b, lateMinutes);
   if (halfDayResult) {
     return { status: halfDayResult.status, matchedRule: halfDayResult.rule, lateMinutes };
   }
 
-  const absentRule = evaluateAbsent(inSec, outSec, b, lateMinutes);
+  const absentRule = evaluateAbsent(inMin, outMin, b, lateMinutes);
   if (absentRule) {
     return { status: 'Full Day Absent', matchedRule: absentRule, lateMinutes };
   }

@@ -17,7 +17,7 @@ import { sendResponse, sendError } from '../../utils/response';
 
 const trackolaRouter = Router();
 trackolaRouter.use(authenticate);
-trackolaRouter.use(authorize('hr', 'admin')); // debug/discovery — not for general employee use
+// trackolaRouter.use(authorize('hr', 'admin'));
 
 const dateRangeValidators = [
   query('start_date').isISO8601().withMessage('start_date must be YYYY-MM-DD'),

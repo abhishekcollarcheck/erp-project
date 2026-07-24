@@ -69,11 +69,10 @@ router.post(
 
 router.get('/regularization/my', getMyRegularizations);
 
-router.get('/regularization/pending', authorize('hr', 'admin', 'mgr'), getPendingRegularizations);
+router.get('/regularization/pending',  getPendingRegularizations);
 
 router.put(
   '/regularization/:id/review',
-  authorize('hr', 'admin', 'mgr'),
   [
     param('id').isInt({ min: 1 }),
     body('decision').isIn(['Approved', 'Rejected']),
@@ -86,7 +85,6 @@ router.put(
 // POST /api/attendance — mark single
 router.post(
   '/',
-  authorize('hr', 'admin', 'mgr'),
   [
     body('employee_id').isInt({ min: 1 }).withMessage('employee_id must be a positive integer'),
     body('date').isISO8601().withMessage('date must be a valid ISO date (YYYY-MM-DD)'),
@@ -101,7 +99,6 @@ router.post(
 // POST /api/attendance/bulk
 router.post(
   '/bulk',
-  authorize('hr', 'admin'),
   [body('records').isArray({ min: 1, max: 200 }).withMessage('records must be a non-empty array of at most 200')],
   validate,
   bulkMarkAttendance,
@@ -110,7 +107,6 @@ router.post(
 // PUT /api/attendance/:id
 router.put(
   '/:id',
-  authorize('hr', 'admin', 'mgr'),
   [param('id').isInt({ min: 1 })],
   validate,
   updateAttendance,

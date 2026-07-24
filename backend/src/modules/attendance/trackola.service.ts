@@ -15,7 +15,7 @@
 import { fetchTrakolaReport, TrackolaReportResponse, TrackolaReportCell } from '../../config/trackolap.config';
 import { AppError } from '../../middleware/errorHandler.middleware';
 
-const TRAKOLA_REPORT_ID = process.env.TRAKOLA_REPORT_ID || '6a5b6fa46a50d271360c88ca';
+const TRAKOLA_REPORT_ID = process.env.TRAKOLA_REPORT_ID || '6a630a8d6edf973e580d2e0c';
 
 // Column names as they appeared in your sample response. If you rename any
 // of these when adding the Employee ID column, update the matching constant
@@ -54,10 +54,10 @@ export class TrakolaService {
     if (!TRAKOLA_REPORT_ID) {
       throw new AppError('TRAKOLA_REPORT_ID is not configured', 500);
     }
-
     let response: TrackolaReportResponse;
     try {
       response = await fetchTrakolaReport(TRAKOLA_REPORT_ID, startDate, endDate);
+      
     } catch (e: any) {
       throw new AppError(`Trakola API unavailable: ${e.message}`, 502);
     }
