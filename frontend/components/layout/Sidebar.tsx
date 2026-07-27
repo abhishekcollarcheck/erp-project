@@ -48,6 +48,13 @@ const NAV: NavSection[] = [
         href: "/attendance",
         permission: null,
       },
+      {
+        id: "leaves",
+        label: "Leaves",
+        icon: <LayoutDashboard size={16} />,
+        href: "/leaves",
+        permission: null,
+      },
     ],
   },
   {

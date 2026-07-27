@@ -128,7 +128,7 @@ export class EmailBranding
 EmailBranding.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-    company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, unique: true },
+    company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     company_name: { type: DataTypes.STRING(200), allowNull: false },
     logo_url: { type: DataTypes.STRING(500), allowNull: true },
     logo_width: { type: DataTypes.INTEGER, defaultValue: 120 },

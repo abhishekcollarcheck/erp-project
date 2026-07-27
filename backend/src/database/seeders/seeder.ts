@@ -12,6 +12,7 @@ import { logger } from '../../config/logger';
 import { DynamicField, FormDefinition, HrModule } from "../models";
 import { seedShifts } from "./shift-seed-data";
 import { seedHolidays } from "./holiday-seed-data";
+import { seedLeaveTypes } from "./seed-leave-types";
 
 
 const COMPANY_ID = 1;
@@ -142,6 +143,8 @@ export async function seedDatabase(): Promise<void> {
 
     // ── 5c. Holidays ───────────────────────────────────────────────────────────
     await seedHolidays();
+
+    await seedLeaveTypes();
 
     // ── 6. Super admin employee ───────────────────────────────────────────────
     const [superAdminEmp, saCreated] = await Employee.findOrCreate({

@@ -3,12 +3,17 @@ import { sequelize } from '../../config/database';
 
 // ─── Leave Type ────────────────────────────────────────────────
 
+export type LeaveAccrualUnit = 'days' | 'hours';
+export type LeaveAccrualPeriod = 'annual_progressive' | 'monthly_reset';
+
 interface LeaveTypeAttributes {
   id: number;
-  company_id: number;
+  company_id: number | null;
   name: string;
   code: string;
   days_per_year: number;
+  accrual_unit: LeaveAccrualUnit;
+  accrual_period: LeaveAccrualPeriod;
   is_paid: boolean;
   carry_forward: boolean;
   max_carry_days: number;
@@ -16,14 +21,16 @@ interface LeaveTypeAttributes {
 }
 
 export class LeaveType
-  extends Model<LeaveTypeAttributes, Optional<LeaveTypeAttributes, 'id' | 'is_paid' | 'carry_forward' | 'max_carry_days' | 'is_active'>>
+  extends Model<LeaveTypeAttributes, Optional<LeaveTypeAttributes, 'id' | 'accrual_unit' | 'accrual_period' | 'is_paid' | 'carry_forward' | 'max_carry_days' | 'is_active'>>
   implements LeaveTypeAttributes
 {
   public id!: number;
-  public company_id!: number;
+  public company_id!: number | null;
   public name!: string;
   public code!: string;
   public days_per_year!: number;
+  public accrual_unit!: LeaveAccrualUnit;
+  public accrual_period!: LeaveAccrualPeriod;
   public is_paid!: boolean;
   public carry_forward!: boolean;
   public max_carry_days!: number;
@@ -33,10 +40,12 @@ export class LeaveType
 LeaveType.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-    company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     name: { type: DataTypes.STRING(100), allowNull: false },
     code: { type: DataTypes.STRING(10), allowNull: false },
     days_per_year: { type: DataTypes.DECIMAL(5, 2), defaultValue: 0 },
+    accrual_unit: { type: DataTypes.ENUM('days', 'hours'), defaultValue: 'days' },
+    accrual_period: { type: DataTypes.ENUM('annual_progressive', 'monthly_reset'), defaultValue: 'annual_progressive' },
     is_paid: { type: DataTypes.BOOLEAN, defaultValue: true },
     carry_forward: { type: DataTypes.BOOLEAN, defaultValue: false },
     max_carry_days: { type: DataTypes.DECIMAL(5, 2), defaultValue: 0 },
