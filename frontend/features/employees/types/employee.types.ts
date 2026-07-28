@@ -23,7 +23,7 @@ export interface Employee {
   last_name:              string;
   status:                 EmployeeStatus;
   employment_type:        EmploymentType;
-  email:                  string;
+  email:                  string | null;
   phone:                  string;
   department_id?:         number;
   sub_department_id?:     number | null;

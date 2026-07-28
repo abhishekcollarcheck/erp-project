@@ -71,13 +71,6 @@ export class AttendanceCombinedService {
 
     const [bioRows, trakRows, holidayMap, regRows] = await Promise.all([
       attendanceMSSQLService.getAttendanceByDate(startDate, endDate, employee.employee_code),
-      // FIX: Trakola is a third-party dependency outside our control — a
-      // failure/outage on their end should degrade gracefully (fall back to
-      // Biometric-only data for the affected days), not 502 the entire
-      // Combined endpoint. This was the root cause of the reported 502:
-      // Promise.all rejects the whole batch the moment any one promise
-      // rejects, so a single Trakola error was taking Biometric data down
-      // with it even though Biometric had nothing wrong.
       trakolaService.getNormalizedAttendance(startDate, endDate, employee.employee_code).catch((e: any) => {
         console.error(
           `[attendance-combined] Trakola fetch failed for employee ${employeeId} (${startDate} to ${endDate}) — ` +
@@ -87,10 +80,9 @@ export class AttendanceCombinedService {
       }),
       holidayService.getHolidaysInRange(startDate, endDate, companyId),
       this.getApprovedRegularizations(employeeId, startDate, endDate),
-    ]);
-
+    ]); 
     const merged = this.mergeByDate(bioRows, trakRows, regRows);
-
+    
     // Holiday and Weekly Off apply BEFORE any punch-based rule, and apply
     // uniformly regardless of source — a row merged from Biometric,
     // Trakola, Regularized, any combination, or neither all get the same
@@ -105,7 +97,6 @@ export class AttendanceCombinedService {
       if (weeklyOff.isOff) {
         return { ...row, finalStatus: 'Weekly Off' as FinalAttendanceStatus, matchedRule: weeklyOff.reason, lateMinutes: 0 };
       }
-
       return row; // untouched — still needs shift-rule evaluation below
     });
 
@@ -170,8 +161,8 @@ export class AttendanceCombinedService {
     trakRows: TrakolaAttendanceRow[],
     regRows: ApprovedRegularizationRow[],
   ): CombinedAttendanceRow[] {
-    const byDate = new Map<string, { bio?: MSSQLAttendanceRow; trak?: TrakolaAttendanceRow; reg?: ApprovedRegularizationRow }>();
 
+    const byDate = new Map<string, { bio?: MSSQLAttendanceRow; trak?: TrakolaAttendanceRow; reg?: ApprovedRegularizationRow }>();
     for (const r of bioRows) {
       byDate.set(r.date, { ...byDate.get(r.date), bio: r });
     }
@@ -181,7 +172,6 @@ export class AttendanceCombinedService {
     for (const r of regRows) {
       byDate.set(r.date, { ...byDate.get(r.date), reg: r });
     }
-
     const result: CombinedAttendanceRow[] = [];
 
     for (const [date, { bio, trak, reg }] of byDate.entries()) {

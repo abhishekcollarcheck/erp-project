@@ -139,6 +139,7 @@ CONVERT(
       GROUP BY ${COL.cardNo}, CONVERT(VARCHAR(10), ${COL.punchDatetime}, 23)
       ORDER BY punch_date DESC, ${COL.cardNo}
     `, params);
+
     return rows.map((r) => this.mapAggregatedRow(r));
   }
 
@@ -157,34 +158,36 @@ CONVERT(
 
   // ── Map an aggregated (per-day) row to our output format ───────────────────
 private mapAggregatedRow(r: RawAggregatedRow): MSSQLAttendanceRow {
-
   let working_hours: number | null = null;
 
-  if (r.first_in && r.last_out) {
+  const check_in = r.first_in;
+  const check_out = r.punch_count >= 2 ? r.last_out : null;
+
+  if (check_in && check_out) {
     working_hours = this.calculateWorkingHours(
-      r.first_in,
-      r.last_out,
+      check_in,
+      check_out,
     );
   }
 
   let status: MSSQLDayStatus = 'No Punches';
 
-  if (r.first_in && r.last_out) {
+ if (check_in && check_out) {
     status = 'Present';
-  } else if (r.first_in || r.last_out) {
+  } else if (check_in || check_out) {
     status = 'Incomplete';
   }
 
   return {
     employee_code: String(r.card_no || '').trim(),
     date: r.punch_date,
-    check_in: r.first_in,
-    check_out: r.last_out,
+    check_in,          
+    check_out,         
     status,
     working_hours,
     punch_count: r.punch_count,
     source: 'Biometric',
-  };
+  }
 }
 
   private toTimeString(d: Date): string {

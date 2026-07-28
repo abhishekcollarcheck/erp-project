@@ -54,6 +54,11 @@
 import { Shift } from '../../database/models/Shift';
 import { CombinedAttendanceRow } from './attendance-combined.service';
 
+export interface ShiftInfo {
+  start_time: string;
+  end_time: string;
+}
+
 export type FinalAttendanceStatus =
   | 'Full Day Present'
   | 'First Half Present'
@@ -61,12 +66,15 @@ export type FinalAttendanceStatus =
   | 'Full Day Absent'
   | 'Holiday'
   | 'Weekly Off'
+  | 'Incomplete'    
+  | 'Missing Punch'    
   | 'Unclassified';
 
 export interface RuleEvaluationResult {
   status: FinalAttendanceStatus;
   matchedRule: string | null; // e.g. 'PRESENT_STRICT', 'ABSENT_NO_PUNCH' — for audit/debugging
-  lateMinutes: number;        // actual lateness that day, floored at 0 (the "Late Coming Minute" value)
+  lateMinutes: number;
+  shift: ShiftInfo | null;
 }
 
 interface ShiftBoundariesMinutes {
@@ -75,6 +83,33 @@ interface ShiftBoundariesMinutes {
   halfShift: number;
   durationMin: number;
   graceMin: number;
+}
+
+
+function isShiftClosed(
+  attendanceDate: string,
+  shift: Shift,
+  currentDate: string = new Date().toISOString().split('T')[0],
+  currentTime: string = new Date().toTimeString().slice(0, 8),
+): boolean {
+  // If attendance date is before today, shift has definitely closed
+  if (attendanceDate < currentDate) {
+    return true;
+  }
+
+  // If attendance date is in the future, shift hasn't closed yet
+  if (attendanceDate > currentDate) {
+    return false;
+  }
+
+  // Same day: compare current time with shift end time
+  const currentMinutes = parseTimeToMinutes(currentTime);
+  const shiftEndMinutes = parseTimeToMinutes(shift.end_time);
+  const adjustedShiftEnd = shift.crosses_midnight 
+    ? shiftEndMinutes 
+    : shiftEndMinutes;
+
+  return currentMinutes >= adjustedShiftEnd;
 }
 
 /**
@@ -241,18 +276,50 @@ export function evaluateAttendanceStatus(
   row: CombinedAttendanceRow,
   shift: Shift,
   graceMinutes: number,
+  currentDate: string = new Date().toISOString().split('T')[0],
+  currentTime: string = new Date().toTimeString().slice(0, 8),  
 ): RuleEvaluationResult {
+  
+  const shiftInfo = shift ? {start_time: shift.start_time, end_time: shift.end_time,} : null;
   // No punches at all → immediate Full Day Absent, nothing else to evaluate.
   if (!row.check_in && !row.check_out) {
-    return { status: 'Full Day Absent', matchedRule: 'ABSENT_NO_PUNCH', lateMinutes: 0 };
+    return { status: 'Full Day Absent', matchedRule: 'ABSENT_NO_PUNCH', lateMinutes: 0, shift: shiftInfo };
   }
 
   // Any other incomplete case (only one of check_in/check_out present) —
   // none of the rule sets above are defined for a single missing punch.
   // Treating as Unclassified rather than guessing; worth a policy decision.
-  if (!row.check_in || !row.check_out) {
-    return { status: 'Unclassified', matchedRule: 'MISSING_ONE_PUNCH', lateMinutes: 0 };
+// Any other incomplete case (only one of check_in/check_out present) —
+// Determine if shift has closed to decide between 'Incomplete' vs 'Missing Punch'
+if (!row.check_in || !row.check_out) {
+  if (isShiftClosed(row.date, shift, currentDate, currentTime)) {
+    // Shift ended but only 1 punch recorded
+    return { 
+      status: 'Missing Punch', 
+      matchedRule: 'MISSING_PUNCH_SHIFT_CLOSED', 
+      lateMinutes: 0,
+      shift: shiftInfo 
+    };
+  } else {
+    // Shift still ongoing, only 1 punch so far
+    return { 
+      status: 'Incomplete', 
+      matchedRule: 'INCOMPLETE_SINGLE_PUNCH', 
+      lateMinutes: 0,
+      shift: shiftInfo 
+    };
   }
+}
+
+if (row.check_in === row.check_out) {
+  // Handle duplicate punch
+  return { 
+    status: 'Incomplete', 
+    matchedRule: 'DUPLICATE_PUNCH_DETECTED', 
+    lateMinutes: 0,
+    shift: shiftInfo, 
+  };
+}
 
   const b = computeShiftBoundaries(shift, graceMinutes);
   const { inMin, outMin } = normalizePunchMinutes(row.check_in, row.check_out, shift);
@@ -266,25 +333,25 @@ export function evaluateAttendanceStatus(
   // which the Absent rules then confirm as a real absence). Surface it
   // instead of guessing.
   if (outMin < inMin) {
-    return { status: 'Unclassified', matchedRule: 'ANOMALY_CHECKOUT_BEFORE_CHECKIN', lateMinutes: 0 };
+    return { status: 'Unclassified', matchedRule: 'ANOMALY_CHECKOUT_BEFORE_CHECKIN', lateMinutes: 0, shift: shiftInfo };
   }
 
   const lateMinutes = Math.max(0, inMin - b.start);
 
   const presentRule = evaluatePresent(inMin, outMin, b, lateMinutes);
   if (presentRule) {
-    return { status: 'Full Day Present', matchedRule: presentRule, lateMinutes };
+    return { status: 'Full Day Present', matchedRule: presentRule, lateMinutes, shift: shiftInfo };
   }
 
   const halfDayResult = evaluateHalfDay(inMin, outMin, b, lateMinutes);
   if (halfDayResult) {
-    return { status: halfDayResult.status, matchedRule: halfDayResult.rule, lateMinutes };
+    return { status: halfDayResult.status, matchedRule: halfDayResult.rule, lateMinutes, shift: shiftInfo };
   }
 
   const absentRule = evaluateAbsent(inMin, outMin, b, lateMinutes);
   if (absentRule) {
-    return { status: 'Full Day Absent', matchedRule: absentRule, lateMinutes };
+    return { status: 'Full Day Absent', matchedRule: absentRule, lateMinutes, shift: shiftInfo };
   }
 
-  return { status: 'Unclassified', matchedRule: null, lateMinutes };
+  return { status: 'Unclassified', matchedRule: null, lateMinutes, shift: shiftInfo };
 }

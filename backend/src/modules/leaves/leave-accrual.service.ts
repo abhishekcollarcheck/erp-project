@@ -25,7 +25,7 @@
  */
 
 import { LeaveType } from '../../database/models/LeaveModels';
-import { getWorkingDaysInMonth } from '../../utils/working-days.util';
+import { getWorkingDaysInMonth } from './working-days.util';
 
 const WORKING_DAYS_THRESHOLD = 20;
 
@@ -34,9 +34,26 @@ export interface MonthCredit {
   month: number; // 1-indexed
   workingDays: number | null; // null for the join month (judged by date, not working days)
   clCredit: number;
-  elCredit: number;
+  elCredit: number;           // the NORMAL EL bucket — excludes probation account contributions while still on probation
   shlCredit: number;
   isJoinMonth: boolean;
+  probationELAccountCredit: number; // goes to the HOLDING account, not the usable EL bucket, while employmentStatus === 'probation'
+  probationELReleased: number;       // non-zero only in the transition month — the one-time lump sum added to elCredit
+}
+
+/**
+ * Per-month employment status during the walk — BLOCKED on real data.
+ * `on_probation` (a live boolean) can't answer "was this true in March" for
+ * a past month once it's since changed — this needs the actual probation
+ * start/end dates from employee_commitment_probation, which I don't have
+ * yet. Modeled as a simple lookup function so the walk itself doesn't care
+ * where the answer comes from — swap this implementation once the real
+ * schema is confirmed.
+ */
+export type MonthEmploymentStatus = 'probation' | 'regular_transition' | 'regular';
+
+export interface ProbationStatusLookup {
+  (year: number, month: number): MonthEmploymentStatus;
 }
 
 /**
@@ -82,7 +99,10 @@ export async function computeMonthlyAccrualHistory(
 
     if (isJoinMonth) {
       const { cl, el, shl } = computeJoinMonthCredit(joinDate.getDate());
-      months.push({ year, month, workingDays: null, clCredit: cl, elCredit: el, shlCredit: shl, isJoinMonth: true });
+      months.push({
+        year, month, workingDays: null, clCredit: cl, elCredit: el, shlCredit: shl, isJoinMonth: true,
+        probationELAccountCredit: 0, probationELReleased: 0,
+      });
     } else {
       const workingDays = await getWorkingDaysInMonth(employeeId, companyId, year, month);
       const meetsThreshold = workingDays >= WORKING_DAYS_THRESHOLD;
@@ -94,6 +114,8 @@ export async function computeMonthlyAccrualHistory(
         elCredit: meetsThreshold ? 1.25 : 0,
         shlCredit: 1, // ShL steady-state is NOT gated by working days per the sheet — flat monthly allowance
         isJoinMonth: false,
+        probationELAccountCredit: 0,
+        probationELReleased: 0,
       });
     }
 
@@ -106,6 +128,100 @@ export async function computeMonthlyAccrualHistory(
   const totalSHL = months.reduce((s, m) => s + m.shlCredit, 0); // NOTE: ShL doesn't carry forward — this total isn't meaningful as a "balance", see leave.service.ts
 
   return { months, totalCL: Math.round(totalCL * 100) / 100, totalEL: Math.round(totalEL * 100) / 100, totalSHL };
+}
+
+/**
+ * Same monthly walk as computeMonthlyAccrualHistory, but probation-aware:
+ * a `statusLookup` function tells it, for each historical month, whether
+ * the employee was on 'probation', in the 'regular_transition' month
+ * (the one where probation just ended), or fully 'regular'.
+ *
+ * This is a SEPARATE function from computeMonthlyAccrualHistory rather
+ * than a flag added to it, so the simple Regular/Contractual path stays
+ * simple and easy to reason about — this one only needs to be called for
+ * employees who have ever been on probation.
+ */
+export async function computeMonthlyAccrualHistoryWithProbation(
+  employeeId: number,
+  companyId: number,
+  joinDate: Date,
+  leaveYearStart: Date,
+  statusLookup: ProbationStatusLookup,
+  asOfDate: Date = new Date(),
+): Promise<{ months: MonthCredit[]; totalCL: number; totalEL: number; totalSHL: number; probationELAccountBalance: number }> {
+  const months: MonthCredit[] = [];
+  let probationELAccountBalance = 0; // running holding-account total, released once at transition
+
+  const effectiveStart = joinDate > leaveYearStart ? joinDate : leaveYearStart;
+  const isActualJoinMonth = (y: number, m: number) =>
+    y === joinDate.getFullYear() && m === joinDate.getMonth() + 1;
+
+  let year = effectiveStart.getFullYear();
+  let month = effectiveStart.getMonth() + 1;
+
+  const lastCompletedYear = asOfDate.getMonth() === 0 ? asOfDate.getFullYear() - 1 : asOfDate.getFullYear();
+  const lastCompletedMonth = asOfDate.getMonth() === 0 ? 12 : asOfDate.getMonth();
+
+  while (year < lastCompletedYear || (year === lastCompletedYear && month <= lastCompletedMonth)) {
+    const isJoinMonth = isActualJoinMonth(year, month);
+
+    if (isJoinMonth) {
+      // Join-month tiers apply regardless of probation status — they're
+      // judged purely by join date, per your earlier confirmation.
+      const { cl, el, shl } = computeJoinMonthCredit(joinDate.getDate());
+      months.push({
+        year, month, workingDays: null, clCredit: cl, elCredit: el, shlCredit: shl, isJoinMonth: true,
+        probationELAccountCredit: 0, probationELReleased: 0,
+      });
+    } else {
+      const status = statusLookup(year, month);
+      const workingDays = await getWorkingDaysInMonth(employeeId, companyId, year, month);
+      const meetsThreshold = workingDays >= WORKING_DAYS_THRESHOLD;
+
+      if (status === 'probation') {
+        const clCredit = meetsThreshold ? 1 : 0;
+        const probationELAccountCredit = meetsThreshold ? 1.25 : 0;
+        probationELAccountBalance += probationELAccountCredit;
+        months.push({
+          year, month, workingDays, clCredit, elCredit: 0, shlCredit: 1, isJoinMonth: false,
+          probationELAccountCredit, probationELReleased: 0,
+        });
+      } else if (status === 'regular_transition') {
+        const clCredit = meetsThreshold ? 1 : 0;
+        const normalEl = meetsThreshold ? 1.25 : 0;
+        const released = probationELAccountBalance; // one-time lump sum, whole account
+        probationELAccountBalance = 0; // consumed
+        months.push({
+          year, month, workingDays, clCredit, elCredit: normalEl + released, shlCredit: 1, isJoinMonth: false,
+          probationELAccountCredit: 0, probationELReleased: released,
+        });
+      } else {
+        // regular — identical to the non-probation path
+        months.push({
+          year, month, workingDays,
+          clCredit: meetsThreshold ? 1 : 0,
+          elCredit: meetsThreshold ? 1.25 : 0,
+          shlCredit: 1, isJoinMonth: false,
+          probationELAccountCredit: 0, probationELReleased: 0,
+        });
+      }
+    }
+
+    month += 1;
+    if (month > 12) { month = 1; year += 1; }
+  }
+
+  const totalCL  = months.reduce((s, m) => s + m.clCredit, 0);
+  const totalEL  = months.reduce((s, m) => s + m.elCredit, 0);
+  const totalSHL = months.reduce((s, m) => s + m.shlCredit, 0);
+
+  return {
+    months,
+    totalCL: Math.round(totalCL * 100) / 100,
+    totalEL: Math.round(totalEL * 100) / 100,
+    totalSHL,
+    probationELAccountBalance: Math.round(probationELAccountBalance * 100) / 100, // non-zero only if STILL on probation as of asOfDate
+  };
 }
 
 /**

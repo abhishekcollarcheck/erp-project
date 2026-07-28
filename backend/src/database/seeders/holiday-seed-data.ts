@@ -25,7 +25,8 @@ const HOLIDAYS_2026: Array<{ date: string; name: string }> = [
   { date: '2026-11-10', name: 'Bhai Dooj' },
 ];
 
-export async function seedHolidays(): Promise<void> {
+// ✅ FIX: Accept optional transaction parameter
+export async function seedHolidays(transaction?: any): Promise<void> {
   const rows = HOLIDAYS_2026.map((h) => ({
     date: h.date,
     name: h.name,
@@ -33,8 +34,10 @@ export async function seedHolidays(): Promise<void> {
     is_active: true,
   }));
 
+  // ✅ FIX: Pass transaction to bulkCreate
   await Holiday.bulkCreate(rows, {
     updateOnDuplicate: ['name', 'is_active'],
+    transaction,  // Added transaction support
   });
 
   logger.info(`✅ Holidays seeded (${rows.length} entries for 2026)`);

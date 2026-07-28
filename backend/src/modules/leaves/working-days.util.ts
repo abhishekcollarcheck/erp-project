@@ -9,7 +9,7 @@
  * Place at: backend/src/modules/leaves/working-days.util.ts
  */
 
-import { attendanceCombinedService } from '../modules/attendance/attendance-combined.service';
+import { attendanceCombinedService } from '../attendance/attendance-combined.service';
 
 export async function getWorkingDaysInMonth(
   employeeId: number,

@@ -18,7 +18,8 @@
 import { LeaveType } from '../models/LeaveModels';
 import { logger } from '../../config/logger';
 
-export async function seedLeaveTypes(): Promise<void> {
+// ✅ FIX: Accept optional transaction parameter
+export async function seedLeaveTypes(transaction?: any): Promise<void> {
   const rows = [
     {
       company_id: null,
@@ -58,8 +59,10 @@ export async function seedLeaveTypes(): Promise<void> {
     },
   ];
 
+  // ✅ FIX: Pass transaction to bulkCreate
   await LeaveType.bulkCreate(rows, {
     updateOnDuplicate: ['days_per_year', 'accrual_unit', 'accrual_period', 'is_paid', 'carry_forward', 'max_carry_days', 'is_active'],
+    transaction,  // Added transaction support
   });
 
   logger.info(`✅ Leave types seeded (global): Short Leave, Earned Leave, Casual Leave`);

@@ -56,13 +56,7 @@ useEffect(() => {
         <FormInput name="last_name" label="Last Name" required placeholder="Sharma" fieldPerm={f('last_name')} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <FormSelect
-          name="status"
-          label="Status"
-          required
-          options={toOpts(EMPLOYEE_STATUS)}
-          fieldPerm={f('status')}
-        />
+        <FormInput name="status" label="Status" required fieldPerm={f('status')} displayValue={EMPLOYEE_STATUS[0]} readOnly />
         <FormSelect
           name="employment_type"
           label="Employment Type"
@@ -73,7 +67,7 @@ useEffect(() => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <FormInput name="email" label="Work Email" type="email" required
+        <FormInput name="email" label="Work Email" type="email"
           placeholder="rahul.sharma@company.com" fieldPerm={f('email')} />
         <FormInput name="phone" label="Phone Number" type="tel" required
           placeholder="+91-9876543210" fieldPerm={f('phone')} />

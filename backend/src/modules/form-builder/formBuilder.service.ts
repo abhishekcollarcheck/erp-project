@@ -37,10 +37,10 @@ export class FormBuilderService {
     name: string; slug?: string; icon?: string; description?: string; sort_order?: number;
   }, createdBy?: number) {
     const slug = dto.slug || dto.name.toLowerCase().replace(/[^a-z0-9]+/g,'_');
-    const exists = await HrModule.findOne({ where: { company_id: companyId, slug } });
+    const exists = await HrModule.findOne({ where: { slug } });
     if (exists) throw new AppError('Module with this slug already exists', 409);
 
-    const mod = await HrModule.create({ company_id: companyId, name: dto.name, slug, icon: dto.icon||null, description: dto.description||null, sort_order: dto.sort_order||0, is_active: true, is_system: false });
+    const mod = await HrModule.create({ name: dto.name, slug, icon: dto.icon||null, description: dto.description||null, sort_order: dto.sort_order||0, is_active: true, is_system: false });
     await logActivity({ companyId, employeeId: createdBy, action: 'MODULE_CREATED', module: 'settings', entityId: mod.id, newValues: { name: mod.name } });
     return mod;
   }

@@ -41,7 +41,9 @@ router.delete('/modules/:id', authorize('settings:delete'), [param('id').isInt()
 // ─── Forms ────────────────────────────────────────────────────────────────────
 router.get   ('/modules/:moduleId/forms', [param('moduleId').isInt()], validate, listForms);
 router.post  ('/modules/:moduleId/forms', authorize('settings:edit'), [param('moduleId').isInt(), body('name').trim().notEmpty()], validate, createForm);
-router.get   ('/forms/:formId', authorize('settings:view'), [param('formId').isInt()], validate, getForm);
+router.get   ('/forms/:formId', 
+  // authorize('settings:view'), 
+  [param('formId').isInt()], validate, getForm);
 router.put   ('/forms/:formId', authorize('settings:edit'), [param('formId').isInt()], validate, updateForm);
 router.delete('/forms/:formId', authorize('settings:delete'), [param('formId').isInt()], validate, deleteForm);
 router.put   ('/forms/:formId/reorder', authorize('settings:edit'), [param('formId').isInt(), body('order').isArray()], validate, reorderFields);

@@ -104,7 +104,7 @@ export function FormInput({
               aria-required={required}
               value={displayValue ?? field.value ?? ''}
               className={[
-                'form-input capitalize',
+                'form-input',
                 isReadOnly ? 'readonly' : '',
                 fieldPerm?.is_masked ? 'masked' : '',
               ].filter(Boolean).join(' ')}

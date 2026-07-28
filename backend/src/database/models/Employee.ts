@@ -15,7 +15,7 @@ interface EmployeeAttrs {
   status:                 'Active' | 'Left' | 'Retired';
   employment_type:        'Permanent' | 'Contractual';
   email:                  string | null;
-  phone:                  string | null;
+  phone:                  string;
   department_id?:         number;
   sub_department_id?:     number | null;
   designation_id?:        number;
@@ -80,7 +80,7 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
   public last_name!:             string;
   public status!:                'Active' | 'Left' | 'Retired';
   public employment_type!:       'Permanent' | 'Contractual';
-  public email!:                 string;
+  public email!:                 string | null;
   public phone!:                 string;
   public department_id!:         number;
   public sub_department_id!:     number | null;
@@ -153,7 +153,7 @@ Employee.init({
   last_name:              { type: DataTypes.STRING(100), allowNull: false },
   status:                 { type: DataTypes.ENUM('Active', 'Left', 'Retired'), defaultValue: 'Active' },
   employment_type:        { type: DataTypes.ENUM('Permanent', 'Contractual'), defaultValue: 'Permanent' },
-  email:                  { type: DataTypes.STRING(255), allowNull: false },
+  email:                  { type: DataTypes.STRING(255), allowNull: true },
   phone:                  { type: DataTypes.STRING(20), allowNull: false },
   department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
   sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: undefined },
@@ -168,7 +168,7 @@ Employee.init({
   working_city:           { type: DataTypes.STRING(100), allowNull: true },
   working_state_country:  { type: DataTypes.STRING(200), allowNull: true },
   pay_register_location:  { type: DataTypes.STRING(200), allowNull: true },
-  shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'shifts', key: 'id' } },
+  shift_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true, references: { model: 'shifts', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
   saturday_off:           { type: DataTypes.STRING(200), allowNull: true },
   grace_minutes:          { type: DataTypes.SMALLINT.UNSIGNED, defaultValue: 0 },
   form_completion_pct:    { type: DataTypes.TINYINT.UNSIGNED, defaultValue: 0 },
