@@ -1,10 +1,9 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
 
-interface DesignationAttributes {
+interface SubDesignationAttributes {
   id: number;
   name: string;
-  grade?: string | null;
   is_active: boolean;
   created_by?: number | null;
   updated_by?: number | null;
@@ -13,15 +12,14 @@ interface DesignationAttributes {
   deleted_at?: Date | null;
 }
 
-interface DesignationCreationAttributes
-  extends Optional<DesignationAttributes, 'id' | 'is_active'> { }
+interface SubDesignationCreationAttributes
+  extends Optional<SubDesignationAttributes, 'id' | 'is_active'> { }
 
-export class Designation
-  extends Model<DesignationAttributes, DesignationCreationAttributes>
-  implements DesignationAttributes {
+export class SubDesignation
+  extends Model<SubDesignationAttributes, SubDesignationCreationAttributes>
+  implements SubDesignationAttributes {
   public id!: number;
   public name!: string;
-  public grade!: string | null;
   public is_active!: boolean;
   public created_by!: number | null;
   public updated_by!: number | null;
@@ -31,7 +29,7 @@ export class Designation
   public deleted_at!: Date | null;
 }
 
-Designation.init(
+SubDesignation.init(
   {
     id: {
       type: DataTypes.INTEGER.UNSIGNED,
@@ -42,11 +40,6 @@ Designation.init(
    name: {
       type: DataTypes.STRING(200),
       allowNull: false,
-    },
-
-    grade: {
-      type: DataTypes.STRING(20),
-      allowNull: true,
     },
 
     is_active: {
@@ -66,10 +59,10 @@ Designation.init(
   },
   {
     sequelize,
-    tableName: 'designations',
-    modelName: 'Designation',
+    tableName: 'sub_designations',
+    modelName: 'SubDesignation',
 
-    timestamps: true,        // ✅ IMPORTANT
+    timestamps: true, 
     paranoid: true,
 
     createdAt: 'created_at',

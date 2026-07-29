@@ -1344,7 +1344,8 @@ function FieldPermissionsPanel({
   });
   const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
   useEffect(() => { if (modules.length && !selectedModuleId) setSelectedModuleId(modules[0].id); }, [modules]);
-
+  console.log("modules", modules)
+  
   const { data: forms = [] } = useEmployeeModuleForms(selectedModuleId || 0);
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
   useEffect(() => { if (forms.length && !selectedFormId) setSelectedFormId(forms[0].id); }, [forms]);
@@ -1373,38 +1374,38 @@ function FieldPermissionsPanel({
     groupId, overrideMemberId, displayCompanyId, 'employees'  // 'employees' matches the module key used elsewhere
   );
 
-useEffect(() => {
-  if (isOverrideMode) {
-    if (!fields.length) return;
-    const merged: Record<number, any> = {};
-    for (const f of fields) {
-      const groupBase =
-        groupPermsData?.perms?.[f.id] ||
-        matrixData?.matrix?.[f.id]?.[groupId] ||
-        { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-      const ov = overrideData?.[f.field_key] || {};
-      merged[f.id] = {
-        can_view: ov.view !== undefined ? ov.view : groupBase.can_view,
-        can_edit: ov.edit !== undefined ? ov.edit : groupBase.can_edit,
-        can_copy: ov.copy !== undefined ? ov.copy : groupBase.can_copy,
-        can_download: ov.download !== undefined ? ov.download : groupBase.can_download,
-        is_masked: ov.mask !== undefined ? ov.mask : groupBase.is_masked,
-      };
+  useEffect(() => {
+    if (isOverrideMode) {
+      if (!fields.length) return;
+      const merged: Record<number, any> = {};
+      for (const f of fields) {
+        const groupBase =
+          groupPermsData?.perms?.[f.id] ||
+          matrixData?.matrix?.[f.id]?.[groupId] ||
+          { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+        const ov = overrideData?.[f.field_key] || {};
+        merged[f.id] = {
+          can_view: ov.view !== undefined ? ov.view : groupBase.can_view,
+          can_edit: ov.edit !== undefined ? ov.edit : groupBase.can_edit,
+          can_copy: ov.copy !== undefined ? ov.copy : groupBase.can_copy,
+          can_download: ov.download !== undefined ? ov.download : groupBase.can_download,
+          is_masked: ov.mask !== undefined ? ov.mask : groupBase.is_masked,
+        };
+      }
+      setLocalPerms(merged);
+      setDirty(false);
+    } else if (fields.length) {
+      const merged: Record<number, any> = {};
+      for (const f of fields) {
+        merged[f.id] =
+          groupPermsData?.perms?.[f.id] ||
+          matrixData?.matrix?.[f.id]?.[groupId] ||
+          { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+      }
+      setLocalPerms(merged);
+      setDirty(false);
     }
-    setLocalPerms(merged);
-    setDirty(false);
-  } else if (fields.length) {
-    const merged: Record<number, any> = {};
-    for (const f of fields) {
-      merged[f.id] =
-        groupPermsData?.perms?.[f.id] ||
-        matrixData?.matrix?.[f.id]?.[groupId] ||
-        { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-    }
-    setLocalPerms(merged);
-    setDirty(false);
-  }
-}, [groupId, groupPermsData, isOverrideMode, overrideData, fields, matrixData]);
+  }, [groupId, groupPermsData, isOverrideMode, overrideData, fields, matrixData]);
 
   const toggleFP = (
     fieldId: number,
@@ -1531,15 +1532,15 @@ useEffect(() => {
         await pgApi.bulkSetFieldPermissions(groupId, groupCompanyIds, permissions);
       }
     },
-onSuccess: () => {
-  showToast(isOverrideMode ? '✓ Field overrides saved' : '✓ Field permissions saved');
-  setDirty(false);
-  refetch();
-  refetchGroupPerms();
-  if (isOverrideMode) {
-    refetchOverrides();
-  }
-},
+    onSuccess: () => {
+      showToast(isOverrideMode ? '✓ Field overrides saved' : '✓ Field permissions saved');
+      setDirty(false);
+      refetch();
+      refetchGroupPerms();
+      if (isOverrideMode) {
+        refetchOverrides();
+      }
+    },
     onError: (e: any) => showToast(e?.message || 'Failed to save'),
   });
 

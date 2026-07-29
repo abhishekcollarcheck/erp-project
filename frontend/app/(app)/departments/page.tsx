@@ -34,7 +34,7 @@ export default function DepartmentsPage() {
     search: debouncedSearch || undefined,
   });
   const { data: stats } = useDepartmentStats();
-  const { data: empData } = useEmployees({ limit: 200 });
+  const { data: empData } = useEmployees({ limit: 100 });
   const employees = empData?.data ?? [];
 
   useEffect(() => {

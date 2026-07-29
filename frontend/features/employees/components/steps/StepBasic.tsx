@@ -16,12 +16,13 @@ export function StepBasic({ isEdit }: Props) {
   const { data: codes } = useNextCode();
   const { setValue, watch } = useFormContext();
   const { company } = useCompany();
-  // ── Auto-fill employee code on create ─────────────────────────────────────
-  useEffect(() => {
-    if (!isEdit && codes?.code && !watch('employee_code')) {
-      setValue('employee_code', codes.code, { shouldDirty: false });
-    }
-  }, [codes, isEdit]); // eslint-disable-line
+  console.log("DEPARTMENT_OPTIONS", DEPARTMENT_OPTIONS)
+  // // ── Auto-fill employee code on create ─────────────────────────────────────
+  // useEffect(() => {
+  //   if (!isEdit && codes?.code && !watch('employee_code')) {
+  //     setValue('employee_code', codes.code, { shouldDirty: false });
+  //   }
+  // }, [codes, isEdit]); // eslint-disable-line
 
   // ── Auto-fill reference code on create ───────────────────────────────────
   useEffect(() => {
