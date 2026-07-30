@@ -109,213 +109,213 @@ async function seedFormField(
 }
 
 // ✅ HELPER: Seed employee form sections
-async function seedAllEmployeeFieldSections(transaction: any): Promise<{ moduleId: number; formId: number }> {
-  try {
-    // Shared module — no company_id
-    const [mod] = await HrModule.findOrCreate({
-      where: { slug: 'employee' },
-      defaults: { 
-        name: 'Employee', 
-        slug: 'employee', 
-        icon: '👤', 
-        description: 'Employee records and profile management', 
-        sort_order: 1, 
-        is_active: true, 
-        is_system: true 
-      },
-      transaction,
-    });
+// async function seedAllEmployeeFieldSections(transaction: any): Promise<{ moduleId: number; formId: number }> {
+//   try {
+//     // Shared module — no company_id
+//     const [mod] = await HrModule.findOrCreate({
+//       where: { slug: 'employee' },
+//       defaults: { 
+//         name: 'Employee', 
+//         slug: 'employee', 
+//         icon: '👤', 
+//         description: 'Employee records and profile management', 
+//         sort_order: 1, 
+//         is_active: true, 
+//         is_system: true 
+//       },
+//       transaction,
+//     });
 
-    // ONE shared form for the whole wizard
-    const [form] = await FormDefinition.findOrCreate({
-      where: { slug: 'employee_onboarding' },
-      defaults: { 
-        module_id: mod.id, 
-        name: 'Employee Onboarding', 
-        slug: 'employee_onboarding', 
-        description: 'Full employee onboarding wizard', 
-        sort_order: 1, 
-        is_active: true, 
-        is_system: true 
-      },
-      transaction,
-    });
+//     // ONE shared form for the whole wizard
+//     const [form] = await FormDefinition.findOrCreate({
+//       where: { slug: 'employee_onboarding' },
+//       defaults: { 
+//         module_id: mod.id, 
+//         name: 'Employee Onboarding', 
+//         slug: 'employee_onboarding', 
+//         description: 'Full employee onboarding wizard', 
+//         sort_order: 1, 
+//         is_active: true, 
+//         is_system: true 
+//       },
+//       transaction,
+//     });
 
-    const sections: { section: string; fields: SeedField[] }[] = [
-      {
-        section: 'Basic Info',
-        fields: [
-          { field_key: 'employee_code', label: 'Employee Code', field_type: 'text' },
-          { field_key: 'reference_code', label: 'Reference Code', field_type: 'text' },
-          { field_key: 'company_id', label: 'Company', field_type: 'text' },
-          { field_key: 'first_name', label: 'First Name', field_type: 'text' },
-          { field_key: 'middle_name', label: 'Middle Name', field_type: 'text' },
-          { field_key: 'last_name', label: 'Last Name', field_type: 'text' },
-          { field_key: 'status', label: 'Status', field_type: 'select' },
-          { field_key: 'employment_type', label: 'Employment Type', field_type: 'select' },
-          { field_key: 'email', label: 'Email', field_type: 'text' },
-          { field_key: 'phone', label: 'Phone', field_type: 'text' },
-          { field_key: 'department_id', label: 'Department', field_type: 'select' },
-          { field_key: 'sub_department_id', label: 'Sub Department', field_type: 'select' },
-          { field_key: 'designation_id', label: 'Designation', field_type: 'select' },
-          { field_key: 'sub_designation', label: 'Sub Designation', field_type: 'text' },
-          { field_key: 'avatar_url', label: 'Avatar', field_type: 'text' },
-        ],
-      },
-      {
-        section: 'Employment Details',
-        fields: [
-          { field_key: 'working_site', label: 'Working Site', field_type: 'text' },
-          { field_key: 'working_city', label: 'Working City', field_type: 'text' },
-          { field_key: 'working_state', label: 'Working State', field_type: 'text' },
-          { field_key: 'joining_date', label: 'Joining Date', field_type: 'date' },
-          { field_key: 'probation_end_date', label: 'Probation End Date', field_type: 'date' },
-          { field_key: 'confirmation_status', label: 'Confirmation Status', field_type: 'select' },
-          { field_key: 'reporting_manager', label: 'Reporting Manager', field_type: 'text' },
-          { field_key: 'supervisor', label: 'Supervisor', field_type: 'text' },
-          { field_key: 'shift_id', label: 'Shift', field_type: 'select' },
-          { field_key: 'shift_type', label: 'Shift Type', field_type: 'select' },
-        ],
-      },
-      {
-        section: 'Personal Details',
-        fields: [
-          { field_key: 'date_of_birth', label: 'Date of Birth', field_type: 'date' },
-          { field_key: 'gender', label: 'Gender', field_type: 'select' },
-          { field_key: 'blood_group', label: 'Blood Group', field_type: 'select' },
-          { field_key: 'marital_status', label: 'Marital Status', field_type: 'select' },
-          { field_key: 'nationality', label: 'Nationality', field_type: 'text' },
-          { field_key: 'religion', label: 'Religion', field_type: 'text' },
-          { field_key: 'mother_tongue', label: 'Mother Tongue', field_type: 'text' },
-          { field_key: 'passport_number', label: 'Passport Number', field_type: 'text' },
-          { field_key: 'aadhaar_number', label: 'Aadhaar Number', field_type: 'text' },
-          { field_key: 'pan_number', label: 'PAN Number', field_type: 'text' },
-        ],
-      },
-      {
-        section: 'Contact & Address',
-        fields: [
-          { field_key: 'permanent_address', label: 'Permanent Address', field_type: 'text' },
-          { field_key: 'permanent_city', label: 'Permanent City', field_type: 'text' },
-          { field_key: 'permanent_state', label: 'Permanent State', field_type: 'text' },
-          { field_key: 'permanent_zip_code', label: 'Permanent Zip Code', field_type: 'text' },
-          { field_key: 'temporary_address', label: 'Temporary Address', field_type: 'text' },
-          { field_key: 'temporary_city', label: 'Temporary City', field_type: 'text' },
-          { field_key: 'temporary_state', label: 'Temporary State', field_type: 'text' },
-          { field_key: 'temporary_zip_code', label: 'Temporary Zip Code', field_type: 'text' },
-        ],
-      },
-      {
-        section: 'Previous Experience',
-        fields: [
-          { field_key: 'prev_company_name', label: 'Previous Company Name', field_type: 'text' },
-          { field_key: 'prev_job_title', label: 'Previous Job Title', field_type: 'text' },
-          { field_key: 'prev_from_date', label: 'From Date', field_type: 'date' },
-          { field_key: 'prev_to_date', label: 'To Date', field_type: 'date' },
-          { field_key: 'exp_years', label: 'Years of Experience', field_type: 'number' },
-          { field_key: 'exp_months', label: 'Months of Experience', field_type: 'number' },
-          { field_key: 'exp_contact_person', label: 'Contact Person', field_type: 'text' },
-          { field_key: 'exp_contact_email', label: 'Contact Email', field_type: 'text' },
-          { field_key: 'exp_contact_number', label: 'Contact Number', field_type: 'text' },
-          { field_key: 'exp_contact_designation', label: 'Contact Designation', field_type: 'text' },
-          { field_key: 'last_inhand_salary', label: 'Last In-hand Salary', field_type: 'number' },
-        ],
-      },
-      {
-        section: 'Education',
-        fields: [
-          { field_key: 'highest_education', label: 'Highest Education', field_type: 'text' },
-          { field_key: 'education_stream', label: 'Education Stream', field_type: 'text' },
-          { field_key: 'education_mode', label: 'Education Mode', field_type: 'select' },
-          { field_key: 'institute_name', label: 'Institute Name', field_type: 'text' },
-          { field_key: 'passing_year', label: 'Passing Year', field_type: 'number' },
-          { field_key: 'education_marks', label: 'Education Marks', field_type: 'text' },
-        ],
-      },
-      {
-        section: 'Salary',
-        fields: [
-          { field_key: 'salary_type', label: 'Salary Type', field_type: 'select' },
-          { field_key: 'salary_mode', label: 'Salary Mode', field_type: 'select' },
-          { field_key: 'basic', label: 'Basic', field_type: 'number' },
-          { field_key: 'hra', label: 'HRA', field_type: 'number' },
-          { field_key: 'allowance1', label: 'Allowance 1', field_type: 'number' },
-          { field_key: 'gross_salary_pm', label: 'Gross Salary (PM)', field_type: 'number' },
-          { field_key: 'amdb_pm', label: 'AMDB (PM)', field_type: 'number' },
-          { field_key: 'total_earning_pm', label: 'Total Earning (PM)', field_type: 'number' },
-          { field_key: 'effective_from', label: 'Effective From', field_type: 'date' },
-        ],
-      },
-      {
-        section: 'Asset Deduction',
-        fields: [
-          { field_key: 'asset_deduction_applicable', label: 'Applicable', field_type: 'checkbox' },
-          { field_key: 'security_amount', label: 'Security Amount', field_type: 'number' },
-          { field_key: 'deduction_months', label: 'Deduction Months', field_type: 'text' },
-          { field_key: 'deduction_from', label: 'Deduction From', field_type: 'select' },
-          { field_key: 'monthly_deduction', label: 'Monthly Deduction', field_type: 'number' },
-          { field_key: 'last_installment', label: 'Last Installment', field_type: 'number' },
-        ],
-      },
-      {
-        section: 'Onboarding Docs',
-        fields: [
-          { field_key: 'offer_letter', label: 'Offer Letter', field_type: 'checkbox' },
-          { field_key: 'address_verification', label: 'Address Verification', field_type: 'checkbox' },
-          { field_key: 'service_agreement', label: 'Service Agreement', field_type: 'checkbox' },
-          { field_key: 'indemnity_bond', label: 'Indemnity Bond', field_type: 'checkbox' },
-          { field_key: 'asset_deduction_letter', label: 'Asset Deduction Letter', field_type: 'checkbox' },
-          { field_key: 'account_opening_letter', label: 'Account Opening Letter', field_type: 'checkbox' },
-          { field_key: 'nda', label: 'NDA', field_type: 'checkbox' },
-        ],
-      },
-      {
-        section: 'Transfers',
-        fields: [
-          { field_key: 'transfer_order', label: 'Transfer Order', field_type: 'number' },
-          { field_key: 'transferred_on', label: 'Transferred On', field_type: 'date' },
-          { field_key: 'new_company', label: 'New Company', field_type: 'text' },
-          { field_key: 'new_joining_date', label: 'New Joining Date', field_type: 'date' },
-          { field_key: 'new_location', label: 'New Location', field_type: 'text' },
-          { field_key: 'new_department', label: 'New Department', field_type: 'text' },
-          { field_key: 'new_job_title', label: 'New Job Title', field_type: 'text' },
-          { field_key: 'old_company', label: 'Old Company', field_type: 'text' },
-          { field_key: 'exit_date', label: 'Exit Date', field_type: 'date' },
-          { field_key: 'old_location', label: 'Old Location', field_type: 'text' },
-          { field_key: 'old_department', label: 'Old Department', field_type: 'text' },
-          { field_key: 'old_job_title', label: 'Old Job Title', field_type: 'text' },
-          { field_key: 'old_emp_code', label: 'Old Employee Code', field_type: 'text' },
-        ],
-      },
-      {
-        section: 'Exit',
-        fields: [
-          { field_key: 'resignation_submitted', label: 'Resignation Submitted', field_type: 'checkbox' },
-          { field_key: 'resignation_date', label: 'Resignation Date', field_type: 'date' },
-          { field_key: 'notice_period', label: 'Notice Period', field_type: 'text' },
-          { field_key: 'last_working_day', label: 'Last Working Day', field_type: 'date' },
-          { field_key: 'exit_formalities_done', label: 'Exit Formalities Done', field_type: 'checkbox' },
-          { field_key: 'exit_status', label: 'Exit Status', field_type: 'text' },
-          { field_key: 'exit_remarks', label: 'Exit Remarks', field_type: 'text' },
-          { field_key: 'verified', label: 'Verified', field_type: 'checkbox' },
-          { field_key: 'verified_by', label: 'Verified By', field_type: 'text' },
-          { field_key: 'verification_remarks', label: 'Verification Remarks', field_type: 'text' },
-        ],
-      },
-    ];
+//     const sections: { section: string; fields: SeedField[] }[] = [
+//       {
+//         section: 'Basic Info',
+//         fields: [
+//           { field_key: 'employee_code', label: 'Employee Code', field_type: 'text' },
+//           { field_key: 'reference_code', label: 'Reference Code', field_type: 'text' },
+//           { field_key: 'company_id', label: 'Company', field_type: 'text' },
+//           { field_key: 'first_name', label: 'First Name', field_type: 'text' },
+//           { field_key: 'middle_name', label: 'Middle Name', field_type: 'text' },
+//           { field_key: 'last_name', label: 'Last Name', field_type: 'text' },
+//           { field_key: 'status', label: 'Status', field_type: 'select' },
+//           { field_key: 'employment_type', label: 'Employment Type', field_type: 'select' },
+//           { field_key: 'email', label: 'Email', field_type: 'text' },
+//           { field_key: 'phone', label: 'Phone', field_type: 'text' },
+//           { field_key: 'department_id', label: 'Department', field_type: 'select' },
+//           { field_key: 'sub_department_id', label: 'Sub Department', field_type: 'select' },
+//           { field_key: 'designation_id', label: 'Designation', field_type: 'select' },
+//           { field_key: 'sub_designation', label: 'Sub Designation', field_type: 'text' },
+//           { field_key: 'avatar_url', label: 'Avatar', field_type: 'text' },
+//         ],
+//       },
+//       {
+//         section: 'Employment Details',
+//         fields: [
+//           { field_key: 'working_site', label: 'Working Site', field_type: 'text' },
+//           { field_key: 'working_city', label: 'Working City', field_type: 'text' },
+//           { field_key: 'working_state', label: 'Working State', field_type: 'text' },
+//           { field_key: 'joining_date', label: 'Joining Date', field_type: 'date' },
+//           { field_key: 'probation_end_date', label: 'Probation End Date', field_type: 'date' },
+//           { field_key: 'confirmation_status', label: 'Confirmation Status', field_type: 'select' },
+//           { field_key: 'reporting_manager', label: 'Reporting Manager', field_type: 'text' },
+//           { field_key: 'supervisor', label: 'Supervisor', field_type: 'text' },
+//           { field_key: 'shift_id', label: 'Shift', field_type: 'select' },
+//           { field_key: 'shift_type', label: 'Shift Type', field_type: 'select' },
+//         ],
+//       },
+//       {
+//         section: 'Personal Details',
+//         fields: [
+//           { field_key: 'date_of_birth', label: 'Date of Birth', field_type: 'date' },
+//           { field_key: 'gender', label: 'Gender', field_type: 'select' },
+//           { field_key: 'blood_group', label: 'Blood Group', field_type: 'select' },
+//           { field_key: 'marital_status', label: 'Marital Status', field_type: 'select' },
+//           { field_key: 'nationality', label: 'Nationality', field_type: 'text' },
+//           { field_key: 'religion', label: 'Religion', field_type: 'text' },
+//           { field_key: 'mother_tongue', label: 'Mother Tongue', field_type: 'text' },
+//           { field_key: 'passport_number', label: 'Passport Number', field_type: 'text' },
+//           { field_key: 'aadhaar_number', label: 'Aadhaar Number', field_type: 'text' },
+//           { field_key: 'pan_number', label: 'PAN Number', field_type: 'text' },
+//         ],
+//       },
+//       {
+//         section: 'Contact & Address',
+//         fields: [
+//           { field_key: 'permanent_address', label: 'Permanent Address', field_type: 'text' },
+//           { field_key: 'permanent_city', label: 'Permanent City', field_type: 'text' },
+//           { field_key: 'permanent_state', label: 'Permanent State', field_type: 'text' },
+//           { field_key: 'permanent_zip_code', label: 'Permanent Zip Code', field_type: 'text' },
+//           { field_key: 'temporary_address', label: 'Temporary Address', field_type: 'text' },
+//           { field_key: 'temporary_city', label: 'Temporary City', field_type: 'text' },
+//           { field_key: 'temporary_state', label: 'Temporary State', field_type: 'text' },
+//           { field_key: 'temporary_zip_code', label: 'Temporary Zip Code', field_type: 'text' },
+//         ],
+//       },
+//       {
+//         section: 'Previous Experience',
+//         fields: [
+//           { field_key: 'prev_company_name', label: 'Previous Company Name', field_type: 'text' },
+//           { field_key: 'prev_job_title', label: 'Previous Job Title', field_type: 'text' },
+//           { field_key: 'prev_from_date', label: 'From Date', field_type: 'date' },
+//           { field_key: 'prev_to_date', label: 'To Date', field_type: 'date' },
+//           { field_key: 'exp_years', label: 'Years of Experience', field_type: 'number' },
+//           { field_key: 'exp_months', label: 'Months of Experience', field_type: 'number' },
+//           { field_key: 'exp_contact_person', label: 'Contact Person', field_type: 'text' },
+//           { field_key: 'exp_contact_email', label: 'Contact Email', field_type: 'text' },
+//           { field_key: 'exp_contact_number', label: 'Contact Number', field_type: 'text' },
+//           { field_key: 'exp_contact_designation', label: 'Contact Designation', field_type: 'text' },
+//           { field_key: 'last_inhand_salary', label: 'Last In-hand Salary', field_type: 'number' },
+//         ],
+//       },
+//       {
+//         section: 'Education',
+//         fields: [
+//           { field_key: 'highest_education', label: 'Highest Education', field_type: 'text' },
+//           { field_key: 'education_stream', label: 'Education Stream', field_type: 'text' },
+//           { field_key: 'education_mode', label: 'Education Mode', field_type: 'select' },
+//           { field_key: 'institute_name', label: 'Institute Name', field_type: 'text' },
+//           { field_key: 'passing_year', label: 'Passing Year', field_type: 'number' },
+//           { field_key: 'education_marks', label: 'Education Marks', field_type: 'text' },
+//         ],
+//       },
+//       {
+//         section: 'Salary',
+//         fields: [
+//           { field_key: 'salary_type', label: 'Salary Type', field_type: 'select' },
+//           { field_key: 'salary_mode', label: 'Salary Mode', field_type: 'select' },
+//           { field_key: 'basic', label: 'Basic', field_type: 'number' },
+//           { field_key: 'hra', label: 'HRA', field_type: 'number' },
+//           { field_key: 'allowance1', label: 'Allowance 1', field_type: 'number' },
+//           { field_key: 'gross_salary_pm', label: 'Gross Salary (PM)', field_type: 'number' },
+//           { field_key: 'amdb_pm', label: 'AMDB (PM)', field_type: 'number' },
+//           { field_key: 'total_earning_pm', label: 'Total Earning (PM)', field_type: 'number' },
+//           { field_key: 'effective_from', label: 'Effective From', field_type: 'date' },
+//         ],
+//       },
+//       {
+//         section: 'Asset Deduction',
+//         fields: [
+//           { field_key: 'asset_deduction_applicable', label: 'Applicable', field_type: 'checkbox' },
+//           { field_key: 'security_amount', label: 'Security Amount', field_type: 'number' },
+//           { field_key: 'deduction_months', label: 'Deduction Months', field_type: 'text' },
+//           { field_key: 'deduction_from', label: 'Deduction From', field_type: 'select' },
+//           { field_key: 'monthly_deduction', label: 'Monthly Deduction', field_type: 'number' },
+//           { field_key: 'last_installment', label: 'Last Installment', field_type: 'number' },
+//         ],
+//       },
+//       {
+//         section: 'Onboarding Docs',
+//         fields: [
+//           { field_key: 'offer_letter', label: 'Offer Letter', field_type: 'checkbox' },
+//           { field_key: 'address_verification', label: 'Address Verification', field_type: 'checkbox' },
+//           { field_key: 'service_agreement', label: 'Service Agreement', field_type: 'checkbox' },
+//           { field_key: 'indemnity_bond', label: 'Indemnity Bond', field_type: 'checkbox' },
+//           { field_key: 'asset_deduction_letter', label: 'Asset Deduction Letter', field_type: 'checkbox' },
+//           { field_key: 'account_opening_letter', label: 'Account Opening Letter', field_type: 'checkbox' },
+//           { field_key: 'nda', label: 'NDA', field_type: 'checkbox' },
+//         ],
+//       },
+//       {
+//         section: 'Transfers',
+//         fields: [
+//           { field_key: 'transfer_order', label: 'Transfer Order', field_type: 'number' },
+//           { field_key: 'transferred_on', label: 'Transferred On', field_type: 'date' },
+//           { field_key: 'new_company', label: 'New Company', field_type: 'text' },
+//           { field_key: 'new_joining_date', label: 'New Joining Date', field_type: 'date' },
+//           { field_key: 'new_location', label: 'New Location', field_type: 'text' },
+//           { field_key: 'new_department', label: 'New Department', field_type: 'text' },
+//           { field_key: 'new_job_title', label: 'New Job Title', field_type: 'text' },
+//           { field_key: 'old_company', label: 'Old Company', field_type: 'text' },
+//           { field_key: 'exit_date', label: 'Exit Date', field_type: 'date' },
+//           { field_key: 'old_location', label: 'Old Location', field_type: 'text' },
+//           { field_key: 'old_department', label: 'Old Department', field_type: 'text' },
+//           { field_key: 'old_job_title', label: 'Old Job Title', field_type: 'text' },
+//           { field_key: 'old_emp_code', label: 'Old Employee Code', field_type: 'text' },
+//         ],
+//       },
+//       {
+//         section: 'Exit',
+//         fields: [
+//           { field_key: 'resignation_submitted', label: 'Resignation Submitted', field_type: 'checkbox' },
+//           { field_key: 'resignation_date', label: 'Resignation Date', field_type: 'date' },
+//           { field_key: 'notice_period', label: 'Notice Period', field_type: 'text' },
+//           { field_key: 'last_working_day', label: 'Last Working Day', field_type: 'date' },
+//           { field_key: 'exit_formalities_done', label: 'Exit Formalities Done', field_type: 'checkbox' },
+//           { field_key: 'exit_status', label: 'Exit Status', field_type: 'text' },
+//           { field_key: 'exit_remarks', label: 'Exit Remarks', field_type: 'text' },
+//           { field_key: 'verified', label: 'Verified', field_type: 'checkbox' },
+//           { field_key: 'verified_by', label: 'Verified By', field_type: 'text' },
+//           { field_key: 'verification_remarks', label: 'Verification Remarks', field_type: 'text' },
+//         ],
+//       },
+//     ];
 
-    let order = 0;
-    for (const s of sections) {
-      await seedFormField(form.id, s.section, s.fields, order, transaction);
-      order += s.fields.length;
-    }
+//     let order = 0;
+//     for (const s of sections) {
+//       await seedFormField(form.id, s.section, s.fields, order, transaction);
+//       order += s.fields.length;
+//     }
 
-    return { moduleId: mod.id, formId: form.id };
-  } catch (error) {
-    logger.error("Error seeding employee field sections:", error);
-    throw error;
-  }
-}
+//     return { moduleId: mod.id, formId: form.id };
+//   } catch (error) {
+//     logger.error("Error seeding employee field sections:", error);
+//     throw error;
+//   }
+// }
 
 export async function seedDatabase(): Promise<void> {
   const transaction = await sequelize.transaction();
@@ -601,8 +601,8 @@ export async function seedDatabase(): Promise<void> {
     }
 
     // ── 8. Employee form definitions ─────────────────────────────────────
-    const { moduleId, formId } = await seedAllEmployeeFieldSections(transaction);
-    logger.info(`✅ Employee module id: ${moduleId}, form id: ${formId}`);
+    // const { moduleId, formId } = await seedAllEmployeeFieldSections(transaction);
+    // logger.info(`✅ Employee module id: ${moduleId}, form id: ${formId}`);
 
     // ── 9. Permissions ───────────────────────────────────────────────────
     if (PERMISSIONS && PERMISSIONS.length > 0) {

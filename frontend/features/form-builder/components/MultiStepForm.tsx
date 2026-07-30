@@ -1,23 +1,8 @@
 'use client';
-/**
- * MultiStepForm.tsx — Reusable multi-step form renderer
- *
- * Works with any form built in Form Builder.
- * If a form has multiple sections, it renders as a multi-step wizard.
- * If a form has only one section, it renders as a single-page form.
- *
- * Usage:
- *   <MultiStepForm
- *     formId={1}
- *     roleId={user.roleId}
- *     initialValues={{ department_id: 2 }}
- *     onSubmit={(values) => createEmployee(values)}
- *     onCancel={() => router.back()}
- *   />
- */
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery }   from '@tanstack/react-query';
-import apiClient      from '../../services/api/client';
+import apiClient      from '../../../services/api/client';
+import { evaluateCondition, parseVisibilityConditions } from '../utils/conditionEvaluator'; 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +19,7 @@ interface ResolvedField {
   width:            number;
   options?:         { label:string; value:string }[];
   dynamic_source?:  string | null;
+  visibility_conditions?: string | null;
   resolved: {
     can_view:     boolean;
     can_edit:     boolean;
@@ -304,15 +290,23 @@ export function MultiStepForm({
   useEffect(() => { setValues(v => ({ ...initialValues, ...v })); }, []);
 
   // Group fields by section — order preserved
-  const sections = useMemo(() => {
-    const map = new Map<string, ResolvedField[]>();
-    for (const f of resolvedFields) {
-      const sec = f.section || 'General';
-      if (!map.has(sec)) map.set(sec, []);
-      map.get(sec)!.push(f);
+const sections = useMemo(() => {
+  const map = new Map<string, ResolvedField[]>();
+  for (const f of resolvedFields) {
+    // ← ADD THIS VISIBILITY CHECK
+    if (f.visibility_conditions) {
+      const condition = parseVisibilityConditions(f.visibility_conditions);
+      if (!evaluateCondition(condition, values)) {
+        continue; // Skip this field if visibility condition not met
+      }
     }
-    return [...map.entries()];
-  }, [resolvedFields]);
+
+    const sec = f.section || 'General';
+    if (!map.has(sec)) map.set(sec, []);
+    map.get(sec)!.push(f);
+  }
+  return [...map.entries()];
+}, [resolvedFields, values]);  // ← ADD values to dependency array
 
   const sectionNames  = sections.map(([name]) => name);
   const isMultiStep   = sectionNames.length > 1;

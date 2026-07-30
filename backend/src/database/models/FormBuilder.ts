@@ -106,6 +106,7 @@ interface DynFieldAttrs {
   dynamic_source_label?: string | null;   // e.g. 'name'
   dynamic_source_value?: string | null;   // e.g. 'id'
   dynamic_source_filter?: string | null;  // JSON: '{"is_active":true}'
+  visibility_conditions?: string | null;
   created_by?: number | null; updated_by?: number | null;
 }
 export class DynamicField
@@ -114,7 +115,7 @@ export class DynamicField
     | 'is_hidden' | 'is_unique' | 'is_active' | 'default_value' | 'sort_order'
     | 'width' | 'column_span' | 'min_length' | 'max_length' | 'min_value' | 'max_value'
     | 'regex_pattern' | 'custom_validation' | 'dynamic_source' | 'dynamic_source_label'
-    | 'dynamic_source_value' | 'dynamic_source_filter' | 'created_by' | 'updated_by'>>
+    | 'dynamic_source_value' | 'dynamic_source_filter' | 'visibility_conditions' | 'created_by' | 'updated_by'>>
   implements DynFieldAttrs {
   public id!: number; public company_id!: number | null; public form_id!: number;
   public field_type!: FieldType; public label!: string; public field_key!: string;
@@ -129,6 +130,7 @@ export class DynamicField
   public dynamic_source_label!: string | null;
   public dynamic_source_value!: string | null;
   public dynamic_source_filter!: string | null;
+  public visibility_conditions!: string | null;
   public created_by!: number | null; public updated_by!: number | null;
   public readonly created_at!: Date; public readonly updated_at!: Date;
   public options?: FieldOption[];
@@ -162,6 +164,7 @@ DynamicField.init({
   dynamic_source_label: { type: DataTypes.STRING(100), allowNull: true },
   dynamic_source_value: { type: DataTypes.STRING(100), allowNull: true },
   dynamic_source_filter: { type: DataTypes.STRING(500), allowNull: true },
+  visibility_conditions: { type: DataTypes.TEXT, allowNull: true },
   created_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   updated_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
 }, { sequelize, tableName: 'dynamic_fields', modelName: 'DynamicField', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at', indexes: [{ unique: true, fields: ['form_id', 'field_key'] }] });

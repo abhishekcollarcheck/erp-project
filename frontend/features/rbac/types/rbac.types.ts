@@ -73,37 +73,59 @@ export interface FieldOption {
 }
 
 export interface DynamicField {
-  id:            number;
-  company_id:    number;
-  form_id:       number;
-  field_type:    FieldType;
-  label:         string;
-  field_key:     string;
-  placeholder?:  string | null;
-  help_text?:    string | null;
-  is_required:   boolean;
-  is_readonly:   boolean;
-  is_hidden:     boolean;
-  is_unique:     boolean;
-  is_active:     boolean;
-  default_value?:string | null;
-  sort_order:    number;
-  section?:      string | null;
-  // Validation
-  min_length?:   number | null;
-  max_length?:   number | null;
-  min_value?:    number | null;
-  max_value?:    number | null;
-  regex_pattern?:string | null;
+  // Core properties
+  id:                    number;
+  company_id:            number;
+  form_id:               number;
+  field_type:            FieldType;
+  label:                 string;
+  field_key:             string;
+  placeholder?:          string | null;
+  help_text?:            string | null;
+  
+  // Section & display
+  section?:              string | null;
+  width?:                number;           // Field width: 25, 33, 50, 66, 75, 100 (%)
+  column_span?:          number;           // Grid columns: 1-4
+  
+  // Status flags
+  is_required:           boolean;
+  is_readonly:           boolean;
+  is_hidden:             boolean;
+  is_unique:             boolean;
+  is_active:             boolean;
+  
+  // Value
+  default_value?:        string | null;
+  sort_order:            number;
+  
+  // Validation rules
+  min_length?:           number | null;
+  max_length?:           number | null;
+  min_value?:            number | null;
+  max_value?:            number | null;
+  regex_pattern?:        string | null;
+  custom_validation?:    string | null;   // Custom validation logic
+  
+  // Dynamic data sources (for select/dropdown fields)
+  dynamic_source?:       string | null;   // 'departments', 'roles', 'employees', 'designations', 'leave_types', 'asset_categories', 'custom'
+  dynamic_source_label?: string | null;   // Field to use as label (e.g., 'name')
+  dynamic_source_value?: string | null;   // Field to use as value (e.g., 'id')
+  dynamic_source_filter?:string | null;   // JSON filter like {"is_active":true}
+  
+  // Conditional visibility
+  visibility_conditions?:string | null;   // JSON condition for showing/hiding field
+  
   // Relations
-  options?:      FieldOption[];
+  options?:              FieldOption[];
+  
   // Resolved at runtime (from permissions)
   resolved?: {
-    can_view:     boolean;
-    can_edit:     boolean;
-    can_copy:     boolean;
-    can_download: boolean;
-    is_masked:    boolean;
+    can_view:            boolean;
+    can_edit:            boolean;
+    can_copy:            boolean;
+    can_download:        boolean;
+    is_masked:           boolean;
   };
 }
 
@@ -142,24 +164,45 @@ export interface CreateFormDto      { name: string; slug?: string; description?:
 export interface UpdateFormDto      { name?: string; description?: string; sort_order?: number; is_active?: boolean; }
 
 export interface CreateFieldDto {
-  field_type:    FieldType;
-  label:         string;
-  field_key?:    string;
-  placeholder?:  string;
-  help_text?:    string;
-  section?:      string;
-  is_required?:  boolean;
-  is_readonly?:  boolean;
-  is_hidden?:    boolean;
-  is_unique?:    boolean;
-  default_value?:string;
-  min_length?:   number;
-  max_length?:   number;
-  min_value?:    number;
-  max_value?:    number;
-  regex_pattern?:string;
-  sort_order?:   number;
-  options?:      Omit<FieldOption,'id'|'field_id'>[];
+  // Required
+  field_type:            FieldType;
+  label:                 string;
+  
+  // Optional identifiers & display
+  field_key?:            string;
+  section?:              string;
+  placeholder?:          string;
+  help_text?:            string;
+  default_value?:        string;
+  sort_order?:           number;
+  width?:                number;           // Field width percentage
+  column_span?:          number;           // Grid column span
+  
+  // Flags
+  is_required?:          boolean;
+  is_readonly?:          boolean;
+  is_hidden?:            boolean;
+  is_unique?:            boolean;
+  
+  // Validation
+  min_length?:           number;
+  max_length?:           number;
+  min_value?:            number;
+  max_value?:            number;
+  regex_pattern?:        string;
+  custom_validation?:    string;           // Custom validation logic
+  
+  // Dynamic sources
+  dynamic_source?:       string;           // DB source: 'departments', 'roles', etc.
+  dynamic_source_label?: string;           // Label field name
+  dynamic_source_value?: string;           // Value field name
+  dynamic_source_filter?:string;           // JSON filter
+  
+  // Conditional visibility
+  visibility_conditions?:string;           // JSON visibility condition
+  
+  // Options (for select/radio/checkbox)
+  options?:              Omit<FieldOption,'id'|'field_id'>[];
 }
 
 export interface SetPermissionDto extends FieldPermissionEntry { role_id: number; }

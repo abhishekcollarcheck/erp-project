@@ -25,6 +25,13 @@ export const SYSTEM_MODULES = [
 ];
 
 
+export interface VisibilityCondition {
+  field_key?: string;
+  operator: 'equals' | 'not_equals' | 'in' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'empty' | 'not_empty' | 'AND' | 'OR';
+  value?: any;
+  conditions?: VisibilityCondition[];
+}
+
 export class FormBuilderService {
 
   // ════════════════════════ MODULES ════════════════════════
@@ -125,6 +132,7 @@ export class FormBuilderService {
     min_length?: number; max_length?: number;
     min_value?: number; max_value?: number;
     regex_pattern?: string; sort_order?: number;
+    visibility_conditions?: string | null;
     options?: { label: string; value: string; is_default?: boolean }[];
   }, createdBy?: number) {
     const form = await FormDefinition.findOne({ where: { id: formId} });
@@ -148,6 +156,7 @@ export class FormBuilderService {
         min_length: dto.min_length||null, max_length: dto.max_length||null,
         min_value: dto.min_value||null, max_value: dto.max_value||null,
         regex_pattern: dto.regex_pattern||null,
+        visibility_conditions: dto.visibility_conditions||null,
         created_by: createdBy||null,
       }, { transaction: t });
 

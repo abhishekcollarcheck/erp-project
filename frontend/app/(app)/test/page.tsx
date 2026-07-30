@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { MultiStepForm } from '../../../components/form-builder/MultiStepForm';
+import { MultiStepForm } from '../../../features/form-builder/components/MultiStepForm';
 export default function TestMultiStepFormPage() {
   const [submittedValues, setSubmittedValues] = useState<Record<string, any> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -17,7 +17,7 @@ export default function TestMultiStepFormPage() {
       <h2 style={{ marginBottom: 20 }}>Test: MultiStepForm (Core Info, form id 3)</h2>
 
       <MultiStepForm
-        formId={3}
+        formId={1}
         onSubmit={handleSubmit}
         onCancel={() => console.log('Cancelled')}
         submitLabel="Test Submit"

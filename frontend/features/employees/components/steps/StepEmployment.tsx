@@ -14,7 +14,11 @@ export function StepEmployment({ }: Props) {
   const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
 
   return (
-    <FormSection fields={[f('working_site'), f('working_city'), f('working_state_country'), f('pay_register_location'), f('saturday_off'), f('shift_id'), f('grace_minutes')]}>
+    <FormSection 
+    fields={[f('working_site'), 
+      // f('working_city'), f('working_state_country'), f('pay_register_location'), f('saturday_off'), f('shift_id'), f('grace_minutes')
+    ]}
+    >
       <div style={{ display: 'grid', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <FormSelect

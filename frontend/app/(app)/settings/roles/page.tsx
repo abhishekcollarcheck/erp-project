@@ -32,6 +32,27 @@ const MODULE_SECTIONS = [
   },
 ];
 
+interface Form {
+  id: number;
+  name: string;
+  fields?: Array<{
+    id: number;
+    field_key: string;
+    name: string;
+    [key: string]: any;
+  }>;
+  moduleId?: number;
+  moduleName?: string;
+  [key: string]: any;
+}
+
+interface Module {
+  id: number;
+  name: string;
+  key: string;
+  label?: string;
+  [key: string]: any;
+}
 
 // Flat list for helpers
 const MODULES = MODULE_SECTIONS.flatMap(s => s.modules);
@@ -63,11 +84,9 @@ const COLOR_OPTS = [
   { key: 'pink', css: 'var(--pink, #c0265e)' },
 ];
 
-function cssForKey(key: string | null | undefined) {
-  return COLOR_OPTS.find(c => c.key === key)?.css || key || 'var(--blue)';
+function cssForKey(key: string | null | undefined): string {
+  return COLOR_OPTS.find((c) => c.key === key)?.css || key || "var(--blue)";
 }
-
-
 
 
 // Existing hooks (unchanged)
@@ -103,12 +122,23 @@ function useGroupFieldPermissions(formId: number, groupId: number, companyId: nu
   });
 }
 
-function useEmployeeModuleForms(moduleId: number) {
-  return useQuery({
-    queryKey: ['field-perm-forms', moduleId],
-    queryFn: () => pgApi.listForms(moduleId),
-    enabled: moduleId > 0,
-    select: r => r.data ?? [],
+// function useEmployeeModuleForms(moduleId: number) {
+//   return useQuery({
+//     queryKey: ['field-perm-forms', moduleId],
+//     queryFn: () => pgApi.listForms(moduleId),
+//     enabled: moduleId > 0,
+//     select: r => r.data ?? [],
+//   });
+// }
+
+function useAllModuleForms(modules: Module[]) {
+  return useQueries({
+    queries: modules.map(module => ({
+      queryKey: ['field-perm-forms', module.id],
+      queryFn: () => pgApi.listForms(module.id),
+      enabled: modules.length > 0,
+      select: (r: any): Form[] => (Array.isArray(r.data) ? r.data : []),
+    })),
   });
 }
 
@@ -1342,13 +1372,24 @@ function FieldPermissionsPanel({
     select: r => r.data ?? [],
     staleTime: 5 * 60_000,
   });
-  const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
-  useEffect(() => { if (modules.length && !selectedModuleId) setSelectedModuleId(modules[0].id); }, [modules]);
-  console.log("modules", modules)
-  
-  const { data: forms = [] } = useEmployeeModuleForms(selectedModuleId || 0);
+
+  const allFormsQueries = useAllModuleForms(modules);
+
+const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
+  const forms = query.data || [];  // Now TypeScript knows this is Form[]
+  return forms.map(form => ({
+    ...form,
+    moduleId: modules[moduleIndex].id,
+    moduleName: modules[moduleIndex].name,
+  }));
+});
+  // const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
+  // useEffect(() => { if (modules.length && !selectedModuleId) setSelectedModuleId(modules[0].id); }, [modules]);
+  // console.log("modules", modules)
+
+  // const { data: forms = [] } = useEmployeeModuleForms(selectedModuleId || 0);
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
-  useEffect(() => { if (forms.length && !selectedFormId) setSelectedFormId(forms[0].id); }, [forms]);
+  useEffect(() => { if (allForms.length && !selectedFormId) setSelectedFormId(allForms[0].id); }, [allForms, selectedFormId]);
 
   const { data: members = [] } = useGroupMembers(groupId);
   const groupCompanyIds = useMemo(() => {
@@ -1544,7 +1585,7 @@ function FieldPermissionsPanel({
     onError: (e: any) => showToast(e?.message || 'Failed to save'),
   });
 
-  const selectedForm = forms.find((f: any) => f.id === selectedFormId);
+  const selectedForm = allForms.find((f: any) => f.id === selectedFormId);
 
   return (
     <div>
@@ -1582,11 +1623,13 @@ function FieldPermissionsPanel({
             <div className="card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)' }}>Sections</div>
               <div style={{ padding: '6px 0' }}>
-                {forms.map((f: any) => (
-                  <div key={f.id} onClick={() => setSelectedFormId(f.id)}
+                {allForms.map((f: any) => (
+                  <div key={`${f.moduleId}-${f.id}`} onClick={() => setSelectedFormId(f.id)}
                     style={{ padding: '9px 14px', cursor: 'pointer', fontSize: 12, fontWeight: selectedFormId === f.id ? 600 : 400, color: selectedFormId === f.id ? 'var(--blue)' : 'var(--ink3)', background: selectedFormId === f.id ? 'var(--blue-lt)' : 'transparent', borderLeft: `3px solid ${selectedFormId === f.id ? 'var(--blue)' : 'transparent'}` }}>
                     {f.name}
-                    <div style={{ fontSize: 10, color: 'var(--ink4)', fontWeight: 400 }}>{f.fields?.length || 0} fields</div>
+                    <div style={{ fontSize: 10, color: 'var(--ink4)', fontWeight: 400 }}>
+                      {f.moduleName} • {f.fields?.length || 0} fields
+                    </div>
                   </div>
                 ))}
               </div>
