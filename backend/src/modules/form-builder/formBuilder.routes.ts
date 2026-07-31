@@ -73,15 +73,16 @@ router.get(
   authenticate,
   async (req, res, next) => {
     try {
+      console.log("req.params", req.params)
       const { source } = req.params;
       const { label_field, value_field, filter } = req.query as any;
       const options = await dynSvc.resolve(
         source as any,
-        req.user!.companyId,
         label_field,
         value_field,
         filter,
       );
+      console.log("options", options)
       res.json({ success: true, data: options });
     } catch(e){ next(e); }
   },

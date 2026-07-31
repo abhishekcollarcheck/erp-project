@@ -4,12 +4,14 @@ interface UiState {
   sidebarCollapsed: boolean;
   pageTitle: string;
   breadcrumb: string;
+  openMenus: Record<string, boolean>;
 }
 
 const initialState: UiState = {
   sidebarCollapsed: false,
   pageTitle: 'Dashboard',
   breadcrumb: 'Overview',
+  openMenus: {},
 };
 
 const uiSlice = createSlice({
@@ -26,8 +28,12 @@ const uiSlice = createSlice({
       state.pageTitle = action.payload.title;
       state.breadcrumb = action.payload.breadcrumb || '';
     },
+    toggleSidebarMenu(state, action: PayloadAction<string>) {
+      const menuId = action.payload;
+      state.openMenus[menuId] = !state.openMenus[menuId];
+    },
   },
 });
 
-export const { toggleSidebar, setSidebarCollapsed, setPageTitle } = uiSlice.actions;
+export const { toggleSidebar, setSidebarCollapsed, setPageTitle, toggleSidebarMenu } = uiSlice.actions;
 export default uiSlice.reducer;

@@ -33,7 +33,7 @@ export async function connectDatabase(): Promise<void> {
 
       try {
         logger.info('📋 Syncing database models...');
-        await sequelize.sync({ alter: true, logging: console.log});
+        await sequelize.sync({ alter: false});
         logger.info('✅ Database models synced successfully');
       } finally {
         logger.info('🔓 Re-enabling FK checks...');

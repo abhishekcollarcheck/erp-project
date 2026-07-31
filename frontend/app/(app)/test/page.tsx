@@ -1,7 +1,10 @@
+
 'use client';
 import { useState } from 'react';
 import { MultiStepForm } from '../../../features/form-builder/components/MultiStepForm';
+import { useCompany } from '../../../features/company/hooks/useCompany';
 export default function TestMultiStepFormPage() {
+  const { company } = useCompany();
   const [submittedValues, setSubmittedValues] = useState<Record<string, any> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -13,16 +16,17 @@ export default function TestMultiStepFormPage() {
   };
 
   return (
-    <div style={{ maxWidth: 700, margin: '40px auto', padding: 20 }}>
+    <div style={{ maxWidth: 1000, margin: '40px auto', padding: 20 }}>
       <h2 style={{ marginBottom: 20 }}>Test: MultiStepForm (Core Info, form id 3)</h2>
 
-      <MultiStepForm
-        formId={1}
-        onSubmit={handleSubmit}
-        onCancel={() => console.log('Cancelled')}
-        submitLabel="Test Submit"
-        isSubmitting={isSubmitting}
-      />
+<MultiStepForm
+  formId={1}
+  initialValues={{ name: 'John', company: `${company?.name}`, status: 'Active', }}
+  onSubmit={handleSubmit}
+  mode="create"
+  recordId={undefined}
+  autoSaveEnabled={true}
+/>
 
       {submittedValues && (
         <div style={{ marginTop: 30, padding: 16, background: '#f5f5f5', borderRadius: 8 }}>

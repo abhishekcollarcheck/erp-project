@@ -1,66 +1,101 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
-import { useQuery }   from '@tanstack/react-query';
-import apiClient      from '../../../services/api/client';
-import { evaluateCondition, parseVisibilityConditions } from '../utils/conditionEvaluator'; 
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import apiClient from '../../../services/api/client';
+import { evaluateCondition, parseVisibilityConditions } from '../utils/conditionEvaluator';
+import { useDynamicOptions } from '../hooks/useDynamicOptions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 interface ResolvedField {
-  id:               number;
-  field_type:       string;
-  label:            string;
-  field_key:        string;
-  section:          string | null;
-  placeholder?:     string | null;
-  help_text?:       string | null;
-  is_required:      boolean;
-  is_readonly:      boolean;
-  width:            number;
-  options?:         { label:string; value:string }[];
-  dynamic_source?:  string | null;
+  id: number;
+  field_type: string;
+  label: string;
+  field_key: string;
+  section: string | null;
+  placeholder?: string | null;
+  help_text?: string | null;
+  is_required: boolean;
+  is_readonly: boolean;
+  width: number;
+  options?: { label: string; value: string }[];
+  dynamic_source?: string | null;
   visibility_conditions?: string | null;
   resolved: {
-    can_view:     boolean;
-    can_edit:     boolean;
-    can_copy:     boolean;
+    can_view: boolean;
+    can_edit: boolean;
+    can_copy: boolean;
     can_download: boolean;
-    is_masked:    boolean;
+    is_masked: boolean;
   };
 }
 
 interface MultiStepFormProps {
-  formId:         number;
+  formId: number;
   initialValues?: Record<string, any>;
-  onSubmit:       (values: Record<string, any>) => void | Promise<void>;
-  onCancel?:      () => void;
-  submitLabel?:   string;
-  isSubmitting?:  boolean;
-  readOnly?:      boolean;
+  onSubmit: (values: Record<string, any>) => void | Promise<void>;
+  onCancel?: () => void;
+  submitLabel?: string;
+  isSubmitting?: boolean;
+  readOnly?: boolean;
+  recordId?: number;
+  mode?: 'create' | 'edit';
+  autoSaveEnabled?: boolean;
+  onSaveDraft?: (data: any) => Promise<void>;
 }
 
-// ─── Dynamic source options hook ──────────────────────────────────────────────
+// ─── Session ID Management (Phase 1) ──────────────────────────────────────────
 
-function useDynamicOptions(source: string | null | undefined) {
-  return useQuery({
-    queryKey: ['dyn-source', source],
-    queryFn:  () => apiClient.get<any,any>(`/rbac/dynamic-source/${source}`),
-    enabled:  !!source && source !== 'custom',
-    select:   (r:any) => r.data as { label:string; value:string|number }[],
-    staleTime: 5 * 60_000,
-  });
+/**
+ * Get or create a unique session ID for draft management
+ * Format: w_{timestamp}_{random}
+ * Stored in sessionStorage (browser only)
+ */
+function getOrCreateSessionId(): string {
+  // Fallback for SSR
+  if (typeof window === 'undefined') return 'ssr';
+
+  const KEY = 'dynamic_form_session_id';
+  let id = sessionStorage.getItem(KEY);
+
+  if (!id) {
+    // Create new session ID
+    id = `w_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem(KEY, id);
+  }
+
+  return id;
 }
+
+/**
+ * Validate payload before sending to API
+ */
+function validateDraftPayload(payload: any): boolean {
+  return !!(
+    payload.form_id &&
+    payload.session_id &&
+    typeof payload.step === 'number' &&
+    typeof payload.form_data === 'object' &&
+    payload.form_data !== null
+  );
+}
+
 
 // ─── Single Field Renderer ────────────────────────────────────────────────────
 
 function FieldRenderer({ field, value, onChange, readOnly }: {
-  field:    ResolvedField;
-  value:    any;
+  field: ResolvedField;
+  value: any;
   onChange: (key: string, value: any) => void;
   readOnly: boolean;
 }) {
   const { resolved, field_type, field_key } = field;
-  const { data: dynOptions } = useDynamicOptions(field.dynamic_source);
+
+  // ✅ FIXED: Use correct hook with correct source
+  const { data: options = [], isLoading } = useDynamicOptions({
+    source: field.dynamic_source,  // ✅ Fixed: was field.resolved.source
+    // Remove mergeStatic - hook auto-loads static options
+  });
+  console.log("options", options)
 
   if (!resolved.can_view) return null;
 
@@ -77,9 +112,8 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
     outline: 'none',
   };
 
-  const options = field.dynamic_source && field.dynamic_source !== 'custom'
-    ? (dynOptions || []).map(o => ({ label: String(o.label), value: String(o.value) }))
-    : (field.options || []);
+  // ✅ FIXED: Removed duplicate options declaration
+  // The options from hook above is already correct and merged
 
   const handleChange = (v: any) => {
     if (!isDisabled) onChange(field_key, v);
@@ -106,15 +140,18 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
       case 'select':
       case 'multi_select':
         return (
+          // ✅ FIXED: Use 'value' prop not 'values[field_key]'
           <select
             value={value || ''}
-            onChange={e => handleChange(e.target.value)}
-            disabled={isDisabled}
+            onChange={(e) => handleChange(e.target.value)}
+            disabled={isLoading || !field.resolved.can_edit}
             style={inputStyle}
           >
             <option value="">{field.placeholder || `— Select ${field.label} —`}</option>
-            {options.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            {options.map((opt: any) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
         );
@@ -123,10 +160,19 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
         return (
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 4 }}>
             {options.map(opt => (
-              <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: isDisabled ? 'default' : 'pointer' }}>
-                <input type="radio" name={field_key} value={opt.value} checked={value === opt.value}
-                  onChange={() => handleChange(opt.value)} disabled={isDisabled}
-                  style={{ accentColor: 'var(--blue)', width: 14, height: 14 }} />
+              <label
+                key={String(opt.value)}  // ✅ Convert to string
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: isDisabled ? 'default' : 'pointer' }}
+              >
+                <input
+                  type="radio"
+                  name={field_key}
+                  value={String(opt.value)}  // ✅ Convert to string
+                  checked={String(value) === String(opt.value)}  // ✅ Compare as strings
+                  onChange={() => handleChange(opt.value)}
+                  disabled={isDisabled}
+                  style={{ accentColor: 'var(--blue)', width: 14, height: 14 }}
+                />
                 {opt.label}
               </label>
             ))}
@@ -135,23 +181,33 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
 
       case 'checkbox':
         if (options.length > 0) {
-          const checked: string[] = Array.isArray(value) ? value : [];
+          const checkedValues = Array.isArray(value) ? value.map(v => String(v)) : [];  // ✅ Convert to strings
           return (
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 4 }}>
-              {options.map(opt => (
-                <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: isDisabled ? 'default' : 'pointer' }}>
-                  <input type="checkbox" checked={checked.includes(opt.value)}
-                    onChange={e => {
-                      const next = e.target.checked
-                        ? [...checked, opt.value]
-                        : checked.filter(v => v !== opt.value);
-                      handleChange(next);
-                    }}
-                    disabled={isDisabled}
-                    style={{ accentColor: 'var(--blue)', width: 14, height: 14 }} />
-                  {opt.label}
-                </label>
-              ))}
+              {options.map(opt => {
+                const optValueStr = String(opt.value);  // ✅ Convert once
+                return (
+                  <label
+                    key={optValueStr}  // ✅ Use string key
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: isDisabled ? 'default' : 'pointer' }}
+                  >
+                    <input
+                      type="checkbox"
+                      value={optValueStr}  // ✅ Use string value
+                      checked={checkedValues.includes(optValueStr)}  // ✅ Compare strings
+                      onChange={e => {
+                        const next = e.target.checked
+                          ? [...checkedValues, optValueStr]
+                          : checkedValues.filter(v => v !== optValueStr);
+                        handleChange(next);
+                      }}
+                      disabled={isDisabled}
+                      style={{ accentColor: 'var(--blue)', width: 14, height: 14 }}
+                    />
+                    {opt.label}
+                  </label>
+                );
+              })}
             </div>
           );
         }
@@ -205,43 +261,67 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
             {field_type === 'currency' && <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--ink4)' }}>₹</span>}
             {field_type === 'percentage' && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--ink4)' }}>%</span>}
             <input type="number"
-              value={value ?? ''}
-              onChange={e => handleChange(e.target.value)}
+              value={value || ''}
+              onChange={e => handleChange(e.target.value ? Number(e.target.value) : '')}
               disabled={isDisabled}
-              placeholder={field.placeholder || ''}
-              style={{ ...inputStyle, paddingLeft: field_type === 'currency' ? 24 : 10, paddingRight: field_type === 'percentage' ? 28 : 10 }}
+              placeholder={field.placeholder || '0'}
+              style={{
+                ...inputStyle,
+                ...(field_type === 'currency' ? { paddingLeft: 24 } : {}),
+                ...(field_type === 'percentage' ? { paddingRight: 24 } : {}),
+              }}
             />
           </div>
         );
 
+      case 'text':
       default:
         return <input type="text" value={value || ''} onChange={e => handleChange(e.target.value)} disabled={isDisabled} placeholder={field.placeholder || ''} style={inputStyle} />;
     }
   };
 
   return (
-    <div style={{ width: `${field.width || 100}%`, paddingRight: field.width < 100 ? 12 : 0, marginBottom: 14 }}>
-      {field_type !== 'checkbox' && (
-        <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 5 }}>
-          {field.label}
-          {field.is_required && <span style={{ color: 'var(--red)', marginLeft: 3 }}>*</span>}
-          {resolved.is_masked && <span style={{ fontSize: 9, color: 'var(--amber)', background: 'var(--amber-lt)', border: '1px solid var(--amber-bd)', borderRadius: 3, padding: '1px 4px', marginLeft: 6, fontWeight: 700 }}>MASKED</span>}
-        </label>
-      )}
+    <div
+      style={{
+        width: `${field.width}%`,
+        padding: '0 6px',
+        marginBottom: 14,
+        minWidth: field.width < 50 ? 160 : 'auto',
+      }}
+    >
+      <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink2)', display: 'flex', gap: 4, marginBottom: 6 }}>
+        {field.label}
+        {field.is_required && <span style={{ color: 'var(--red)' }}>*</span>}
+        {field.help_text && <span style={{ fontWeight: 400, color: 'var(--ink4)' }}>({field.help_text})</span>}
+      </label>
       {renderInput()}
-      {field.help_text && (
-        <div style={{ fontSize: 10, color: 'var(--ink4)', marginTop: 4, lineHeight: 1.5 }}>{field.help_text}</div>
-      )}
     </div>
   );
 }
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
-function StepIndicator({ sections, currentStep }: { sections: string[]; currentStep: number }) {
+function StepIndicator({
+  sections,
+  currentStep,
+  completedSet = new Set(),           // NEW: Phase 1
+  errorSet = new Set(),               // NEW: Phase 1
+  onStepClick,                        // NEW: Phase 3 (prep)
+  draftSaving = false,                // NEW: Phase 2
+  draftSavedAt = null as Date | null, // NEW: Phase 2
+}: {
+  sections: string[];
+  currentStep: number;
+  completedSet?: Set<number>;
+  errorSet?: Set<number>;
+  onStepClick?: (idx: number) => void;
+  draftSaving?: boolean;
+  draftSavedAt?: Date | null;
+}) {
   if (sections.length <= 1) return null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24 }}>
+    <>
+      {/* <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24 }}>
       {sections.map((sec, i) => (
         <div key={sec} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
@@ -265,7 +345,169 @@ function StepIndicator({ sections, currentStep }: { sections: string[]; currentS
           )}
         </div>
       ))}
-    </div>
+    </div> */}
+      <aside
+        className="card"
+        style={{
+          padding: 0,
+          position: 'sticky',
+          top: 76,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '16px 18px',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: 14,
+              marginBottom: 8,
+            }}
+          >
+            Employee Form
+          </div>
+
+          <div
+            style={{
+              height: 4,
+              background: 'var(--surface3)',
+              borderRadius: 4,
+              overflow: 'hidden',
+              marginBottom: 4,
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${((currentStep + 1) / sections.length) * 100}%`,
+                background:
+                  currentStep === sections.length - 1
+                    ? 'var(--green)'
+                    : 'var(--blue)',
+                borderRadius: 4,
+                transition: 'width .3s ease',
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--ink4)',
+            }}
+          >
+            {Math.round(((currentStep + 1) / sections.length) * 100)}% Complete
+          </div>
+        </div>
+
+        {/* Steps */}
+        <nav>
+          {sections.map((sec, i) => {
+            const isActive = i === currentStep;
+            const isDone = i < currentStep;
+
+            return (
+              <div
+                key={sec}
+                role="button"
+                tabIndex={0}
+                aria-current={isActive ? 'step' : undefined}
+                onClick={() => onStepClick?.(i)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 18px',
+                  cursor: 'pointer',
+                  background: isActive
+                    ? 'var(--blue-lt)'
+                    : 'transparent',
+                  borderLeft: `3px solid ${isActive ? 'var(--blue)' : 'transparent'
+                    }`,
+                  transition: 'all .2s',
+                  userSelect: 'none',
+                }}
+              >
+                <div
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 10,
+                    fontWeight: 700,
+
+                    background: isDone
+                      ? 'var(--green-lt)'
+                      : isActive
+                        ? 'var(--blue-lt)'
+                        : 'var(--surface2)',
+
+                    color: isDone
+                      ? 'var(--green)'
+                      : isActive
+                        ? 'var(--blue)'
+                        : 'var(--ink4)',
+
+                    border: `1.5px solid ${isDone
+                      ? 'var(--green-bd)'
+                      : isActive
+                        ? 'var(--blue-md)'
+                        : 'var(--border)'
+                      }`,
+                  }}
+                >
+                  {isDone ? '✓' : i + 1}
+                </div>
+
+                <span
+                  style={{
+                    flex: 1,
+                    fontSize: 12,
+                    lineHeight: 1.3,
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive
+                      ? 'var(--blue)'
+                      : isDone
+                        ? 'var(--ink2)'
+                        : 'var(--ink3)',
+                  }}
+                >
+                  {sec}
+                </span>
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Footer */}
+        <div style={{
+          padding: '8px 18px',
+          borderTop: '1px solid var(--border)',
+          fontSize: 11,
+          color: 'var(--ink4)',
+          minHeight: 36,
+          display: 'flex',
+          alignItems: 'center',
+        }}>
+          {/* Phase 2 will populate these, Phase 1 shows default */}
+          {draftSaving
+            ? <>⟳ Saving draft…</>
+            : draftSavedAt
+              ? <>✓ Saved {draftSavedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</>
+              : <>Auto-save enabled</>
+          }
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -273,53 +515,157 @@ function StepIndicator({ sections, currentStep }: { sections: string[]; currentS
 
 export function MultiStepForm({
   formId, initialValues = {}, onSubmit, onCancel,
-  submitLabel = 'Submit', isSubmitting = false, readOnly = false,
+  submitLabel = 'Submit', isSubmitting = false, readOnly = false, recordId, mode = 'create', autoSaveEnabled = true, onSaveDraft
 }: MultiStepFormProps) {
 
   const { data: resolvedFields = [], isLoading } = useQuery({
     queryKey: ['resolved-form', formId],
-    queryFn:  () => apiClient.get<any,any>(`/rbac/forms/${formId}/resolve`),
-    select:   (r:any) => (r.data as ResolvedField[]).filter(f => f.resolved.can_view),
-    enabled:  !!formId,
+    queryFn: () => apiClient.get<any, any>(`/rbac/forms/${formId}/resolve`),
+    select: (r: any) => (r.data as ResolvedField[]).filter(f => f.resolved.can_view),
+    enabled: !!formId,
   });
 
-  const [values, setValues]   = useState<Record<string,any>>(initialValues);
-  const [step, setStep]       = useState(0);
-  const [errors, setErrors]   = useState<Record<string,string>>({});
+  const [values, setValues] = useState<Record<string, any>>(initialValues);
+  const [step, setStep] = useState(0);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isDirty, setIsDirty] = useState(false);
+  const [completedSet, setCompletedSet] = useState<Set<number>>(new Set());
+  const [errorSet, setErrorSet] = useState<Set<number>>(new Set());
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+  const [savedId, setSavedId] = useState<number | null>(recordId ?? null);
+  const sessionIdRef = useRef(getOrCreateSessionId());
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [draftError, setDraftError] = useState<string | null>(null);
+
+  // Check console - should see session ID format
+  console.log('Session ID:', sessionIdRef.current); // Should be: w_1234567890_abc123
+  console.log('Mode:', mode ?? 'create'); // Should be: create or edit
+  console.log('Record ID:', savedId); // Should be: null (create) or number (edit)
+
+  // useAutoSave({
+  //   values,
+  //   step,
+  //   formId,
+  //   sessionId: sessionIdRef.current,
+  //   recordId,
+  //   enabled: autoSaveEnabled,
+  //   debounceMs: 3000,
+  //   onError: (error) => {
+  //     // Set error state
+  //     setDraftError(error.message);
+
+  //     // Clear error after 5 seconds
+  //     setTimeout(() => setDraftError(null), 5000);
+
+  //     // Log for debugging
+  //     console.error('Auto-save failed:', error);
+  //   },
+  // });
 
   useEffect(() => { setValues(v => ({ ...initialValues, ...v })); }, []);
 
   // Group fields by section — order preserved
-const sections = useMemo(() => {
-  const map = new Map<string, ResolvedField[]>();
-  for (const f of resolvedFields) {
-    // ← ADD THIS VISIBILITY CHECK
-    if (f.visibility_conditions) {
-      const condition = parseVisibilityConditions(f.visibility_conditions);
-      if (!evaluateCondition(condition, values)) {
-        continue; // Skip this field if visibility condition not met
+  const sections = useMemo(() => {
+    const map = new Map<string, ResolvedField[]>();
+    for (const f of resolvedFields) {
+      // ← ADD THIS VISIBILITY CHECK
+      if (f.visibility_conditions) {
+        const condition = parseVisibilityConditions(f.visibility_conditions);
+        if (!evaluateCondition(condition, values)) {
+          continue; // Skip this field if visibility condition not met
+        }
       }
+
+      const sec = f.section || 'General';
+      if (!map.has(sec)) map.set(sec, []);
+      map.get(sec)!.push(f);
     }
+    return [...map.entries()];
+  }, [resolvedFields, values]);  // ← ADD values to dependency array
 
-    const sec = f.section || 'General';
-    if (!map.has(sec)) map.set(sec, []);
-    map.get(sec)!.push(f);
-  }
-  return [...map.entries()];
-}, [resolvedFields, values]);  // ← ADD values to dependency array
-
-  const sectionNames  = sections.map(([name]) => name);
-  const isMultiStep   = sectionNames.length > 1;
+  const sectionNames = sections.map(([name]) => name);
+  const isMultiStep = sectionNames.length > 1;
   const currentFields = sections[step]?.[1] || [];
-  const isLastStep    = step === sectionNames.length - 1;
+  const isLastStep = step === sectionNames.length - 1;
+
+  // const handleChange = (key: string, val: any) => {
+  //   setValues(prev => ({ ...prev, [key]: val }));
+  //   if (errors[key]) setErrors(prev => { const n = {...prev}; delete n[key]; return n; });
+  // };
+
 
   const handleChange = (key: string, val: any) => {
     setValues(prev => ({ ...prev, [key]: val }));
-    if (errors[key]) setErrors(prev => { const n = {...prev}; delete n[key]; return n; });
+    if (errors[key]) {
+      setErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
+    }
+    setIsDirty(true);
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current);
+    }
   };
 
+  /**
+     * Validate a single step and track errors per step
+     * (Different from existing validate which validates currentFields)
+     */
+  const validateStep = useCallback(
+    async (stepIndex: number): Promise<boolean> => {
+      // Skip validation for review/last step
+      if (stepIndex === sections.length - 1) {
+        // Clear error if it was set
+        setErrorSet(prev => {
+          const next = new Set(prev);
+          next.delete(stepIndex);
+          return next;
+        });
+        return true;
+      }
+
+      // Get fields for this step
+      const fields = sections[stepIndex]?.[1] || [];
+
+      // Validate using existing logic
+      const errs: Record<string, string> = {};
+      for (const f of fields) {
+        if (f.is_required && f.resolved.can_edit) {
+          const v = values[f.field_key];
+          if (
+            v === undefined ||
+            v === null ||
+            v === '' ||
+            (Array.isArray(v) && v.length === 0)
+          ) {
+            errs[f.field_key] = `${f.label} is required`;
+          }
+        }
+      }
+
+      // Set field errors (keep existing behavior)
+      setErrors(errs);
+      const isValid = Object.keys(errs).length === 0;
+
+      // NEW: Track step errors in errorSet (Phase 1)
+      if (isValid) {
+        // Remove from error set
+        setErrorSet(prev => {
+          const next = new Set(prev);
+          next.delete(stepIndex);
+          return next;
+        });
+      } else {
+        // Add to error set
+        setErrorSet(prev => new Set([...prev, stepIndex]));
+      }
+
+      return isValid;
+    },
+    [sections, values]
+  );
+
   const validate = (fields: ResolvedField[]): boolean => {
-    const errs: Record<string,string> = {};
+    const errs: Record<string, string> = {};
     for (const f of fields) {
       if (f.is_required && f.resolved.can_edit) {
         const v = values[f.field_key];
@@ -332,18 +678,56 @@ const sections = useMemo(() => {
     return Object.keys(errs).length === 0;
   };
 
-  const handleNext = () => {
-    if (!validate(currentFields)) return;
+  const handleNext = async () => {
+    // Validate using new validateStep function
+    const stepIndex = step;
+    const isValid = await validateStep(stepIndex);
+    if (!isValid) return; // Stop if validation fails
+
+    // NEW: Mark this step as completed (Phase 1)
+    setCompletedSet(prev => new Set([...prev, stepIndex]));
+
+    // NEW: Clear dirty state (Phase 2 will handle saving)
+    setIsDirty(false);
+
+    // Move to next step (keep existing logic)
     setStep(s => s + 1);
+
+    // Scroll to top (keep existing logic)
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBack = () => setStep(s => s - 1);
 
   const handleSubmit = async () => {
-    if (!validate(currentFields)) return;
+    const stepIndex = step;
+    const isValid = await validateStep(stepIndex);
+    if (!isValid) return;
+
+    if (draftSaving) {
+      console.log('Waiting for auto-save to complete...');
+
+      let attempts = 0;
+      while (draftSaving && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+    }
+
+    if (isDirty) {
+      setIsDirty(false);
+    }
+
     await onSubmit(values);
   };
+
+  useEffect(() => {
+    if (mode === 'edit' && sections.length > 0) {
+      // Pre-mark all steps as completed
+      const allSteps = new Set(sections.map((_, i) => i));
+      setCompletedSet(allSteps);
+    }
+  }, [mode, sections.length]);
 
   if (isLoading) {
     return (
@@ -363,62 +747,194 @@ const sections = useMemo(() => {
   }
 
   return (
-    <div>
-      {/* Step indicator */}
-      <StepIndicator sections={sectionNames} currentStep={step} />
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '250px 1fr',
+        gap: 20,
+        alignItems: 'start',
+      }}
+    >
+      {/* {draftError && (
+  <div style={{
+    background: 'var(--red-lt)',
+    border: '1px solid var(--red-bd)',
+    borderRadius: 'var(--r)',
+    padding: '8px 12px',
+    fontSize: 12,
+    color: 'var(--red)',
+    marginBottom: 16,
+  }}>
+    ⚠ Auto-save failed: {draftError}
+  </div>
+)} */}
+      {/* Sidebar */}
+      <StepIndicator
+        sections={sectionNames}
+        currentStep={step}
 
-      {/* Section heading */}
-      {isMultiStep && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>{sectionNames[step]}</div>
-          <div style={{ fontSize: 12, color: 'var(--ink4)', marginTop: 2 }}>Step {step + 1} of {sectionNames.length}</div>
+        // NEW: Phase 1 props for tracking
+        completedSet={completedSet}
+        errorSet={errorSet}
+        onStepClick={(idx) => setStep(idx)}  // Click to jump (Phase 3 feature, prep now)
+        draftSaving={draftSaving}           // Phase 2 will populate
+        draftSavedAt={draftSavedAt}         // Phase 2 will populate
+      />
+
+      {/* Content */}
+      <div
+        className="card"
+        style={{
+          padding: 24,
+        }}
+      >
+        {/* Header */}
+        {isMultiStep && (
+          <div
+            style={{
+              marginBottom: 22,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                background: 'var(--blue-lt)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 15,
+                fontWeight: 700,
+                color: 'var(--blue)',
+                flexShrink: 0,
+              }}
+            >
+              {step + 1}
+            </div>
+
+            <div>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 17,
+                  fontWeight: 700,
+                }}
+              >
+                {sectionNames[step]}
+              </h2>
+
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: 'var(--ink4)',
+                }}
+              >
+                Step {step + 1} of {sectionNames.length}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fields */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            margin: '0 -6px',
+          }}
+        >
+          {currentFields.map((field) => (
+            <FieldRenderer
+              key={field.id}
+              field={field}
+              value={values[field.field_key]}
+              onChange={handleChange}
+              readOnly={readOnly}
+            />
+          ))}
         </div>
-      )}
 
-      {/* Fields — flex wrap respects width% */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', margin: '0 -6px' }}>
-        {currentFields.map(field => (
-          <FieldRenderer
-            key={field.id}
-            field={field}
-            value={values[field.field_key]}
-            onChange={handleChange}
-            readOnly={readOnly}
-          />
-        ))}
+        {/* Errors */}
+        {Object.keys(errors).length > 0 && (
+          <div
+            style={{
+              background: 'var(--red-lt)',
+              border: '1px solid var(--red-bd)',
+              borderRadius: 'var(--r)',
+              padding: '10px 14px',
+              fontSize: 12,
+              color: 'var(--red)',
+              marginTop: 18,
+            }}
+          >
+            {Object.values(errors).map((e, i) => (
+              <div key={i}>⚠ {e}</div>
+            ))}
+          </div>
+        )}
+
+        {/* Footer */}
+        {!readOnly && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 28,
+              paddingTop: 20,
+              borderTop: '1px solid var(--border)',
+            }}
+          >
+            <div>
+              {step > 0 ? (
+                <button
+                  className="btn btn-sec"
+                  onClick={handleBack}
+                >
+                  ← Back
+                </button>
+              ) : (
+                onCancel && (
+                  <button
+                    className="btn btn-sec"
+                    onClick={onCancel}
+                  >
+                    Cancel
+                  </button>
+                )
+              )}
+            </div>
+
+            <div>
+              {!isLastStep ? (
+                <button
+                  className="btn btn-pri"
+                  onClick={handleNext}
+                >
+                  Next →
+                </button>
+              ) : (
+                <button
+                  className="btn btn-pri"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  style={{
+                    background: 'var(--green)',
+                    minWidth: 160,
+                  }}
+                >
+                  {isSubmitting ? 'Saving…' : `✓ ${submitLabel}`}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Validation errors */}
-      {Object.keys(errors).length > 0 && (
-        <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)', marginBottom: 16 }}>
-          {Object.values(errors).map((e, i) => <div key={i}>⚠ {e}</div>)}
-        </div>
-      )}
-
-      {/* Navigation */}
-      {!readOnly && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-          <div>
-            {step > 0 && (
-              <button className="btn btn-sec" onClick={handleBack}>← Back</button>
-            )}
-            {onCancel && step === 0 && (
-              <button className="btn btn-sec" onClick={onCancel}>Cancel</button>
-            )}
-          </div>
-          <div>
-            {!isLastStep ? (
-              <button className="btn btn-pri" onClick={handleNext}>
-                Next: {sectionNames[step + 1]} →
-              </button>
-            ) : (
-              <button className="btn btn-pri" onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? 'Saving…' : submitLabel}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

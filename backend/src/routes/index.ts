@@ -25,6 +25,7 @@ import trackolaRouter from '../modules/attendance/trackola.routes';
 import shiftRouter from '../modules/shifts/shift.routes';
 import subDepartmentRoute from "../modules/sub-departments/subDepartment.routes"
 import subDesignationRoute from "../modules/sub-designations/subDesignation.routes"
+import dreaftRouter from "../modules/draft/draft.routes"
 
 const router = Router();
 
@@ -53,5 +54,6 @@ router.use('/companies', companyRouter);
 router.use('/shifts', shiftRouter)
 router.use("/sub-department", subDepartmentRoute)
 router.use("/sub-designation", subDesignationRoute)
+router.use("/drafts", dreaftRouter)
 
 export default router;

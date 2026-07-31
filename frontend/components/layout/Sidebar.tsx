@@ -12,6 +12,7 @@ import { useAuth, usePermission } from "../../features/auth/hooks/useAuth";
 import { useCompany } from "../../features/company/hooks/useCompany";
 import { authService } from "../../services/api/auth.service";
 import { ChevronDown, ChevronRight, Brain, LayoutDashboard, SquareUserRound, Target, BookKey, ArrowUpNarrowWide, BookA, Settings, Building2, ShieldUser, Form, Shrink } from "lucide-react";
+import { toggleSidebarMenu } from "../../store/slices/uiSlice";
 
 // ─── Nav definition ───────────────────────────────────────────────────────────
 
@@ -409,8 +410,8 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 // ─── Sidebar component ────────────────────────────────────────────────────────
 
 export function Sidebar() {
-  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
-  console.log("openMenus", openMenus)
+const openMenus = useAppSelector((s: any) => s.ui.openMenus);
+const dispatch = useAppDispatch();
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = useAppSelector((s: any) => s.ui.sidebarCollapsed);
@@ -572,12 +573,7 @@ export function Sidebar() {
                       <div
                         className={`ni${isActive ? " on" : ""}`}
                         title={collapsed ? item.label : undefined}
-                        onClick={() =>
-                          setOpenMenus((prev) => ({
-                            ...prev,
-                            [item.id]: !prev[item.id],
-                          }))
-                        }
+                        onClick={() => dispatch(toggleSidebarMenu(item.id))}
                       >
                         <span className="ni-ic">{item.icon}</span>
                         {collapsed} 

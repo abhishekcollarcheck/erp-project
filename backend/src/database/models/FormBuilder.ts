@@ -13,7 +13,9 @@ export type FieldType = typeof FIELD_TYPES[number];
 // Dynamic source keys — these resolve to live DB data at runtime
 export const DYNAMIC_SOURCES = [
   'departments',
+  'subdepartments',
   'designations',
+  'subdesignations',
   'employees',
   'roles',
   'leave_types',

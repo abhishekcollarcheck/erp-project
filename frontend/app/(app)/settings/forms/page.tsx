@@ -85,16 +85,16 @@ function getOperatorsForFieldType(fieldType: string): Array<{ value: ConditionOp
 // Convert condition builder state to JSON
 function conditionBuilderToJSON(state: ConditionBuilderState): string | null {
   if (!state.triggerField || !state.operator) return null;
-  
+
   const condition: any = {
     field_key: state.triggerField,
     operator: state.operator,
   };
-  
+
   if (state.value !== null && state.value !== undefined && state.value !== '') {
     condition.value = state.value;
   }
-  
+
   try {
     return JSON.stringify(condition);
   } catch (e) {
@@ -106,7 +106,7 @@ function conditionBuilderToJSON(state: ConditionBuilderState): string | null {
 // Parse JSON to condition builder state
 function jsonToConditionBuilder(json: string | null): ConditionBuilderState {
   if (!json) return { triggerField: null, operator: null, value: null };
-  
+
   try {
     const parsed = JSON.parse(json);
     return {
@@ -142,13 +142,56 @@ const FIELD_TYPES = [
 ] as const;
 
 const DYNAMIC_SOURCES = [
+  // ═══ API Sources (Dynamic) ═══
   { key: 'departments', label: 'Departments' },
+  { key: 'subdepartments', label: 'Sub Departments' },
   { key: 'designations', label: 'Designations' },
+  { key: 'subdesignations', label: 'Sub Designations' },
   { key: 'employees', label: 'Employees' },
   { key: 'roles', label: 'Roles' },
   { key: 'leave_types', label: 'Leave Types' },
   { key: 'asset_categories', label: 'Asset Categories' },
-  { key: 'custom', label: 'Custom Options' },
+
+  // ═══ Static Sources (Auto-loaded) ═══
+
+  // Employment & Terms
+  { key: 'EMPLOYMENT_TYPE', label: 'Employment Type' },
+  { key: 'COMMITMENT_TERM', label: 'Commitment Term' },
+  { key: 'CONFIRMATION_STATUS', label: 'Confirmation Status' },
+  { key: 'PF_EMPLOYER_FROM', label: 'PF Employer From' },
+  { key: 'MEDICLAIM_STATUS', label: 'Mediclaim Status' },
+  { key: 'PROBATION_PERIOD', label: 'Probation Period' },
+  { key: 'RD_TERM', label: 'RD Term' },
+
+  // Housing & Address
+  { key: 'HOUSE_TYPE', label: 'House Type' },
+  { key: 'PERM_ADDRESS_TYPE', label: 'Permanent Address Type' },
+
+  // Personal Information
+  { key: 'GENDER', label: 'Gender' },
+  { key: 'BLOOD_GROUP', label: 'Blood Group' },
+  { key: 'MARITAL_STATUS', label: 'Marital Status' },
+
+  // Family Information
+  { key: 'FATHER_SALUTATION', label: 'Father Salutation' },
+  { key: 'MOTHER_SALUTATION', label: 'Mother Salutation' },
+  { key: 'PARENT_STATUS', label: 'Parent Status' },
+  { key: 'MOTHER_STATUS', label: 'Mother Status' },
+
+  // Salary & Deductions
+  { key: 'SALARY_MODE', label: 'Salary Mode' },
+  { key: 'DEDUCTION_FROM', label: 'Deduction From' },
+  { key: 'DEDUCTION_MONTHS', label: 'Deduction Months' },
+
+  // Work Location & Schedule
+  { key: 'WORKING_SITE_OPTIONS', label: 'Working Site' },
+  { key: 'WORKING_CITY_OPTIONS', label: 'Working City' },
+  { key: 'REGISTRATION_LOCATION_OPTIONS', label: 'Registration Location' },
+  { key: 'SATURDAY_OFF_OPTIONS', label: 'Saturday Off' },
+  { key: 'SHIFT_TIMING_OPTIONS', label: 'Shift Timing' },
+
+  // Custom & Manual
+  { key: 'custom', label: 'Custom Options (Manual)' },
 ];
 
 const WIDTH_OPTS = [
@@ -242,31 +285,31 @@ function FieldEditor({ field, formId, companyId, onClose }: {
     options: (field?.options || []).map(o => ({ ...o })),
   });
 
-  const [conditionBuilder, setConditionBuilder] = useState<ConditionBuilderState>(() => 
-  jsonToConditionBuilder(field?.visibility_conditions || null)
-);
+  const [conditionBuilder, setConditionBuilder] = useState<ConditionBuilderState>(() =>
+    jsonToConditionBuilder(field?.visibility_conditions || null)
+  );
 
-const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
-  setConditionBuilder(newBuilder);
-  const json = conditionBuilderToJSON(newBuilder);
-  if (json) {
-    setF(p => ({ ...p, visibility_conditions: json }));
-  }
-};
+  const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
+    setConditionBuilder(newBuilder);
+    const json = conditionBuilderToJSON(newBuilder);
+    if (json) {
+      setF(p => ({ ...p, visibility_conditions: json }));
+    }
+  };
 
-// Get all fields in current form for dropdown
-const availableFields = useMemo(() => {
-  if (!field?.form_id) return [];
-  // In real implementation, fetch from formDetail query
-  // For now, we'll use a placeholder that works with existing data
-  return [];
-}, [field?.form_id]);
+  // Get all fields in current form for dropdown
+  const availableFields = useMemo(() => {
+    if (!field?.form_id) return [];
+    // In real implementation, fetch from formDetail query
+    // For now, we'll use a placeholder that works with existing data
+    return [];
+  }, [field?.form_id]);
 
-// Get field options for value selector (if SELECT field)
-const getTriggerFieldOptions = useCallback((fieldKey: string): Array<{ label: string; value: string }> => {
-  // Will implement after we get form fields
-  return [];
-}, []);
+  // Get field options for value selector (if SELECT field)
+  const getTriggerFieldOptions = useCallback((fieldKey: string): Array<{ label: string; value: string }> => {
+    // Will implement after we get form fields
+    return [];
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'basic' | 'validation' | 'options'>('basic');
   const isChoiceType = ['select', 'multi_select', 'radio', 'checkbox'].includes(f.field_type);
@@ -392,164 +435,164 @@ const getTriggerFieldOptions = useCallback((fieldKey: string): Array<{ label: st
               />
             </div>
             {/* ─── JSON FALLBACK (Keep for advanced users) ─── */}
-<div style={{ 
-  marginTop: 16, 
-  padding: '12px', 
-  background: 'var(--amber-lt)', 
-  border: '1px solid var(--amber-bd)',
-  borderRadius: 'var(--r)',
-  marginBottom: 8
-}}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink3)' }}>
-      Advanced: Edit JSON Directly
-    </span>
-    <span style={{ fontSize: 8, background: 'var(--amber)', color: '#fff', padding: '2px 4px', borderRadius: 2, fontWeight: 600 }}>
-      FOR POWER USERS
-    </span>
-  </div>
-  
-  <textarea
-    value={f.visibility_conditions}
-    onChange={e => setF(s => ({ ...s, visibility_conditions: e.target.value }))}
-    placeholder={JSON.stringify({ field_key: 'employment_type', operator: 'equals', value: 'permanent' }, null, 2)}
-    rows={4}
-    style={{ fontFamily:'monospace', fontSize:11, width: '100%' }}
-  />
-  
-  <div style={{ fontSize: 9, color: 'var(--ink4)', marginTop: 6 }}>
-    ℹ️ Only edit if the condition builder above doesn't meet your needs
-  </div>
-</div>
-{/* ─── CONDITION BUILDER UI (NEW) ─── */}
-<div style={{ 
-  marginBottom: 16, 
-  padding: '12px', 
-  background: 'var(--surface2)', 
-  borderRadius: 'var(--r)',
-  border: '1px solid var(--border)'
-}}>
-  <div style={{ 
-    fontSize: 11, 
-    fontWeight: 700, 
-    textTransform: 'uppercase', 
-    letterSpacing: '.07em', 
-    color: 'var(--ink4)',
-    marginBottom: 10
-  }}>
-    Visual Condition Builder (Beta)
-  </div>
+            <div style={{
+              marginTop: 16,
+              padding: '12px',
+              background: 'var(--amber-lt)',
+              border: '1px solid var(--amber-bd)',
+              borderRadius: 'var(--r)',
+              marginBottom: 8
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink3)' }}>
+                  Advanced: Edit JSON Directly
+                </span>
+                <span style={{ fontSize: 8, background: 'var(--amber)', color: '#fff', padding: '2px 4px', borderRadius: 2, fontWeight: 600 }}>
+                  FOR POWER USERS
+                </span>
+              </div>
 
-  {/* Field Selector */}
-  <div style={{ marginBottom: 10 }}>
-    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 4, display: 'block' }}>
-      1. When this field is:
-    </label>
-    <select 
-      value={conditionBuilder.triggerField || ''} 
-      onChange={e => updateConditionFromBuilder({ ...conditionBuilder, triggerField: e.target.value || null, operator: null, value: null })}
-      style={{ 
-        width: '100%', 
-        padding: '8px 10px', 
-        border: '1px solid var(--border2)',
-        borderRadius: 'var(--r)', 
-        fontSize: 12,
-        fontFamily: 'var(--font)',
-        background: 'var(--surface)',
-        color: 'var(--ink)',
-      }}
-    >
-      <option value="">— Select a field —</option>
-      {FIELD_TYPES.map(ft => (
-        <option key={ft.type} value={ft.type} disabled>
-          {ft.label}
-        </option>
-      ))}
-    </select>
-    <div style={{ fontSize: 9, color: 'var(--ink4)', marginTop: 3 }}>
-      ℹ️ (Shows fields from current form once fetched)
-    </div>
-  </div>
+              <textarea
+                value={f.visibility_conditions}
+                onChange={e => setF(s => ({ ...s, visibility_conditions: e.target.value }))}
+                placeholder={JSON.stringify({ field_key: 'employment_type', operator: 'equals', value: 'permanent' }, null, 2)}
+                rows={4}
+                style={{ fontFamily: 'monospace', fontSize: 11, width: '100%' }}
+              />
 
-  {/* Operator Selector */}
-  {conditionBuilder.triggerField && (
-    <div style={{ marginBottom: 10 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 4, display: 'block' }}>
-        2. {conditionBuilder.triggerField === 'checkbox' ? 'is' : 'equals'}:
-      </label>
-      <select 
-        value={conditionBuilder.operator || ''} 
-        onChange={e => updateConditionFromBuilder({ ...conditionBuilder, operator: (e.target.value as ConditionOperator) || null, value: null })}
-        style={{ 
-          width: '100%', 
-          padding: '8px 10px', 
-          border: '1px solid var(--border2)',
-          borderRadius: 'var(--r)', 
-          fontSize: 12,
-          fontFamily: 'var(--font)',
-          background: 'var(--surface)',
-          color: 'var(--ink)',
-        }}
-      >
-        <option value="">— Select condition —</option>
-        {getOperatorsForFieldType(conditionBuilder.triggerField).map(op => (
-          <option key={op.value} value={op.value}>
-            {op.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  )}
+              <div style={{ fontSize: 9, color: 'var(--ink4)', marginTop: 6 }}>
+                ℹ️ Only edit if the condition builder above doesn't meet your needs
+              </div>
+            </div>
+            {/* ─── CONDITION BUILDER UI (NEW) ─── */}
+            <div style={{
+              marginBottom: 16,
+              padding: '12px',
+              background: 'var(--surface2)',
+              borderRadius: 'var(--r)',
+              border: '1px solid var(--border)'
+            }}>
+              <div style={{
+                fontSize: 11,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '.07em',
+                color: 'var(--ink4)',
+                marginBottom: 10
+              }}>
+                Visual Condition Builder (Beta)
+              </div>
 
-  {/* Value Selector */}
-  {conditionBuilder.triggerField && conditionBuilder.operator && (
-    <div style={{ marginBottom: 10 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 4, display: 'block' }}>
-        3. Value:
-      </label>
-      <input 
-        type="text"
-        value={Array.isArray(conditionBuilder.value) ? conditionBuilder.value.join(', ') : conditionBuilder.value || ''} 
-        onChange={e => updateConditionFromBuilder({ ...conditionBuilder, value: e.target.value || null })}
-        placeholder="Enter value or select from above"
-        style={{ 
-          width: '100%', 
-          padding: '8px 10px', 
-          border: '1px solid var(--border2)',
-          borderRadius: 'var(--r)', 
-          fontSize: 12,
-          fontFamily: 'var(--font)',
-          background: 'var(--surface)',
-          color: 'var(--ink)',
-        }}
-      />
-      <div style={{ fontSize: 9, color: 'var(--ink4)', marginTop: 3 }}>
-        ℹ️ (Dropdown options will appear based on field type)
-      </div>
-    </div>
-  )}
+              {/* Field Selector */}
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 4, display: 'block' }}>
+                  1. When this field is:
+                </label>
+                <select
+                  value={conditionBuilder.triggerField || ''}
+                  onChange={e => updateConditionFromBuilder({ ...conditionBuilder, triggerField: e.target.value || null, operator: null, value: null })}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    border: '1px solid var(--border2)',
+                    borderRadius: 'var(--r)',
+                    fontSize: 12,
+                    fontFamily: 'var(--font)',
+                    background: 'var(--surface)',
+                    color: 'var(--ink)',
+                  }}
+                >
+                  <option value="">— Select a field —</option>
+                  {FIELD_TYPES.map(ft => (
+                    <option key={ft.type} value={ft.type} disabled>
+                      {ft.label}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ fontSize: 9, color: 'var(--ink4)', marginTop: 3 }}>
+                  ℹ️ (Shows fields from current form once fetched)
+                </div>
+              </div>
 
-  {/* Preview */}
-  {conditionBuilder.triggerField && conditionBuilder.operator && (
-    <div style={{ 
-      padding: 8, 
-      background: 'var(--green-lt)', 
-      border: '1px solid var(--green-bd)',
-      borderRadius: 'var(--r)',
-      fontSize: 10,
-      color: 'var(--green)',
-      marginTop: 8
-    }}>
-      ✓ Show when: <strong>{conditionBuilder.triggerField}</strong> {conditionBuilder.operator} <strong>{conditionBuilder.value || '[value]'}</strong>
-    </div>
-  )}
+              {/* Operator Selector */}
+              {conditionBuilder.triggerField && (
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 4, display: 'block' }}>
+                    2. {conditionBuilder.triggerField === 'checkbox' ? 'is' : 'equals'}:
+                  </label>
+                  <select
+                    value={conditionBuilder.operator || ''}
+                    onChange={e => updateConditionFromBuilder({ ...conditionBuilder, operator: (e.target.value as ConditionOperator) || null, value: null })}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      border: '1px solid var(--border2)',
+                      borderRadius: 'var(--r)',
+                      fontSize: 12,
+                      fontFamily: 'var(--font)',
+                      background: 'var(--surface)',
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    <option value="">— Select condition —</option>
+                    {getOperatorsForFieldType(conditionBuilder.triggerField).map(op => (
+                      <option key={op.value} value={op.value}>
+                        {op.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-  {/* Info */}
-  <div style={{ fontSize: 9, color: 'var(--ink4)', marginTop: 8, lineHeight: 1.4 }}>
-    💡 <strong>How it works:</strong> This builder creates the JSON condition automatically. 
-    You can also edit the JSON directly below if needed.
-  </div>
-</div>
+              {/* Value Selector */}
+              {conditionBuilder.triggerField && conditionBuilder.operator && (
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 4, display: 'block' }}>
+                    3. Value:
+                  </label>
+                  <input
+                    type="text"
+                    value={Array.isArray(conditionBuilder.value) ? conditionBuilder.value.join(', ') : conditionBuilder.value || ''}
+                    onChange={e => updateConditionFromBuilder({ ...conditionBuilder, value: e.target.value || null })}
+                    placeholder="Enter value or select from above"
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      border: '1px solid var(--border2)',
+                      borderRadius: 'var(--r)',
+                      fontSize: 12,
+                      fontFamily: 'var(--font)',
+                      background: 'var(--surface)',
+                      color: 'var(--ink)',
+                    }}
+                  />
+                  <div style={{ fontSize: 9, color: 'var(--ink4)', marginTop: 3 }}>
+                    ℹ️ (Dropdown options will appear based on field type)
+                  </div>
+                </div>
+              )}
+
+              {/* Preview */}
+              {conditionBuilder.triggerField && conditionBuilder.operator && (
+                <div style={{
+                  padding: 8,
+                  background: 'var(--green-lt)',
+                  border: '1px solid var(--green-bd)',
+                  borderRadius: 'var(--r)',
+                  fontSize: 10,
+                  color: 'var(--green)',
+                  marginTop: 8
+                }}>
+                  ✓ Show when: <strong>{conditionBuilder.triggerField}</strong> {conditionBuilder.operator} <strong>{conditionBuilder.value || '[value]'}</strong>
+                </div>
+              )}
+
+              {/* Info */}
+              <div style={{ fontSize: 9, color: 'var(--ink4)', marginTop: 8, lineHeight: 1.4 }}>
+                💡 <strong>How it works:</strong> This builder creates the JSON condition automatically.
+                You can also edit the JSON directly below if needed.
+              </div>
+            </div>
             {/* Live preview of condition */}
             {f.visibility_conditions && (
               <div style={{ marginTop: 10, padding: 10, background: 'var(--surface2)', borderRadius: 'var(--r)', border: '1px solid var(--border)', fontSize: 10 }}>
@@ -1227,18 +1270,19 @@ function FieldFormModal({ open, field, formId, onClose }: { open: boolean; field
   const [regex, setRegex] = useState('');
   const [opts, setOpts] = useState<{ label: string; value: string; is_default: boolean }[]>([]);
   const [visCond, setVisCond] = useState('');
+  const [dynamicSource, setDynamicSource] = useState<string | null>(null);
 
-  const [conditionBuilder, setConditionBuilder] = useState<ConditionBuilderState>(() => 
-  jsonToConditionBuilder(field?.visibility_conditions || null)
-);
+  const [conditionBuilder, setConditionBuilder] = useState<ConditionBuilderState>(() =>
+    jsonToConditionBuilder(field?.visibility_conditions || null)
+  );
 
-const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
-  setConditionBuilder(newBuilder);
-  const json = conditionBuilderToJSON(newBuilder);
-  if (json) {
-    setVisCond(json);
-  }
-};
+  const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
+    setConditionBuilder(newBuilder);
+    const json = conditionBuilderToJSON(newBuilder);
+    if (json) {
+      setVisCond(json);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -1278,7 +1322,7 @@ const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
   };
 
   const isBusy = createMutation.isPending || updateMutation.isPending;
-  const needsOptions = ['select', 'multi_select', 'radio'].includes(ft);
+  const needsOptions = ['select', 'multi_select', 'radio', 'checkbox'].includes(ft);
 
   return (
     <Modal open={open} onClose={onClose} title={field ? `Edit Field` : 'Add Field'} width={580}
@@ -1313,10 +1357,10 @@ const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
         <div className="fg"><label>Min Length</label><input type="number" min="0" value={minL} onChange={e => setMinL(e.target.value)} /></div>
         <div className="fg"><label>Max Length</label><input type="number" min="0" value={maxL} onChange={e => setMaxL(e.target.value)} /></div>
       </div>
-<div style={{ 
-        marginBottom: 12, 
-        padding: '10px', 
-        background: 'var(--surface2)', 
+      <div style={{
+        marginBottom: 12,
+        padding: '10px',
+        background: 'var(--surface2)',
         borderRadius: 'var(--r)',
         border: '1px solid var(--border)'
       }}>
@@ -1326,14 +1370,14 @@ const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
 
         {/* Field Selector */}
         <div style={{ marginBottom: 8 }}>
-          <select 
-            value={conditionBuilder.triggerField || ''} 
+          <select
+            value={conditionBuilder.triggerField || ''}
             onChange={e => updateConditionFromBuilder({ ...conditionBuilder, triggerField: e.target.value || null, operator: null, value: null })}
-            style={{ 
-              width: '100%', 
-              padding: '6px 8px', 
+            style={{
+              width: '100%',
+              padding: '6px 8px',
               border: '1px solid var(--border2)',
-              borderRadius: 'var(--r)', 
+              borderRadius: 'var(--r)',
               fontSize: 11,
               fontFamily: 'var(--font)',
               background: 'var(--surface)',
@@ -1352,14 +1396,14 @@ const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
         {/* Operator Selector */}
         {conditionBuilder.triggerField && (
           <div style={{ marginBottom: 8 }}>
-            <select 
-              value={conditionBuilder.operator || ''} 
+            <select
+              value={conditionBuilder.operator || ''}
               onChange={e => updateConditionFromBuilder({ ...conditionBuilder, operator: (e.target.value as ConditionOperator) || null, value: null })}
-              style={{ 
-                width: '100%', 
-                padding: '6px 8px', 
+              style={{
+                width: '100%',
+                padding: '6px 8px',
                 border: '1px solid var(--border2)',
-                borderRadius: 'var(--r)', 
+                borderRadius: 'var(--r)',
                 fontSize: 11,
                 fontFamily: 'var(--font)',
                 background: 'var(--surface)',
@@ -1379,16 +1423,16 @@ const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
         {/* Value Input */}
         {conditionBuilder.triggerField && conditionBuilder.operator && (
           <div style={{ marginBottom: 8 }}>
-            <input 
+            <input
               type="text"
-              value={Array.isArray(conditionBuilder.value) ? conditionBuilder.value.join(', ') : conditionBuilder.value || ''} 
+              value={Array.isArray(conditionBuilder.value) ? conditionBuilder.value.join(', ') : conditionBuilder.value || ''}
               onChange={e => updateConditionFromBuilder({ ...conditionBuilder, value: e.target.value || null })}
               placeholder="Enter value"
-              style={{ 
-                width: '100%', 
-                padding: '6px 8px', 
+              style={{
+                width: '100%',
+                padding: '6px 8px',
                 border: '1px solid var(--border2)',
-                borderRadius: 'var(--r)', 
+                borderRadius: 'var(--r)',
                 fontSize: 11,
                 fontFamily: 'var(--font)',
                 background: 'var(--surface)',
@@ -1433,18 +1477,56 @@ const updateConditionFromBuilder = (newBuilder: ConditionBuilderState) => {
       </div>
 
       {needsOptions && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink4)', marginBottom: 8 }}>Options</div>
-          {opts.map((opt, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-              <input placeholder="Label" value={opt.label} onChange={e => setOpts(o => o.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
-              <input placeholder="Value" value={opt.value} onChange={e => setOpts(o => o.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
-              <button type="button" onClick={() => setOpts(o => o.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: 16 }}>×</button>
+        <>
+          {/* NEW: Dynamic Source Selector */}
+          <div style={{ marginBottom: 14, padding: '10px', background: 'var(--surface2)', borderRadius: 'var(--r)', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 8, color: 'var(--ink3)' }}>
+              Options Source
             </div>
-          ))}
-          <button type="button" onClick={() => setOpts(o => [...o, { label: '', value: '', is_default: false }])}
-            style={{ fontSize: 12, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 500 }}>+ Add option</button>
-        </div>
+            <select
+              value={dynamicSource || ''}
+              onChange={e => setDynamicSource(e.target.value || null)}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                border: '1px solid var(--border2)',
+                borderRadius: 'var(--r)',
+                fontSize: 11,
+                fontFamily: 'var(--font)',
+                background: 'var(--surface)',
+                color: 'var(--ink)',
+              }}
+            >
+              <option value="">— Custom Options (Manual) —</option>
+              {DYNAMIC_SOURCES.map(ds => (
+                <option key={ds.key} value={ds.key}>
+                  {ds.label}
+                </option>
+              ))}
+            </select>
+            {dynamicSource && (
+              <div style={{ fontSize: 9, color: 'var(--green)', padding: 6, marginTop: 6, background: 'var(--green-lt)', borderRadius: 3, border: '1px solid var(--green-bd)' }}>
+                ✓ Will load options from: <strong>{DYNAMIC_SOURCES.find(d => d.key === dynamicSource)?.label}</strong>
+              </div>
+            )}
+          </div>
+
+          {/* Show custom options only if NOT using dynamic source */}
+          {!dynamicSource && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink4)', marginBottom: 8 }}>Manual Options</div>
+              {opts.map((opt, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                  <input placeholder="Label" value={opt.label} onChange={e => setOpts(o => o.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+                  <input placeholder="Value" value={opt.value} onChange={e => setOpts(o => o.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
+                  <button type="button" onClick={() => setOpts(o => o.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: 16 }}>×</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setOpts(o => [...o, { label: '', value: '', is_default: false }])}
+                style={{ fontSize: 12, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 500 }}>+ Add option</button>
+            </div>
+          )}
+        </>
       )}
     </Modal>
   );
