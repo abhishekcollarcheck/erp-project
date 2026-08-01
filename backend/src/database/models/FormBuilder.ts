@@ -11,7 +11,10 @@ export const FIELD_TYPES = [
 export type FieldType = typeof FIELD_TYPES[number];
 
 // Dynamic source keys — these resolve to live DB data at runtime
+// Dynamic source keys — API sources resolve to live DB data at runtime
+// Static sources resolve to predefined options in staticOptions.ts
 export const DYNAMIC_SOURCES = [
+  // ═══ API Sources (lowercase) ═══
   'departments',
   'subdepartments',
   'designations',
@@ -20,7 +23,47 @@ export const DYNAMIC_SOURCES = [
   'roles',
   'leave_types',
   'asset_categories',
-  'custom',       // uses field_options table (static)
+
+  // ═══ Static Sources (UPPERCASE) ═══
+  
+  // Employment & Terms
+  'EMPLOYMENT_TYPE',
+  'COMMITMENT_TERM',
+  'CONFIRMATION_STATUS',
+  'PF_EMPLOYER_FROM',
+  'MEDICLAIM_STATUS',
+  'PROBATION_PERIOD',
+  'RD_TERM',
+
+  // Housing & Address
+  'HOUSE_TYPE',
+  'PERM_ADDRESS_TYPE',
+
+  // Personal Information
+  'GENDER',
+  'BLOOD_GROUP',
+  'MARITAL_STATUS',
+
+  // Family Information
+  'FATHER_SALUTATION',
+  'MOTHER_SALUTATION',
+  'PARENT_STATUS',
+  'MOTHER_STATUS',
+
+  // Salary & Deductions
+  'SALARY_MODE',
+  'DEDUCTION_FROM',
+  'DEDUCTION_MONTHS',
+
+  // Work Location & Schedule
+  'WORKING_SITE_OPTIONS',
+  'WORKING_CITY_OPTIONS',
+  'REGISTRATION_LOCATION_OPTIONS',
+  'SATURDAY_OFF_OPTIONS',
+  'SHIFT_TIMING_OPTIONS',
+
+  // Custom & Manual
+  'custom',
 ] as const;
 export type DynamicSource = typeof DYNAMIC_SOURCES[number];
 

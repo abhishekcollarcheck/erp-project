@@ -20,7 +20,6 @@ export function useSubDesignations(params?: SubDesignationQueryParams) {
     queryFn:   () => subDesignationService.getAll(params),
     staleTime: 2 * 60_000,
     select:    (res) => {
-      console.log("res.data", res.data) 
       return res.data
     },
   });
@@ -29,7 +28,6 @@ export function useSubDesignations(params?: SubDesignationQueryParams) {
 // Convenience: dropdown options array
 export function useSubDesignationOptions() {
   const { data = [] } = useSubDesignations();
-  console.log("data", data)
   return data.map((sd) => ({ value: sd.id, label: sd.name }));
 }
 

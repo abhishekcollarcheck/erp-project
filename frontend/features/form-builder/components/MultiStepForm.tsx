@@ -4,52 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import apiClient from '../../../services/api/client';
 import { evaluateCondition, parseVisibilityConditions } from '../utils/conditionEvaluator';
 import { useDynamicOptions } from '../hooks/useDynamicOptions';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface ResolvedField {
-  id: number;
-  field_type: string;
-  label: string;
-  field_key: string;
-  section: string | null;
-  placeholder?: string | null;
-  help_text?: string | null;
-  is_required: boolean;
-  is_readonly: boolean;
-  width: number;
-  options?: { label: string; value: string }[];
-  dynamic_source?: string | null;
-  visibility_conditions?: string | null;
-  resolved: {
-    can_view: boolean;
-    can_edit: boolean;
-    can_copy: boolean;
-    can_download: boolean;
-    is_masked: boolean;
-  };
-}
-
-interface MultiStepFormProps {
-  formId: number;
-  initialValues?: Record<string, any>;
-  onSubmit: (values: Record<string, any>) => void | Promise<void>;
-  onCancel?: () => void;
-  submitLabel?: string;
-  isSubmitting?: boolean;
-  readOnly?: boolean;
-  recordId?: number;
-  mode?: 'create' | 'edit';
-  autoSaveEnabled?: boolean;
-  onSaveDraft?: (data: any) => Promise<void>;
-}
+import { sanitizeJSON } from '../utils/jsonSanitizer';
+import type { ResolvedField, MultiStepFormProps } from "../types/formbuilder.types"
 
 // ─── Session ID Management (Phase 1) ──────────────────────────────────────────
-
-/**
- * Get or create a unique session ID for draft management
- * Format: w_{timestamp}_{random}
- * Stored in sessionStorage (browser only)
- */
 function getOrCreateSessionId(): string {
   // Fallback for SSR
   if (typeof window === 'undefined') return 'ssr';
@@ -66,9 +24,6 @@ function getOrCreateSessionId(): string {
   return id;
 }
 
-/**
- * Validate payload before sending to API
- */
 function validateDraftPayload(payload: any): boolean {
   return !!(
     payload.form_id &&
@@ -81,7 +36,6 @@ function validateDraftPayload(payload: any): boolean {
 
 
 // ─── Single Field Renderer ────────────────────────────────────────────────────
-
 function FieldRenderer({ field, value, onChange, readOnly }: {
   field: ResolvedField;
   value: any;
@@ -89,13 +43,9 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
   readOnly: boolean;
 }) {
   const { resolved, field_type, field_key } = field;
-
-  // ✅ FIXED: Use correct hook with correct source
   const { data: options = [], isLoading } = useDynamicOptions({
-    source: field.dynamic_source,  // ✅ Fixed: was field.resolved.source
-    // Remove mergeStatic - hook auto-loads static options
+    source: field.dynamic_source
   });
-  console.log("options", options)
 
   if (!resolved.can_view) return null;
 
@@ -321,31 +271,6 @@ function StepIndicator({
   if (sections.length <= 1) return null;
   return (
     <>
-      {/* <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24 }}>
-      {sections.map((sec, i) => (
-        <div key={sec} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: i < currentStep ? 'var(--green)' : i === currentStep ? 'var(--blue)' : 'var(--surface2)',
-              border: `2px solid ${i <= currentStep ? (i < currentStep ? 'var(--green)' : 'var(--blue)') : 'var(--border2)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700,
-              color: i <= currentStep ? '#fff' : 'var(--ink4)',
-              transition: 'all .2s',
-            }}>
-              {i < currentStep ? '✓' : i + 1}
-            </div>
-            <div style={{ fontSize: 10, fontWeight: i === currentStep ? 600 : 400, color: i === currentStep ? 'var(--blue)' : 'var(--ink4)', marginTop: 4, textAlign: 'center', maxWidth: 80 }}>
-              {sec}
-            </div>
-          </div>
-          {i < sections.length - 1 && (
-            <div style={{ height: 2, flex: 1, background: i < currentStep ? 'var(--green)' : 'var(--border)', marginTop: -16, transition: 'background .2s' }} />
-          )}
-        </div>
-      ))}
-    </div> */}
       <aside
         className="card"
         style={{
@@ -538,11 +463,6 @@ export function MultiStepForm({
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
   const [draftError, setDraftError] = useState<string | null>(null);
 
-  // Check console - should see session ID format
-  console.log('Session ID:', sessionIdRef.current); // Should be: w_1234567890_abc123
-  console.log('Mode:', mode ?? 'create'); // Should be: create or edit
-  console.log('Record ID:', savedId); // Should be: null (create) or number (edit)
-
   // useAutoSave({
   //   values,
   //   step,
@@ -565,35 +485,71 @@ export function MultiStepForm({
 
   useEffect(() => { setValues(v => ({ ...initialValues, ...v })); }, []);
 
-  // Group fields by section — order preserved
   const sections = useMemo(() => {
     const map = new Map<string, ResolvedField[]>();
-    for (const f of resolvedFields) {
-      // ← ADD THIS VISIBILITY CHECK
-      if (f.visibility_conditions) {
-        const condition = parseVisibilityConditions(f.visibility_conditions);
-        if (!evaluateCondition(condition, values)) {
-          continue; // Skip this field if visibility condition not met
-        }
-      }
+    const excludedFields: string[] = [];
+    const parseErrors: Array<{ field: string; error: string }> = [];
 
-      const sec = f.section || 'General';
-      if (!map.has(sec)) map.set(sec, []);
-      map.get(sec)!.push(f);
+    for (const f of resolvedFields) {
+      try {
+        // ✅ Check if field has visibility conditions
+        if (f.visibility_conditions) {
+          // ✅ Issue #8: Sanitize JSON before parsing
+          const sanitized = sanitizeJSON(f.visibility_conditions);
+
+          const condition = parseVisibilityConditions(sanitized, f.field_key);
+          if (!condition) {
+            console.warn(`[sections] Unable to parse visibility conditions for field: ${f.field_key}`);
+          }
+          else if (!evaluateCondition(condition, values)) {
+            console.debug(`[sections] Field hidden by visibility condition: ${f.field_key}`);
+            excludedFields.push(f.field_key);
+            continue;
+          }
+          else {
+            console.debug(`[sections] Field visible (condition passed): ${f.field_key}`);
+          }
+        }
+        else {
+          console.debug(`[sections] Field visible (no conditions): ${f.field_key}`);
+        }
+
+        const sec = f.section || 'General';
+        if (!map.has(sec)) map.set(sec, []);
+        map.get(sec)!.push(f);
+
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[sections] Error processing field: ${f.field_key}`, errorMsg);
+        parseErrors.push({
+          field: f.field_key,
+          error: errorMsg
+        });
+
+        const sec = f.section || 'General';
+        if (!map.has(sec)) map.set(sec, []);
+        map.get(sec)!.push(f);
+      }
     }
+
+    // if (excludedFields.length > 0) {
+    //   console.warn(`  Fields excluded by conditions (${excludedFields.length}): ${excludedFields.join(', ')}`);
+    // } else {
+    //   console.log(`  ✅ All ${resolvedFields.length} fields are visible`);
+    // }
+
+    // if (parseErrors.length > 0) {
+    //   console.error(`  Parse errors (${parseErrors.length}):`, parseErrors);
+    // }
+
     return [...map.entries()];
-  }, [resolvedFields, values]);  // ← ADD values to dependency array
+  }, [resolvedFields, values]);
+
 
   const sectionNames = sections.map(([name]) => name);
   const isMultiStep = sectionNames.length > 1;
   const currentFields = sections[step]?.[1] || [];
   const isLastStep = step === sectionNames.length - 1;
-
-  // const handleChange = (key: string, val: any) => {
-  //   setValues(prev => ({ ...prev, [key]: val }));
-  //   if (errors[key]) setErrors(prev => { const n = {...prev}; delete n[key]; return n; });
-  // };
-
 
   const handleChange = (key: string, val: any) => {
     setValues(prev => ({ ...prev, [key]: val }));
@@ -606,10 +562,6 @@ export function MultiStepForm({
     }
   };
 
-  /**
-     * Validate a single step and track errors per step
-     * (Different from existing validate which validates currentFields)
-     */
   const validateStep = useCallback(
     async (stepIndex: number): Promise<boolean> => {
       // Skip validation for review/last step

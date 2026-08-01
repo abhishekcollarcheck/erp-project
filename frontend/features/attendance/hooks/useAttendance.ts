@@ -182,7 +182,6 @@ export function useMyCombinedAttendance(params: { date_from: string; date_to: st
     queryFn:   () => attendanceService.getMyCombinedAttendance(params),
     staleTime: 60_000,
     select:    (res) => {
-      console.log("res.data", res.data)
       return res.data
     },
   });

@@ -2,10 +2,9 @@ import { Op, Transaction } from 'sequelize';
 import { sequelize }       from '../../config/database';
 import {
   HrModule, FormDefinition, DynamicField, FieldOption,
-  FieldPermissionV2, FIELD_TYPES,
+  FieldPermissionV2, FIELD_TYPES
 } from '../../database/models/FormBuilder';
-// import { Role }            from '../../database/models/RoleModels';
-import type { DynamicSource } from '../../database/models/FormBuilder';
+import type { DynamicSource, DYNAMIC_SOURCES } from '../../database/models/FormBuilder';
 import { AppError }        from '../../middleware/errorHandler.middleware';
 import { logActivity }     from '../../utils/activityLogger';
 import { PermissionGroup, UserGroup } from '../../database/models/PermissionGroups';
@@ -128,6 +127,8 @@ export class FormBuilderService {
     field_type: string; label: string; field_key?: string;
     placeholder?: string; help_text?: string; section?: string;
     is_required?: boolean; is_readonly?: boolean; is_hidden?: boolean;
+    dynamic_source?: DynamicSource | null;  dynamic_source_label?: string | null;
+    dynamic_source_value?: string | null;dynamic_source_filter?: string | null; 
     is_unique?: boolean; default_value?: string;
     min_length?: number; max_length?: number;
     min_value?: number; max_value?: number;
@@ -135,6 +136,7 @@ export class FormBuilderService {
     visibility_conditions?: string | null;
     options?: { label: string; value: string; is_default?: boolean }[];
   }, createdBy?: number) {
+    console.log("dto", dto)
     const form = await FormDefinition.findOne({ where: { id: formId} });
     if (!form) throw new AppError('Form not found', 404);
     if (!FIELD_TYPES.includes(dto.field_type as any)) throw new AppError('Invalid field type', 400);
@@ -151,7 +153,10 @@ export class FormBuilderService {
         placeholder: dto.placeholder||null, help_text: dto.help_text||null,
         is_required: dto.is_required||false, is_readonly: dto.is_readonly||false,
         is_hidden: dto.is_hidden||false, is_unique: dto.is_unique||false, is_active: true,
-        default_value: dto.default_value||null,
+        default_value: dto.default_value||null, dynamic_source: dto.dynamic_source || null,
+        dynamic_source_label: dto.dynamic_source ? dto.dynamic_source_label : null,
+        dynamic_source_value: dto.dynamic_source ? dto.dynamic_source_value : null,
+        dynamic_source_filter: dto.dynamic_source ? dto.dynamic_source_filter : null,
         sort_order: dto.sort_order||0, section: dto.section||null,
         min_length: dto.min_length||null, max_length: dto.max_length||null,
         min_value: dto.min_value||null, max_value: dto.max_value||null,
@@ -159,7 +164,6 @@ export class FormBuilderService {
         visibility_conditions: dto.visibility_conditions||null,
         created_by: createdBy||null,
       }, { transaction: t });
-
       if (dto.options?.length && ['select','multi_select','radio'].includes(dto.field_type)) {
         await FieldOption.bulkCreate(dto.options.map((o, i) => ({
           field_id: field.id, label: o.label, value: o.value,

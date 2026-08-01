@@ -9,9 +9,7 @@ export function useDynamicOptions({
   source: string | null | undefined;
   mergeStatic?: boolean;
 }) {
-  const staticOpts = mergeStatic ? getStaticOptions(source || '') : [];
-  console.log("source", source)
-  console.log("staticOpts", staticOpts)
+  const staticOpts = getStaticOptions(source || '');
   return useQuery({
     queryKey: ['dyn-source', source, mergeStatic],
     queryFn: async (): Promise<FieldOption[]> => {
