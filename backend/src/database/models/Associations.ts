@@ -124,12 +124,8 @@ Employee.belongsTo(Designation, { foreignKey: 'designation_id', as: 'designation
 Designation.hasMany(Employee,   { foreignKey: 'designation_id', as: 'employees'   });
 
 // ─── Employee ↔ Department ────────────────────────────────────────────────────
-Employee.belongsTo(SubDesignation,  { foreignKey: 'sub_department',  as: 'subDesignation'  });
-SubDesignation.hasMany(Employee,    { foreignKey: 'sub_department',  as: 'employees'   });
-
-// ─── Employee ↔ Manager (self-referential) ───────────────────────────────────
-Employee.belongsTo(Employee, { foreignKey: 'reporting_manager_id', as: 'manager'   });
-Employee.hasMany(Employee,   { foreignKey: 'reporting_manager_id', as: 'reportees' });
+Employee.belongsTo(SubDesignation,  { foreignKey: 'sub_designation',  as: 'subDesignation'  });
+SubDesignation.hasMany(Employee,    { foreignKey: 'sub_designation',  as: 'employees'   });
 
 // ─── Department hierarchy ─────────────────────────────────────────────────────
 Department.belongsTo(Employee,   { foreignKey: 'head_id',   as: 'head'     });

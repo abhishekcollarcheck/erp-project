@@ -87,7 +87,8 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     },
   });
 
-  // Populate form on edit
+  console.log("methods", methods)
+
   useEffect(() => {
     if (!employee) return;
     const p   = (employee.personal            ?? {}) as Partial<EmployeePersonal>;
@@ -211,7 +212,6 @@ methods.reset({
     } as FullEmployeeForm);
   }, [employee, methods]);
 
-  // Auto-fill code
   useEffect(() => {
     if (mode === 'create' && nextCodeData && !methods.getValues('employee_code'))
       methods.setValue('employee_code', nextCodeData?.code, { shouldDirty: false });

@@ -1,45 +1,46 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. employees  (core identity + employment + auth — single source of truth)
-// ─────────────────────────────────────────────────────────────────────────────
 interface EmployeeAttrs {
+// Basic Info
   id:                     number;
-  employee_code:          string;
+  avatar_url?:            string | null;
   reference_code:         string | null;
-  company_id:             number;
+  employee_code:          string;
+  status:                 'Active';
   first_name:             string;
   middle_name?:           string | null;
   last_name:              string;
-  status:                 'Active' | 'Left' | 'Retired';
+  company_id:             number;
   employment_type:        'Permanent' | 'Contractual';
-  email:                  string | null;
-  phone:                  string;
-  department_id?:         number;
-  sub_department_id?:     number | null;
-  designation_id?:        number;
-  sub_designation?:       string | null;
-
-  // Reporting — INTEGER FK into employees.id (not employee_code string)
-  l1_manager_id?:         number | null;  // FK → employees.id
-  l2_manager_id?:         number | null;  // FK → employees.id
-
-  actual_doj?:            Date | null;
-  current_doj?:           Date | null;
-  working_site?:          string | null;
-  working_city?:          string | null;
-  working_state_country?: string | null;
-  pay_register_location?: string | null;
-  shift_id?:              number | null;
-  saturday_off:           string | null;
+  department_id:          number;
+  sub_department_id:      number;
+  designation_id:         number;
+  sub_designation:        number;
+  
+  // Reporting Detail
+  working_site:           number;
+  working_city:           number;
+  working_state:          number;
+  working_country:        number;
+  pay_register_location:  number;
+  saturday_off:           string;
+  shift_category:         number;  
+  shift_id:               number;
   grace_minutes:          number;
+  shift_start:            string | null;
+  shift_end:              string | null;
+  shift_duration:         string | null;   
+  l1_manager_id:          number | null;
+  l2_manager_id?:         number | null;
+  email?:                 string | null;
+  phone:                  string;  
+  actual_doj:             Date;
+  current_doj:            Date;
   form_completion_pct:    number;
-  avatar_url?:            string | null;
 
-  // ── Auth fields (no separate users table — employee IS the user) ─────────
-  portal_access:          boolean;    // controls login ability, independent of HR status
-  is_super_admin:         boolean;    // bypasses ALL permission checks
+  portal_access:          boolean;   
+  is_super_admin:         boolean;   
   otp_hash?:              string | null;
   otp_expires?:           Date | null;
   otp_attempts:           number;
@@ -49,7 +50,6 @@ interface EmployeeAttrs {
   last_login_at?:         Date | null;
   must_change_password:   boolean;
 
-  // ── Meta ──────────────────────────────────────────────────────────────────
   created_by?:            number | null;
   updated_by?:            number | null;
   deleted_by?:            number | null;
@@ -59,12 +59,7 @@ interface EmployeeAttrs {
 }
 
 type EmployeeCreation = Optional<EmployeeAttrs,
-  'id' | 'reference_code' | 'middle_name' | 'sub_designation'
-  | 'l1_manager_id' | 'l2_manager_id' | 'email' | 'phone'
-  | 'actual_doj' | 'current_doj' | 'working_site' | 'working_city'
-  | 'working_state_country' | 'pay_register_location' | 'shift_id'
-  | 'saturday_off' | 'grace_minutes' | 'form_completion_pct' | 'avatar_url'
-  | 'portal_access' | 'is_super_admin' | 'otp_hash' | 'otp_expires'
+  'id' | 'avatar_url' | 'reference_code' | 'middle_name' | 'l1_manager_id' | 'l2_manager_id' | 'email' | 'current_doj' | 'form_completion_pct' |  'portal_access' | 'is_super_admin' | 'otp_hash' | 'otp_expires'
   | 'otp_attempts' | 'otp_locked_until' | 'refresh_token' | 'refresh_expires'
   | 'last_login_at' | 'must_change_password'
   | 'created_by' | 'updated_by' | 'deleted_by' | 'created_at' | 'updated_at' | 'deleted_at'
@@ -72,33 +67,39 @@ type EmployeeCreation = Optional<EmployeeAttrs,
 
 export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements EmployeeAttrs {
   public id!:                    number;
-  public employee_code!:         string;
+  public avatar_url!:            string | null;
   public reference_code!:        string | null;
-  public company_id!:            number;
+  public employee_code!:         string;
+  public status!:                'Active';
   public first_name!:            string;
   public middle_name!:           string | null;
   public last_name!:             string;
-  public status!:                'Active' | 'Left' | 'Retired';
+  public company_id!:            number;
   public employment_type!:       'Permanent' | 'Contractual';
-  public email!:                 string | null;
-  public phone!:                 string;
   public department_id!:         number;
-  public sub_department_id!:     number | null;
+  public sub_department_id!:     number;
   public designation_id!:        number;
-  public sub_designation!:       string | null;
+  public sub_designation!:       number;
+
+  public working_site!:          number;
+  public working_city!:          number;
+  public working_state!:         number;
+  public working_country!:       number;
+  public pay_register_location!: number;
+  public saturday_off!:          string;
+  public shift_category!:        number;
+  public shift_id!:              number;
+  public grace_minutes!:         number;
+  public shift_start!:           string | null;
+  public shift_end!:             string | null;
+  public shift_duration!:        string | null;   
   public l1_manager_id!:         number | null;
   public l2_manager_id!:         number | null;
-  public actual_doj!:            Date | null;
-  public current_doj!:           Date | null;
-  public working_site!:          string | null;
-  public working_city!:          string | null;
-  public working_state_country!: string | null;
-  public pay_register_location!: string | null;
-  public shift_id!:              number | null;
-  public saturday_off!:          string | null;
-  public grace_minutes!:         number;
+  public email!:                 string | null;
+  public phone!:                 string;  
+  public actual_doj!:            Date;
+  public current_doj!:           Date;
   public form_completion_pct!:   number;
-  public avatar_url!:            string | null;
   // Auth
   public portal_access!:         boolean;
   public is_super_admin!:        boolean;
@@ -145,34 +146,39 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
 
 Employee.init({
   id:                     { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  employee_code:          { type: DataTypes.STRING(30), allowNull: false },
+  avatar_url:             { type: DataTypes.STRING(500), allowNull: true },
   reference_code:         { type: DataTypes.STRING(50), allowNull: true },
-  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  employee_code:          { type: DataTypes.STRING(30), allowNull: false },
+  status:                 { type: DataTypes.ENUM('Active'), defaultValue: 'Active' },
   first_name:             { type: DataTypes.STRING(100), allowNull: false },
   middle_name:            { type: DataTypes.STRING(100), allowNull: true },
   last_name:              { type: DataTypes.STRING(100), allowNull: false },
-  status:                 { type: DataTypes.ENUM('Active', 'Left', 'Retired'), defaultValue: 'Active' },
+  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   employment_type:        { type: DataTypes.ENUM('Permanent', 'Contractual'), defaultValue: 'Permanent' },
+  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
+  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
+  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
+  sub_designation:        { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+
+  working_site:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  working_city:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  working_state:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  working_country:        { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  pay_register_location:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  saturday_off:           { type: DataTypes.STRING(200), allowNull: false },
+  shift_category:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  shift_id:               { type: DataTypes.BIGINT.UNSIGNED, allowNull: true, references: { model: 'shifts', key: 'id',}, onUpdate: 'CASCADE', onDelete: 'SET NULL',},
+  grace_minutes:          { type: DataTypes.SMALLINT.UNSIGNED, defaultValue: 15 },
+  shift_start:            { type: DataTypes.STRING(200), allowNull: true },
+  shift_end:              { type: DataTypes.STRING(200), allowNull: true },
+  shift_duration:         { type: DataTypes.STRING(200), allowNull: true },
+  l1_manager_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: {model: 'employees', key: 'id',}, onUpdate: 'CASCADE', onDelete: 'SET NULL',},
+  l2_manager_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: {model: 'employees', key: 'id',}, onUpdate: 'CASCADE', onDelete: 'SET NULL',},
   email:                  { type: DataTypes.STRING(255), allowNull: true },
   phone:                  { type: DataTypes.STRING(20), allowNull: false },
-  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
-  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: undefined },
-  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
-  sub_designation:        { type: DataTypes.STRING(200), allowNull: true },
-  // FK to employees.id — NOT employee_code
-  l1_manager_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  l2_manager_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  actual_doj:             { type: DataTypes.DATEONLY, allowNull: true },
-  current_doj:            { type: DataTypes.DATEONLY, allowNull: true },
-  working_site:           { type: DataTypes.STRING(200), allowNull: true },
-  working_city:           { type: DataTypes.STRING(100), allowNull: true },
-  working_state_country:  { type: DataTypes.STRING(200), allowNull: true },
-  pay_register_location:  { type: DataTypes.STRING(200), allowNull: true },
-  shift_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true, references: { model: 'shifts', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
-  saturday_off:           { type: DataTypes.STRING(200), allowNull: true },
-  grace_minutes:          { type: DataTypes.SMALLINT.UNSIGNED, defaultValue: 0 },
+  actual_doj:             { type: DataTypes.DATEONLY, allowNull: false },
+  current_doj:            { type: DataTypes.DATEONLY, allowNull: false },
   form_completion_pct:    { type: DataTypes.TINYINT.UNSIGNED, defaultValue: 0 },
-  avatar_url:             { type: DataTypes.STRING(500), allowNull: true },
   // ── Auth ─────────────────────────────────────────────────────────────────
   portal_access:          { type: DataTypes.BOOLEAN, defaultValue: true },
   is_super_admin:         { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -202,18 +208,15 @@ Employee.init({
   ],
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. employee_commitment_probation
-// ─────────────────────────────────────────────────────────────────────────────
 export class EmployeeCommitmentProbation extends Model {
   public employee_id!:               number;
   public commitment!:                boolean;
-  public commitment_term!:           string | null;
-  public commitment_entered_on!:     Date | null;
+  public commitment_term!:           string;
+  public commitment_entered_on!:     Date;
   public commitment_end_date!:       Date | null;
   public commitment_status!:         string | null;
   public on_probation!:              boolean;
-  public probation_period!:          string | null;
+  public probation_period!:          string;
   public probation_end_date!:        Date | null;
   public probation_status!:          string | null;
   public probation_extended_period!: string | null;
@@ -224,12 +227,12 @@ export class EmployeeCommitmentProbation extends Model {
 EmployeeCommitmentProbation.init({
   employee_id:               { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
   commitment:                { type: DataTypes.BOOLEAN, defaultValue: false },
-  commitment_term:           { type: DataTypes.ENUM('36 Months', '60 Months', 'N/A'), allowNull: true },
-  commitment_entered_on:     { type: DataTypes.DATEONLY, allowNull: true },
+  commitment_term:           { type: DataTypes.ENUM('12 Months', '18 Months', '24 Months', '36 Months', '60 Months', 'N/A'), allowNull: false },
+  commitment_entered_on:     { type: DataTypes.DATEONLY, allowNull: false },
   commitment_end_date:       { type: DataTypes.DATEONLY, allowNull: true },
   commitment_status:         { type: DataTypes.STRING(50), allowNull: true },
   on_probation:              { type: DataTypes.BOOLEAN, defaultValue: true },
-  probation_period:          { type: DataTypes.STRING(30), allowNull: true },
+  probation_period:          { type: DataTypes.ENUM('3 Months', '4 Months', '6 Months', '9 Months', '12 Months', 'N/A'), allowNull: false },
   probation_end_date:        { type: DataTypes.DATEONLY, allowNull: true },
   probation_status:          { type: DataTypes.STRING(50), allowNull: true },
   probation_extended_period: { type: DataTypes.STRING(50), allowNull: true },
@@ -244,22 +247,28 @@ EmployeeCommitmentProbation.init({
 export class EmployeeSchemes extends Model {
   public employee_id!: number;
   public pf_status!: boolean;
-  public uan_number!: string | null;
-  public epfo_member_id!: string | null;
-  public pf_contribution_pct!: number | null;
+  public uan_number!: string;
+  public epfo_member_id!: string;
+  public pf_contribution_pct!: number;
+  public emp_contribution!: number | null;
   public pf_employer_from!: 'Employee' | 'Employer' | 'N/A' | null;
+  public emp_contribution1!: number | null;
+  public emp_contribution2!: number | null;
   public esic_status!: boolean;
-  public esic_number!: string | null;
+  public esic_number!: string;
+  public emp_contribution3!: number | null;
+  public emp_contribution4!: number | null;
   public mediclaim_status!: 'Yes' | 'No' | 'Deactivate';
-  public mediclaim_number!: string | null;
-  public mediclaim_amount!: number | null;
+  public mediclaim_number!: string;
+  public mediclaim_amount!: number;
   public rd_scheme!: boolean;
-  public rd_term!: string | null;
-  public rd_opening_date!: Date | null;
-  public rd_account_number!: string | null;
-  public rd_deduction_from!: 'Salary' | 'AMDB' | 'N/A' | null;
-  public rd_amount_employee!: number | null;
-  public rd_amount_employer!: number | null;
+  public rd_term!: string;
+  public rd_opening_date!: Date;
+  public rd_account_number!: number;
+  public rd_deduction_from!: 'Salary' | 'AMDB' | 'N/A';
+  public rd_amount_employee!: number;
+  public rd_amount_employer!: number;
+  public ttl_m_contribution!: number;
   public rd_maturity_date!: Date | null;
   public rd_maturity_amount!: number | null;
   public rd_status!: string | null;
@@ -267,15 +276,20 @@ export class EmployeeSchemes extends Model {
 EmployeeSchemes.init({
   employee_id:         { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
   pf_status:           { type: DataTypes.BOOLEAN, defaultValue: false },
-  uan_number:          { type: DataTypes.STRING(20), allowNull: true },
-  epfo_member_id:      { type: DataTypes.STRING(30), allowNull: true },
-  pf_contribution_pct: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
-  pf_employer_from:    { type: DataTypes.ENUM('Employee', 'Employer', 'N/A'), allowNull: true },
+  uan_number:          { type: DataTypes.STRING(20), allowNull: false },
+  epfo_member_id:      { type: DataTypes.STRING(30), allowNull: false },
+  pf_contribution_pct: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+  emp_contribution:    { type: DataTypes.DECIMAL(5, 2), allowNull: true },
+  pf_employer_from:    { type: DataTypes.ENUM('Employee', 'Employer', 'N/A'), allowNull: false },
+  emp_contribution1:   { type: DataTypes.DECIMAL(5, 2), allowNull: true },
+  emp_contribution2:   { type: DataTypes.DECIMAL(5, 2), allowNull: true },
   esic_status:         { type: DataTypes.BOOLEAN, defaultValue: false },
-  esic_number:         { type: DataTypes.STRING(30), allowNull: true },
+  esic_number:         { type: DataTypes.STRING(30), allowNull: false },
+  emp_contribution3:   { type: DataTypes.DECIMAL(5, 2), allowNull: true },
+  emp_contribution4:   { type: DataTypes.DECIMAL(5, 2), allowNull: true },
   mediclaim_status:    { type: DataTypes.ENUM('Yes', 'No', 'Deactivate'), defaultValue: 'No' },
-  mediclaim_number:    { type: DataTypes.STRING(50), allowNull: true },
-  mediclaim_amount:    { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+  mediclaim_number:    { type: DataTypes.STRING(50), allowNull: false },
+  mediclaim_amount:    { type: DataTypes.DECIMAL(12, 2), allowNull: false },
   rd_scheme:           { type: DataTypes.BOOLEAN, defaultValue: false },
   rd_term:             { type: DataTypes.ENUM('6 Months', '12 Months', '18 Months', '24 Months', '30 Months', '36 Months', 'N/A'), allowNull: true },
   rd_opening_date:     { type: DataTypes.DATEONLY, allowNull: true },

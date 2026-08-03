@@ -3,7 +3,9 @@ import { sequelize } from "../../config/database";
 import { Employee } from '../models/Employee';
 import { Company } from '../models/Company';
 import { Department } from '../models/Department';
+import { SubDepartment } from "../models/Subdepartment";
 import { Designation } from '../models/Designation';
+import { SubDesignation } from "../models/SubDesignation";
 import { PERMISSIONS } from "../models/Permissions";
 import { Permission } from "../models/RoleModels";
 import { Role, RoleModulePermission } from '../models/RoleModels';
@@ -486,6 +488,45 @@ export async function seedDatabase(): Promise<void> {
       }
     }
 
+    // ── 4. Departments ───────────────────────────────────────────────────
+    const subdeptNames = ['AUTOMATION', 'NCS', 'PTS', 'HELP DESK / IT SUPPORT', 'UI / UX/ Frontend', 'PWLCS', 'DOMESTIC', 'BACKEND', 'SEO', 'INTERNATIONAL', 'MGPS', 'WHATSAPP & EMAIL', 'Not Applicable', 'Electrical'];
+    
+    const existingSubDepts = await SubDepartment.findAll({ 
+      where: { name: subdeptNames },
+      transaction 
+    });
+    const existingSubDeptNames = new Set(existingSubDepts.map(d => d.name));
+    
+    const subdeptsToCreate = subdeptNames
+      .filter(name => !existingSubDeptNames.has(name))
+      .map(name => ({ name }));
+    
+    const createdSubDepts = existingSubDepts;
+    if (subdeptsToCreate.length > 0) {
+      const newSubDepts = await SubDepartment.bulkCreate(subdeptsToCreate, { 
+        ignoreDuplicates: true, 
+        transaction 
+      });
+      createdSubDepts.push(...newSubDepts);
+    }
+    
+    const subdeptMap = new Map<string, number>();
+    for (const dept of createdSubDepts) {
+      if (subdeptNames.includes(dept.name)) {
+        subdeptMap.set(dept.name, dept.id);
+      }
+    }
+    
+    if (subdeptMap.size < subdeptNames.length) {
+      const allSubDepts = await SubDepartment.findAll({ 
+        where: { name: subdeptNames },
+        transaction 
+      });
+      for (const dept of allSubDepts) {
+        subdeptMap.set(dept.name, dept.id);
+      }
+    }
+
     // ── 5. Designations ──────────────────────────────────────────────────
     const desigNames = ['Accountant', 'Advisor', 'Asst. General Manager', 'Asst. Manager', 'CMD', 'Computer Operator', 'Cook', 'Coordinator', 'Deputy Manager', 'Director', 'Driver', 'Electrician', 'Engineer', 'Executive', 'Executive Assistant', 'Field Assistant', 'Fitter', 'General Manager', 'Guard', 'Helper', 'Jr. Accountant', 'Jr. Executive', 'Jr. Operator', 'Jr. Technician', 'Manager', 'MIS Executive', 'Office Attendant', 'Operator', 'Plumber', 'Receptionist', 'Sales Officer', 'Senior Deputy Manager', 'Site Engineer', 'Sr. Computer Operator', 'Sr. Coordinator', 'Sr. Engineer', 'Sr. Executive', 'Sr. Field Assistant', 'Sr. Fitter', 'Sr. Helper', 'Sr. Manager', 'Sr. MIS Executive', 'Sr. Sales Officer', 'Supervisor', 'Technician', 'Data Entry Operator', 'Security Guard', 'Field Executive', 'Site Supervisor', 'Housekeeper', 'Jr. Engineer', 'Semi Fitter', 'Sr. Developer', 'Vice President', 'Social Media Video Editor', 'Quality Assurance Engineer', 'Recruiter', 'Sr. Site Engineer', 'Jr. Site Engineer', 'Site Manager', 'Flutter Developer', 'Incharge', 'Sr. Recruiter', 'Jr. Recruiter', 'PSO', 'Social Media Manager', 'Fullstack Developer', 'Software Engineer', 'Dispatch Clerk Cum Engineer', 'Jr. Fitter', 'Deputy General Manager', 'Jr. Electrician', 'Social Media Executive', 'Sr. Data Analyst', 'Sr. Supervisor', 'Sr. Software Engineer'];
     
@@ -527,6 +568,47 @@ export async function seedDatabase(): Promise<void> {
     
     logger.info('✅ Departments + designations ready');
 
+        // ── 5. Designations ──────────────────────────────────────────────────
+    const subdesigNames = ['Not Applicable'];
+    
+    const existingSubDesigs = await SubDesignation.findAll({ 
+      where: { name: subdesigNames },
+      transaction 
+    });
+    const existingSubDesigNames = new Set(existingSubDesigs.map(d => d.name));
+    
+    const subdesigsToCreate = subdesigNames
+      .filter(name => !existingSubDesigNames.has(name))
+      .map(name => ({ name }));
+    
+    const createdSubDesigs = existingSubDesigs;
+    if (subdesigsToCreate.length > 0) {
+      const newSubDesigs = await SubDesignation.bulkCreate(subdesigsToCreate, { 
+        ignoreDuplicates: true, 
+        transaction 
+      });
+      createdSubDesigs.push(...newSubDesigs);
+    }
+    
+    const subdesigMap = new Map<string, number>();
+    for (const desig of createdSubDesigs) {
+      if (subdesigNames.includes(desig.name)) {
+        subdesigMap.set(desig.name, desig.id);
+      }
+    }
+    
+    if (subdesigMap.size < subdesigNames.length) {
+      const allSubDesigs = await SubDesignation.findAll({ 
+        where: { name: subdesigNames },
+        transaction 
+      });
+      for (const desig of allSubDesigs) {
+        subdesigMap.set(desig.name, desig.id);
+      }
+    }
+    
+    logger.info('✅ Departments + designations ready');
+
     // ── 5b. Shifts ──────────────────────────────────────────────────────
     // ✅ Shifts MUST be seeded BEFORE employees
     await seedShifts(transaction);
@@ -545,15 +627,31 @@ export async function seedDatabase(): Promise<void> {
         employee_code: 'EMP000',
         first_name: 'Super', 
         last_name: 'Admin',
-        email: 'superadmin@ung.com', 
-        phone: '+918130988753',
-        department_id: 6,
-        designation_id: 3,
+        department_id: deptMap.get('Admin')!,
+        sub_department_id: subdeptMap.get('HELP DESK / IT SUPPORT')!,
+        designation_id: desigMap.get('Asst. Manager')!,
+        sub_designation: subdesigMap.get('Not Applicable')!,
+        working_site: 1,
+        working_city: 1,
+        working_state: 1,
+        working_country: 1,
+        pay_register_location: 1,
+        saturday_off: '4th',
+        shift_category: 1,
+        grace_minutes: 15,
+        shift_start: '10:00 am',
+        shift_end: '07:00 pm',
+        shift_duration: '9 hour',
+        l1_manager_id: null,
+        email: 'superadmin@ung.com',
+        phone: '8130988753',
+        actual_doj: new Date(),
+        current_doj: new Date(),
         employment_type: 'Permanent',
         status: 'Active',
         portal_access: true, 
         is_super_admin: true,
-        shift_id: null,
+        shift_id: 1,
       },
       transaction,
     });
@@ -575,18 +673,35 @@ export async function seedDatabase(): Promise<void> {
       where: { email: 'admin@ung.com' },
       defaults: {
         company_id: COMPANY_ID, 
-        employee_code: 'EMP001',
+        employee_code: '00000034',
         first_name: 'Admin', 
         last_name: 'User',
         email: 'admin@ung.com', 
         phone: '+918826693968',
-        department_id: 6,
-        designation_id: 3,
+        department_id: deptMap.get('Admin')!,
+        sub_department_id: subdeptMap.get('HELP DESK / IT SUPPORT')!,
+        designation_id: desigMap.get('Asst. Manager')!,
+        sub_designation: subdesigMap.get('Not Applicable')!,
+        working_site: 1,
+        working_city: 1,
+        working_state: 1,
+        working_country: 1,
+        pay_register_location: 1,
+        saturday_off: '4th',
+        shift_category: 1,
+        grace_minutes: 15,
+        shift_start: '10:00 am',
+        shift_end: '07:00 pm',
+        shift_duration: '9 hour',
+        l1_manager_id: null,
+        actual_doj: new Date(),
+        current_doj: new Date(),
         employment_type: 'Permanent',
+
         status: 'Active',
         portal_access: true, 
         is_super_admin: false,
-        shift_id: null,
+        shift_id: 3,
       },
       transaction,
     });

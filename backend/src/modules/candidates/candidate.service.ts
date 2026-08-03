@@ -486,7 +486,6 @@ export class CandidateService {
       department_id?:         number;
       designation_id?:        number;
       employment_type?:       string;
-      reporting_manager_id?:  number;
       date_of_joining?:       string;
     },
     createdBy?: number,
@@ -510,7 +509,6 @@ export class CandidateService {
       date_of_joining:      dto.date_of_joining
                               ? new Date(dto.date_of_joining)
                               : (candidate.confirmed_joining_date || new Date()),
-      reporting_manager_id: dto.reporting_manager_id || null,
       status:               'On_Probation' as any,
       created_by:           createdBy ?? null,
     } as any);

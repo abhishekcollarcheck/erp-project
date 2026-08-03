@@ -5,8 +5,11 @@
  */
 
 // F6
-export const EMPLOYEE_STATUS = ['Active', 'Left', 'Retired'] as const;
+export const EMPLOYEE_STATUS = ['Active'] as const;
 export type EmployeeStatus = typeof EMPLOYEE_STATUS[number];
+
+export const PROBATION_PERIOD = ['3 Months', '4 Months', '6 Months', '9 Months', '12 Months', 'N/A'] as const;
+export type ProbationPeriod = typeof PROBATION_PERIOD[number];
 
 // E15
 export const EMPLOYMENT_TYPE = ['Permanent', 'Contractual'] as const;
@@ -16,7 +19,7 @@ export type EmploymentType = typeof EMPLOYMENT_TYPE[number];
 export const YES_NO = ['Yes', 'No'] as const;
 
 // E50
-export const COMMITMENT_TERM = ['36 Months', '60 Months', 'N/A'] as const;
+export const COMMITMENT_TERM = ['12 Months', '18 Months', '24 Months', '36 Months', '60 Months', 'N/A'] as const;
 export type CommitmentTerm = typeof COMMITMENT_TERM[number];
 
 // B60

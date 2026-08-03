@@ -191,23 +191,23 @@ export function StepBasic({ isEdit, employeeId }: Props) {
   }
 
   return (
-    <FormSection 
-      fields={[
-        f('reference_code'),
-        f('company_id'),
-        f('status'),
-        f('first_name'),
-        f('middle_name'),
-        f('last_name'),
-        f('employment_type'),
-        f('email'),
-        f('phone'),
-        f('department_id'),
-        f('sub_department_id'),
-        f('designation_id'),
-        f('sub_designation'),
-      ]}
-    >
+    // <FormSection 
+    //   fields={[
+    //     f('reference_code'),
+    //     f('company_id'),
+    //     f('status'),
+    //     f('first_name'),
+    //     f('middle_name'),
+    //     f('last_name'),
+    //     f('employment_type'),
+    //     f('email'),
+    //     f('phone'),
+    //     f('department_id'),
+    //     f('sub_department_id'),
+    //     f('designation_id'),
+    //     f('sub_designation'),
+    //   ]}
+    // >
       <div style={{ display: 'grid', gap: 12 }}>
         {/* Row 1: Reference Code & Company */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -216,14 +216,14 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             label="Reference Code"
             placeholder={codes?.ref ?? 'Auto-generated'}
             hint="Auto-generated, can be changed"
-            fieldPerm={f('reference_code')}
+            // fieldPerm={f('reference_code')}
           />
           <FormInput
             name="company_id"
             label="Company"
             displayValue={company?.name}
             readOnly
-            fieldPerm={f('company_id')}
+            // fieldPerm={f('company_id')}
           />
         </div>
 
@@ -234,20 +234,20 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             label="First Name"
             required
             placeholder="Rahul"
-            fieldPerm={f('first_name')}
+            // fieldPerm={f('first_name')}
           />
           <FormInput
             name="middle_name"
             label="Middle Name"
             placeholder="Kumar"
-            fieldPerm={f('middle_name')}
+            // fieldPerm={f('middle_name')}
           />
           <FormInput
             name="last_name"
             label="Last Name"
             required
             placeholder="Sharma"
-            fieldPerm={f('last_name')}
+            // fieldPerm={f('last_name')}
           />
         </div>
 
@@ -257,7 +257,7 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             name="status"
             label="Status"
             required
-            fieldPerm={f('status')}
+            // fieldPerm={f('status')}
             displayValue={EMPLOYEE_STATUS[0]}
             readOnly
           />
@@ -266,7 +266,7 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             label="Employment Type"
             required
             options={toOpts(EMPLOYMENT_TYPE)}
-            fieldPerm={f('employment_type')}
+            // fieldPerm={f('employment_type')}
           />
         </div>
 
@@ -277,7 +277,7 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             label="Work Email"
             type="email"
             placeholder="rahul.sharma@company.com"
-            fieldPerm={f('email')}
+            // fieldPerm={f('email')}
           />
           <FormInput
             name="phone"
@@ -285,7 +285,7 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             type="tel"
             required
             placeholder="+91-9876543210"
-            fieldPerm={f('phone')}
+            // fieldPerm={f('phone')}
           />
         </div>
 
@@ -297,7 +297,7 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             required
             placeholder="Select Department"
             options={departmentOptions}  // ✅ FIXED: Using fetched data
-            fieldPerm={f('department_id')}
+            // fieldPerm={f('department_id')}
             disabled={!departmentOptions.length}
           />
           <FormSelect
@@ -305,7 +305,7 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             label="Sub Department"
             placeholder="Select Sub Department"
             options={subDepartmentOptions}  // ✅ FIXED: Using fetched data
-            fieldPerm={f('sub_department_id')}
+            // fieldPerm={f('sub_department_id')}
             disabled={!subDepartmentOptions.length}
           />
         </div>
@@ -318,7 +318,7 @@ export function StepBasic({ isEdit, employeeId }: Props) {
             required
             placeholder="Select Designation"
             options={designationOptions}  // ✅ FIXED: Using fetched data
-            fieldPerm={f('designation_id')}
+            // fieldPerm={f('designation_id')}
             disabled={!designationOptions.length}
           />
           
@@ -330,7 +330,7 @@ export function StepBasic({ isEdit, employeeId }: Props) {
               label="Sub Designation"
               placeholder="Select Sub Designation"
               options={subDesignationOptions}  // ✅ FIXED: Using fetched data
-              fieldPerm={f('sub_designation')}
+              // fieldPerm={f('sub_designation')}
               disabled={!subDesignationOptions.length}
             />
           ) : (
@@ -340,11 +340,11 @@ export function StepBasic({ isEdit, employeeId }: Props) {
               label="Sub Designation"
               placeholder="e.g. Senior, Lead"
               hint="Optional — free text"
-              fieldPerm={f('sub_designation')}
+              // fieldPerm={f('sub_designation')}
             />
           )}
         </div>
       </div>
-    </FormSection>
+    // </FormSection>
   );
 }

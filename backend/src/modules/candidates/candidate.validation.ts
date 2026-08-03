@@ -127,8 +127,6 @@ export const hireCandidateValidation: ValidationChain[] = [
   body('date_of_joining')
     .notEmpty().withMessage('Date of joining is required')
     .isISO8601().withMessage('Invalid date format'),
-  body('reporting_manager_id')
-    .optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
 ];
 
 // ─── Withdraw ─────────────────────────────────────────────────────────────────
