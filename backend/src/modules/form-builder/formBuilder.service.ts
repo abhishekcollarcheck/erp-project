@@ -212,7 +212,7 @@ export class FormBuilderService {
 async getPermissionMatrix(companyId: number, formId: number) {
   const [form, groups] = await Promise.all([
     this.getFormWithFields(formId),
-    PermissionGroup.findAll({ where: { company_id: companyId }, order: [['is_system','DESC'],['name','ASC']] }),
+    PermissionGroup.findAll({ order: [['is_system','DESC'],['name','ASC']] }),
   ]);
   const fields = (form.fields || []) as DynamicField[];
   if (!fields.length) return { groups, fields, matrix: {} };

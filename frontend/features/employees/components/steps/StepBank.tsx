@@ -1,4 +1,5 @@
 'use client';
+import { FormSection } from '@/components/form/FormSection';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { SectionTitle } from '../../../../components/form/SectionTitle';
@@ -11,6 +12,7 @@ export function StepBank(_: Props) {
   const f = (n: string) => fp?.[n];
 
   return (
+    <FormSection fields={[]}>
     <div style={{ display: 'grid', gap: 16 }}>
       <SectionTitle title="Personal Bank Details" subtitle="Salary will be credited to this account" />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -32,5 +34,6 @@ export function StepBank(_: Props) {
         <FormInput name="official_bank_branch"  label="Branch Name" />
       </div>
     </div>
+    </FormSection>
   );
 }

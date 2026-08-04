@@ -34,7 +34,7 @@ import { refreshEmployeeCompanies } from "../../utils/refreshEmployeeCompanies";
 class PermissionGroupService {
   async list(companyId: number) {
     const groups = await PermissionGroup.findAll({
-      where: { company_id: companyId },
+      // where: { company_id: companyId },
       include: [
         {
           model: Permission,
@@ -67,7 +67,7 @@ class PermissionGroupService {
 
   async getById(id: number, companyId: number) {
     const group = await PermissionGroup.findOne({
-      where: { id, company_id: companyId },
+      // where: { id, company_id: companyId },
       include: [
         { model: Permission, as: "permissions", through: { attributes: [] } },
       ],
@@ -88,13 +88,13 @@ class PermissionGroupService {
   ) {
     const slug = dto.slug || dto.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
     const exists = await PermissionGroup.findOne({
-      where: { company_id: companyId, slug },
+      where: { slug },
     });
     if (exists)
       throw new AppError("A group with this slug already exists", 409);
 
     const group = await PermissionGroup.create({
-      company_id: companyId,
+      // company_id: companyId,
       name: dto.name,
       slug,
       description: dto.description || null,
@@ -470,7 +470,7 @@ await refreshEmployeePermission(
 
   async getUserGroups(employeeId: number, companyId: number) {
     return PermissionGroup.findAll({
-      where: { company_id: companyId, is_active: true },
+      where: { is_active: true },
       include: [
         {
           model: Employee,
@@ -496,9 +496,9 @@ await refreshEmployeePermission(
 
     for (const tpl of SYSTEM_GROUPS) {
       const [group] = await PermissionGroup.findOrCreate({
-        where: { company_id: companyId, slug: tpl.slug },
+        where: { slug: tpl.slug },
         defaults: {
-          company_id: companyId,
+          // company_id: companyId,
           name: tpl.name,
           slug: tpl.slug,
           description: tpl.description,

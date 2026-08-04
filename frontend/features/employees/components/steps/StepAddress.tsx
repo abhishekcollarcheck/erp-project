@@ -17,7 +17,7 @@ export function StepAddress(_: Props) {
   const f = (n: string) => resolveFieldPerm(fp, n);  
 
   return (
-    // <FormSection fields={[f('present_house_type'), f('present_house_no'), f('present_area'), f('present_district'), f('present_city'), f('present_state'), f('present_country'), f('present_pincode'), f('perm_address_type'), f('perm_house_type'), f('perm_area'), f('perm_district'), f('perm_city'), f('perm_state'), f('perm_country'), f('perm_pincode')]}>
+    <FormSection fields={[f('present_house_type'), f('present_house_no'), f('present_area'), f('present_district'), f('present_city'), f('present_state'), f('present_country'), f('present_pincode'), f('perm_address_type'), f('perm_house_type'), f('perm_area'), f('perm_district'), f('perm_city'), f('perm_state'), f('perm_country'), f('perm_pincode')]}>
     <div style={{ display: 'grid', gap: 16 }}>
       <SectionTitle title="Present Address" fields={[f('present_house_type'), f('present_house_no')]} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -58,6 +58,6 @@ export function StepAddress(_: Props) {
         </div>
       )}
     </div>
-    // </FormSection>
+    </FormSection>
   );
 }
