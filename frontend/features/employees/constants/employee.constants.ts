@@ -16,7 +16,7 @@ export const WIZARD_STEPS = [
   { key: 'review',          label: 'Review & Submit',        icon: 'check-circle', required: true,  sensitive: false },
 ] as const;
 
-export const EMPLOYEE_STATUS      = ['Active'] as const;
+export const EMPLOYEE_STATUS      = ['Active', 'Left', 'Retired'] as const;
 export const EMPLOYMENT_TYPE      = ['Permanent', 'Contractual'] as const;
 export const COMMITMENT_TERM      = ['36 Months', '60 Months', 'N/A'] as const;
 export const CONFIRMATION_STATUS  = ['Confirmed', 'Failed', 'Not Applicable'] as const;

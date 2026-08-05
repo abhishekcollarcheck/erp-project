@@ -13,7 +13,7 @@ export interface DepartmentHead {
 
 export interface DepartmentDesignation {
   id:     number;
-  name:   string;
+  name: string;
   grade?: string | null;
 }
 
@@ -29,14 +29,14 @@ export interface DepartmentEmployee {
 
 export interface DepartmentParent {
   id:    number;
-  name:  string;
+  dpname:string;
   code?: string | null;
 }
 
 export interface Department {
   id:              number;
   company_id:      number;
-  name:            string;
+  dpname:          string;
   code?:           string | null;
   head_id?:        number | null;
   parent_id?:      number | null;
@@ -63,14 +63,14 @@ export interface DepartmentStats {
 }
 
 export interface CreateDepartmentDto {
-  name:       string;
+  dpname:     string;
   code?:      string;
   head_id?:   number | null;
   parent_id?: number | null;
 }
 
 export interface UpdateDepartmentDto {
-  name?:      string;
+  dpname?:      string;
   code?:      string;
   head_id?:   number | null;
   parent_id?: number | null;

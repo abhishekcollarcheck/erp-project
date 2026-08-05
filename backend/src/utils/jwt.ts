@@ -6,7 +6,7 @@ export interface JwtPayload {
   companyId:    number;
   roleId:       number;
   roleSlug:     string;
-  email:        string | null;
+  email:        string;
   isSuperAdmin: boolean;
   permissions:  string[];
 }

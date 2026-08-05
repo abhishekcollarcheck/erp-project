@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import path from 'path';
-import * as XLSX from "XLSX";
+import * as XLSX from "xlsx";
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { CandidateService } from './candidate.service';

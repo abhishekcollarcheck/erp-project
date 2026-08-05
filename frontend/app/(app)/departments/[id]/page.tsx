@@ -30,11 +30,11 @@ export default function DepartmentDetailPage() {
   const deleteMutation = useDeleteDepartment();
 
   const employees = empData?.data ?? [];
-  const deptOpts = departments.filter((d) => d.id !== id).map((d) => ({ value: d.id, label: d.name }));
+  const deptOpts = departments.filter((d) => d.id !== id).map((d) => ({ value: d.id, label: d.dpname }));
   const managerOpts = employees.map((e) => ({ value: e.id, label: `${e.first_name} ${e.last_name}` }));
 
   useEffect(() => {
-    if (dept) dispatch(setPageTitle({ title: dept.name, breadcrumb: 'Departments' }));
+    if (dept) dispatch(setPageTitle({ title: dept.dpname, breadcrumb: 'Departments' }));
   }, [dept, dispatch]);
 
   const handleDelete = async () => {
@@ -74,10 +74,10 @@ export default function DepartmentDetailPage() {
           <div className="ph">
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, var(--blue), var(--purple))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, fontWeight: 700 }}>
-                {(dept.code?.[0] || dept.name[0]).toUpperCase()}
+                {(dept.code?.[0] || dept.dpname[0]).toUpperCase()}
               </div>
               <div>
-                <h1 style={{ marginBottom: 4 }}>{dept.name}</h1>
+                <h1 style={{ marginBottom: 4 }}>{dept.dpname}</h1>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   {dept.code && (
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px' }}>{dept.code}</span>
@@ -85,7 +85,7 @@ export default function DepartmentDetailPage() {
                   <Chip variant={dept.is_active ? 'green' : 'gray'}>{dept.is_active ? 'Active' : 'Inactive'}</Chip>
                   {dept.parent && (
                     <span style={{ fontSize: 11, color: 'var(--ink4)' }}>
-                      Sub-dept of <strong style={{ color: 'var(--blue)', cursor: 'pointer' }} onClick={() => router.push(`/departments/${dept.parent!.id}`)}>{dept.parent.name}</strong>
+                      Sub-dept of <strong style={{ color: 'var(--blue)', cursor: 'pointer' }} onClick={() => router.push(`/departments/${dept.parent!.id}`)}>{dept.parent.dpname}</strong>
                     </span>
                   )}
                 </div>
@@ -112,10 +112,10 @@ export default function DepartmentDetailPage() {
               <div className="card cp">
                 <div className="ct">Overview</div>
                 {[
-                  { label: 'Department Name', value: dept.name },
+                  { label: 'Department Name', value: dept.dpname },
                   { label: 'Code', value: dept.code || '—' },
                   { label: 'Status', value: <Chip variant={dept.is_active ? 'green' : 'gray'}>{dept.is_active ? 'Active' : 'Inactive'}</Chip> },
-                  { label: 'Parent', value: dept.parent ? dept.parent.name : 'Top-level department' },
+                  { label: 'Parent', value: dept.parent ? dept.parent.dpname : 'Top-level department' },
                   { label: 'Employees', value: String(dept.employee_count ?? dept.employees?.length ?? 0) },
                   { label: 'Designations', value: String(dept.designations?.length ?? 0) },
                   { label: 'Sub-departments', value: String(dept.children?.length ?? 0) },
@@ -188,9 +188,9 @@ export default function DepartmentDetailPage() {
                       onClick={() => router.push(`/departments/${child.id}`)}
                     >
                       <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--blue-lt)', border: '1px solid var(--blue-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--blue)' }}>
-                        {(child.code?.[0] || child.name[0]).toUpperCase()}
+                        {(child.code?.[0] || child.dpname[0]).toUpperCase()}
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', flex: 1 }}>{child.name}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', flex: 1 }}>{child.dpname}</span>
                       {child.code && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink4)' }}>{child.code}</span>}
                       <span style={{ color: 'var(--ink4)', fontSize: 12 }}>→</span>
                     </div>
@@ -257,7 +257,7 @@ export default function DepartmentDetailPage() {
           open={deleteOpen}
           onClose={() => setDeleteOpen(false)}
           title="Delete Department"
-          subtitle={`Delete "${dept.name}"? This cannot be undone.`}
+          subtitle={`Delete "${dept.dpname}"? This cannot be undone.`}
           footer={
             <>
               <button className="btn btn-sec" onClick={() => setDeleteOpen(false)}>Cancel</button>

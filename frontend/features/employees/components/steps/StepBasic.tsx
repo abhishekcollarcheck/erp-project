@@ -16,13 +16,12 @@ export function StepBasic({ isEdit }: Props) {
   const { data: codes } = useNextCode();
   const { setValue, watch } = useFormContext();
   const { company } = useCompany();
-  console.log("DEPARTMENT_OPTIONS", DEPARTMENT_OPTIONS)
-  // // ── Auto-fill employee code on create ─────────────────────────────────────
-  // useEffect(() => {
-  //   if (!isEdit && codes?.code && !watch('employee_code')) {
-  //     setValue('employee_code', codes.code, { shouldDirty: false });
-  //   }
-  // }, [codes, isEdit]); // eslint-disable-line
+  // ── Auto-fill employee code on create ─────────────────────────────────────
+  useEffect(() => {
+    if (!isEdit && codes?.code && !watch('employee_code')) {
+      setValue('employee_code', codes.code, { shouldDirty: false });
+    }
+  }, [codes, isEdit]); // eslint-disable-line
 
   // ── Auto-fill reference code on create ───────────────────────────────────
   useEffect(() => {
@@ -57,7 +56,13 @@ useEffect(() => {
         <FormInput name="last_name" label="Last Name" required placeholder="Sharma" fieldPerm={f('last_name')} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <FormInput name="status" label="Status" required fieldPerm={f('status')} displayValue={EMPLOYEE_STATUS[0]} readOnly />
+        <FormSelect
+          name="status"
+          label="Status"
+          required
+          options={toOpts(EMPLOYEE_STATUS)}
+          fieldPerm={f('status')}
+        />
         <FormSelect
           name="employment_type"
           label="Employment Type"
@@ -68,7 +73,7 @@ useEffect(() => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <FormInput name="email" label="Work Email" type="email"
+        <FormInput name="email" label="Work Email" type="email" required
           placeholder="rahul.sharma@company.com" fieldPerm={f('email')} />
         <FormInput name="phone" label="Phone Number" type="tel" required
           placeholder="+91-9876543210" fieldPerm={f('phone')} />

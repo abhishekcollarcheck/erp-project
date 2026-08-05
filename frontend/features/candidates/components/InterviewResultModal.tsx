@@ -139,7 +139,7 @@ export function InterviewResultModal({ open, onClose, candidate }: Props) {
   const selectedInterviewerId = watch('interview_result_by');
 
   // Load active employees for interviewer dropdown
-  const { data: empData } = useEmployees({ limit: 200, status: 'Active' as any });
+  const { data: empData } = useEmployees({ limit: 100, status: 'Active' as any });
   const employees = empData?.data ?? [];
 
   const filteredEmployees = employeeSearch.trim()

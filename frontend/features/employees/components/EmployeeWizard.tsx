@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 
 import { fullEmployeeSchema, STEP_SCHEMA_MAP, type FullEmployeeForm, type StepSchemaKey } from '../validations/employee.schema';
-
 import { WIZARD_STEPS } from '../constants/employee.constants';
 import { useCreateEmployee, useUpdateStep, useSaveDraft, useNextCode } from '../hooks/useEmployees';
 import { usePermission } from '../../auth/hooks/usePermission';
@@ -398,7 +397,7 @@ methods.reset({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
             <button type="button" className="btn btn-sec" disabled={isFirst || isSaving} onClick={() => setCurrentIdx(p => p - 1)}>← Back</button>
             <div style={{ display: 'flex', gap: 8 }}>
-              {isDirty && <button type="button" className="btn btn-sec btn-sm" onClick={triggerAutoSave} disabled={draftSaving} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>}
+              {/* {isDirty && <button type="button" className="btn btn-sec btn-sm" onClick={triggerAutoSave} disabled={draftSaving} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>} */}
               {!isLast
                 ? <button type="button" className="btn btn-pri" onClick={handleNext} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save & Continue →'}</button>
                 : <button type="button" className="btn btn-pri" onClick={handleSubmit} disabled={isSaving || !savedId} style={{ background: 'var(--green)', minWidth: 155 }}>{isSaving ? 'Submitting…' : mode === 'edit' ? '✓ Update Employee' : '✓ Create Employee'}</button>}

@@ -23,8 +23,6 @@ import mssqlAttendanceRouter from "../modules/attendance/attendance.mssql.routes
 import attendanceCombinedRouter from '../modules/attendance/attendance-combined.routes';
 import trackolaRouter from '../modules/attendance/trackola.routes';
 import shiftRouter from '../modules/shifts/shift.routes';
-import subDepartmentRoute from "../modules/sub-departments/subDepartment.routes"
-import subDesignationRoute from "../modules/sub-designations/subDesignation.routes"
 
 const router = Router();
 
@@ -49,9 +47,10 @@ router.use('/email-templates', emailTemplateRoutes);
 router.use('/rbac', rbacRoutes);
 router.use('/user-permissions', userPermissionsRouter);
 router.use('/permission-groups', permissionGroupRouter);
+// router.use('/admin', adminRouter);
+// router.use('/admin/companies/:companyId/users',      companyUsersRouter);
+// router.use('/admin/companies/:companyId/employees',  companyEmployeesRouter);
 router.use('/companies', companyRouter);
 router.use('/shifts', shiftRouter)
-router.use("/sub-department", subDepartmentRoute)
-router.use("/sub-designation", subDesignationRoute)
 
 export default router;

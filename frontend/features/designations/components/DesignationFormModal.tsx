@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { useForm }   from 'react-hook-form';
+import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal }     from '../../../components/ui/Modal';
 import { useCreateDesignation, useUpdateDesignation } from '../hooks/useDesignations';
@@ -9,6 +9,10 @@ import {
   type CreateDesignationFormData,
 } from '../validations/designation.schema';
 import type { Designation } from '../types/designation.types';
+import { FormInput } from '../../../components/form/FormInput';
+import { FormSelect } from '../../../components/form/FormSelect';
+import { FormSection } from '../../../components/form/FormSection';
+import { useFieldPermissions, resolveFieldPerm } from '../../employees/hooks/useEmployees';
 
 interface Props {
   open:         boolean;
@@ -17,14 +21,33 @@ interface Props {
   departments:  { value: number; label: string }[];
 }
 
+type Perm = ReturnType<typeof resolveFieldPerm>;
+
+const canView = (p: Perm) => p?.can_view !== false;
+const canEdit = (p: Perm) => p?.can_edit !== false;
+
 export function DesignationFormModal({ open, onClose, designation, departments }: Props) {
+  const { data: fp } = useFieldPermissions();
+  const f = (n: string) => resolveFieldPerm(fp, n);
+
   const isEdit         = !!designation;
   const createMutation = useCreateDesignation();
   const updateMutation = useUpdateDesignation(designation?.id ?? 0);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateDesignationFormData>({
+  // FormInput / FormSelect read from context, so useForm must be exposed via FormProvider.
+  const methods = useForm<CreateDesignationFormData>({
     resolver: zodResolver(createDesignationSchema),
   });
+  const { handleSubmit, reset, setValue } = methods;
+
+  // ── Field permissions ──────────────────────────────────────────────────────
+  const perm = {
+    name:          f('name'),
+    grade:         f('grade'),
+    department_id: f('department_id'),
+  };
+  const anyVisible  = Object.values(perm).some(canView);
+  const anyEditable = Object.values(perm).some(canEdit);
 
   useEffect(() => {
     if (open) {
@@ -48,6 +71,12 @@ export function DesignationFormModal({ open, onClose, designation, departments }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
+  // FormSelect emits the raw option value (or '' on clear) as a string.
+  // department_id is numeric, so coerce before the resolver sees it.
+  const setDepartmentId = (v: string) => {
+    setValue('department_id', (v ? Number(v) : null) as any, { shouldValidate: true, shouldDirty: true });
+  };
+
   return (
     <Modal
       open={open}
@@ -60,57 +89,53 @@ export function DesignationFormModal({ open, onClose, designation, departments }
       footer={
         <>
           <button className="btn btn-sec" onClick={onClose} disabled={isSaving}>Cancel</button>
-          <button
-            className="btn btn-pri"
-            onClick={handleSubmit(onSubmit)}
-            disabled={isSaving}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            {isSaving && (
-              <span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin .7s linear infinite' }} />
-            )}
-            {isSaving ? 'Saving…' : isEdit ? '✓ Save Changes' : '✓ Create Designation'}
-          </button>
+          {anyVisible && anyEditable && (
+            <button
+              className="btn btn-pri"
+              onClick={handleSubmit(onSubmit)}
+              disabled={isSaving}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              {isSaving && (
+                <span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin .7s linear infinite' }} />
+              )}
+              {isSaving ? 'Saving…' : isEdit ? '✓ Save Changes' : '✓ Create Designation'}
+            </button>
+          )}
         </>
       }
     >
-      {/* Name */}
-      <div className="fg">
-        <label>Designation Name *</label>
-        <input
-          placeholder="e.g. Software Engineer, Product Manager, Analyst"
-          {...register('name')}
-          autoFocus
-        />
-        {errors.name && <span className="err">{errors.name.message}</span>}
-      </div>
+      <FormSection fields={[perm.name, perm.grade, perm.department_id]}>
+        <FormProvider {...methods}>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <FormInput
+              name="name"
+              label="Designation Name"
+              required
+              placeholder="e.g. Software Engineer, Product Manager, Analyst"
+              fieldPerm={perm.name}
+            />
 
-      {/* Grade */}
-      <div className="fg">
-        <label>Grade / Level</label>
-        <input placeholder="e.g. L2, M3, IC4, Senior, Lead" {...register('grade')} />
-        {errors.grade && <span className="err">{errors.grade.message}</span>}
-        <span style={{ fontSize: 10, color: 'var(--ink4)', marginTop: 2 }}>
-          Optional — used for pay bands, reporting and org charts
-        </span>
-      </div>
+            <FormInput
+              name="grade"
+              label="Grade / Level"
+              placeholder="e.g. L2, M3, IC4, Senior, Lead"
+              hint="Optional — used for pay bands, reporting and org charts"
+              fieldPerm={perm.grade}
+            />
 
-      {/* Department */}
-      <div className="fg">
-        <label>Department</label>
-        <select {...register('department_id', { setValueAs: (v) => v ? Number(v) : null })}>
-          <option value="">— Cross-functional / no specific department —</option>
-          {departments.map((d) => (
-            <option key={d.value} value={d.value}>{d.label}</option>
-          ))}
-        </select>
-        {errors.department_id && <span className="err">{errors.department_id.message}</span>}
-        <span style={{ fontSize: 10, color: 'var(--ink4)', marginTop: 2 }}>
-          Leave blank if this role spans multiple departments
-        </span>
-      </div>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <FormSelect
+              name="department_id"
+              label="Department"
+              placeholder="— Cross-functional / no specific department —"
+              hint="Leave blank if this role spans multiple departments"
+              options={departments}
+              fieldPerm={perm.department_id}
+              onChange={setDepartmentId}
+            />
+          </div>
+        </FormProvider>
+      </FormSection>
     </Modal>
   );
 }

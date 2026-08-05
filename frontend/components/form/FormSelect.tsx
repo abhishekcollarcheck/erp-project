@@ -1,23 +1,4 @@
 'use client';
-/**
- * FormSelect.tsx
- * Searchable select — built with CSS variables from the existing design system.
- * No external library needed. Drop-in replacement for the previous native <select>.
- *
- * What changed vs previous version:
- *  - Typing in the control filters options in real time (case-insensitive)
- *  - Grouped options (OptGroup) work identically — groups are searchable too
- *  - Clearable: clicking ✕ clears the value (when not required)
- *  - Keyboard: ArrowUp/Down navigate, Enter selects, Escape closes
- *  - All existing props kept: name, label, options, required, disabled,
- *    placeholder, hint, fieldPerm, onChange
- *
- * What is unchanged:
- *  - RHF Controller integration (fieldState.error, field.onChange, field.onBlur)
- *  - Permission-aware visibility / read-only
- *  - Error / hint rendering, label, required mark
- *  - CSS variables: --border, --blue, --red, --ink*, --surface*, --r, --sh2
- */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useFormContext, Controller }               from 'react-hook-form';
@@ -37,6 +18,8 @@ export interface OptGroup {
 interface FieldPerm {
   can_view?: boolean;
   can_edit?: boolean;
+  can_copy?: boolean;
+  is_masked?: boolean;
 }
 
 interface Props {
@@ -48,9 +31,15 @@ interface Props {
   placeholder?: string;
   hint?:        string;
   fieldPerm?:   FieldPerm;
-  clearable?:   boolean;  // new: show ✕ when a value is selected (default false when required, true otherwise)
+  clearable?:   boolean;  // show ✕ when a value is selected (default false when required, true otherwise)
+  /** Suppress the right-click menu when copying is blocked. Default: true. */
+  blockContextMenu?: boolean;
   onChange?:    (value: string) => void;
+  /** Fired on a blocked copy/cut/drag attempt. Useful for audit logging. */
+  onCopyBlocked?: (name: string) => void;
 }
+
+const MASK = '••••••••';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function isOptGroup(o: Option | OptGroup): o is OptGroup {
@@ -86,12 +75,36 @@ function filterOptions(flat: FlatOption[], query: string): FlatOption[] {
 // ─── Component ────────────────────────────────────────────────────────────────
 export function FormSelect({
   name, label, options, required, disabled, placeholder, hint,
-  fieldPerm, clearable, onChange,
+  fieldPerm, clearable, blockContextMenu = true, onChange, onCopyBlocked,
 }: Props) {
   const { control } = useFormContext();
+
+  // Transient "copying is disabled" notice — hooks must run before any early return.
+  const [copyBlocked, setCopyBlocked] = useState(false);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+  }, []);
+
+  const flagBlocked = useCallback(() => {
+    onCopyBlocked?.(name);
+    setCopyBlocked(true);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setCopyBlocked(false), 2000);
+  }, [name, onCopyBlocked]);
+
+  // Field-level visibility gate
   if (fieldPerm?.can_view === false) return null;
-  const isDisabled = disabled || fieldPerm?.can_edit === false;
-  const allowClear = clearable ?? !required;
+
+  const isMasked   = fieldPerm?.is_masked === true;
+  // A masked selection must never reach the clipboard, whatever can_copy says.
+  const noCopy     = fieldPerm?.can_copy === false || isMasked;
+  const isDisabled = disabled === true;
+  // Locked = cannot change the value. Unlike `disabled`, the control stays
+  // focusable and selectable so a user with copy rights can still read/copy it.
+  const isLocked   = isDisabled || fieldPerm?.can_edit === false || isMasked;
+  const allowClear = (clearable ?? !required) && !isLocked;
 
   const flat = flatten(options);
 
@@ -103,6 +116,7 @@ export function FormSelect({
         const error     = fieldState.error?.message;
         const hintId    = `${name}-hint`;
         const errorId   = `${name}-error`;
+        const noticeId  = `${name}-copy-notice`;
         const selected  = flat.find(o => String(o.value) === String(field.value ?? '')) ?? null;
 
         return (
@@ -110,6 +124,19 @@ export function FormSelect({
             <label htmlFor={`${name}-input`} className="field-label">
               {label}
               {required && <span className="req-mark" aria-hidden="true">*</span>}
+              {isMasked && (
+                <span
+                  style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 4 }}
+                  title="This field is masked based on your role"
+                >🔒</span>
+              )}
+              {noCopy && !isMasked && (
+                <span
+                  style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 4 }}
+                  title="Copying is disabled for this field"
+                  aria-hidden="true"
+                >⊘</span>
+              )}
             </label>
 
             <SearchableSelect
@@ -119,6 +146,11 @@ export function FormSelect({
               selected={selected}
               placeholder={placeholder ?? 'Select…'}
               disabled={isDisabled}
+              locked={isLocked}
+              masked={isMasked}
+              noCopy={noCopy}
+              blockContextMenu={blockContextMenu}
+              onCopyBlocked={flagBlocked}
               allowClear={allowClear}
               hasError={!!error}
               aria-describedby={[error ? errorId : '', hint && !error ? hintId : ''].filter(Boolean).join(' ') || undefined}
@@ -136,6 +168,11 @@ export function FormSelect({
             />
 
             {hint  && !error && <p id={hintId}  className="field-hint">{hint}</p>}
+            {copyBlocked && (
+              <p id={noticeId} className="field-hint" role="status" aria-live="polite">
+                Copying is disabled for this field.
+              </p>
+            )}
             {error           && <p id={errorId} className="err" role="alert">{error}</p>}
           </div>
         );
@@ -152,6 +189,11 @@ interface SSProps {
   selected:   FlatOption | null;
   placeholder:string;
   disabled:   boolean;
+  locked:     boolean;
+  masked:     boolean;
+  noCopy:     boolean;
+  blockContextMenu: boolean;
+  onCopyBlocked: () => void;
   allowClear: boolean;
   hasError:   boolean;
   'aria-describedby'?: string;
@@ -160,7 +202,8 @@ interface SSProps {
 }
 
 function SearchableSelect({
-  inputId, flat, options, selected, placeholder, disabled,
+  inputId, flat, options, selected, placeholder, disabled, locked, masked,
+  noCopy, blockContextMenu, onCopyBlocked,
   allowClear, hasError, onSelect, onClear, ...rest
 }: SSProps) {
   const [open,    setOpen]    = useState(false);
@@ -185,6 +228,11 @@ function SearchableSelect({
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  // A locked field must never be left open (e.g. permissions arriving late)
+  useEffect(() => {
+    if (locked && open) { setOpen(false); setQuery(''); setFocused(-1); }
+  }, [locked, open]);
+
   // Scroll focused item into view
   useEffect(() => {
     if (focused < 0 || !listRef.current) return;
@@ -193,22 +241,47 @@ function SearchableSelect({
   }, [focused]);
 
   const openDropdown = useCallback(() => {
-    if (disabled) return;
+    if (disabled || locked) return;
     setOpen(true);
     setQuery('');
     setFocused(-1);
     setTimeout(() => inputRef.current?.focus(), 0);
-  }, [disabled]);
+  }, [disabled, locked]);
 
   const selectOpt = useCallback((opt: FlatOption) => {
-    if (opt.disabled) return;
+    if (opt.disabled || locked) return;
     onSelect(opt);
     setOpen(false);
     setQuery('');
     setFocused(-1);
-  }, [onSelect]);
+  }, [onSelect, locked]);
+
+  // ── Copy guards ────────────────────────────────────────────────────────────
+  // The query the user typed themselves is their own text — only the selected
+  // label (shown when closed) and the option list are restricted.
+  const guardActive = noCopy && !open;
+
+  const handleClipboard = useCallback((e: React.ClipboardEvent) => {
+    if (!noCopy) return;
+    e.preventDefault();
+    e.clipboardData?.setData('text/plain', '');
+    onCopyBlocked();
+  }, [noCopy, onCopyBlocked]);
+
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (!noCopy) return;
+    e.preventDefault();
+    onCopyBlocked();
+  }, [noCopy, onCopyBlocked]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!noCopy || !blockContextMenu) return;
+    e.preventDefault();
+    onCopyBlocked();
+  }, [noCopy, blockContextMenu, onCopyBlocked]);
 
   const handleKey = (e: React.KeyboardEvent) => {
+    if (locked) return;
     const navigable = filtered.filter(o => !o.disabled);
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -230,6 +303,12 @@ function SearchableSelect({
     }
   };
 
+  // What the closed control displays. Masked fields never put the real label
+  // in the DOM at all.
+  const displayLabel = masked
+    ? (selected ? MASK : '')
+    : (selected?.label ?? '');
+
   // ── Styles (match existing design system exactly) ──────────────────────────
   const controlStyle: React.CSSProperties = {
     display:        'flex',
@@ -237,10 +316,10 @@ function SearchableSelect({
     gap:            6,
     border:         '1px solid var(--border2)',
     borderRadius:   'var(--r)',
-    background:     disabled ? 'var(--surface2)' : 'var(--surface)',
+    background:     (disabled || locked) ? 'var(--surface2)' : 'var(--surface)',
     padding:        '0 8px 0 10px',
     height:         36,
-    cursor:         disabled ? 'not-allowed' : 'pointer',
+    cursor:         disabled ? 'not-allowed' : locked ? 'default' : 'pointer',
     transition:     'border-color .12s',
     boxShadow:      open ? '0 0 0 2px var(--blue-md)' : 'none',
     position:       'relative',
@@ -254,9 +333,12 @@ function SearchableSelect({
     fontSize:       13,
     fontFamily:     'var(--font)',
     color:          'var(--ink)',
-    cursor:         disabled ? 'not-allowed' : 'text',
+    cursor:         disabled ? 'not-allowed' : locked ? 'default' : 'text',
     minWidth:       0,
     padding:        0,
+    // Suppress selection only while the control shows a restricted value.
+    // While open the field holds the user's own query, so selection stays on.
+    ...(guardActive ? { userSelect: 'none' as const, WebkitUserSelect: 'none' as const } : {}),
   };
 
   const dropdownStyle: React.CSSProperties = {
@@ -353,11 +435,19 @@ function SearchableSelect({
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
+    <div
+      ref={containerRef}
+      style={{ position: 'relative' }}
+      data-nocopy={noCopy || undefined}
+      onCopy={noCopy ? handleClipboard : undefined}
+      onCut={noCopy ? handleClipboard : undefined}
+      onDragStart={noCopy ? handleDragStart : undefined}
+      onContextMenu={noCopy && blockContextMenu ? handleContextMenu : undefined}
+    >
       {/* ── Control row ── */}
       <div
         style={controlStyle}
-        onClick={() => { if (!open) openDropdown(); }}
+        onClick={() => { if (!open && !locked) openDropdown(); }}
         onKeyDown={handleKey}
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -371,12 +461,15 @@ function SearchableSelect({
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={`${inputId}-list`}
+          aria-readonly={locked || undefined}
           disabled={disabled}
+          readOnly={locked}
           style={inputStyle}
           placeholder={open ? 'Search…' : (selected ? '' : placeholder)}
-          value={open ? query : (selected?.label ?? '')}
-          onFocus={() => { if (!open) openDropdown(); }}
+          value={open ? query : displayLabel}
+          onFocus={() => { if (!open && !locked) openDropdown(); }}
           onChange={e => {
+            if (locked) return;
             setQuery(e.target.value);
             setFocused(-1);
             if (!open) setOpen(true);
@@ -385,7 +478,7 @@ function SearchableSelect({
         />
 
         {/* Clear button */}
-        {allowClear && selected && !disabled && (
+        {allowClear && selected && !disabled && !locked && (
           <button
             type="button"
             tabIndex={-1}
@@ -398,23 +491,25 @@ function SearchableSelect({
         )}
 
         {/* Chevron */}
-        <span
-          aria-hidden="true"
-          style={{
-            fontSize:    9,
-            color:       'var(--ink4)',
-            flexShrink:  0,
-            transform:   open ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition:  'transform .15s',
-            lineHeight:  1,
-          }}
-        >
-          ▼
-        </span>
+        {!locked && (
+          <span
+            aria-hidden="true"
+            style={{
+              fontSize:    9,
+              color:       'var(--ink4)',
+              flexShrink:  0,
+              transform:   open ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition:  'transform .15s',
+              lineHeight:  1,
+            }}
+          >
+            ▼
+          </span>
+        )}
       </div>
 
       {/* ── Dropdown ── */}
-      {open && (
+      {open && !locked && (
         <ul
           ref={listRef}
           id={`${inputId}-list`}

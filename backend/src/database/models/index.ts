@@ -50,8 +50,6 @@ import { EmployeePermission } from './EmployeePermission';
 import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary } from './Employee';
 import { AttendanceRegularization } from './Associations';
 import { Shift } from './Shift';
-import { SubDepartment } from './Associations';
-import { SubDesignation } from './Associations';
 
 // IMPORTANT
 import './Associations';
@@ -84,5 +82,5 @@ export {
   PermissionGroup, GroupPermission, UserGroup,
   Asset, AssetCategory, AssetAssignment, AssetRequest, AssetMaintenance,
   CompanyManager,   EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, CompanySetting,
-  CompanyModule, DEFAULT_MODULES, AttendanceRegularization, Shift, SubDepartment, SubDesignation
+  CompanyModule, DEFAULT_MODULES, AttendanceRegularization, Shift
 };

@@ -45,7 +45,7 @@ export function HireCandidateModal({ open, onClose, candidate }: Props) {
 
   const { data: deptOptions }  = useDepartmentOptions();
   const { data: desigData }    = useDesignationsByDepartment(selectedDeptId);
-  const { data: empData }      = useEmployees({ limit: 200, status: 'Active' as any });
+  const { data: empData }      = useEmployees({ limit: 100, status: 'Active' as any });
 
   const designations = desigData ?? [];
   const managers     = empData?.data ?? [];

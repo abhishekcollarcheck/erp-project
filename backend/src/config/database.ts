@@ -25,34 +25,24 @@ export const sequelize = new Sequelize(env.db.name, env.db.user, env.db.password
 export async function connectDatabase(): Promise<void> {
   try {
     await sequelize.authenticate();
-    logger.info('✅ Database connection established');
+    logger.info('Database connection established');
 
     if (env.nodeEnv === 'development') {
-      logger.info('🔒 Disabling FK checks for sync...');
-      await sequelize.query('SET FOREIGN_KEY_CHECKS=0');
-
-      try {
-        logger.info('📋 Syncing database models...');
-        await sequelize.sync({ alter: false});
-        logger.info('✅ Database models synced successfully');
-      } finally {
-        logger.info('🔓 Re-enabling FK checks...');
-        await sequelize.query('SET FOREIGN_KEY_CHECKS=1');
-      }
+      await sequelize.sync({alter: true, logging: console.log});
     }
 
-  } catch (error: any) {
-    console.error("========== DATABASE ERROR ==========");
-    console.error(error);
-    console.error("Message:", error?.message);
-    console.error("Name:", error?.name);
-    console.error("Code:", error?.code);
-    console.error("Errno:", error?.errno);
-    console.error("SQL State:", error?.sqlState);
-    console.error("Stack:", error?.stack);
-    console.error("Original:", error?.original);
-    console.error("====================================");
+  }catch (error: any) {
+  console.error("========== DATABASE ERROR ==========");
+  console.error(error);
+  console.error("Message:", error?.message);
+  console.error("Name:", error?.name);
+  console.error("Code:", error?.code);
+  console.error("Errno:", error?.errno);
+  console.error("SQL State:", error?.sqlState);
+  console.error("Stack:", error?.stack);
+  console.error("Original:", error?.original);
+  console.error("====================================");
 
-    process.exit(1);
-  }
+  process.exit(1);
+}
 }

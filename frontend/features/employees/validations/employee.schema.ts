@@ -22,20 +22,21 @@ const reqInt  = (msg: string) => z.union([
 
 // ─── Step 1: Basic Info ───────────────────────────────────────────────────────
 export const basicSchema = z.object({
-  first_name:         reqStr('First name is required').max(100),
-  middle_name:        optStr,
-  last_name:          reqStr('Last name is required').max(100),
-  status:             z.enum(['Active', 'Left', 'Retired']).default('Active'),
-  employment_type:    z.enum(['Permanent', 'Contractual']).default('Permanent'),
-  employee_code:      optStr,
-  reference_code:     optStr,
-  department_id:      reqInt('Department is required'),
-  sub_department_id:  optInt,
-  designation_id:     reqInt('Designation is required'),
-  sub_designation:    optStr,
-  email:              optStr,
-  phone:              reqStr('Phone number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
-  company_id:         z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
+  first_name:      reqStr('First name is required').max(100),
+  middle_name:     optStr,
+  last_name:       reqStr('Last name is required').max(100),
+  status:          z.enum(['Active', 'Left', 'Retired']).default('Active'),
+  employment_type: z.enum(['Permanent', 'Contractual']).default('Permanent'),
+  employee_code:     optStr,
+  reference_code:    optStr,
+  department_id:     reqInt('Department is required'),
+  sub_department_id: optInt,
+  designation_id:    reqInt('Designation is required'),
+  sub_designation: optStr,
+  // Added: email, phone, company_id for Step 1 — Basic Info
+  email:      z.string({ required_error: 'Work email is required' }).email('Valid email is required').toLowerCase().trim(),
+  phone:      reqStr('Phone number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
+  company_id: z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
 });
 
 // ─── Step 2: Employment Details ───────────────────────────────────────────────
@@ -267,7 +268,7 @@ export const fullEmployeeSchema = z.object({
   sub_department_id: optInt,
   designation_id:    reqInt('Designation is required'),
   sub_designation:   optStr,
-  email:             optStr,
+  email:             z.string({ required_error: 'Work email is required' }).email('Valid email is required').toLowerCase().trim(),
   phone:             reqStr('Phone number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
   company_id:        z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
 

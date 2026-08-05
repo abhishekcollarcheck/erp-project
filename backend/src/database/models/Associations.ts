@@ -49,8 +49,6 @@ import { AttendanceRegularization } from './AttendanceRegularization';
 import { CompanyManager } from './CompanyManager';
 import { EmployeePermission } from './EmployeePermission';
 import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary } from './Employee';
-import { SubDepartment } from './Subdepartment';
-import { SubDesignation } from './SubDesignation';
 
 // Company ↔ CompanyManager ↔ Employee (many-to-many)
 Company.hasMany(CompanyManager, { foreignKey: 'company_id', as: 'managers' });
@@ -115,17 +113,9 @@ Company.hasMany(Employee,    { foreignKey: 'company_id', as: 'employees' });
 Employee.belongsTo(Department,  { foreignKey: 'department_id',  as: 'department'  });
 Department.hasMany(Employee,    { foreignKey: 'department_id',  as: 'employees'   });
 
-// ─── Employee ↔ Department ────────────────────────────────────────────────────
-Employee.belongsTo(SubDepartment,  { foreignKey: 'sub_department_id',  as: 'subDepartment'  });
-SubDepartment.hasMany(Employee,    { foreignKey: 'sub_department_id',  as: 'employees'   });
-
 // ─── Employee ↔ Designation ───────────────────────────────────────────────────
 Employee.belongsTo(Designation, { foreignKey: 'designation_id', as: 'designation' });
 Designation.hasMany(Employee,   { foreignKey: 'designation_id', as: 'employees'   });
-
-// ─── Employee ↔ Department ────────────────────────────────────────────────────
-Employee.belongsTo(SubDesignation,  { foreignKey: 'sub_department',  as: 'subDesignation'  });
-SubDesignation.hasMany(Employee,    { foreignKey: 'sub_department',  as: 'employees'   });
 
 // ─── Employee ↔ Manager (self-referential) ───────────────────────────────────
 Employee.belongsTo(Employee, { foreignKey: 'reporting_manager_id', as: 'manager'   });
@@ -294,5 +284,5 @@ export {
   UserModulePermission, UserFieldPermission,
   PermissionGroup, GroupPermission, UserGroup,
   Asset, AssetCategory, AssetAssignment, AssetRequest, AssetMaintenance, CompanyManager,
-  EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, AttendanceRegularization, SubDepartment, SubDesignation
+  EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, AttendanceRegularization
 };

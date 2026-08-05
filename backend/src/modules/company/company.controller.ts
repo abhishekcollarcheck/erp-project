@@ -355,29 +355,29 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
       const allPerms = await Permission.findAll({ attributes: ['id', 'slug'], transaction: t });
       const permMap = new Map(allPerms.map((p: any) => [p.slug, p.id]));
 
-      // for (const tpl of SYSTEM_GROUPS) {
-      //   const [group] = await PermissionGroup.findOrCreate({
-      //     where: { company_id: company.id, slug: tpl.slug },
-      //     defaults: {
-      //       company_id: company.id, name: tpl.name, slug: tpl.slug,
-      //       description: tpl.description, color: tpl.color,
-      //       is_system: tpl.is_system, is_active: true
-      //     },
-      //     transaction: t,
-      //   } as any);
+      for (const tpl of SYSTEM_GROUPS) {
+        const [group] = await PermissionGroup.findOrCreate({
+          where: { company_id: company.id, slug: tpl.slug },
+          defaults: {
+            company_id: company.id, name: tpl.name, slug: tpl.slug,
+            description: tpl.description, color: tpl.color,
+            is_system: tpl.is_system, is_active: true
+          },
+          transaction: t,
+        } as any);
 
-      //   const permIds = (tpl.slug_grants as readonly string[])
-      //     .filter(s => s !== '*')
-      //     .map(s => permMap.get(s))
-      //     .filter(Boolean) as number[];
+        const permIds = (tpl.slug_grants as readonly string[])
+          .filter(s => s !== '*')
+          .map(s => permMap.get(s))
+          .filter(Boolean) as number[];
 
-      //   if (permIds.length) {
-      //     await GroupPermission.bulkCreate(
-      //       permIds.map(pid => ({ group_id: group.id, company_id: company.id, permission_id: pid })),
-      //       { ignoreDuplicates: true, transaction: t },
-      //     );
-      //   }
-      // }
+        if (permIds.length) {
+          await GroupPermission.bulkCreate(
+            permIds.map(pid => ({ group_id: group.id, company_id: company.id, permission_id: pid })),
+            { ignoreDuplicates: true, transaction: t },
+          );
+        }
+      }
 
       await CompanyModule.bulkCreate(
         DEFAULT_MODULES.map(m => ({ ...m, company_id: company.id })),

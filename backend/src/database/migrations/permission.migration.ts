@@ -36,12 +36,3 @@
 // ADD CONSTRAINT fk_employee_shift
 // FOREIGN KEY (shift_id)
 // REFERENCES shifts(id);
-
-// ALTER TABLE leave_types
-//   ADD COLUMN accrual_unit ENUM('days', 'hours') NOT NULL DEFAULT 'days' AFTER days_per_year,
-//   ADD COLUMN accrual_period ENUM('annual_progressive', 'monthly_reset') NOT NULL DEFAULT 'annual_progressive' AFTER accrual_unit;
-
-// ALTER TABLE leave_types
-//   MODIFY COLUMN company_id INT UNSIGNED NULL;
-
-//   ALTER TABLE leave_types ADD UNIQUE KEY uniq_company_code (company_id, code);

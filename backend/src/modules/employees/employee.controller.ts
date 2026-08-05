@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction, raw } from "express";
 import { validationResult } from "express-validator";
 import multer from "multer";
-import * as XLSX from "XLSX";
+import * as XLSX from "xlsx";
 import { sendResponse, sendError, sendPaginated } from "../../utils/response";
 import { employeeService } from "./employee.service";
 import type { StepKey } from "./employee.constants";

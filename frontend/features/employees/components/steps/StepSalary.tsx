@@ -13,6 +13,7 @@ import { FormToggle } from '../../../../components/form/FormToggle';
 import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { useFieldPermissions } from '../../hooks/useEmployees';
 import { toOpts, SALARY_MODE, DEDUCTION_FROM, DEDUCTION_MONTHS } from '../../constants/employee.constants';
+import { FormSection } from '@/components/form/FormSection';
 
 function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: string }) {
   const { data: fp } = useFieldPermissions();
@@ -34,7 +35,7 @@ function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
         <FormCurrencyInput name={`${prefix}_basic`}      label="Basic"      required fieldPerm={f('basic')} />
         <FormCurrencyInput name={`${prefix}_hra`}        label="HRA"        required fieldPerm={f('hra')} />
-        <FormCurrencyInput name={`${prefix}_allowance1`} label="Allowance1" required />
+        <FormCurrencyInput name={`${prefix}_allowance1`} label="Allowance1" required fieldPerm={f('allowance1')} />
       </div>
 
       {/* Auto-computed gross */}
@@ -45,7 +46,7 @@ function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: 
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <FormCurrencyInput name={`${prefix}_amdb`} label="AMDB PM" required hint="Additional Monthly Discretionary Bonus" />
+        <FormCurrencyInput name={`${prefix}_amdb`} label="AMDB PM" required hint="Additional Monthly Discretionary Bonus" fieldPerm={f('amdb')} />
         <div className="form-field">
           <label className="field-label">Total Earning PM</label>
           <div style={{ padding: '8px 12px', background: 'var(--surface3)', borderRadius: 'var(--r)', fontSize: 16, fontWeight: 600, color: 'var(--blue)' }}>{fmt(total)}</div>
@@ -59,6 +60,8 @@ function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: 
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepSalary(_: Props) {
+  const { data: fp } = useFieldPermissions();
+  const f = (n: string) => fp?.[n];
   const assetDeduction = useWatch({ name: 'asset_deduction_applicable' });
   const security       = useWatch({ name: 'security_amount' }) ?? 0;
   const months         = useWatch({ name: 'deduction_months' }) ?? '';
@@ -69,22 +72,22 @@ export function StepSalary(_: Props) {
   const lastInst   = monthly > 0 ? Number(security) - monthly * (monthCount - 1) : 0;
 
   return (
+    <FormSection fields={[f('salary_mode'), f('asset_deduction_applicable'), f('deduction_months'), f('deduction_from'), f('security_amount')]}>
     <div style={{ display: 'grid', gap: 20 }}>
-      <FormSelect name="salary_mode" label="Mode of Payment" required options={toOpts(SALARY_MODE)} />
-
+      <FormSelect name="salary_mode" label="Mode of Payment" required options={toOpts(SALARY_MODE)} fieldPerm={f('salary_mode')}  />
       <SalaryBlock prefix="current" label="Current Salary Details" />
       <SalaryBlock prefix="joining" label="Joining Salary Details" />
 
       {/* Asset Deduction */}
       <div style={{ background: 'var(--surface2)', borderRadius: 'var(--r2)', padding: 16 }}>
-        <SectionTitle title="Asset Deduction" subtitle="Deduction for company assets issued to employee" />
-        <FormToggle name="asset_deduction_applicable" label="Asset Deduction Applicable" />
+        <SectionTitle title="Asset Deduction" subtitle="Deduction for company assets issued to employee" fields={[f('asset_deduction_applicable'), f('deduction_months'), f('deduction_from'), f('security_amount')]} />
+        <FormToggle name="asset_deduction_applicable" label="Asset Deduction Applicable" fieldPerm={f('asset_deduction_applicable')} />
         {assetDeduction && (
           <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <FormCurrencyInput name="security_amount"  label="Security Amount" />
-              <FormSelect        name="deduction_months" label="Deduction Months" options={toOpts(DEDUCTION_MONTHS)} placeholder="Select" />
-              <FormSelect        name="deduction_from"   label="Deduct From"     options={toOpts(DEDUCTION_FROM)} placeholder="Select" />
+              <FormCurrencyInput name="security_amount"  label="Security Amount" fieldPerm={f('security_amount')} />
+              <FormSelect        name="deduction_months" label="Deduction Months" options={toOpts(DEDUCTION_MONTHS)} placeholder="Select" fieldPerm={f('deduction_months')} />
+              <FormSelect        name="deduction_from"   label="Deduct From"     options={toOpts(DEDUCTION_FROM)} placeholder="Select" fieldPerm={f('deduction_from')} />
             </div>
             {monthly > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -106,5 +109,6 @@ export function StepSalary(_: Props) {
         )}
       </div>
     </div>
+    </FormSection>
   );
 }

@@ -6,33 +6,28 @@ import { AppError }    from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 
 export interface CreateDepartmentDto {
-  name:       string;
-  code?:      string | null;
-  head_id?:   number | null;
-  // parent_id?: number | null;
+  department_name:     string;
+  department_code?:    string | null;
+  head_id?:            number | null;
 }
 
 export interface UpdateDepartmentDto {
-  name?:      string;
-  code?:      string | null;
-  head_id?:   number | null;
-  // parent_id?: number | null;
-  is_active?: boolean;
+  department_name?:    string;
+  department_code?:    string | null;
+  head_id?:            number | null;
+  is_active?:          boolean;
 }
 
 export interface DepartmentQueryParams {
   search?:    string;
   is_active?: string | boolean;
-  // parent_id?: string | number;
 }
 
 export class DepartmentService {
 
-  // ─── List (with employee count + head + designations) ─────────────────────
-async getAll(companyId: number, query: DepartmentQueryParams = {}) {
+async getAll(query: DepartmentQueryParams = {}) {
   const where: WhereOptions = {};
 
-  // Default to active only unless explicitly asked for inactive
   if (query.is_active === 'false' || query.is_active === false) {
     where['is_active'] = false;
   } else if (query.is_active === 'all') {
@@ -43,13 +38,13 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
 
   if (query.search) {
     (where as any)[Op.or] = [
-      { name: { [Op.like]: `%${query.search}%` } },
+      { department_name: { [Op.like]: `%${query.search}%` } },
     ];
   }
 
   const departments = await Department.findAll({
     where,
-    order: [['name', 'ASC']],
+    order: [['department_name', 'ASC']],
   });
 
   const deptIds = departments.map((d) => d.id);
@@ -77,7 +72,6 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
   }));
 }
 
-  // ─── Single (full detail with employees list) ─────────────────────────────
   async getById(id: number, companyId: number) {
     const dept = await Department.findOne({
       where: { id},
@@ -88,24 +82,6 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
           attributes: ['id', 'first_name', 'last_name', 'avatar_url'],
           required:   false,
         },
-        // {
-        //   model:      Designation,
-        //   as:         'designations',
-        //   attributes: ['id', 'name', 'grade'],
-        //   required:   false,
-        // },
-        // {
-        //   model:      Department,
-        //   as:         'parent',
-        //   attributes: ['id', 'name', 'code'],
-        //   required:   false,
-        // },
-        // {
-        //   model:      Department,
-        //   as:         'children',
-        //   attributes: ['id', 'name', 'code', 'is_active'],
-        //   required:   false,
-        // },
         {
           model:      Employee,
           as:         'employees',
@@ -157,22 +133,14 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
 
   // ─── Create ───────────────────────────────────────────────────────────────
   async create(companyId: number, dto: CreateDepartmentDto, createdBy?: number) {
-    // Duplicate name check within same company
     const existing = await Department.findOne({
-      where: { name: dto.name.trim(), is_active: true },
+      where: { department_name: dto.department_name.trim(), is_active: true },
     });
-    if (existing) throw new AppError(`Department "${dto.name}" already exists`, 409);
-
-    // Validate parent belongs to same company
-    // if (dto.parent_id) {
-    //   const parent = await Department.findOne({ where: { id: dto.parent_id, company_id: companyId } });
-    //   if (!parent) throw new AppError('Parent department not found', 404);
-    // }
+    if (existing) throw new AppError(`Department "${dto.department_name}" already exists`, 409);
 
     const dept = await Department.create({
-      name:       dto.name.trim(),
-      // code:       dto.code?.toUpperCase().trim() || null,
-      // parent_id:  dto.parent_id ?? null,
+      department_name:       dto.department_name.trim(),
+      department_code:       dto.department_code?.toUpperCase().trim() || null,
       is_active:  true,
       created_by: createdBy ?? null,
     });
@@ -180,7 +148,7 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
     await logActivity({
       companyId, employeeId: createdBy,
       action: 'DEPARTMENT_CREATED', module: 'departments', entityId: dept.id,
-      newValues: { name: dept.name,},
+      newValues: { department_name: dept.department_name,},
     });
 
     return this.getById(dept.id, companyId);
@@ -191,16 +159,11 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
     const dept = await Department.findOne({ where: { id } });
     if (!dept) throw new AppError('Department not found', 404);
 
-    const before = { name: dept.name, is_active: dept.is_active };
-
-    // Prevent self as parent
-    // if (dto.parent_id && dto.parent_id === id)
-    //   throw new AppError('A department cannot be its own parent', 400);
+    const before = { department_name: dept.department_name, is_active: dept.is_active };
 
     await dept.update({
-      name:       dto.name?.trim()               ?? dept.name,
-      // code:       dto.code?.toUpperCase().trim() ?? dept.code,
-      // parent_id:  dto.parent_id !== undefined ? dto.parent_id : dept.parent_id,
+      department_name: dto.department_name?.trim() ?? dept.department_name,
+      department_code: dto.department_code?.toUpperCase().trim() ?? dept.department_code,
       is_active:  dto.is_active !== undefined ? dto.is_active : dept.is_active,
       updated_by: updatedBy ?? null,
     });
@@ -209,7 +172,7 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
       companyId, employeeId: updatedBy,
       action: 'DEPARTMENT_UPDATED', module: 'departments', entityId: id,
       oldValues: before as Record<string, unknown>,
-      newValues: { name: dept.name, is_active: dept.is_active },
+      newValues: { department_name: dept.department_name, is_active: dept.is_active },
     });
 
     return this.getById(id, companyId);
@@ -225,16 +188,9 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
     });
     if (empCount > 0)
       throw new AppError(
-        `Cannot delete "${dept.name}" — ${empCount} active employee(s) are assigned. Reassign them first.`,
+        `Cannot delete "${dept.department_name}" — ${empCount} active employee(s) are assigned. Reassign them first.`,
         409,
       );
-
-    // const childCount = await Department.count({ where: { parent_id: id, is_active: true } });
-    // if (childCount > 0)
-    //   throw new AppError(
-    //     `Cannot delete "${dept.name}" — it has ${childCount} active sub-department(s). Delete or reassign them first.`,
-    //     409,
-    //   );
 
     await dept.update({ is_active: false, deleted_by: deletedBy ?? null });
     await dept.destroy();
@@ -242,7 +198,7 @@ async getAll(companyId: number, query: DepartmentQueryParams = {}) {
     await logActivity({
       companyId, employeeId: deletedBy,
       action: 'DEPARTMENT_DELETED', module: 'departments', entityId: id,
-      oldValues: { name: dept.name },
+      oldValues: { department_name: dept.department_name },
     });
   }
 }

@@ -48,13 +48,6 @@ const NAV: NavSection[] = [
         href: "/attendance",
         permission: null,
       },
-      {
-        id: "leaves",
-        label: "Leaves",
-        icon: <LayoutDashboard size={16} />,
-        href: "/leaves",
-        permission: null,
-      },
     ],
   },
   {
@@ -98,14 +91,6 @@ const NAV: NavSection[] = [
             module: "departments",
           },
           {
-            id: "subdepartments",
-            label: "Sub Departments",
-            icon: <BookA size={16} />,
-            href: "/sub-department",
-            permission: "sub-department:view",
-            module: "sub-department",
-          },          
-          {
             id: "designations",
             label: "Designations",
             icon: <Target size={16} />,
@@ -113,14 +98,6 @@ const NAV: NavSection[] = [
             permission: "designation:view",
             module: "designations",
           },
-          {
-            id: "subdesignations",
-            label: "Sub Designations",
-            icon: <Target size={16} />,
-            href: "/sub-designation",
-            permission: "sub-designation:view",
-            module: "sub-designations",
-          },          
         ],
       },
     ],
@@ -410,7 +387,6 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 
 export function Sidebar() {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
-  console.log("openMenus", openMenus)
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = useAppSelector((s: any) => s.ui.sidebarCollapsed);
@@ -580,7 +556,7 @@ export function Sidebar() {
                         }
                       >
                         <span className="ni-ic">{item.icon}</span>
-                        {collapsed} 
+
                         {!collapsed && (
                           <>
                             <span className="ni-lb">{item.label}</span>

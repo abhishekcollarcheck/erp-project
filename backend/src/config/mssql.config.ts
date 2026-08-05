@@ -16,7 +16,7 @@ import sql from 'mssql';
 const config: sql.config = {
   user:     'sa',
   password: 'abc@123',
-  server:   '192.168.1.197',
+  server:   '61.247.238.154',
   database: 'Realtime',
   port:     1433,
   options: {

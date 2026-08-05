@@ -31,7 +31,7 @@ export class Shift extends Model<ShiftAttributes, ShiftCreationAttributes> imple
 
 Shift.init(
   {
-    id: { type: DataTypes.BIGINT.UNSIGNED, primaryKey: true, autoIncrement: false }, // explicit IDs only
+    id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: false }, // explicit IDs only
     label: { type: DataTypes.STRING(100), allowNull: false },
     category: { type: DataTypes.ENUM('STANDARD', 'NAT'), allowNull: false },
     start_time: { type: DataTypes.TIME, allowNull: false },

@@ -6,7 +6,7 @@ const departmentService = new DepartmentService();
 
 export async function getDepartments(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await departmentService.getAll(req.user!.companyId, req.query as any);
+    const data = await departmentService.getAll(req.query as any);
     sendResponse(res, { data, message: 'Departments fetched' });
   } catch (e) { next(e); }
 }

@@ -44,7 +44,7 @@ export default function DepartmentsPage() {
   const openCreate = () => { setEditTarget(null); setFormOpen(true); };
   const openEdit = (d: Department) => { setEditTarget(d); setFormOpen(true); };
 
-  const deptOptions = departments.map((d) => ({ value: d.id, label: d.name }));
+  const deptOptions = departments.map((d) => ({ value: d.id, label: d.dpname }));
   const managerOpts = employees.map((e) => ({ value: e.id, label: `${e.first_name} ${e.last_name}` }));
 
   const handleDelete = async () => {
@@ -142,7 +142,7 @@ export default function DepartmentsPage() {
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.2px' }}>
-                              {dept.name}
+                              {dept.dpname}
                             </div>
                             {dept.code && (
                               <span style={{ fontSize: 10, fontFamily: 'var(--mono)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', color: 'var(--ink4)', marginTop: 3, display: 'inline-block' }}>
@@ -199,7 +199,7 @@ export default function DepartmentsPage() {
                         {/* Parent */}
                         {dept.parent && (
                           <div style={{ fontSize: 11, color: 'var(--ink4)', marginBottom: 12 }}>
-                            Under: <strong style={{ color: 'var(--ink3)' }}>{dept.parent.name}</strong>
+                            Under: <strong style={{ color: 'var(--ink3)' }}>{dept.parent.dpname}</strong>
                           </div>
                         )}
 
@@ -250,7 +250,7 @@ export default function DepartmentsPage() {
                           <td>
                             <strong style={{ cursor: 'pointer', color: 'var(--blue)' }}
                               onClick={() => router.push(`/departments/${dept.id}`)}>
-                              {dept.name}
+                              {dept.dpname}
                             </strong>
                           </td>
                           <td>
@@ -268,7 +268,7 @@ export default function DepartmentsPage() {
                           </td>
                           <td style={{ fontFamily: 'var(--mono)' }}>{dept.designations?.length ?? 0}</td>
                           <td style={{ fontSize: 11, color: 'var(--ink4)' }}>
-                            {dept.parent?.name ?? '—'}
+                            {dept.parent?.dpname ?? '—'}
                           </td>
                           <td><Chip variant={dept.is_active ? 'green' : 'gray'}>{dept.is_active ? 'Active' : 'Inactive'}</Chip></td>
                             <td>
@@ -305,7 +305,7 @@ export default function DepartmentsPage() {
           open={!!deleteTarget}
           onClose={() => setDeleteTarget(null)}
           title="Delete Department"
-          subtitle={`Delete "${deleteTarget?.name}"?`}
+          subtitle={`Delete "${deleteTarget?.dpname}"?`}
           footer={
             <>
               <button className="btn btn-sec" onClick={() => setDeleteTarget(null)}>Cancel</button>
