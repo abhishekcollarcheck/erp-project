@@ -1,12 +1,11 @@
 import { z } from 'zod';
 
 export const createDepartmentSchema = z.object({
-  dpname: z
+  department_name: z
     .string().min(1, 'Department name is required').max(200).trim(),
-  code: z
+  department_code: z
     .string().max(20, 'Code max 20 characters').trim().optional().or(z.literal('')),
   head_id:   z.number().int().positive().optional().nullable(),
-  parent_id: z.number().int().positive().optional().nullable(),
 });
 
 export const updateDepartmentSchema = createDepartmentSchema

@@ -12,6 +12,7 @@ import { useAuth, usePermission } from "../../features/auth/hooks/useAuth";
 import { useCompany } from "../../features/company/hooks/useCompany";
 import { authService } from "../../services/api/auth.service";
 import { ChevronDown, ChevronRight, Brain, LayoutDashboard, SquareUserRound, Target, BookKey, ArrowUpNarrowWide, BookA, Settings, Building2, ShieldUser, Form, Shrink } from "lucide-react";
+import { toggleSidebarMenu } from "../../store/slices/uiSlice";
 
 // ─── Nav definition ───────────────────────────────────────────────────────────
 
@@ -46,6 +47,13 @@ const NAV: NavSection[] = [
         label: "Attendance",
         icon: <LayoutDashboard size={16} />,
         href: "/attendance",
+        permission: null,
+      },
+      {
+        id: "leaves",
+        label: "Leaves",
+        icon: <LayoutDashboard size={16} />,
+        href: "/leaves",
         permission: null,
       },
     ],
@@ -91,6 +99,14 @@ const NAV: NavSection[] = [
             module: "departments",
           },
           {
+            id: "subdepartments",
+            label: "Sub Departments",
+            icon: <BookA size={16} />,
+            href: "/sub-department",
+            permission: "sub-department:view",
+            module: "sub-department",
+          },          
+          {
             id: "designations",
             label: "Designations",
             icon: <Target size={16} />,
@@ -98,6 +114,14 @@ const NAV: NavSection[] = [
             permission: "designation:view",
             module: "designations",
           },
+          {
+            id: "subdesignations",
+            label: "Sub Designations",
+            icon: <Target size={16} />,
+            href: "/sub-designation",
+            permission: "sub-designation:view",
+            module: "sub-designations",
+          },          
         ],
       },
     ],
@@ -386,7 +410,8 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 // ─── Sidebar component ────────────────────────────────────────────────────────
 
 export function Sidebar() {
-  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+const openMenus = useAppSelector((s: any) => s.ui.openMenus);
+const dispatch = useAppDispatch();
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = useAppSelector((s: any) => s.ui.sidebarCollapsed);
@@ -548,15 +573,10 @@ export function Sidebar() {
                       <div
                         className={`ni${isActive ? " on" : ""}`}
                         title={collapsed ? item.label : undefined}
-                        onClick={() =>
-                          setOpenMenus((prev) => ({
-                            ...prev,
-                            [item.id]: !prev[item.id],
-                          }))
-                        }
+                        onClick={() => dispatch(toggleSidebarMenu(item.id))}
                       >
                         <span className="ni-ic">{item.icon}</span>
-
+                        {collapsed} 
                         {!collapsed && (
                           <>
                             <span className="ni-lb">{item.label}</span>

@@ -47,7 +47,7 @@ export function useCreateDepartment() {
     mutationFn: (data: CreateDepartmentDto) => departmentService.create(data),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: KEYS.all });
-      showToast(`✓ Department "${res.data.dpname}" created`);
+      showToast(`✓ Department "${res.data.department_name}" created`);
     },
     onError: (err: any) => showToast(err?.message || 'Failed to create department'),
   });
@@ -61,7 +61,7 @@ export function useUpdateDepartment(id: number) {
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: KEYS.all });
       qc.setQueryData(KEYS.detail(id), res);
-      showToast(`✓ "${res.data.dpname}" updated`);
+      showToast(`✓ "${res.data.department_name}" updated`);
     },
     onError: (err: any) => showToast(err?.message || 'Update failed'),
   });
@@ -88,8 +88,8 @@ export function useDepartmentOptions() {
     ...query,
     data: (query.data || []).map((d) => ({
       value: d.id,
-      label: d.dpname,
-      code: d.code
+      label: d.department_name,
+      code: d.department_code
     }))
   };
 }

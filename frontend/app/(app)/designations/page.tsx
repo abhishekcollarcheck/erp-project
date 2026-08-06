@@ -27,7 +27,7 @@ export default function DesignationsPage() {
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState<number | ''>('');
   const [statusFilter, setStatusFilter] = useState<'true' | 'false' | 'all'>('true');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Designation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Designation | null>(null);
@@ -38,7 +38,6 @@ export default function DesignationsPage() {
 
   const { data: designations = [], isLoading } = useDesignations({
     search: debouncedSearch || undefined,
-    department_id: deptFilter || undefined,
     is_active: statusFilter,
   });
 
@@ -76,6 +75,7 @@ export default function DesignationsPage() {
     return 'amber';
   };
 
+
   return (
     <PermissionGuard permission='designation:view'>
       <AppShell onAddNew={canEdit('designation') ? openCreate : undefined}>
@@ -90,12 +90,13 @@ export default function DesignationsPage() {
             <div className="ph-r">
               {/* View toggle */}
               <div style={{ display: 'flex', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 2, gap: 2 }}>
-                {(['table', 'cards'] as const).map((v) => (
+                {(['cards', 'table'] as const).map((v) => (
                   <button key={v} onClick={() => setViewMode(v)} style={{ padding: '4px 12px', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: viewMode === v ? 'var(--surface)' : 'transparent', color: viewMode === v ? 'var(--ink)' : 'var(--ink4)', boxShadow: viewMode === v ? 'var(--sh)' : 'none', fontFamily: 'var(--font)', transition: 'all .1s' }}>
-                    {v === 'table' ? '☰ Table' : '⊞ Cards'}
+                    {v === 'cards' ? '⊞ Cards' : '☰ Table'}
                   </button>
                 ))}
               </div>
+
               {canCreate('designation') && (
                 <button className="btn btn-pri btn-sm" onClick={openCreate}>+ Add Designation</button>
               )}
@@ -106,8 +107,7 @@ export default function DesignationsPage() {
           <div className="g4 mb14">
             <StatCard label="Total" value={stats?.total ?? '…'} color="var(--blue)" />
             <StatCard label="Active" value={stats?.active ?? '…'} color="var(--green)" />
-            <StatCard label="With Grade" value={stats?.withGrade ?? '…'} color="var(--teal)" />
-            <StatCard label="Cross-functional" value={stats?.crossFunctional ?? '…'} color="var(--amber)" />
+            <StatCard label="In Active" value={stats?.inactive ?? '…'} color="var(--teal)" />
           </div>
 
           {/* Top designation banner */}
@@ -127,7 +127,7 @@ export default function DesignationsPage() {
               <span style={{ color: 'var(--ink4)' }}>⌕</span>
               <input type="text" placeholder="Search name or grade…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <select
+            {/* <select
               value={deptFilter}
               onChange={(e) => setDeptFilter(e.target.value ? Number(e.target.value) : '')}
               style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}
@@ -146,7 +146,7 @@ export default function DesignationsPage() {
             </select>
             <span style={{ fontSize: 11, color: 'var(--ink4)', alignSelf: 'center', marginLeft: 4 }}>
               {designations.length} result{designations.length !== 1 ? 's' : ''}
-            </span>
+            </span> */}
           </div>
 
           {/* ─── TABLE VIEW ─── */}
@@ -157,8 +157,6 @@ export default function DesignationsPage() {
                   <thead>
                     <tr>
                       <th>Designation</th>
-                      <th>Grade</th>
-                      <th>Department</th>
                       <th>Employees</th>
                       <th>Status</th>
                       {canEdit('designation') && <th>Actions</th>}
@@ -184,17 +182,7 @@ export default function DesignationsPage() {
                         : designations.map((d) => (
                           <tr key={d.id} style={{ cursor: 'pointer' }} onClick={() => router.push(`/designations/${d.id}`)}>
                             <td>
-                              <strong style={{ color: 'var(--ink)' }}>{d.name}</strong>
-                            </td>
-                            <td>
-                              {d.grade
-                                ? <Chip variant={gradeColor(d.grade) as any}>{d.grade}</Chip>
-                                : <span style={{ color: 'var(--ink4)', fontSize: 11 }}>—</span>}
-                            </td>
-                            <td>
-                              {d.department
-                                ? <Chip variant="blue">{d.department.name}</Chip>
-                                : <span style={{ fontSize: 11, color: 'var(--ink4)', fontStyle: 'italic' }}>Cross-functional</span>}
+                              <strong style={{ color: 'var(--ink)' }}>{d.designation_name}</strong>
                             </td>
                             <td style={{ fontFamily: 'var(--mono)', fontWeight: 500, color: (d.employee_count ?? 0) > 0 ? 'var(--blue)' : 'var(--ink4)', textAlign: 'center' }}>
                               {d.employee_count ?? 0}
@@ -246,41 +234,65 @@ export default function DesignationsPage() {
                     </div>
                   )
                   : designations.map((d) => (
-                    <div
-                      key={d.id}
-                      className="card"
-                      style={{ overflow: 'hidden', cursor: 'pointer', transition: 'box-shadow .12s' }}
-                      onClick={() => router.push(`/designations/${d.id}`)}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--sh2)'; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--sh)'; }}
-                    >
-                      <div style={{ height: 3, background: d.is_active ? 'var(--blue)' : 'var(--border2)' }} />
+                    <div key={d.id} className="card" style={{ overflow: 'hidden' }}>
+                      {/* Colour top bar */}
+                      <div style={{ height: 4, background: d.is_active ? 'var(--blue)' : 'var(--border2)' }} />
+
                       <div className="cp">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)', flex: 1, marginRight: 8 }}>{d.name}</div>
-                          {d.grade && <Chip variant={gradeColor(d.grade) as any}>{d.grade}</Chip>}
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.2px' }}>
+                              {d.designation_name}
+                            </div>
+                          </div>
+                          <Chip variant={d.is_active ? 'green' : 'gray'}>
+                            {d.is_active ? 'Active' : 'Inactive'}
+                          </Chip>
                         </div>
-                        <div style={{ marginBottom: 12 }}>
-                          {d.department
-                            ? <Chip variant="blue">{d.department.name}</Chip>
-                            : <span style={{ fontSize: 10, color: 'var(--ink4)', fontStyle: 'italic' }}>Cross-functional</span>}
+
+                        {/* Head */}
+                        {/* {dept.head ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 10px', background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
+                          <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg, var(--blue), var(--purple))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>
+                            {getInitials(`${dept.head.first_name} ${dept.head.last_name}`)}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink)' }}>
+                              {dept.head.first_name} {dept.head.last_name}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--ink4)' }}>Department Head</div>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink4)' }}>
-                          <span style={{ fontFamily: 'var(--mono)', fontWeight: 500, color: (d.employee_count ?? 0) > 0 ? 'var(--blue)' : 'var(--ink4)' }}>
-                            {d.employee_count ?? 0} employees
-                          </span>
-                          <Chip variant={d.is_active ? 'green' : 'gray'}>{d.is_active ? 'Active' : 'Inactive'}</Chip>
+                      ) : (
+                        <div style={{ fontSize: 11, color: 'var(--ink4)', fontStyle: 'italic', marginBottom: 12, padding: '6px 10px', background: 'var(--amber-lt)', borderRadius: 'var(--r)', border: '1px solid var(--amber-bd)' }}>
+                          ⚠ No head assigned
                         </div>
-                        <div style={{ display: 'flex', gap: 5, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }} onClick={(e) => e.stopPropagation()}>
-                          {canEdit('designation') && (
-                            <Chip variant="gray" onClick={() => openEdit(d)}>Edit</Chip>
-                          )}
-                          {canDelete('designation') && (
-                            <Chip variant="red" onClick={() => setDeleteTarget(d)}>Delete</Chip>
-                          )}
+                      )} */}
+
+                        {/* Stats row */}
+                        <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                          <div style={{ textAlign: 'left', flex: 1 }}>
+                            <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--blue)' }}>
+                              {d.employee_count ?? 0}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--ink4)' }}>Employees</div>
+                          </div>
                         </div>
+
+                        {/* Actions */}
+                          <div style={{ display: 'flex', gap: 6, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                            <Chip variant="blue" onClick={() => router.push(`/designations/${d.id}`)}>View</Chip>
+                            {canEdit('department') && (
+                              <Chip variant="gray" onClick={() => openEdit(d)}>Edit</Chip>
+                            )}
+                            {canDelete('department') && (
+                              <Chip variant="red" onClick={() => setDeleteTarget(d)}>Delete</Chip>
+                            )}
+                          </div>
                       </div>
                     </div>
+
                   ))}
             </div>
           )}
@@ -299,7 +311,7 @@ export default function DesignationsPage() {
           open={!!deleteTarget}
           onClose={() => setDeleteTarget(null)}
           title="Delete Designation"
-          subtitle={`Delete "${deleteTarget?.name}"?`}
+          subtitle={`Delete "${deleteTarget?.designation_name}"?`}
           footer={
             <>
               <button className="btn btn-sec" onClick={() => setDeleteTarget(null)}>Cancel</button>

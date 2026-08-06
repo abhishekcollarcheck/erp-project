@@ -26,10 +26,9 @@ type Perm = ReturnType<typeof resolveFieldPerm>;
 const canView = (p: Perm) => p?.can_view !== false;
 const canEdit = (p: Perm) => p?.can_edit !== false;
 
-export function DesignationFormModal({ open, onClose, designation, departments }: Props) {
+export function DesignationFormModal({ open, onClose, designation }: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
-
   const isEdit         = !!designation;
   const createMutation = useCreateDesignation();
   const updateMutation = useUpdateDesignation(designation?.id ?? 0);
@@ -42,27 +41,24 @@ export function DesignationFormModal({ open, onClose, designation, departments }
 
   // ── Field permissions ──────────────────────────────────────────────────────
   const perm = {
-    name:          f('name'),
-    grade:         f('grade'),
-    department_id: f('department_id'),
+    designation_name: f('designation_name'),
   };
+  console.log("perm", f('first_name'))
   const anyVisible  = Object.values(perm).some(canView);
   const anyEditable = Object.values(perm).some(canEdit);
 
   useEffect(() => {
     if (open) {
       reset(designation
-        ? { name: designation.name, grade: designation.grade ?? '', department_id: designation.department_id ?? undefined }
-        : { name: '', grade: '', department_id: undefined },
+        ? { name: designation.designation_name }
+        : { name: '' },
       );
     }
   }, [open, designation, reset]);
 
   const onSubmit = async (data: CreateDesignationFormData) => {
     const payload = {
-      name:          data.name,
-      grade:         data.grade || null,
-      department_id: data.department_id || null,
+      designation_name: data.name,
     };
     if (isEdit) await updateMutation.mutateAsync(payload as any);
     else        await createMutation.mutateAsync(payload as any);
@@ -81,7 +77,7 @@ export function DesignationFormModal({ open, onClose, designation, departments }
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? `Edit — ${designation?.name}` : 'Add Designation'}
+      title={isEdit ? `Edit — ${designation?.designation_name}` : 'Add Designation'}
       subtitle={isEdit
         ? 'Update the designation details below'
         : 'Create a new role or position for your organisation'}
@@ -105,33 +101,15 @@ export function DesignationFormModal({ open, onClose, designation, departments }
         </>
       }
     >
-      <FormSection fields={[perm.name, perm.grade, perm.department_id]}>
+      <FormSection fields={[perm.designation_name]}>
         <FormProvider {...methods}>
           <div style={{ display: 'grid', gap: 12 }}>
             <FormInput
-              name="name"
+              name="designation_name"
               label="Designation Name"
               required
               placeholder="e.g. Software Engineer, Product Manager, Analyst"
-              fieldPerm={perm.name}
-            />
-
-            <FormInput
-              name="grade"
-              label="Grade / Level"
-              placeholder="e.g. L2, M3, IC4, Senior, Lead"
-              hint="Optional — used for pay bands, reporting and org charts"
-              fieldPerm={perm.grade}
-            />
-
-            <FormSelect
-              name="department_id"
-              label="Department"
-              placeholder="— Cross-functional / no specific department —"
-              hint="Leave blank if this role spans multiple departments"
-              options={departments}
-              fieldPerm={perm.department_id}
-              onChange={setDepartmentId}
+              fieldPerm={perm.designation_name}
             />
           </div>
         </FormProvider>

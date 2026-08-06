@@ -44,7 +44,7 @@ export default function DepartmentsPage() {
   const openCreate = () => { setEditTarget(null); setFormOpen(true); };
   const openEdit = (d: Department) => { setEditTarget(d); setFormOpen(true); };
 
-  const deptOptions = departments.map((d) => ({ value: d.id, label: d.dpname }));
+  const deptOptions = departments.map((d) => ({ value: d.id, label: d.department_name }));
   const managerOpts = employees.map((e) => ({ value: e.id, label: `${e.first_name} ${e.last_name}` }));
 
   const handleDelete = async () => {
@@ -94,6 +94,7 @@ export default function DepartmentsPage() {
           <div className="g4 mb14">
             <StatCard label="Total" value={stats?.total ?? '…'} color="var(--blue)" />
             <StatCard label="Active" value={stats?.active ?? '…'} color="var(--green)" />
+            <StatCard label="In Active" value={stats?.inactive ?? '…'} color="var(--green)" />
           </div>
 
           {/* Search */}
@@ -142,11 +143,11 @@ export default function DepartmentsPage() {
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.2px' }}>
-                              {dept.dpname}
+                              {dept.department_name}
                             </div>
-                            {dept.code && (
+                            {dept.department_code && (
                               <span style={{ fontSize: 10, fontFamily: 'var(--mono)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px', color: 'var(--ink4)', marginTop: 3, display: 'inline-block' }}>
-                                {dept.code}
+                                {dept.department_code}
                               </span>
                             )}
                           </div>
@@ -176,32 +177,32 @@ export default function DepartmentsPage() {
 
                         {/* Stats row */}
                         <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-                          <div style={{ textAlign: 'center', flex: 1 }}>
+                          <div style={{ textAlign: 'left', flex: 1 }}>
                             <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--blue)' }}>
                               {dept.employee_count ?? 0}
                             </div>
                             <div style={{ fontSize: 10, color: 'var(--ink4)' }}>Employees</div>
                           </div>
-                          <div style={{ textAlign: 'center', flex: 1 }}>
+                          {/* <div style={{ textAlign: 'center', flex: 1 }}>
                             <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--teal)' }}>
                               {dept.designations?.length ?? 0}
                             </div>
                             <div style={{ fontSize: 10, color: 'var(--ink4)' }}>Designations</div>
-                          </div>
-                          <div style={{ textAlign: 'center', flex: 1 }}>
+                          </div> */}
+                          {/* <div style={{ textAlign: 'center', flex: 1 }}>
                             <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--purple)' }}>
                               {dept.children?.length ?? 0}
                             </div>
                             <div style={{ fontSize: 10, color: 'var(--ink4)' }}>Sub-depts</div>
-                          </div>
+                          </div> */}
                         </div>
 
                         {/* Parent */}
-                        {dept.parent && (
+                        {/* {dept.parent && (
                           <div style={{ fontSize: 11, color: 'var(--ink4)', marginBottom: 12 }}>
                             Under: <strong style={{ color: 'var(--ink3)' }}>{dept.parent.dpname}</strong>
                           </div>
-                        )}
+                        )} */}
 
                         {/* Actions */}
                           <div style={{ display: 'flex', gap: 6, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
@@ -230,8 +231,8 @@ export default function DepartmentsPage() {
                       <th>Code</th>
                       <th>Head</th>
                       <th>Employees</th>
-                      <th>Designations</th>
-                      <th>Parent</th>
+                      {/* <th>Designations</th>
+                      <th>Parent</th> */}
                       <th>Status</th>
                       {canEdit('department') && <th>Actions</th>}
                     </tr>
@@ -250,12 +251,12 @@ export default function DepartmentsPage() {
                           <td>
                             <strong style={{ cursor: 'pointer', color: 'var(--blue)' }}
                               onClick={() => router.push(`/departments/${dept.id}`)}>
-                              {dept.dpname}
+                              {dept.department_name}
                             </strong>
                           </td>
                           <td>
-                            {dept.code
-                              ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px' }}>{dept.code}</span>
+                            {dept.department_code
+                              ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px' }}>{dept.department_code}</span>
                               : <span style={{ color: 'var(--ink4)' }}>—</span>}
                           </td>
                           <td>
@@ -265,10 +266,6 @@ export default function DepartmentsPage() {
                           </td>
                           <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--blue)' }}>
                             {dept.employee_count ?? 0}
-                          </td>
-                          <td style={{ fontFamily: 'var(--mono)' }}>{dept.designations?.length ?? 0}</td>
-                          <td style={{ fontSize: 11, color: 'var(--ink4)' }}>
-                            {dept.parent?.dpname ?? '—'}
                           </td>
                           <td><Chip variant={dept.is_active ? 'green' : 'gray'}>{dept.is_active ? 'Active' : 'Inactive'}</Chip></td>
                             <td>
@@ -305,7 +302,7 @@ export default function DepartmentsPage() {
           open={!!deleteTarget}
           onClose={() => setDeleteTarget(null)}
           title="Delete Department"
-          subtitle={`Delete "${deleteTarget?.dpname}"?`}
+          subtitle={`Delete "${deleteTarget?.department_name}"?`}
           footer={
             <>
               <button className="btn btn-sec" onClick={() => setDeleteTarget(null)}>Cancel</button>

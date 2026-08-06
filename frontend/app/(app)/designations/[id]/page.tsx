@@ -38,7 +38,7 @@ export default function DesignationDetailPage() {
   const deptOptions = (deptsRes || []).map((d: any) => ({ value: d.id, label: d.name }));
 
   useEffect(() => {
-    if (designation) dispatch(setPageTitle({ title: designation.name, breadcrumb: 'Designations' }));
+    if (designation) dispatch(setPageTitle({ title: designation.designation_name, breadcrumb: 'Designations' }));
   }, [designation, dispatch]);
 
   const handleDelete = async () => {
@@ -101,26 +101,12 @@ export default function DesignationDetailPage() {
               🎯
             </div>
             <div>
-              <h1 style={{ marginBottom: 6 }}>{designation.name}</h1>
+              <h1 style={{ marginBottom: 6 }}>{designation.designation_name}</h1>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                {designation.grade && (
-                  <Chip variant={gradeColor(designation.grade) as any}>{designation.grade}</Chip>
-                )}
                 <Chip variant={designation.is_active ? 'green' : 'gray'}>
                   {designation.is_active ? 'Active' : 'Inactive'}
                 </Chip>
-                {designation.department && (
-                  <span
-                    style={{ fontSize: 11, color: 'var(--blue)', cursor: 'pointer', fontWeight: 500 }}
-                    onClick={() => router.push(`/departments/${designation.department!.id}`)}
-                  >
-                    {designation.department.name} →
-                  </span>
-                )}
-                {!designation.department && (
-                  <span style={{ fontSize: 11, color: 'var(--ink4)', fontStyle: 'italic' }}>Cross-functional</span>
-                )}
-              </div>
+             </div>
             </div>
           </div>
 
@@ -150,17 +136,7 @@ export default function DesignationDetailPage() {
             <div className="card cp">
               <div className="ct">Designation Details</div>
               {[
-                { label: 'Name',           value: designation.name },
-                { label: 'Grade / Level',  value: designation.grade
-                    ? <Chip variant={gradeColor(designation.grade) as any}>{designation.grade}</Chip>
-                    : <span style={{ color: 'var(--ink4)' }}>Not assigned</span> },
-                { label: 'Department',     value: designation.department
-                    ? <span style={{ color: 'var(--blue)', cursor: 'pointer', fontWeight: 600 }}
-                        onClick={() => router.push(`/departments/${designation.department!.id}`)}>
-                        {designation.department.name}
-                        {designation.department.code && ` (${designation.department.code})`}
-                      </span>
-                    : <span style={{ color: 'var(--ink4)', fontStyle: 'italic' }}>Cross-functional</span> },
+                { label: 'Name',           value: designation.designation_name },
                 { label: 'Status',         value: <Chip variant={designation.is_active ? 'green' : 'gray'}>{designation.is_active ? 'Active' : 'Inactive'}</Chip> },
                 { label: 'Active Employees', value: <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: employeeCount > 0 ? 'var(--blue)' : 'var(--ink4)', fontSize: 14 }}>{employeeCount}</span> },
               ].map((row) => (
@@ -271,7 +247,7 @@ export default function DesignationDetailPage() {
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title="Delete Designation"
-        subtitle={`Delete "${designation.name}"? This cannot be undone.`}
+        subtitle={`Delete "${designation.designation_name}"? This cannot be undone.`}
         footer={
           <>
             <button className="btn btn-sec" onClick={() => setDeleteOpen(false)}>Cancel</button>

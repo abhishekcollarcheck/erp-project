@@ -18,7 +18,6 @@ export interface CandidateAttributes {
   company_id: number;
   job_id?: number | null;
 
-  // ── Personal ──────────────────────────────────────────────────────────────
   candidate_name: string;
   email?: string | null;
   phone_number?: string | null;

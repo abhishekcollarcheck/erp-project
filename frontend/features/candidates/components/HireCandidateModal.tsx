@@ -6,7 +6,7 @@ import { z }         from 'zod';
 import { Modal }     from '../../../components/ui/Modal';
 import { useHireCandidate } from '../hooks/useCandidates';
 import { useDepartmentOptions } from '../../departments/hooks/useDepartments';
-import { useDesignationsByDepartment } from '../../designations/hooks/useDesignations';
+// import { useDesignationsByDepartment } from '../../designations/hooks/useDesignations';
 import { useEmployees } from '../../employees/hooks/useEmployees';
 import type { Candidate } from '../types/candidate.types';
 import { useRouter } from 'next/navigation';
@@ -44,10 +44,10 @@ export function HireCandidateModal({ open, onClose, candidate }: Props) {
   const selectedDeptId = watch('department_id');
 
   const { data: deptOptions }  = useDepartmentOptions();
-  const { data: desigData }    = useDesignationsByDepartment(selectedDeptId);
+  // const { data: desigData }    = useDesignationsByDepartment(selectedDeptId);
   const { data: empData }      = useEmployees({ limit: 100, status: 'Active' as any });
 
-  const designations = desigData ?? [];
+  // const designations = desigData ?? [];
   const managers     = empData?.data ?? [];
 
   useEffect(() => {
@@ -151,9 +151,9 @@ export function HireCandidateModal({ open, onClose, candidate }: Props) {
             disabled={!selectedDeptId}
           >
             <option value="">— Select designation —</option>
-            {designations.map((d: any) => (
+            {/* {designations.map((d: any) => (
               <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
+            ))} */}
           </select>
           {errors.designation_id && <span className="err">{errors.designation_id.message}</span>}
         </div>

@@ -3,10 +3,7 @@ import { sequelize } from '../../config/database';
 
 interface DesignationAttributes {
   id: number;
-  // company_id: number;
-  // department_id?: number | null;
-  name: string;
-  grade?: string | null;
+  designation_name: string;
   is_active: boolean;
   created_by?: number | null;
   updated_by?: number | null;
@@ -22,10 +19,7 @@ export class Designation
   extends Model<DesignationAttributes, DesignationCreationAttributes>
   implements DesignationAttributes {
   public id!: number;
-  // public company_id!: number;
-  // public department_id!: number | null;
-  public name!: string;
-  public grade!: string | null;
+  public designation_name!: string;
   public is_active!: boolean;
   public created_by!: number | null;
   public updated_by!: number | null;
@@ -42,37 +36,18 @@ Designation.init(
       autoIncrement: true,
       primaryKey: true,
     },
-
-    // company_id: {
-    //   type: DataTypes.INTEGER.UNSIGNED,
-    //   allowNull: false,
-    // },
-
-    // department_id: {
-    //   type: DataTypes.INTEGER.UNSIGNED,
-    //   allowNull: true,
-    // },
-
-    name: {
+    designation_name: {
       type: DataTypes.STRING(200),
       allowNull: false,
     },
-
-    grade: {
-      type: DataTypes.STRING(20),
-      allowNull: true,
-    },
-
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
-
     created_by: {
       type: DataTypes.INTEGER.UNSIGNED,
       allowNull: true,
     },
-
     updated_by: {
       type: DataTypes.INTEGER.UNSIGNED,
       allowNull: true,
@@ -92,7 +67,7 @@ Designation.init(
     indexes: [
       {
         unique: true,
-        fields: ['name']
+        fields: ['designation_name']
       }
     ]
   }

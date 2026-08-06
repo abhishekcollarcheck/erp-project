@@ -30,11 +30,11 @@ export default function DepartmentDetailPage() {
   const deleteMutation = useDeleteDepartment();
 
   const employees = empData?.data ?? [];
-  const deptOpts = departments.filter((d) => d.id !== id).map((d) => ({ value: d.id, label: d.dpname }));
+  const deptOpts = departments.filter((d) => d.id !== id).map((d) => ({ value: d.id, label: d.department_name }));
   const managerOpts = employees.map((e) => ({ value: e.id, label: `${e.first_name} ${e.last_name}` }));
 
   useEffect(() => {
-    if (dept) dispatch(setPageTitle({ title: dept.dpname, breadcrumb: 'Departments' }));
+    if (dept) dispatch(setPageTitle({ title: dept.department_name, breadcrumb: 'Departments' }));
   }, [dept, dispatch]);
 
   const handleDelete = async () => {
@@ -74,20 +74,20 @@ export default function DepartmentDetailPage() {
           <div className="ph">
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, var(--blue), var(--purple))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, fontWeight: 700 }}>
-                {(dept.code?.[0] || dept.dpname[0]).toUpperCase()}
+                {(dept.department_code?.[0] || dept.department_name[0]).toUpperCase()}
               </div>
               <div>
-                <h1 style={{ marginBottom: 4 }}>{dept.dpname}</h1>
+                <h1 style={{ marginBottom: 4 }}>{dept.department_name}</h1>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {dept.code && (
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px' }}>{dept.code}</span>
+                  {dept.department_code && (
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px' }}>{dept.department_code}</span>
                   )}
                   <Chip variant={dept.is_active ? 'green' : 'gray'}>{dept.is_active ? 'Active' : 'Inactive'}</Chip>
-                  {dept.parent && (
+                  {/* {dept.parent && (
                     <span style={{ fontSize: 11, color: 'var(--ink4)' }}>
                       Sub-dept of <strong style={{ color: 'var(--blue)', cursor: 'pointer' }} onClick={() => router.push(`/departments/${dept.parent!.id}`)}>{dept.parent.dpname}</strong>
                     </span>
-                  )}
+                  )} */}
                 </div>
               </div>
             </div>
@@ -112,13 +112,13 @@ export default function DepartmentDetailPage() {
               <div className="card cp">
                 <div className="ct">Overview</div>
                 {[
-                  { label: 'Department Name', value: dept.dpname },
-                  { label: 'Code', value: dept.code || '—' },
+                  { label: 'Department Name', value: dept.department_name },
+                  { label: 'Code', value: dept.department_code || '—' },
                   { label: 'Status', value: <Chip variant={dept.is_active ? 'green' : 'gray'}>{dept.is_active ? 'Active' : 'Inactive'}</Chip> },
-                  { label: 'Parent', value: dept.parent ? dept.parent.dpname : 'Top-level department' },
+                  // { label: 'Parent', value: dept.parent ? dept.parent.dpname : 'Top-level department' },
                   { label: 'Employees', value: String(dept.employee_count ?? dept.employees?.length ?? 0) },
-                  { label: 'Designations', value: String(dept.designations?.length ?? 0) },
-                  { label: 'Sub-departments', value: String(dept.children?.length ?? 0) },
+                  // { label: 'Designations', value: String(dept.designations?.length ?? 0) },
+                  // { label: 'Sub-departments', value: String(dept.children?.length ?? 0) },
                 ].map((row) => (
                   <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
                     <span style={{ color: 'var(--ink4)', fontWeight: 500 }}>{row.label}</span>
@@ -163,7 +163,7 @@ export default function DepartmentDetailPage() {
               </div>
 
               {/* Designations */}
-              {(dept.designations?.length ?? 0) > 0 && (
+              {/* {(dept.designations?.length ?? 0) > 0 && (
                 <div className="card cp">
                   <div className="ct">Designations</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -175,10 +175,10 @@ export default function DepartmentDetailPage() {
                     ))}
                   </div>
                 </div>
-              )}
+              )} */}
 
               {/* Sub-departments */}
-              {(dept.children?.length ?? 0) > 0 && (
+              {/* {(dept.children?.length ?? 0) > 0 && (
                 <div className="card cp">
                   <div className="ct">Sub-departments</div>
                   {dept.children!.map((child) => (
@@ -196,7 +196,7 @@ export default function DepartmentDetailPage() {
                     </div>
                   ))}
                 </div>
-              )}
+              )} */}
             </div>
 
             {/* Right column — employees */}
@@ -257,7 +257,7 @@ export default function DepartmentDetailPage() {
           open={deleteOpen}
           onClose={() => setDeleteOpen(false)}
           title="Delete Department"
-          subtitle={`Delete "${dept.dpname}"? This cannot be undone.`}
+          subtitle={`Delete "${dept.department_name}"? This cannot be undone.`}
           footer={
             <>
               <button className="btn btn-sec" onClick={() => setDeleteOpen(false)}>Cancel</button>

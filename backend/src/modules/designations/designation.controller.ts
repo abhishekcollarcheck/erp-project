@@ -7,7 +7,7 @@ const designationService = new DesignationService();
 // GET /api/designations
 export async function getDesignations(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await designationService.getAll(req.user!.companyId, req.query as any);
+    const data = await designationService.getAll(req.query as any);
     sendResponse(res, { data, message: 'Designations fetched' });
   } catch (e) { next(e); }
 }
@@ -15,7 +15,8 @@ export async function getDesignations(req: Request, res: Response, next: NextFun
 // GET /api/designations/stats
 export async function getDesignationStats(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await designationService.getStats(req.user!.companyId);
+    const data = await designationService.getStats();
+    console.log("data", data)
     sendResponse(res, { data, message: 'Designation stats' });
   } catch (e) { next(e); }
 }

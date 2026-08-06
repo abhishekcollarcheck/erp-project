@@ -24,15 +24,15 @@ export function useDesignations(params?: DesignationQueryParams) {
 }
 
 // Convenience: for a specific department (used in employee wizard dropdown)
-export function useDesignationsByDepartment(departmentId?: number) {
-  return useDesignations(departmentId ? { department_id: departmentId } : undefined);
-}
+// export function useDesignationsByDepartment(departmentId?: number) {
+//   return useDesignations(departmentId ? { department_id: departmentId } : undefined);
+// }
 
 // Convenience: dropdown options array
-export function useDesignationOptions(departmentId?: number) {
-  const { data = [] } = useDesignations(departmentId ? { department_id: departmentId } : undefined);
-  return data.map((d) => ({ value: d.id, label: d.name, grade: d.grade }));
-}
+// export function useDesignationOptions(departmentId?: number) {
+//   const { data = [] } = useDesignations(departmentId ? { department_id: departmentId } : undefined);
+//   return data.map((d) => ({ value: d.id, label: d.name, grade: d.grade }));
+// }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 export function useDesignationStats() {
@@ -62,7 +62,7 @@ export function useCreateDesignation() {
     mutationFn: (data: CreateDesignationDto) => designationService.create(data),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: KEYS.all });
-      showToast(`✓ "${res.data.name}" designation created`);
+      showToast(`✓ "${res.data.designation_name}" designation created`);
     },
     onError: (err: any) => showToast(err?.message || 'Failed to create designation'),
   });
@@ -76,7 +76,7 @@ export function useUpdateDesignation(id: number) {
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: KEYS.all });
       qc.setQueryData(KEYS.detail(id), res);
-      showToast(`✓ "${res.data.name}" updated`);
+      showToast(`✓ "${res.data.designation_name}" updated`);
     },
     onError: (err: any) => showToast(err?.message || 'Update failed'),
   });

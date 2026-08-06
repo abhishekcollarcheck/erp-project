@@ -128,12 +128,12 @@ export async function seedDatabase(): Promise<void> {
 
     // ── 5. Designations ──────────────────────────────────────────────────────
     const desigMap = new Map<string, number>();
-    for (const name of ['Accountant', 'Advisor', 'Asst. General Manager', 'Asst. Manager', 'CMD', 'Computer Operator', 'Cook', 'Coordinator', 'Deputy Manager', 'Director', 'Driver', 'Electrician', 'Engineer', 'Executive', 'Executive Assistant', 'Field Assistant', 'Fitter', 'General Manager', 'Guard', 'Helper', 'Jr. Accountant', 'Jr. Executive', 'Jr. Operator', 'Jr. Technician', 'Manager', 'MIS Executive', 'Office Attendant', 'Operator', 'Plumber', 'Receptionist', 'Sales Officer', 'Senior Deputy Manager', 'Site Engineer', 'Sr. Computer Operator', 'Sr. Coordinator', 'Sr. Engineer', 'Sr. Executive', 'Sr. Field Assistant', 'Sr. Fitter', 'Sr. Helper', 'Sr. Manager', 'Sr. MIS Executive', 'Sr. Sales Officer', 'Supervisor', 'Technician', 'Data Entry Operator', 'Security Guard', 'Field Executive', 'Site Supervisor', 'Housekeeper', 'Jr. Engineer', 'Semi Fitter', 'Sr. Developer', 'Vice President', 'Social Media Video Editor', 'Quality Assurance Engineer', 'Recruiter', 'Sr. Site Engineer', 'Jr. Site Engineer', 'Site Manager', 'Flutter Developer', 'Incharge', 'Sr. Recruiter', 'Jr. Recruiter', 'PSO', 'Social Media Manager', 'Fullstack Developer', 'Software Engineer', 'Dispatch Clerk Cum Engineer', 'Jr. Fitter', 'Deputy General Manager', 'Jr. Electrician', 'Social Media Executive', 'Sr. Data Analyst', 'Sr. Supervisor', 'Sr. Software Engineer']) {
+    for (const designation_name of ['Accountant', 'Advisor', 'Asst. General Manager', 'Asst. Manager', 'CMD', 'Computer Operator', 'Cook', 'Coordinator', 'Deputy Manager', 'Director', 'Driver', 'Electrician', 'Engineer', 'Executive', 'Executive Assistant', 'Field Assistant', 'Fitter', 'General Manager', 'Guard', 'Helper', 'Jr. Accountant', 'Jr. Executive', 'Jr. Operator', 'Jr. Technician', 'Manager', 'MIS Executive', 'Office Attendant', 'Operator', 'Plumber', 'Receptionist', 'Sales Officer', 'Senior Deputy Manager', 'Site Engineer', 'Sr. Computer Operator', 'Sr. Coordinator', 'Sr. Engineer', 'Sr. Executive', 'Sr. Field Assistant', 'Sr. Fitter', 'Sr. Helper', 'Sr. Manager', 'Sr. MIS Executive', 'Sr. Sales Officer', 'Supervisor', 'Technician', 'Data Entry Operator', 'Security Guard', 'Field Executive', 'Site Supervisor', 'Housekeeper', 'Jr. Engineer', 'Semi Fitter', 'Sr. Developer', 'Vice President', 'Social Media Video Editor', 'Quality Assurance Engineer', 'Recruiter', 'Sr. Site Engineer', 'Jr. Site Engineer', 'Site Manager', 'Flutter Developer', 'Incharge', 'Sr. Recruiter', 'Jr. Recruiter', 'PSO', 'Social Media Manager', 'Fullstack Developer', 'Software Engineer', 'Dispatch Clerk Cum Engineer', 'Jr. Fitter', 'Deputy General Manager', 'Jr. Electrician', 'Social Media Executive', 'Sr. Data Analyst', 'Sr. Supervisor', 'Sr. Software Engineer']) {
       const [d] = await Designation.findOrCreate({
-        where: { name },
-        defaults: { name },
+        where: { designation_name },
+        defaults: { designation_name },
       });
-      desigMap.set(name, d.id);
+      desigMap.set(designation_name, d.id);
     }
     logger.info('✅ Departments + designations ready');
 

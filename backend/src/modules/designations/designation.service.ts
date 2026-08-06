@@ -1,66 +1,44 @@
 import { Op, WhereOptions, fn, col } from 'sequelize';
 import { Designation } from '../../database/models/Designation';
-// import { Department }  from '../../database/models/Department';
 import { Employee }    from '../../database/models/Employee';
 import { AppError }    from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 
 export interface CreateDesignationDto {
-  name:          string;
-  grade?:        string | null;
-  // department_id?: number | null;
+  designation_name:   string;
 }
 
 export interface UpdateDesignationDto {
-  name?:          string;
-  grade?:         string | null;
-  // department_id?: number | null;
-  is_active?:     boolean;
+  designation_name?:  string;
+  is_active?:         boolean;
 }
 
 export interface DesignationQueryParams {
-  // department_id?: number | string;
-  is_active?:     boolean | string;
-  search?:        string;
+  is_active?:         boolean | string;
+  search?:            string;
 }
 
 export class DesignationService {
-
-  // ─── List ──────────────────────────────────────────────────────────────────
-  async getAll(companyId: number, query: DesignationQueryParams = {}) {
+  async getAll(query: DesignationQueryParams = {}) {
     const where: WhereOptions = { };
-
     if (query.is_active === 'false' || query.is_active === false) {
       where['is_active'] = false;
     } else if (query.is_active === 'all') {
-      // no filter
     } else {
       where['is_active'] = true;
     }
 
-    // if (query.department_id) {
-    //   where['department_id'] = Number(query.department_id);
-    // }
-
     if (query.search) {
       (where as any)[Op.or] = [
-        { name:  { [Op.like]: `%${query.search}%` } },
-        { grade: { [Op.like]: `%${query.search}%` } },
+        { designation_name:  { [Op.like]: `%${query.search}%` } },
       ];
     }
 
     const designations = await Designation.findAll({
       where,
-      order: [['name', 'ASC']],
-      // include: [{
-      //   model:      Department,
-      //   as:         'department',
-      //   attributes: ['id', 'name', 'code'],
-      //   required:   false,
-      // }],
+      order: [['designation_name', 'ASC']],
     });
 
-    // Attach employee count per designation
     const designationIds = designations.map((d) => d.id);
     const empCounts = designationIds.length
       ? await Employee.findAll({
@@ -81,17 +59,10 @@ export class DesignationService {
     }));
   }
 
-  // ─── Single ────────────────────────────────────────────────────────────────
   async getById(id: number, companyId: number) {
     const designation = await Designation.findOne({
       where: { id },
       include: [
-        // {
-        //   model:      Department,
-        //   as:         'department',
-        //   attributes: ['id', 'name', 'code'],
-        //   required:   false,
-        // },
         {
           model:      Employee,
           as:         'employees',
@@ -107,22 +78,20 @@ export class DesignationService {
   }
 
   // ─── Stats ─────────────────────────────────────────────────────────────────
-  async getStats(companyId: number) {
+  async getStats() {
     const [total, active] = await Promise.all([
       Designation.count({ where: { is_active: true } }),
-      Designation.count({ where: { is_active: true, grade: { [Op.ne]: null } } }),
-      // Designation.count({ where: { company_id: companyId, is_active: true, department_id: null } }),
+      Designation.count({ where: { is_active: true } }),
     ]);
 
-    // Most populated designation
     const empCounts = await Employee.findAll({
       where:      { status: ['Active', 'On_Probation'] },
       attributes: ['designation_id', [fn('COUNT', col('Employee.id')), 'count']],
       include:    [{
         model:      Designation,
         as:         'designation',
-        where:      { company_id: companyId },
-        attributes: ['name'],
+        where:      { },
+        attributes: ['designation_name'],
         required:   true,
       }],
       group:   ['designation_id'],
@@ -133,44 +102,17 @@ export class DesignationService {
     });
 
     const top = empCounts[0] as any;
-
     return {
       total,
       active,
-      inactive:         total - active,
-      // crossFunctional,
-      // deptSpecific:     active - crossFunctional,
-      topDesignation:   top ? { id: top.designation_id, name: top['designation.name'], count: Number(top.count) } : null,
+      inactive: total - active,
     };
   }
 
   // ─── Create ────────────────────────────────────────────────────────────────
   async create(companyId: number, dto: CreateDesignationDto, createdBy?: number): Promise<Designation> {
-    // const existing = await Designation.findOne({
-    //   where: {
-    //     company_id:    companyId,
-    //     name:          dto.name.trim(),
-    //     department_id: dto.department_id ?? null,
-    //     is_active:     true,
-    //   },
-    // });
-    // if (existing) {
-    //   throw new AppError(
-    //     `Designation "${dto.name}" already exists${dto.department_id ? ' in this department' : ''}`,
-    //     409,
-    //   );
-    // }
-
-    // Validate department belongs to company
-    // if (dto.department_id) {
-    //   const dept = await Department.findOne({ where: { id: dto.department_id, company_id: companyId } });
-    //   if (!dept) throw new AppError('Department not found', 404);
-    // }
-
     const designation = await Designation.create({
-      name:          dto.name.trim(),
-      grade:         dto.grade?.trim() || null,
-      // department_id: dto.department_id || null,
+      designation_name:  dto.designation_name.trim(),
       is_active:     true,
       created_by:    createdBy ?? null,
     });
@@ -178,7 +120,6 @@ export class DesignationService {
     await logActivity({
       companyId, employeeId: createdBy,
       action: 'DESIGNATION_CREATED', module: 'designations', entityId: designation.id,
-      // newValues: { name: designation.name, grade: designation.grade, department_id: designation.department_id },
     });
 
     return this.getById(designation.id, companyId);
@@ -189,21 +130,12 @@ export class DesignationService {
     const designation = await this.findOrFail(id, companyId);
 
     const before = {
-      name:          designation.name,
-      grade:         designation.grade,
-      // department_id: designation.department_id,
+      designation_name: designation.designation_name,
       is_active:     designation.is_active,
     };
 
-    // if (dto.department_id) {
-    //   const dept = await Department.findOne({ where: { id: dto.department_id, company_id: companyId } });
-    //   if (!dept) throw new AppError('Department not found', 404);
-    // }
-
     await designation.update({
-      name:          dto.name?.trim()  ?? designation.name,
-      grade:         dto.grade !== undefined ? (dto.grade?.trim() || null) : designation.grade,
-      // department_id: dto.department_id !== undefined ? (dto.department_id || null) : designation.department_id,
+      designation_name: dto.designation_name?.trim()  ?? designation.designation_name,
       is_active:     dto.is_active     !== undefined ? dto.is_active    : designation.is_active,
       updated_by:    updatedBy         ?? null,
     });
@@ -212,7 +144,7 @@ export class DesignationService {
       companyId, employeeId: updatedBy,
       action: 'DESIGNATION_UPDATED', module: 'designations', entityId: id,
       oldValues: before as Record<string, unknown>,
-      newValues: { name: designation.name, grade: designation.grade, is_active: designation.is_active },
+      newValues: { name: designation.designation_name, is_active: designation.is_active },
     });
 
     return this.getById(id, companyId);
@@ -227,7 +159,7 @@ export class DesignationService {
     });
     if (empCount > 0) {
       throw new AppError(
-        `Cannot delete "${designation.name}" — ${empCount} active employee(s) hold this designation. Reassign them first.`,
+        `Cannot delete "${designation.designation_name}" — ${empCount} active employee(s) hold this designation. Reassign them first.`,
         409,
       );
     }
@@ -238,7 +170,7 @@ export class DesignationService {
     await logActivity({
       companyId, employeeId: deletedBy,
       action: 'DESIGNATION_DELETED', module: 'designations', entityId: id,
-      oldValues: { name: designation.name },
+      oldValues: { name: designation.designation_name },
     });
   }
 

@@ -13,7 +13,7 @@ export async function getDepartments(req: Request, res: Response, next: NextFunc
 
 export async function getDepartmentStats(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await departmentService.getStats(req.user!.companyId);
+    const data = await departmentService.getStats();
     sendResponse(res, { data, message: 'Department stats' });
   } catch (e) { next(e); }
 }

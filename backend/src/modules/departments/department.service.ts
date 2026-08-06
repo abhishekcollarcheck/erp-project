@@ -97,7 +97,7 @@ async getAll(query: DepartmentQueryParams = {}) {
   }
 
   // ─── Summary stats ────────────────────────────────────────────────────────
-  async getStats(companyId: number) {
+  async getStats() {
     const [total, active] = await Promise.all([
       Department.count(),
       Department.count({ where: { is_active: true } }),
@@ -108,7 +108,7 @@ async getAll(query: DepartmentQueryParams = {}) {
       include: [{
         model:      Department,
         as:         'department',
-        where:      { company_id: companyId },
+        where:      { },
         attributes: [],
         required:   true,
       }],

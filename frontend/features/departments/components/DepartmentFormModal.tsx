@@ -29,10 +29,10 @@ export function DepartmentFormModal({ open, onClose, department, departments, ma
   const isEdit = !!department;
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment(department?.id ?? 0);
-
   const methods = useForm<CreateDepartmentFormData>({
     resolver: zodResolver(createDepartmentSchema),
   });
+
   const { handleSubmit, reset, setValue } = methods;
 
   // ── Field permissions ──────────────────────────────────────────────────────
@@ -40,33 +40,30 @@ export function DepartmentFormModal({ open, onClose, department, departments, ma
     dpname: f('dpname'),
     code: f('code'),
     head_id: f('head_id'),
-    parent_id: f('parent_id'),
   };
-useEffect(() => {
-  if (!fp) return;
-  console.table(perm);
-}, [fp]);
+
+  useEffect(() => {
+    if (!fp) return;
+  }, [fp]);
   const anyEditable = Object.values(perm).some(canEdit);
 
   useEffect(() => {
     if (open && department) {
       reset({
-        dpname: department.dpname,
-        code: department.code ?? '',
+        department_name: department.department_name,
+        department_code: department.department_code ?? '',
         head_id: department.head_id ?? undefined,
-        parent_id: department.parent_id ?? undefined,
       });
     } else if (open) {
-      reset({ dpname: '', code: '', head_id: undefined, parent_id: undefined });
+      reset({ department_name: '', department_code: '', head_id: undefined });
     }
   }, [open, department, reset]);
 
   const onSubmit = async (data: CreateDepartmentFormData) => {
     const payload = {
-      dpname: data.dpname,
-      code: data.code || "",
+      department_name: data.department_name,
+      department_code: data.department_code || "",
       head_id: data.head_id || null,
-      parent_id: data.parent_id || null,
     };
     if (isEdit) await updateMutation.mutateAsync(payload);
     else await createMutation.mutateAsync(payload as any);
@@ -75,9 +72,7 @@ useEffect(() => {
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
-  // FormSelect emits the raw option value (or '' on clear) as a string.
-  // These id columns are numeric, so coerce before the resolver sees it.
-  const setNumericId = (field: 'head_id' | 'parent_id') => (v: string) => {
+  const setNumericId = (field: 'head_id') => (v: string) => {
     setValue(field, (v ? Number(v) : null) as any, { shouldValidate: true, shouldDirty: true });
   };
 
@@ -85,7 +80,7 @@ useEffect(() => {
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? `Edit — ${department?.dpname}` : 'Add Department'}
+      title={isEdit ? `Edit — ${department?.department_name}` : 'Add Department'}
       subtitle={isEdit ? 'Update department details' : 'Create a new department for your organisation'}
       width={460}
       footer={
@@ -105,47 +100,37 @@ useEffect(() => {
         </>
       }
     >
-      {/* <FormSection fields={[(perm.dpname), (perm.code), (perm.head_id), (perm.parent_id)]}> */}
-        <FormProvider {...methods}>
-          <div style={{ display: 'grid', gap: 12 }}>
-            <FormInput
-              name="dpname"
-              label="Department Name"
-              required
-              placeholder="e.g. Engineering, Finance, Product"
-              fieldPerm={perm.dpname}
-            />
-            <FormInput
-              name="code"
-              label="Department Code"
-              placeholder="e.g. ENG, FIN, OPS"
-              hint="Short code for reports and exports (optional)"
-              fieldPerm={perm.code}
-              onChange={v => setValue('code', v.toUpperCase(), { shouldDirty: true })}
-            />
+      <FormSection fields={[(perm.dpname), (perm.code), (perm.head_id)]}>
+      <FormProvider {...methods}>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <FormInput
+            name="department_name"
+            label="Department Name"
+            required
+            placeholder="e.g. Engineering, Finance, Product"
+            fieldPerm={perm.dpname}
+          />
+          <FormInput
+            name="department_code"
+            label="Department Code"
+            placeholder="e.g. ENG, FIN, OPS"
+            hint="Short code for reports and exports (optional)"
+            fieldPerm={perm.code}
+            onChange={v => setValue('department_code', v.toUpperCase(), { shouldDirty: true })}
+          />
 
-            <FormSelect
-              name="head_id"
-              label="Department Head"
-              placeholder="— Assign a head later —"
-              hint="The employee responsible for this department"
-              options={managers}
-              fieldPerm={perm.head_id}
-              onChange={setNumericId('head_id')}
-            />
-
-            <FormSelect
-              name="parent_id"
-              label="Parent Department"
-              placeholder="— Top-level department (no parent) —"
-              hint="For sub-departments within a larger team"
-              options={departments.filter(d => d.value !== department?.id)}
-              fieldPerm={perm.parent_id}
-              onChange={setNumericId('parent_id')}
-            />
-          </div>
-        </FormProvider>
-      {/* </FormSection> */}
+          <FormSelect
+            name="head_id"
+            label="Department Head"
+            placeholder="— Assign a head later —"
+            hint="The employee responsible for this department"
+            options={managers}
+            fieldPerm={perm.head_id}
+            onChange={setNumericId('head_id')}
+          />
+        </div>
+      </FormProvider>
+      </FormSection>
     </Modal>
   );
 }
