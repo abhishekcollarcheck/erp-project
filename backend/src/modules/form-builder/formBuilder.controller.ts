@@ -11,6 +11,15 @@ const fbSvc    = new FormBuilderService();
 // ROLES
 // ─────────────────────────────────────────────────────────────────────────────
 
+export async function getGroupCompanyScope(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await fbSvc.resolveGroupCompanyScope(
+      +req.params.groupId, req.user!.employeeId, req.user!.isSuperAdmin,
+    );
+    sendResponse(res, { data });
+  } catch (e) { next(e); }
+}
+
 export async function listRoles(req: Request, res: Response, next: NextFunction): Promise<void> {
   try { sendResponse(res, { data: await rolesSvc.list(req.user!.companyId) }); } catch(e){ next(e); }
 }
@@ -64,7 +73,7 @@ export async function getGroupFieldPermissions(req: Request, res: Response, next
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function listModules(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.listModules() }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.listModules(req.user!.companyId) }); } catch(e){ next(e); }
 }
 
 export async function createModule(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -84,7 +93,7 @@ export async function deleteModule(req: Request, res: Response, next: NextFuncti
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function listForms(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.listForms(+req.params.moduleId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.listForms(+req.params.moduleId, req.user!.companyId) }); } catch(e){ next(e); }
 }
 
 export async function getForm(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -137,8 +146,9 @@ export async function getPermissionMatrix(req: Request, res: Response, next: Nex
 
 export async function setFieldPermission(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const companyIds = Array.isArray(req.body.company_ids) ? req.body.company_ids.map((id: any) => +id) : [req.user!.companyId];
-    const data = await fbSvc.setFieldPermission(companyIds, +req.body.group_id, +req.params.fieldId, req.body, req.user!.employeeId);
+    const companyIds = req.body.company_ids.map((id: any) => +id);
+    await fbSvc.assertCompaniesManaged(companyIds, req.user!.employeeId, req.user!.isSuperAdmin);
+    const data = await fbSvc.bulkSetFieldPermissions(companyIds, +req.body.group_id, req.body.permissions, req.user!.employeeId);
     sendResponse(res, { data });
   } catch(e){ next(e); }
 }
@@ -149,6 +159,7 @@ export async function bulkSetPermissions(req: Request, res: Response, next: Next
       throw new AppError('company_ids is required', 400);
     }
     const companyIds = req.body.company_ids.map((id: any) => +id);
+    await fbSvc.assertCompaniesManaged(companyIds, req.user!.employeeId, req.user!.isSuperAdmin);
     const data = await fbSvc.bulkSetFieldPermissions(companyIds, +req.body.group_id, req.body.permissions, req.user!.employeeId);
     sendResponse(res, { data, message: `${data.updated} permissions updated` });
   } catch(e){ next(e); }

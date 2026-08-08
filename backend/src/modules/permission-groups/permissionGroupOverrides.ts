@@ -31,7 +31,7 @@ class EmployeeOverrideService {
    * Confirm employee exists in this company AND is a member of this group.
    * UserGroup uses employee_id directly — no user lookup needed.
    */
-async setFieldOverrides(
+  async setFieldOverrides(
     groupId: number,
     employeeId: number,
     companyIds: number[],
@@ -347,14 +347,19 @@ export async function getEmployeeFieldOverrides(
   employeeId: number,
   companyId: number,
   module: string,
+  groupIds?: number[],          // ← new, optional
 ): Promise<Record<string, Record<string, boolean>>> {
+  const where: any = {
+    employee_id: employeeId,
+    company_id: companyId,
+    module,
+    field_name: { [Op.ne]: null },
+  };
+  if (groupIds?.length) where.group_id = { [Op.in]: groupIds };
+
   const rows = await EmployeePermissionOverride.findAll({
-    where: {
-      employee_id: employeeId,
-      company_id: companyId,
-      module,
-      field_name: { [Op.ne]: null },
-    },
+    where,
+    order: [['created_at', 'ASC']],   // later row wins — matches module-level behaviour
   });
 
   const result: Record<string, Record<string, boolean>> = {};

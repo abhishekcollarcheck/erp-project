@@ -11,7 +11,7 @@ import {
   listModules, createModule, updateModule, deleteModule,
   listForms, getForm, createForm, updateForm, deleteForm,
   createField, updateField, deleteField, reorderFields,
-  getPermissionMatrix, setFieldPermission, bulkSetPermissions, resolveFormPermissions,getGroupFieldPermissions
+  getPermissionMatrix, setFieldPermission, bulkSetPermissions, resolveFormPermissions,getGroupFieldPermissions, getGroupCompanyScope
 } from './formBuilder.controller';
 import { DynamicSourceService } from './dynamicSource.service';
 const dynSvc = new DynamicSourceService();
@@ -57,6 +57,8 @@ router.put('/fields/:fieldId/permissions', [param('fieldId').isInt(), body('grou
 router.post('/permissions/bulk', [body('group_id').isInt(), body('permissions').isArray()], validate, bulkSetPermissions);
 router.get   ('/forms/:formId/resolve',              [param('formId').isInt()], validate, resolveFormPermissions);
 router.get('/forms/:formId/groups/:groupId/permissions', getGroupFieldPermissions);
+
+router.get('/groups/:groupId/company-scope', [param('groupId').isInt()], validate, getGroupCompanyScope);
 
 router.get(
   '/dynamic-source/meta',

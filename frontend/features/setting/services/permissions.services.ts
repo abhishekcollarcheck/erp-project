@@ -37,4 +37,9 @@ export const pgApi = {
       `/permission-groups/${groupId}/members/${employeeId}/field-overrides`,
       { company_ids: companyIds, module, overrides }
     ),
+  groupCompanyScope: (groupId: number) =>
+    apiClient.get<unknown, ApiResponse<number[]>>(`/rbac/groups/${groupId}/company-scope`),
+companyModules: (companyId?: number) =>
+    apiClient.get<unknown, ApiResponse<{ module: string; label: string }[]>>(
+      `/permission-groups/company-modules${companyId ? `?company_id=${companyId}` : ''}`),
 };

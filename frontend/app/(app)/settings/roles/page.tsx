@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../store';
 import { setPageTitle } from '../../../../store/slices/uiSlice';
 import { updateToken, setPermissions, selectManagedCompanies } from '../../../../store/slices/authSlice';
@@ -9,28 +9,14 @@ import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/rea
 import { showToast } from '../../../../utils/toast';
 import { Eye, SquarePen, Trash2, Download, Pen } from 'lucide-react';
 import { usePermission } from '../../../../features/auth/hooks/useAuth';
-import { PageHeaderWithCompany, useCompanySelector } from '../../../../components/company/CompanySelector';
+import { PageHeaderWithCompany } from '../../../../components/company/CompanySelector';
 import { PermissionGuard } from '../../../../utils/permissionGuard';
 import { useCompanyModulesMap } from '../../../../hooks/useCompanyModulesMap';
-import { useFieldPermissions } from '../../../../features/employees/hooks/useEmployees';
 import { pgApi } from '../../../../features/setting/services/permissions.services';
-import { PermGroup, Employee, } from '@/features/setting/types/permissions.types';
+import { PermGroup } from '../../../../features/setting/types/permissions.types';
 
 
 type View = 'groups' | 'edit';
-const MODULE_SECTIONS = [
-  {
-    label: 'Modules',
-    modules: [
-      { key: 'recruitment', label: 'Recruitment / ATS' },
-      { key: 'aptitude', label: 'Aptitude Test' },
-      { key: 'employees', label: 'Employee Directory' },
-      { key: 'department', label: 'Department' },
-      { key: 'designation', label: 'Designation' },
-      { key: 'settings', label: 'Settings & RBAC' },
-    ],
-  },
-];
 
 interface Form {
   id: number;
@@ -43,23 +29,24 @@ interface Form {
   }>;
   moduleId?: number;
   moduleName?: string;
+  moduleKey?: string;
   [key: string]: any;
 }
 
 interface Module {
   id: number;
   name: string;
-  key: string;
-  label?: string;
+  slug?: string;
+  permission_key?: string;
   [key: string]: any;
 }
 
-// Flat list for helpers
-const MODULES = MODULE_SECTIONS.flatMap(s => s.modules);
-
 // Only module-level permissions (field-level is separate)
 const PERMS = ['view', 'create', 'edit', 'delete', 'download'] as const;
-type Perm = typeof PERMS[number];
+
+// Module list is driven by the API (/permission-groups/company-modules).
+// Never hardcode module keys here — unknown keys get dropped on save.
+export type ModuleDef = { key: string; label: string };
 
 const PERM_ICONS: Record<string, React.ReactNode> = {
   view: <Eye size={13} />,
@@ -85,15 +72,22 @@ const COLOR_OPTS = [
 ];
 
 function cssForKey(key: string | null | undefined): string {
-  return COLOR_OPTS.find((c) => c.key === key)?.css || key || "var(--blue)";
+  return COLOR_OPTS.find((c) => c.key === key)?.css || key || 'var(--blue)';
 }
 
 
-// Existing hooks (unchanged)
-function useGroups() { return useQuery({ queryKey: ['rp', 'groups'], queryFn: () => pgApi.list(), staleTime: 0, select: r => r.data ?? [] }); }
-function useGroupPerms(id: number) { return useQuery({ queryKey: ['rp', 'group-perms', id], queryFn: () => pgApi.getPerms(id), enabled: id > 0, select: r => r.data ?? [] }); }
-function useGroupMembers(id: number) { return useQuery({ queryKey: ['rp', 'group-members', id], queryFn: () => pgApi.getMembers(id), enabled: id > 0, select: r => r.data ?? [] }); }
-function useEmployees() { return useQuery({ queryKey: ['employees-light'], queryFn: () => pgApi.employees(), staleTime: 5 * 60_000, select: r => r.data ?? [] }); }
+// ─── Queries ──────────────────────────────────────────────────────────────────
+
+function useGroups() {
+  return useQuery({ queryKey: ['rp', 'groups'], queryFn: () => pgApi.list(), staleTime: 0, select: r => r.data ?? [] });
+}
+function useGroupPerms(id: number) {
+  return useQuery({ queryKey: ['rp', 'group-perms', id], queryFn: () => pgApi.getPerms(id), enabled: id > 0, select: r => r.data ?? [] });
+}
+function useEmployees() {
+  return useQuery({ queryKey: ['employees-light'], queryFn: () => pgApi.employees(), staleTime: 5 * 60_000, select: r => r.data ?? [] });
+}
+
 function useEmployeeOverrides(groupId: number, employeeId: number | undefined, companyId: number | undefined) {
   return useQuery({
     queryKey: ['rp', 'employee-overrides', groupId, employeeId, companyId],
@@ -122,14 +116,16 @@ function useGroupFieldPermissions(formId: number, groupId: number, companyId: nu
   });
 }
 
-// function useEmployeeModuleForms(moduleId: number) {
-//   return useQuery({
-//     queryKey: ['field-perm-forms', moduleId],
-//     queryFn: () => pgApi.listForms(moduleId),
-//     enabled: moduleId > 0,
-//     select: r => r.data ?? [],
-//   });
-// }
+// Permission-module list — the single source of truth for the module matrix.
+function useModuleList() {
+  return useQuery({
+    queryKey: ['rp', 'company-modules'],
+    queryFn: () => pgApi.companyModules(),
+    staleTime: 5 * 60_000,
+    select: (r: any): ModuleDef[] =>
+      ((r.data ?? []) as any[]).map(m => ({ key: m.module, label: m.label })),
+  });
+}
 
 function useAllModuleForms(modules: Module[]) {
   return useQueries({
@@ -146,29 +142,29 @@ function useEmployeeFieldOverrides(groupId: number, employeeId: number | undefin
   return useQuery({
     queryKey: ['field-overrides', groupId, employeeId, companyId, module],
     queryFn: () => pgApi.listFieldOverrides(groupId, employeeId!, companyId!, module),
-    enabled: !!employeeId && !!companyId && groupId > 0,
+    enabled: !!employeeId && !!companyId && groupId > 0 && !!module,
     select: r => r.data ?? {},
     staleTime: 0,
   });
 }
 
-// ─── Existing slug ↔ modPerms helpers (unchanged) ────────────────────────────
+// ─── slug ↔ modPerms helpers ──────────────────────────────────────────────────
 
-function initModulePerms(on = false): ModulePerms {
+function initModulePerms(modules: ModuleDef[], on = false): ModulePerms {
   const out: ModulePerms = {};
-  for (const m of MODULES) {
+  for (const m of modules) {
     out[m.key] = {};
     for (const p of PERMS) out[m.key][p] = on;
   }
   return out;
 }
 
-function countPerm(mp: ModulePerms, perm: string) {
-  return MODULES.filter(m => mp[m.key]?.[perm]).length;
+function countPerm(mp: ModulePerms, perm: string, modules: ModuleDef[]) {
+  return modules.filter(m => mp[m.key]?.[perm]).length;
 }
 
-function slugsToModulePerms(slugs: string[]): ModulePerms {
-  const mp = initModulePerms(false);
+function slugsToModulePerms(slugs: string[], modules: ModuleDef[]): ModulePerms {
+  const mp = initModulePerms(modules, false);
   for (const slug of slugs) {
     const [mod, action] = slug.split(':');
     if (mp[mod] && action) mp[mod][action] = true;
@@ -176,17 +172,20 @@ function slugsToModulePerms(slugs: string[]): ModulePerms {
   return mp;
 }
 
-function modulePermsToSlugs(mp: ModulePerms): string[] {
-  const out: string[] = [];
-  for (const m of MODULES) {
-    for (const p of PERMS) {
-      if (mp[m.key]?.[p]) out.push(`${m.key}:${p}`);
-    }
+// originalSlugs passthrough: never drop permissions for modules the client
+// doesn't know about — setPermissions destroys-then-recreates from this array.
+function modulePermsToSlugs(
+  mp: ModulePerms, modules: ModuleDef[], originalSlugs: string[] = [],
+): string[] {
+  const known = new Set(modules.map(m => m.key));
+  const out = originalSlugs.filter(s => !known.has(s.split(':')[0]));
+  for (const m of modules) {
+    for (const p of PERMS) if (mp[m.key]?.[p]) out.push(`${m.key}:${p}`);
   }
-  return out;
+  return [...new Set(out)];
 }
 
-// ─── NEW UI: PermToggle (from new design) ─────────────────────────────────────
+// ─── PermToggle ───────────────────────────────────────────────────────────────
 
 function PermToggle({ on, onClick }: { on: boolean; onClick?: () => void }) {
   return (
@@ -208,10 +207,10 @@ function PermToggle({ on, onClick }: { on: boolean; onClick?: () => void }) {
   );
 }
 
-// ─── NEW UI: Avatar ───────────────────────────────────────────────────────────
+// ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ name, size = 24, fontSize = 8 }: { name: string; size?: number; fontSize?: number }) {
-  const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: 'linear-gradient(135deg, var(--blue), var(--purple))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 700, flexShrink: 0 }}>
       {initials}
@@ -219,7 +218,7 @@ function Avatar({ name, size = 24, fontSize = 8 }: { name: string; size?: number
   );
 }
 
-// ─── NEW UI: Left sidebar group list ─────────────────────────────────────────
+// ─── Left sidebar group list ─────────────────────────────────────────────────
 
 function GroupSidebar({
   groups, selectedId, onSelect, onNew, membersMap,
@@ -227,7 +226,7 @@ function GroupSidebar({
   groups: PermGroup[];
   selectedId: number | null;
   onSelect: (g: PermGroup) => void;
-  onNew: () => void;
+  onNew?: () => void;
   membersMap: Record<number, any[]>;
 }) {
   return (
@@ -255,9 +254,11 @@ function GroupSidebar({
           </div>
         );
       })}
-      <button className="btn btn-sec btn-sm" style={{ width: '100%', marginTop: 4 }} onClick={onNew}>
-        + New Group
-      </button>
+      {onNew && (
+        <button className="btn btn-sec btn-sm" style={{ width: '100%', marginTop: 4 }} onClick={onNew}>
+          + New Group
+        </button>
+      )}
     </div>
   );
 }
@@ -309,6 +310,7 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
   };
 
   const canAdd = selectedEmp && (allCompanies || selectedCompanies.size > 0);
+  const visible = notMembers.slice(0, 20);
 
   return (
     <div style={{ marginBottom: 12, padding: 14, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
@@ -322,7 +324,7 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
             style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: 'var(--ink)', width: '100%', fontFamily: 'var(--font)' }} />
         </div>
         <div style={{ maxHeight: 160, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {notMembers.slice(0, 20).map((e: any) => {
+          {visible.map((e: any) => {
             const eName = `${e.first_name} ${e.last_name}`;
             const isSelected = selectedEmp === e.id;
             return (
@@ -345,23 +347,34 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
             );
           })}
           {notMembers.length === 0 && <div style={{ fontSize: 12, color: 'var(--ink4)', textAlign: 'center', padding: '10px 0' }}>No matching employees</div>}
+          {notMembers.length > visible.length && (
+            <div style={{ fontSize: 10, color: 'var(--ink4)', textAlign: 'center', padding: '6px 0' }}>
+              Showing {visible.length} of {notMembers.length} — refine your search
+            </div>
+          )}
         </div>
       </div>
 
       {/* Company scope chips */}
       <div className="fg" style={{ marginBottom: 12 }}>
         <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink3)', marginBottom: 6, display: 'block' }}>Company Scope</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {assignedCompanies.map(co => (
-            <span key={co.id} onClick={() => toggleChip(co.id)}
-              style={chipStyle(!allCompanies && selectedCompanies.has(co.id))}>
-              {co.name}
+        {assignedCompanies.length === 0 ? (
+          <div style={{ fontSize: 11, color: 'var(--ink4)', fontStyle: 'italic' }}>
+            No companies available — you don&apos;t manage any company yet.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {assignedCompanies.map(co => (
+              <span key={co.id} onClick={() => toggleChip(co.id)}
+                style={chipStyle(!allCompanies && selectedCompanies.has(co.id))}>
+                {co.name}
+              </span>
+            ))}
+            <span onClick={toggleAll} style={chipStyle(allCompanies, true)}>
+              🌐 All companies
             </span>
-          ))}
-          <span onClick={toggleAll} style={chipStyle(allCompanies, true)}>
-            🌐 All companies (incl. future)
-          </span>
-        </div>
+          </div>
+        )}
       </div>
 
       <button className="btn btn-pri btn-sm" onClick={handleAdd} disabled={!canAdd}
@@ -372,7 +385,7 @@ function AddPersonForm({ notMembers, search, setSearch, assignedCompanies, onAdd
   );
 }
 
-// ─── MemberCompanyBadges — shows which company the member belongs to ──────────
+// ─── MemberCompanyBadges ──────────────────────────────────────────────────────
 
 function MemberCompanyBadges({ member, assignedCompanies, onRemoveCompany }: {
   member: any;
@@ -380,7 +393,6 @@ function MemberCompanyBadges({ member, assignedCompanies, onRemoveCompany }: {
   onRemoveCompany: (companyId: number) => void;
 }) {
   if (!member.assigned_company_ids?.length) return null;
-  // const availableToAdd = assignedCompanies.filter(co => !member.assigned_company_ids.includes(co.id))
 
   const companies = member.assigned_company_ids
     .map((id: number) => assignedCompanies.find(ac => ac.id === id))
@@ -406,19 +418,18 @@ function MemberCompanyBadges({ member, assignedCompanies, onRemoveCompany }: {
   );
 }
 
-// ─── NEW UI: Right detail panel for selected group ────────────────────────────
+// ─── Right detail panel for selected group ────────────────────────────────────
 
 function GroupDetail({
-  group, members, onEdit, onFieldPerms, onDelete,
+  group, members, onEdit, onDelete,
   addPersonOpen, setAddPersonOpen,
   onAddMember, onRemoveMember, employees, assignedCompanies,
-  overrides, onToggleOverrides, onEditOverride, onDeleteOverride,
+  overrides, onToggleOverrides, onEditOverride, modules,
 }: {
   group: PermGroup;
   members: any[];
-  onEdit: () => void;
-  onFieldPerms: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   addPersonOpen: boolean;
   setAddPersonOpen: (v: boolean) => void;
   onAddMember: (empId: number, companyIds: number[]) => void;
@@ -428,26 +439,27 @@ function GroupDetail({
   overrides: Record<string, boolean>;
   onToggleOverrides: (memberId: number) => void;
   onEditOverride: (memberId: number) => void;
-  onDeleteOverride: (
-    memberId: number,
-    overrideId: number
-  ) => void;
+  modules: ModuleDef[];
 }) {
   const slugs = group.permissions?.map(p => p.slug) || [];
-  const modPerms = slugsToModulePerms(slugs);
+  const modPerms = slugsToModulePerms(slugs, modules);
   const [search, setSearch] = useState('');
   const qc = useQueryClient();
   const [addCompanyFor, setAddCompanyFor] = useState<number | null>(null);
   const [selectedNewCompanies, setSelectedNewCompanies] = useState<Set<number>>(new Set());
 
-  const permSummary = useMemo(() =>
-    PERMS.map(p => ({ p, count: countPerm(modPerms, p) })).filter(x => x.count > 0),
-    [slugs.join(',')]
+  const permSummary = useMemo(
+    () => PERMS.map(p => ({ p, count: countPerm(modPerms, p, modules) })).filter(x => x.count > 0),
+    [slugs.join(','), modules],
   );
+
   const notMembers = useMemo(() => {
     const memberIds = new Set(members.map((m: any) => m.id));
+    const q = search.trim().toLowerCase();
     return employees.filter((e: any) => !memberIds.has(e.id) && (
-      !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())
+      !q ||
+      `${e.first_name} ${e.last_name}`.toLowerCase().includes(q) ||
+      `${e.employee_code || ''}`.toLowerCase().includes(q)
     ));
   }, [employees, members, search]);
 
@@ -473,7 +485,8 @@ function GroupDetail({
       map[pair.memberId][pair.companyId] = overrideQueries[idx]?.data?.data || [];
     });
     return map;
-  }, [memberCompanyPairs, overrideQueries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberCompanyPairs, overrideQueries.map(q => q.dataUpdatedAt).join(',')]);
 
   const deleteModuleOverridesMutation = useMutation({
     mutationFn: async ({ memberId, companyId, overrideIds }: { memberId: number; companyId: number; overrideIds: number[] }) => {
@@ -481,18 +494,11 @@ function GroupDetail({
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['group-overrides', group!.id, vars.memberId, vars.companyId] });
+      qc.invalidateQueries({ queryKey: ['rp', 'employee-overrides', group!.id, vars.memberId, vars.companyId] });
       showToast('✓ Override removed');
     },
     onError: (e: any) => showToast(e?.message || 'Failed to remove override'),
   });
-
-  const OVERRIDE_PERMISSION_ORDER = [
-    'view',
-    'create',
-    'edit',
-    'delete',
-    'download',
-  ] as const;
 
   const removeMemberCompanyMutation = useMutation({
     mutationFn: async ({ empId, companyId }: { empId: number; companyId: number }) => {
@@ -517,7 +523,7 @@ function GroupDetail({
   };
 
   const { data: groupSlugs = [] } = useGroupPerms(group.id);
-  const groupBaseModPerms = useMemo(() => slugsToModulePerms(groupSlugs), [groupSlugs]);
+  const groupBaseModPerms = useMemo(() => slugsToModulePerms(groupSlugs, modules), [groupSlugs, modules]);
 
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
@@ -529,9 +535,8 @@ function GroupDetail({
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>{group.name}</div>
           <div style={{ fontSize: 12, color: 'var(--ink4)', marginTop: 2 }}>{group.description || 'No description'}</div>
         </div>
-        <button className="btn btn-sec btn-sm" onClick={onEdit}>✎ Edit Permissions</button>
-        {/* <button className="btn btn-sec btn-sm" onClick={onFieldPerms} title="Field Permissions">☷</button> */}
-        {!group.is_system && (
+        {onEdit && <button className="btn btn-sec btn-sm" onClick={onEdit}>✎ Edit Permissions</button>}
+        {onDelete && !group.is_system && (
           <button className="btn btn-sec btn-sm" onClick={onDelete} style={{ color: 'var(--red)' }}>🗑</button>
         )}
       </div>
@@ -597,7 +602,7 @@ function GroupDetail({
                   return acc;
                 }, {})
               );
-              return { companyId, companyName: co?.name || `Company ${companyId}`, modules: grouped };
+              return { companyId, companyName: co?.name || `Company ${companyId}`, moduleRows: grouped };
             });
 
             const memberAssignedIds = new Set(m.assigned_company_ids || []);
@@ -610,13 +615,14 @@ function GroupDetail({
                     <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
                     <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{m.designation || m.employee_code}</div>
                   </div>
-                  {/* Company badge — shows member's home company */}
+
                   <MemberCompanyBadges member={m} assignedCompanies={assignedCompanies} onRemoveCompany={(companyId) => handleRemoveCompany(m, companyId)} />
 
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => onToggleOverrides(memberId)}
                     title="View permission overrides"
+                    aria-label={`View permission overrides for ${name}`}
                     style={{ fontSize: 11 }}
                   >
                     ☷ Overrides
@@ -625,7 +631,8 @@ function GroupDetail({
                     className="btn btn-ghost btn-sm"
                     onClick={() => onRemoveMember(memberId)}
                     style={{ color: 'var(--red)', fontSize: 11 }}
-                    title="Remove"
+                    title="Remove from group"
+                    aria-label={`Remove ${name} from group`}
                   >
                     ✕
                   </button>
@@ -638,20 +645,20 @@ function GroupDetail({
                       ☷ Permission overrides for {name}
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--ink4)', marginBottom: 10 }}>
-                      These exceptions apply only to {m.first_name} — everyone else in <strong>{group.name}</strong> keeps the group's default permissions.
+                      These exceptions apply only to {m.first_name} — everyone else in <strong>{group.name}</strong> keeps the group&apos;s default permissions.
                     </div>
-                    {groupedOverridesByCompany.map(({ companyId, companyName, modules }) => (
-                      modules.length > 0 && (
+                    {groupedOverridesByCompany.map(({ companyId, companyName, moduleRows }) => (
+                      moduleRows.length > 0 && (
                         <div key={companyId} style={{ marginBottom: 10 }}>
                           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
                             {companyName}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {modules.map((mod: any) => (
+                            {moduleRows.map((mod: any) => (
                               <div key={mod.module} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 11 }}>
                                 <div style={{ flex: 1 }}>
                                   <div style={{ fontWeight: 600, color: 'var(--ink)' }}>
-                                    {MODULES.find((x: any) => x.key === mod.module)?.label || mod.module}
+                                    {modules.find(x => x.key === mod.module)?.label || mod.module}
                                   </div>
                                   <div style={{ color: 'var(--ink3)', marginTop: 2 }}>
                                     {mod.changes.map((c: any, idx: number) => (
@@ -675,12 +682,16 @@ function GroupDetail({
                                   style={{ fontSize: 10 }}
                                   onClick={() => onEditOverride(memberId)}
                                   title="Edit this override"
+                                  aria-label="Edit this override"
                                 >
                                   ✎
                                 </button>
                                 <button
                                   className="btn btn-ghost btn-sm"
                                   style={{ color: 'var(--red)' }}
+                                  title="Delete this override"
+                                  aria-label="Delete this override"
+                                  disabled={deleteModuleOverridesMutation.isPending}
                                   onClick={() => { deleteModuleOverridesMutation.mutate({ memberId, companyId, overrideIds: mod.overrideIds }); }}
                                 >
                                   ✕
@@ -698,7 +709,7 @@ function GroupDetail({
                         onClick={() => {
                           const next = addCompanyFor === memberId ? null : memberId;
                           setAddCompanyFor(next);
-                          setSelectedNewCompanies(new Set());   // ← naya: har baar fresh state
+                          setSelectedNewCompanies(new Set());
                         }}
                       >
                         {addCompanyFor === memberId ? '✕ Cancel' : '+ Add Company'}
@@ -766,88 +777,60 @@ function GroupDetail({
   );
 }
 
-// ─── NEW UI: Module matrix with "All" toggle col and section grouping ─────────
+// ─── Module matrix ────────────────────────────────────────────────────────────
 
-function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompanyMap, assignedCompanies, overrideTargetCompanyIds }: {
+function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompanyMap, assignedCompanies, overrideTargetCompanyIds, modules }: {
   modPerms: ModulePerms;
   onChange: (mp: ModulePerms) => void;
   isOverrideMode?: boolean;
   moduleCompanyMap: Record<string, { label: string; companies: any[] }>;
   assignedCompanies: { id: number; name: string; shortName: string }[];
   overrideTargetCompanyIds?: number[];
+  modules: ModuleDef[];
 }) {
   const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
+
   const toggle = (mod: string, perm: string) => {
     const current = modPerms[mod] || {};
 
-    const next = {
+    const next: Record<string, boolean> = {
       ...current,
       [perm]: !current[perm],
     };
 
     // Any permission except View automatically enables View
-    if (
-      perm !== 'view' &&
-      next[perm]
-    ) {
+    if (perm !== 'view' && next[perm]) {
       next.view = true;
     }
 
     // Turning View OFF removes every dependent permission
-    if (
-      perm === 'view' &&
-      !next.view
-    ) {
+    if (perm === 'view' && !next.view) {
       next.create = false;
       next.edit = false;
       next.delete = false;
       next.download = false;
     }
 
-    onChange({
-      ...modPerms,
-      [mod]: next,
-    });
+    onChange({ ...modPerms, [mod]: next });
   };
 
   const toggleRow = (modKey: string) => {
     const current = modPerms[modKey] || {};
-
     const allEnabled = PERMS.every(p => current[p]);
+    const next: Record<string, boolean> = allEnabled
+      ? { view: false, create: false, edit: false, delete: false, download: false }
+      : { view: true, create: true, edit: true, delete: true, download: true };
 
-    let next: Record<string, boolean>;
-
-    if (allEnabled) {
-      // Turn everything OFF
-      next = {
-        view: false,
-        create: false,
-        edit: false,
-        delete: false,
-        download: false,
-      };
-    } else {
-      // Turn everything ON
-      next = {
-        view: true,
-        create: true,
-        edit: true,
-        delete: true,
-        download: true,
-      };
-    }
-
-    onChange({
-      ...modPerms,
-      [modKey]: next,
-    });
+    onChange({ ...modPerms, [modKey]: next });
   };
 
-  const setAll = (on: boolean) => {
-    const next = initModulePerms(false);
-    for (const m of MODULES) { next[m.key] = {}; for (const p of PERMS) next[m.key][p] = on; }
-    onChange(next);
-  };
+  const setAll = (on: boolean) => onChange(initModulePerms(modules, on));
+
+  const visibleModules = modules.filter(m => {
+    if (companyFilter === 'all') return true;
+    return (moduleCompanyMap[m.key]?.companies || []).some(co => co.id === companyFilter);
+  });
+
   return (
     <div className="card cp">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -861,11 +844,13 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompan
           </div>
         )}
       </div>
+
       {isOverrideMode && overrideTargetCompanyIds && overrideTargetCompanyIds.length > 0 && (
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--purple)', marginBottom: 10, padding: '6px 10px', background: 'var(--purple-lt, #f3e8ff)', borderRadius: 'var(--r)' }}>
           Modules for: {overrideTargetCompanyIds.map(id => assignedCompanies.find(c => c.id === id)?.shortName || id).join(', ')}
         </div>
       )}
+
       {!isOverrideMode && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10, padding: '8px 10px', background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
           <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink4)', marginRight: 4 }}>
@@ -880,7 +865,7 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompan
               color: companyFilter === 'all' ? 'var(--blue)' : 'var(--ink3)',
             }}
           >
-            🌐 All companies (baseline)
+            🌐 All companies
           </span>
           {assignedCompanies.map(co => (
             <span
@@ -896,14 +881,17 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompan
               {co.shortName}
             </span>
           ))}
+          <span style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 4 }}>
+            (filters the list — permissions are shared across companies)
+          </span>
         </div>
       )}
+
       <div style={{ overflowX: 'auto' }}>
         <table style={{ minWidth: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={{ textAlign: 'left', padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink4)', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>Module</th>
-              {/* "All" toggle column — from new UI */}
               <th style={{ padding: '7px 6px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink4)', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', textAlign: 'center', borderRight: '1px solid var(--border)', whiteSpace: 'nowrap' }} title="Toggle all for this module">
                 All
               </th>
@@ -915,58 +903,46 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompan
             </tr>
           </thead>
           <tbody>
-            {MODULE_SECTIONS.map(section => {
-              const visibleModules = section.modules.filter(m => {
-                if (companyFilter === 'all') return true;
-                const companiesForModule = moduleCompanyMap[m.key]?.companies || [];
-                return companiesForModule.some(co => co.id === companyFilter);
-              });
-              if (visibleModules.length === 0) return null;
+            {visibleModules.map(m => {
+              const cur = modPerms[m.key] || {};
+              const allOn = PERMS.every(p => cur[p]);
+              const companiesForModule = moduleCompanyMap[m.key]?.companies || [];
               return (
-                <>
-                  {/* Section group header row */}
-                  {/* <tr key={section.label}>
-                    <td colSpan={PERMS.length + 2} style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
-                      {section.label}
+                <tr key={m.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
+                    {m.label}
+                    {companiesForModule.map(co => (
+                      <span
+                        key={co.id}
+                        title={co.name}
+                        style={{
+                          marginLeft: 5, fontSize: 9, fontWeight: 700,
+                          background: 'var(--surface2)', border: '1px solid var(--border)',
+                          borderRadius: 4, padding: '1px 5px', color: 'var(--ink4)',
+                        }}
+                      >
+                        {co.shortName}
+                      </span>
+                    ))}
+                  </td>
+                  <td style={{ padding: '8px 6px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+                    <PermToggle on={allOn} onClick={() => toggleRow(m.key)} />
+                  </td>
+                  {PERMS.map(p => (
+                    <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}>
+                      <PermToggle on={!!cur[p]} onClick={() => toggle(m.key, p)} />
                     </td>
-                  </tr> */}
-                  {visibleModules.map(m => {
-                    const cur = modPerms[m.key] || {};
-                    const allOn = PERMS.every(p => cur[p]);
-                    const companiesForModule = moduleCompanyMap[m.key]?.companies || [];
-                    return (
-                      <tr key={m.key} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
-                          {m.label}
-                          {companiesForModule.map(co => (
-                            <span
-                              key={co.id}
-                              title={co.name}
-                              style={{
-                                marginLeft: 5, fontSize: 9, fontWeight: 700,
-                                background: 'var(--surface2)', border: '1px solid var(--border)',
-                                borderRadius: 4, padding: '1px 5px', color: 'var(--ink4)',
-                              }}
-                            >
-                              {co.shortName}
-                            </span>
-                          ))}
-                        </td>
-                        {/* Row "All" toggle */}
-                        <td style={{ padding: '8px 6px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-                          <PermToggle on={allOn} onClick={() => toggleRow(m.key)} />
-                        </td>
-                        {PERMS.map(p => (
-                          <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}>
-                            <PermToggle on={!!cur[p]} onClick={() => toggle(m.key, p)} />
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </>
-              )
+                  ))}
+                </tr>
+              );
             })}
+            {visibleModules.length === 0 && (
+              <tr>
+                <td colSpan={PERMS.length + 2} style={{ padding: 20, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>
+                  No modules available.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -974,20 +950,22 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompan
   );
 }
 
-// ─── Existing PermSummary (right col 3) ───────────────────────────────────────
+// ─── PermSummary ──────────────────────────────────────────────────────────────
 
-function PermSummary({ modPerms, isOverrideMode = false }: { modPerms: ModulePerms, isOverrideMode?: boolean }) {
+function PermSummary({ modPerms, modules, isOverrideMode = false }: {
+  modPerms: ModulePerms; modules: ModuleDef[]; isOverrideMode?: boolean;
+}) {
   return (
     <div className="card cp">
       <div className="ct" style={{ marginBottom: 12 }}>Permission Summary</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
         {PERMS.map(p => {
-          const count = countPerm(modPerms, p);
+          const count = countPerm(modPerms, p, modules);
           return (
             <div key={p} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
               <span style={{ color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 5 }}>{PERM_ICONS[p]} {PERM_LABELS[p]}</span>
               <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: count > 0 ? 'var(--blue)' : 'var(--ink4)' }}>
-                {count} / {MODULES.length}
+                {count} / {modules.length}
               </span>
             </div>
           );
@@ -996,58 +974,18 @@ function PermSummary({ modPerms, isOverrideMode = false }: { modPerms: ModulePer
       <div style={{ marginTop: 10, fontSize: 10, color: 'var(--ink4)' }}>
         {isOverrideMode
           ? 'Overrides differ from group defaults only where toggled.'
-          : 'Shared baseline for all companies. Select a company chip to configure company-specific module access.'}
+          : 'Shared baseline across all companies this group applies to.'}
       </div>
     </div>
   );
 }
 
-// ─── Existing MemberPicker for edit view col 1 ────────────────────────────────
-
-function MemberPicker({ selected, onToggle }: { selected: Set<number>; onToggle: (id: number, on: boolean) => void }) {
-  const { data: employees = [] } = useEmployees();
-  const [search, setSearch] = useState('');
-  const filtered = useMemo(() =>
-    employees.filter((e: any) => !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())),
-    [employees, search]
-  );
-  return (
-    <div className="card cp">
-      <div className="ct" style={{ marginBottom: 10 }}>
-        Members <span style={{ color: 'var(--ink4)', fontWeight: 400, fontSize: 11 }}>({selected.size} selected)</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', marginBottom: 10 }}>
-        <span style={{ color: 'var(--ink4)', fontSize: 14 }}>⌕</span>
-        <input type="text" placeholder="Search employees…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: 'var(--ink)', width: '100%', fontFamily: 'var(--font)' }} />
-      </div>
-      <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-        {filtered.map((e: any) => {
-          const name = `${e.first_name} ${e.last_name}`;
-          const uid = e.id;
-          const isOn = selected.has(uid);
-          return (
-            <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 2px', borderBottom: '1px solid var(--border)' }}>
-              <input type="checkbox" checked={isOn} onChange={ev => onToggle(uid, ev.target.checked)}
-                style={{ accentColor: 'var(--blue)', width: 14, height: 14, flexShrink: 0, cursor: 'pointer' }} />
-              <Avatar name={name} size={24} fontSize={8} />
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-                <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{e.designation?.name || e.employee_code}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Existing EditView (logic unchanged, layout updated to match new UI) ──────
+// ─── EditView ─────────────────────────────────────────────────────────────────
 
 function EditView({
   group, onBack,
-  overrideMemberId, overrideMemberName, overrideMemberCompanyId, overrideMemberCompanyIds, groupName, moduleCompanyMap, assignedCompanies,
+  overrideMemberId, overrideMemberName, overrideMemberCompanyId, overrideMemberCompanyIds,
+  groupName, moduleCompanyMap, assignedCompanies, modules,
 }: {
   group: PermGroup | null;
   onBack: () => void;
@@ -1058,49 +996,55 @@ function EditView({
   groupName?: string;
   moduleCompanyMap: Record<string, { label: string; companies: { id: number; name: string; shortName: string }[] }>;
   assignedCompanies: { id: number; name: string; shortName: string }[];
+  modules: ModuleDef[];
 }) {
   const qc = useQueryClient();
   const dispatch = useAppDispatch();
   const isNew = !group;
   const isOverrideMode = !!overrideMemberId;
-  const { companyId } = useCompanySelector();
 
   const [name, setName] = useState(group?.name || '');
   const [desc, setDesc] = useState(group?.description || '');
   const [colorKey, setColorKey] = useState(group?.color || 'blue');
-  const [modPerms, setModPerms] = useState<ModulePerms>(() => initModulePerms(false));
+  const [modPerms, setModPerms] = useState<ModulePerms>({});
+  const [baseModPerms, setBaseModPerms] = useState<ModulePerms>({});
+  const [baseLoaded, setBaseLoaded] = useState(false);
+
   const { data: existingSlugs = [] } = useGroupPerms(group?.id || 0);
   const { data: savedOverrides = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId, overrideMemberCompanyId);
-  const [baseModPerms, setBaseModPerms] = useState<ModulePerms>(() => initModulePerms(false));
 
-  const [baseLoaded, setBaseLoaded] = useState(false);
   const [selectedOverrideCompanyIds, setSelectedOverrideCompanyIds] = useState<number[]>(
     overrideMemberCompanyId ? [overrideMemberCompanyId] : []
   );
+
+  // Field-permission save is registered by the panel and flushed by this view's save.
+  const fieldSaveRef = useRef<null | (() => Promise<any>)>(null);
 
   useEffect(() => {
     if (overrideMemberCompanyId) {
       setSelectedOverrideCompanyIds([overrideMemberCompanyId]);
     }
-  }, [overrideMemberId]);   // jab member badle, selection reset ho, default first company select ho
-  // Effect A: load group base permissions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overrideMemberId]);
+
+  // Effect A: load the group baseline. Must wait for the module list, otherwise
+  // slugsToModulePerms builds an empty matrix and every toggle renders off.
   useEffect(() => {
-    if (!existingSlugs.length) return;
-
-    const mp = slugsToModulePerms(existingSlugs);
-
-    setBaseModPerms(mp); // original group permissions
-    setModPerms(mp);     // working copy for UI
-
+    if (!modules.length) return;
+    if (!group) { setBaseModPerms({}); setModPerms({}); setBaseLoaded(true); return; }
+    const mp = slugsToModulePerms(existingSlugs || [], modules);
+    setBaseModPerms(mp);
+    setModPerms(mp);
     setBaseLoaded(true);
-  }, [existingSlugs.join(',')]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group?.id, existingSlugs.join(','), modules]);
 
-  // Effect B: apply saved employee overrides on top — runs after base is loaded
+  // Effect B: apply saved employee overrides on top of the baseline.
   useEffect(() => {
     if (!baseLoaded || !isOverrideMode) return;
-    if (!savedOverrides.length) return;
-    setModPerms(prev => {
-      const mp = { ...prev };
+    setModPerms(() => {
+      const mp: ModulePerms = {};
+      for (const k of Object.keys(baseModPerms)) mp[k] = { ...baseModPerms[k] };
       for (const o of savedOverrides) {
         if (mp[o.module]) {
           mp[o.module] = { ...mp[o.module], [o.permission]: o.granted };
@@ -1109,39 +1053,23 @@ function EditView({
       return mp;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedOverrides.map(o => `${o.module}:${o.permission}:${o.granted}`).join(','), baseLoaded]);
+  }, [savedOverrides.map((o: any) => `${o.module}:${o.permission}:${o.granted}`).join(','), baseLoaded, isOverrideMode]);
 
-  //   useEffect(() => {
-  // if (existingMembers.length) {
-  //       setSelMembers(new Set(existingMembers.map((m: any) => m.id)));   // employee_id — no users table
-  //     }
-  //   }, [existingMembers.length]);
-
-  // Existing save logic (unchanged)
   const saveMutation = useMutation({
     mutationFn: async () => {
 
       // ── OVERRIDE MODE: update only THIS employee's overrides, never the group ──
       if (isOverrideMode) {
-        // Build overrides from ALL modules — employee can get any permission added or removed.
-        // Backend replaces all existing overrides for this employee atomically.
-        const VALID_PERMS = ['view', 'create', 'edit', 'delete', 'download'] as const;
         const overrides: { module: string; field_name: null; permission: string; granted: boolean }[] = [];
-        for (const mod of MODULES) {
+        for (const mod of modules) {
           const currentModule = modPerms[mod.key] || {};
           const baseModule = baseModPerms[mod.key] || {};
 
-          for (const perm of VALID_PERMS) {
+          for (const perm of PERMS) {
             const currentValue = !!currentModule[perm];
             const baseValue = !!baseModule[perm];
-
             if (currentValue !== baseValue) {
-              overrides.push({
-                module: mod.key,
-                field_name: null,
-                permission: perm,
-                granted: currentValue,
-              });
+              overrides.push({ module: mod.key, field_name: null, permission: perm, granted: currentValue });
             }
           }
         }
@@ -1154,48 +1082,47 @@ function EditView({
           throw new Error('Select at least one company to save overrides for');
         }
         await pgApi.setOverrides(group!.id, overrideMemberId!, targetCompanyIds, overrides);
+        await fieldSaveRef.current?.();
         return;
       }
 
-      // ── NORMAL GROUP EDIT: update the group's permissions for all members ──
-      const slugs = modulePermsToSlugs(modPerms);
+      // ── NORMAL GROUP EDIT ──
+      // existingSlugs passthrough keeps permissions for modules not in the UI list.
+      const slugs = modulePermsToSlugs(modPerms, modules, existingSlugs);
       if (isNew) {
         const r = await pgApi.create({ name, description: desc, color: colorKey });
         const newId = r.data.id;
         await pgApi.setPerms(newId, slugs);
+        await fieldSaveRef.current?.();
         return r;
-      } else {
-        await pgApi.update(group!.id, { name, description: desc, color: colorKey });
-        await pgApi.setPerms(group!.id, slugs);
       }
+      await pgApi.update(group!.id, { name, description: desc, color: colorKey });
+      await pgApi.setPerms(group!.id, slugs);
+      await fieldSaveRef.current?.();
     },
     onSuccess: (data: any) => {
       if (isOverrideMode && group?.id && overrideMemberId) {
-
         if (data?.accessToken) dispatch(updateToken(data.accessToken));
         if (data?.permissions) dispatch(setPermissions(data.permissions));
 
-        qc.refetchQueries({
-          queryKey: ['rp', 'employee-overrides', group.id, overrideMemberId]
-        });
+        const targetCompanyIds = selectedOverrideCompanyIds.length > 0
+          ? selectedOverrideCompanyIds
+          : (overrideMemberCompanyId ? [overrideMemberCompanyId] : []);
 
-        // Also refresh the inline overrides panel on the group detail screen —
-        // it reads a different cache key ('group-overrides'), so without this
-        // it keeps showing stale data after Save until the panel happens to remount.
-        qc.invalidateQueries({
-          queryKey: ['group-overrides', group.id, overrideMemberId]
-        });
+        for (const cid of targetCompanyIds) {
+          qc.refetchQueries({ queryKey: ['rp', 'employee-overrides', group.id, overrideMemberId, cid] });
+          qc.invalidateQueries({ queryKey: ['group-overrides', group.id, overrideMemberId, cid] });
+        }
 
         showToast('✓ Employee override saved');
-
-        // ADD THIS
         onBack();
-
         return;
       }
 
       qc.refetchQueries({ queryKey: ['rp', 'groups'] });
       qc.refetchQueries({ queryKey: ['rp', 'group-perms', group?.id] });
+      qc.invalidateQueries({ queryKey: ['group-field-perms'] });
+      qc.invalidateQueries({ queryKey: ['field-perm-matrix'] });
 
       showToast(isNew ? '✓ Group created' : '✓ Group updated');
       onBack();
@@ -1203,13 +1130,11 @@ function EditView({
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
 
-  const fieldModuleAccessGranted = isOverrideMode
-    ? !!baseModPerms['employees']?.view
-    : !!modPerms['employees']?.view;
+  const effectiveModPerms = isOverrideMode ? baseModPerms : modPerms;
 
   return (
     <div>
-      {/* Toolbar — matches new UI */}
+      {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <button className="btn btn-ghost btn-sm" onClick={onBack}>← Back</button>
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', flex: 1 }} id="rp-edit-title">
@@ -1223,17 +1148,18 @@ function EditView({
           onClick={() => saveMutation.mutate()}
           disabled={
             (isOverrideMode ? selectedOverrideCompanyIds.length === 0 : !name.trim())
+            || !baseLoaded
             || saveMutation.isPending
           }
         >
-          {saveMutation.isPending ? '…' : '✓ Save Group'}
+          {saveMutation.isPending ? '…' : isOverrideMode ? '✓ Save Overrides' : '✓ Save Group'}
         </button>
       </div>
 
-      {/* 3-col layout — matches new UI grid */}
+      {/* 3-col layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 240px', gap: 14, alignItems: 'flex-start' }}>
 
-        {/* Col 1: Group details (normal) or member override context (override mode) */}
+        {/* Col 1 */}
         {isOverrideMode ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="card cp">
@@ -1245,13 +1171,12 @@ function EditView({
                   <div style={{ fontSize: 11, color: 'var(--ink4)' }}>Individual override</div>
                 </div>
               </div>
-              {isOverrideMode && overrideMemberCompanyIds && overrideMemberCompanyIds.length > 1 && (
+              {overrideMemberCompanyIds && overrideMemberCompanyIds.length > 1 && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)', display: 'block', marginBottom: 8 }}>
                     Override applies to
                   </label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {/* ── NAYA: "All assigned companies" toggle chip ── */}
                     <span
                       onClick={() => {
                         const allSelected = selectedOverrideCompanyIds.length === overrideMemberCompanyIds.length;
@@ -1291,7 +1216,7 @@ function EditView({
                     })}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--ink4)', marginTop: 6, lineHeight: 1.5 }}>
-                    Editing overrides for: {selectedOverrideCompanyIds.map(id => assignedCompanies.find(c => c.id === id)?.name).join(', ') || 'none selected'}.
+                    Editing overrides for: {selectedOverrideCompanyIds.map(id => assignedCompanies.find(c => c.id === id)?.name).filter(Boolean).join(', ') || 'none selected'}.
                   </div>
                 </div>
               )}
@@ -1305,34 +1230,43 @@ function EditView({
             <div className="card cp">
               <div className="ct" style={{ marginBottom: 12 }}>Group Details</div>
               <div className="fg" style={{ marginBottom: 10 }}>
-                <label>Group Name *</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Senior HR" autoFocus />
+                <label htmlFor="rp-group-name">Group Name *</label>
+                <input id="rp-group-name" type="text" value={name} maxLength={80}
+                  onChange={e => setName(e.target.value)} placeholder="e.g. Senior HR" autoFocus />
               </div>
               <div className="fg" style={{ marginBottom: 10 }}>
                 <label>Colour Tag</label>
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 4 }}>
                   {COLOR_OPTS.map(c => (
-                    <div key={c.key} onClick={() => setColorKey(c.key)}
+                    <div key={c.key} onClick={() => setColorKey(c.key)} title={c.key}
                       style={{ width: 24, height: 24, borderRadius: '50%', background: c.css, cursor: 'pointer', border: `3px solid ${colorKey === c.key ? 'var(--ink)' : 'transparent'}`, transform: colorKey === c.key ? 'scale(1.2)' : 'scale(1)', transition: 'all .12s' }} />
                   ))}
                 </div>
               </div>
               <div className="fg">
-                <label>Description</label>
-                <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="What can this group do?" />
+                <label htmlFor="rp-group-desc">Description</label>
+                <textarea id="rp-group-desc" value={desc} maxLength={255}
+                  onChange={e => setDesc(e.target.value)} rows={2} placeholder="What can this group do?" />
               </div>
             </div>
           </div>
         )}
 
+        {/* Col 2 */}
+        <ModuleMatrix
+          modPerms={modPerms}
+          onChange={setModPerms}
+          isOverrideMode={isOverrideMode}
+          moduleCompanyMap={moduleCompanyMap}
+          assignedCompanies={assignedCompanies}
+          overrideTargetCompanyIds={selectedOverrideCompanyIds}
+          modules={modules}
+        />
 
-
-        {/* Col 2: Module permission matrix — new UI with All col + section grouping */}
-        <ModuleMatrix modPerms={modPerms} onChange={setModPerms} isOverrideMode={isOverrideMode} moduleCompanyMap={moduleCompanyMap} assignedCompanies={assignedCompanies} overrideTargetCompanyIds={selectedOverrideCompanyIds} />
-
-        {/* Col 3: Summary */}
-        <PermSummary modPerms={modPerms} isOverrideMode={isOverrideMode} />
+        {/* Col 3 */}
+        <PermSummary modPerms={modPerms} modules={modules} isOverrideMode={isOverrideMode} />
       </div>
+
       {group && (
         <div style={{ marginTop: 20 }}>
           <FieldPermissionsPanel
@@ -1340,10 +1274,9 @@ function EditView({
             assignedCompanies={assignedCompanies}
             isOverrideMode={isOverrideMode}
             overrideMemberId={overrideMemberId}
-            overrideMemberCompanyIds={overrideMemberCompanyIds}
             selectedOverrideCompanyIds={selectedOverrideCompanyIds}
-            overrideMemberName={overrideMemberName}
-            moduleAccessGranted={fieldModuleAccessGranted}
+            modPerms={effectiveModPerms}
+            onRegisterSave={fn => { fieldSaveRef.current = fn; }}
           />
         </div>
       )}
@@ -1351,57 +1284,67 @@ function EditView({
   );
 }
 
-// ─── Existing FieldPermissionsView (unchanged — only wired into new nav) ──────
+// ─── FieldPermissionsPanel ────────────────────────────────────────────────────
+
 function FieldPermissionsPanel({
   groupId, assignedCompanies, isOverrideMode = false,
-  overrideMemberId, overrideMemberCompanyIds, selectedOverrideCompanyIds, overrideMemberName, moduleAccessGranted
+  overrideMemberId, selectedOverrideCompanyIds, modPerms, onRegisterSave,
 }: {
   groupId: number;
   assignedCompanies: { id: number; name: string; shortName: string }[];
   isOverrideMode?: boolean;
   overrideMemberId?: number;
-  overrideMemberCompanyIds?: number[];
   selectedOverrideCompanyIds?: number[];
-  overrideMemberName?: string;
-  moduleAccessGranted: boolean;
+  modPerms: ModulePerms;
+  onRegisterSave?: (fn: () => Promise<any>) => void;
 }) {
-  const qc = useQueryClient();
+  // HrModule rows — these carry permission_key (see backend Step 1b) which joins
+  // the form/field side to the permission-module keys used by the matrix.
   const { data: modules = [] } = useQuery({
     queryKey: ['field-perm-modules'],
     queryFn: () => pgApi.listModules(),
-    select: r => r.data ?? [],
+    select: (r: any): Module[] => r.data ?? [],
     staleTime: 5 * 60_000,
   });
 
   const allFormsQueries = useAllModuleForms(modules);
 
-const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
-  const forms = query.data || [];  // Now TypeScript knows this is Form[]
-  return forms.map(form => ({
-    ...form,
-    moduleId: modules[moduleIndex].id,
-    moduleName: modules[moduleIndex].name,
-  }));
-});
-  // const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
-  // useEffect(() => { if (modules.length && !selectedModuleId) setSelectedModuleId(modules[0].id); }, [modules]);
-  // console.log("modules", modules)
+  const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
+    const mod = modules[moduleIndex];
+    if (!mod) return [];
+    return (query.data || []).map((form: Form) => ({
+      ...form,
+      moduleId: mod.id,
+      moduleName: mod.name,
+      moduleKey: mod.permission_key ?? mod.slug,
+    }));
+  });
 
-  // const { data: forms = [] } = useEmployeeModuleForms(selectedModuleId || 0);
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
-  useEffect(() => { if (allForms.length && !selectedFormId) setSelectedFormId(allForms[0].id); }, [allForms, selectedFormId]);
 
-  const { data: members = [] } = useGroupMembers(groupId);
-  const groupCompanyIds = useMemo(() => {
-    const ids = new Set<number>();
-    for (const m of members) (m.assigned_company_ids || []).forEach((id: number) => ids.add(id));
-    return [...ids].sort((a, b) => a - b);
-  }, [members]);
+  useEffect(() => { setSelectedFormId(null); }, [groupId]);
+  useEffect(() => {
+    if (allForms.length && !selectedFormId) setSelectedFormId(allForms[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allForms.length, selectedFormId]);
+
+  const selectedForm = allForms.find((f: any) => f.id === selectedFormId);
+  const selectedModuleKey: string | undefined = selectedForm?.moduleKey;
+  const moduleAccessGranted = !!selectedModuleKey && !!modPerms[selectedModuleKey]?.view;
+
+  // Company scope comes from the group, not from its members — a brand-new
+  // group with no members can still be configured.
+  const { data: groupCompanyIds = [] } = useQuery({
+    queryKey: ['group-company-scope', groupId],
+    queryFn: () => pgApi.groupCompanyScope(groupId),
+    enabled: groupId > 0,
+    select: (r: any): number[] => r.data ?? [],
+  });
 
   const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : groupCompanyIds[0];
+
   const { data: matrixData, refetch } = useGroupFieldPermissionMatrix(selectedFormId || 0, matrixCompanyId || 0);
   const fields = matrixData?.fields || [];
-  const matrix = matrixData?.matrix || {};
 
   const { data: groupPermsData, refetch: refetchGroupPerms } = useGroupFieldPermissions(
     selectedFormId || 0, groupId, matrixCompanyId || 0
@@ -1412,18 +1355,23 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
 
   const displayCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : undefined;
   const { data: overrideData, refetch: refetchOverrides } = useEmployeeFieldOverrides(
-    groupId, overrideMemberId, displayCompanyId, 'employees'  // 'employees' matches the module key used elsewhere
+    groupId, overrideMemberId, displayCompanyId, selectedModuleKey || ''
   );
 
+  // Merge group baseline + employee overrides into the working copy.
+  // Guarded on `dirty` so a background refetch can't silently discard edits.
   useEffect(() => {
-    if (isOverrideMode) {
-      if (!fields.length) return;
-      const merged: Record<number, any> = {};
-      for (const f of fields) {
-        const groupBase =
-          groupPermsData?.perms?.[f.id] ||
-          matrixData?.matrix?.[f.id]?.[groupId] ||
-          { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+    if (dirty) return;
+    if (!fields.length) return;
+
+    const merged: Record<number, any> = {};
+    for (const f of fields) {
+      const groupBase =
+        groupPermsData?.perms?.[f.id] ||
+        matrixData?.matrix?.[groupId]?.[f.id] ||
+        { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+
+      if (isOverrideMode) {
         const ov = overrideData?.[f.field_key] || {};
         merged[f.id] = {
           can_view: ov.view !== undefined ? ov.view : groupBase.can_view,
@@ -1432,21 +1380,13 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
           can_download: ov.download !== undefined ? ov.download : groupBase.can_download,
           is_masked: ov.mask !== undefined ? ov.mask : groupBase.is_masked,
         };
+      } else {
+        merged[f.id] = groupBase;
       }
-      setLocalPerms(merged);
-      setDirty(false);
-    } else if (fields.length) {
-      const merged: Record<number, any> = {};
-      for (const f of fields) {
-        merged[f.id] =
-          groupPermsData?.perms?.[f.id] ||
-          matrixData?.matrix?.[f.id]?.[groupId] ||
-          { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-      }
-      setLocalPerms(merged);
-      setDirty(false);
     }
-  }, [groupId, groupPermsData, isOverrideMode, overrideData, fields, matrixData]);
+    setLocalPerms(merged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, selectedFormId, matrixCompanyId, groupPermsData, isOverrideMode, overrideData, matrixData]);
 
   const toggleFP = (
     fieldId: number,
@@ -1454,102 +1394,72 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
   ) => {
     setLocalPerms(prev => {
       const current = prev[fieldId] || {};
-
-      const next = {
-        ...current,
-        [perm]: !current[perm],
-      };
+      const next: Record<string, boolean> = { ...current, [perm]: !current[perm] };
 
       // Any permission except View requires View
-      if (
-        perm !== 'can_view' &&
-        next[perm]
-      ) {
+      if (perm !== 'can_view' && next[perm]) {
         next.can_view = true;
       }
 
       // Turning View OFF clears all dependent permissions
-      if (
-        perm === 'can_view' &&
-        !next.can_view
-      ) {
+      if (perm === 'can_view' && !next.can_view) {
         next.can_edit = false;
         next.can_copy = false;
         next.can_download = false;
         next.is_masked = false;
       }
 
-      return {
-        ...prev,
-        [fieldId]: next,
-      };
+      return { ...prev, [fieldId]: next };
     });
-
     setDirty(true);
   };
+
+  // "All" covers the four grants — masking is an independent concern and is
+  // deliberately left out, otherwise granting everything would also hide it.
   const toggleFieldRow = (fieldId: number) => {
     setLocalPerms(prev => {
       const current = prev[fieldId] || {};
-
-      const allEnabled =
-        current.can_view &&
-        current.can_edit &&
-        current.can_copy &&
-        current.can_download &&
-        current.is_masked;
-
+      const allEnabled = current.can_view && current.can_edit && current.can_copy && current.can_download;
       const next = allEnabled
-        ? {
-          can_view: false,
-          can_edit: false,
-          can_copy: false,
-          can_download: false,
-          is_masked: false,
-        }
-        : {
-          can_view: true,
-          can_edit: true,
-          can_copy: true,
-          can_download: true,
-          is_masked: true,
-        };
-
-      return {
-        ...prev,
-        [fieldId]: next,
-      };
+        ? { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false }
+        : { can_view: true, can_edit: true, can_copy: true, can_download: true, is_masked: !!current.is_masked };
+      return { ...prev, [fieldId]: next };
     });
-
     setDirty(true);
   };
+
   const grantAll = () => {
     setLocalPerms(prev => {
       const n = { ...prev };
-
-      for (const f of fields)
-        n[f.id] = {
-          can_view: true,
-          can_edit: true,
-          can_copy: true,
-          can_download: true,
-          is_masked: false,
-        };
-
+      for (const f of fields) {
+        n[f.id] = { can_view: true, can_edit: true, can_copy: true, can_download: true, is_masked: false };
+      }
       return n;
     });
-
     setDirty(true);
   };
-  const revokeAll = () => { setLocalPerms(prev => { const n = { ...prev }; for (const f of fields) n[f.id] = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false }; return n; }); setDirty(true); };
+
+  const revokeAll = () => {
+    setLocalPerms(prev => {
+      const n = { ...prev };
+      for (const f of fields) {
+        n[f.id] = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+      }
+      return n;
+    });
+    setDirty(true);
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!selectedModuleKey) throw new Error('No form selected');
+
       if (isOverrideMode) {
         if (!selectedOverrideCompanyIds?.length) throw new Error('Select at least one company to save overrides for');
         if (!overrideMemberId) throw new Error('No member selected');
 
-        // Only send overrides for fields the admin actually touched vs. the group baseline —
-        // sending everything would create unnecessary override rows for untouched fields.
+        // Only send what differs from the group baseline — sending everything
+        // would create override rows for untouched fields.
         const overrides: { field_name: string; permission: string; granted: boolean }[] = [];
         for (const f of fields) {
           const groupBase = groupPermsData?.perms?.[f.id] || {};
@@ -1561,16 +1471,20 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
           if (!!cur.is_masked !== !!groupBase.is_masked) overrides.push({ field_name: f.field_key, permission: 'mask', granted: !!cur.is_masked });
         }
 
-        await pgApi.setFieldOverrides(groupId, overrideMemberId, selectedOverrideCompanyIds, 'employees', overrides);
+        await pgApi.setFieldOverrides(groupId, overrideMemberId, selectedOverrideCompanyIds, selectedModuleKey, overrides);
       } else {
-        if (!groupCompanyIds.length) throw new Error('This group has no members in any company yet');
+        if (!matrixCompanyId) throw new Error('No company in scope for this group');
         const permissions = fields.map((f: any) => ({
           field_id: f.id,
-          can_view: !!localPerms[f.id]?.can_view, can_edit: !!localPerms[f.id]?.can_edit,
-          can_copy: !!localPerms[f.id]?.can_copy, can_download: !!localPerms[f.id]?.can_download,
+          can_view: !!localPerms[f.id]?.can_view,
+          can_edit: !!localPerms[f.id]?.can_edit,
+          can_copy: !!localPerms[f.id]?.can_copy,
+          can_download: !!localPerms[f.id]?.can_download,
           is_masked: !!localPerms[f.id]?.is_masked,
         }));
-        await pgApi.bulkSetFieldPermissions(groupId, groupCompanyIds, permissions);
+        // Writes to the company currently on screen only — writing to every
+        // company would flatten per-company differences.
+        await pgApi.bulkSetFieldPermissions(groupId, [matrixCompanyId], permissions);
       }
     },
     onSuccess: () => {
@@ -1578,14 +1492,16 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
       setDirty(false);
       refetch();
       refetchGroupPerms();
-      if (isOverrideMode) {
-        refetchOverrides();
-      }
+      if (isOverrideMode) refetchOverrides();
     },
     onError: (e: any) => showToast(e?.message || 'Failed to save'),
   });
 
-  const selectedForm = allForms.find((f: any) => f.id === selectedFormId);
+  // The parent's Save flushes this — one save button for the whole screen.
+  useEffect(() => {
+    onRegisterSave?.(() => (dirty ? saveMutation.mutateAsync() : Promise.resolve()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, saveMutation, onRegisterSave]);
 
   return (
     <div>
@@ -1598,23 +1514,26 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
                 Applies to: {selectedOverrideCompanyIds.map(id => assignedCompanies.find(c => c.id === id)?.name).filter(Boolean).join(', ')}
               </div>
             )
-            : groupCompanyIds.length > 0 && (
+            : !!matrixCompanyId && (
               <div style={{ fontSize: 11, color: 'var(--ink4)' }}>
-                Applies to: {groupCompanyIds.map(id => assignedCompanies.find(c => c.id === id)?.name).filter(Boolean).join(', ')}
+                Editing: {assignedCompanies.find(c => c.id === matrixCompanyId)?.name || `Company ${matrixCompanyId}`}
               </div>
             )
         )}
         {moduleAccessGranted && dirty && (
-          <button className="btn btn-pri btn-sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? '…' : '✓ Save Changes'}
-          </button>
+          <span style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 600 }}>
+            Unsaved — use Save above
+          </span>
         )}
       </div>
+
       {!moduleAccessGranted ? (
         <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--ink4)', fontSize: 13 }}>
-          {isOverrideMode
-            ? 'This group has no granted modules — there are no fields to override for this person.'
-            : <>This group has no module access — there are no fields to configure.<br /><span style={{ fontSize: 11 }}>Grant module view access above to manage field-level rules.</span></>}
+          {!allForms.length
+            ? 'No forms configured yet — nothing to set field rules on.'
+            : isOverrideMode
+              ? `This group has no view access to ${selectedForm?.moduleName || 'this module'} — there are no fields to override.`
+              : <>No view access to {selectedForm?.moduleName || 'this module'}.<br /><span style={{ fontSize: 11 }}>Grant module view access above to manage field-level rules.</span></>}
         </div>
       ) : (
         <>
@@ -1634,6 +1553,7 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
                 ))}
               </div>
             </div>
+
             <div className="card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink3)' }}>{selectedForm?.name || '...'}</div>
@@ -1647,22 +1567,16 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
                   <th style={{ textAlign: 'left', padding: '7px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)' }}>
                     Field
                   </th>
-
                   <th style={{ padding: '7px 8px', textAlign: 'center', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)' }}>
                     All
                   </th>
-
                   {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => (
                     <th
                       key={p}
                       style={{
-                        padding: '7px 8px',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        color: 'var(--ink4)',
-                        borderBottom: '1px solid var(--border)',
-                        textAlign: 'center'
+                        padding: '7px 8px', fontSize: 10, fontWeight: 700,
+                        textTransform: 'uppercase', color: 'var(--ink4)',
+                        borderBottom: '1px solid var(--border)', textAlign: 'center',
                       }}
                     >
                       {p.replace('can_', '').replace('is_', '')}
@@ -1672,25 +1586,19 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
                 <tbody>
                   {fields.map((f: any) => {
                     const fp = localPerms[f.id] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+                    const allOn = fp.can_view && fp.can_edit && fp.can_copy && fp.can_download;
                     return (
                       <tr key={f.id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
                           {f.label}
                         </td>
                         <td style={{ padding: '7px 6px', textAlign: 'center' }}>
-                          <PermToggle
-                            on={
-                              fp.can_view &&
-                              fp.can_edit &&
-                              fp.can_copy &&
-                              fp.can_download &&
-                              fp.is_masked
-                            }
-                            onClick={() => toggleFieldRow(f.id)}
-                          />
+                          <PermToggle on={allOn} onClick={() => toggleFieldRow(f.id)} />
                         </td>
                         {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => (
-                          <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}><PermToggle on={!!fp[p]} onClick={() => toggleFP(f.id, p)} /></td>
+                          <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}>
+                            <PermToggle on={!!fp[p]} onClick={() => toggleFP(f.id, p)} />
+                          </td>
                         ))}
                       </tr>
                     );
@@ -1699,6 +1607,7 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
                 </tbody>
               </table>
             </div>
+
             <div className="card cp">
               <div className="ct" style={{ marginBottom: 10 }}>Stats</div>
               {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
@@ -1712,7 +1621,7 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
               })}
             </div>
           </div>
-          {/* ── How it works — mode-aware copy ── */}
+
           <div style={{ fontSize: 11, color: 'var(--ink4)', lineHeight: 1.6, marginTop: 14, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
             {isOverrideMode ? (
               <>
@@ -1723,15 +1632,13 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
             ) : (
               <>
                 <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: 5 }}>🔒 How it works</strong>
-                Field rules override module rules. A field blocked here won't show even if the module is visible.<br /><br />
+                Field rules sit under module rules. A field blocked here won&apos;t show even if the module is visible, and no field is visible without module view access.<br /><br />
                 <strong style={{ color: 'var(--amber)' }}>Mask</strong> shows the value as •••• — useful for salary &amp; ID numbers.
               </>
             )}
           </div>
         </>
-      )
-      }
-
+      )}
     </div>
   );
 }
@@ -1740,12 +1647,9 @@ const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
 
 export default function RolesPermissionsPage() {
   const dispatch = useAppDispatch();
-  const { canView, canEdit, canCreate, canDelete } = usePermission();
-  const { companyId } = useCompanySelector();
+  const { canEdit, canCreate, canDelete } = usePermission();
   const managedCompanies = useAppSelector(selectManagedCompanies);
-  const { data: perms } = useFieldPermissions();  // apna emergency-contacts formId daalo
 
-  // Build assignedCompanies with shortNames for chips and badges
   const assignedCompanies = useMemo(() =>
     managedCompanies.map((co: any) => ({
       id: co.id,
@@ -1757,16 +1661,14 @@ export default function RolesPermissionsPage() {
   const qc = useQueryClient();
 
   const { data: groups = [], isLoading } = useGroups();
+  const { data: modules = [], isLoading: modulesLoading } = useModuleList();
 
   // View state
   const [view, setView] = useState<View>('groups');
   const [editGroup, setEditGroup] = useState<PermGroup | null>(null);
-  const [fpGroupId, setFpGroupId] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<PermGroup | null>(null);
 
-  // NEW UI state
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null);
-  // Derived live from query — always reflects server state after any refetch
   const selectedGroup = groups.find(g => g.id === activeGroupId) ?? groups[0] ?? null;
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [memberOverrides, setMemberOverrides] = useState<Record<number, boolean>>({});
@@ -1783,7 +1685,6 @@ export default function RolesPermissionsPage() {
     dispatch(setPageTitle({ title: 'Roles & Permissions', breadcrumb: 'Settings' }));
   }, [dispatch]);
 
-  // Load members for all groups using existing pattern
   const memberQueries = useQueries({
     queries: groups.map(g => ({
       queryKey: ['rp', 'group-members', g.id],
@@ -1796,37 +1697,30 @@ export default function RolesPermissionsPage() {
     const map: Record<number, any[]> = {};
     groups.forEach((g, i) => { map[g.id] = memberQueries[i]?.data?.data || []; });
     return map;
-  }, [groups, memberQueries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, memberQueries.map(q => q.dataUpdatedAt).join(',')]);
 
-  // Select first group on load
   useEffect(() => {
     if (groups.length && !activeGroupId) setActiveGroupId(groups[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups]);
 
-  // Stats — existing computation
-  // const { data: stats } = useQuery({
-  //   queryKey: ['rbac-stats', companyId],
-  //   queryFn: () => apiClient.get<any, any>(`/permission-groups/stats?company_id=${companyId}`),
-  //   enabled: !!companyId,
-  //   select: (r: any) => r.data,
-  // });
-
   const totalAssigned = groups.reduce((s, g) => s + (groupMembersMap[g.id]?.length || 0), 0);
-  const fieldRuleCount = groups.reduce((s, g) => s + (g.permissions?.length || 0) * 3, 0);
+  const totalPermRules = groups.reduce((s, g) => s + (g.permissions?.length || 0), 0);
 
-  // Existing mutations
   const seedMutation = useMutation({
     mutationFn: () => pgApi.seed(),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['rp'] }); showToast('✓ System groups seeded'); },
+    onError: (e: any) => showToast(e?.message || 'Failed to seed system groups'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => pgApi.delete(id),
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
       qc.invalidateQueries({ queryKey: ['rp'] });
       showToast('Group deleted');
       setDeleteTarget(null);
-      if (selectedGroup?.id === deleteTarget?.id) setActiveGroupId(groups[0]?.id ?? null);
+      if (activeGroupId === deletedId) setActiveGroupId(null);
     },
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
@@ -1834,90 +1728,83 @@ export default function RolesPermissionsPage() {
   const addMemberMutation = useMutation({
     mutationFn: ({ groupId, empId, companyIds }: { groupId: number; empId: number; companyIds: number[] }) =>
       pgApi.addMember(groupId, empId, companyIds.length > 0 ? companyIds : undefined),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rp', 'group-members'] }); setMemberOverrides({}); showToast('✓ Member added'); setAddPersonOpen(false); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rp', 'group-members'] });
+      qc.invalidateQueries({ queryKey: ['group-company-scope'] });
+      setMemberOverrides({});
+      showToast('✓ Saved');
+      setAddPersonOpen(false);
+    },
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: async ({ groupId, empId, companyIds }: { groupId: number; empId: number; companyIds: number[] }) => {
-      for (const companyId of companyIds) {
-        await pgApi.removeMember(groupId, companyId, empId);
-      }
+      const results = await Promise.allSettled(
+        companyIds.map(companyId => pgApi.removeMember(groupId, companyId, empId))
+      );
+      const failed = results.filter(r => r.status === 'rejected').length;
+      if (failed) throw new Error(`Removed from ${companyIds.length - failed} of ${companyIds.length} companies`);
     },
     onSuccess: () => {
       qc.refetchQueries({ queryKey: ['rp', 'group-members'] });
+      qc.invalidateQueries({ queryKey: ['group-company-scope'] });
       showToast('Member removed');
     },
-    onError: (e: any) => showToast(e?.message || 'Failed'),
+    onError: (e: any) => {
+      qc.refetchQueries({ queryKey: ['rp', 'group-members'] });
+      showToast(e?.message || 'Failed');
+    },
   });
 
   const handleToggleOverrides = (memberId: number) => {
     setMemberOverrides(prev => ({ ...prev, [memberId]: !prev[memberId] }));
   };
 
-  // const handleEditOverride = (memberId: number) => {
-  //   const member = groupMembersMap[selectedGroup?.id || 0]?.find((m: any) => m.id === memberId);
-  //   const name = member ? `${member.first_name} ${member.last_name}`.trim() : '';
-  //   setOverrideMemberId(memberId);
-  //   setOverrideMemberName(name);
-  //   setOverrideMemberCompanyId(member?.assigned_company_ids?.[0]);
-  //   setView('edit');
-  // };
-
   const handleEditOverride = (memberId: number) => {
     const member = groupMembersMap[selectedGroup?.id || 0]?.find((m: any) => m.id === memberId);
     const name = member ? `${member.first_name} ${member.last_name}`.trim() : '';
     setOverrideMemberId(memberId);
     setOverrideMemberName(name);
-    setOverrideMemberCompanyId(member?.assigned_company_ids?.[0]);       // purana, default company (GET ke liye use hoga)
-    setOverrideMemberCompanyIds(member?.assigned_company_ids || []);      // ← naya, poori list (chips ke liye)
+    setOverrideMemberCompanyId(member?.assigned_company_ids?.[0]);
+    setOverrideMemberCompanyIds(member?.assigned_company_ids || []);
     setView('edit');
   };
 
-  const deleteOverrideMutation = useMutation({
-    mutationFn: ({
-      memberId,
-      overrideId,
-    }: {
-      memberId: number;
-      overrideId: number;
-    }) =>
-      pgApi.deleteOverride(
-        selectedGroup!.id,
-        memberId,
-        overrideId
-      ),
-  });
-
   const moduleCompanyMap = useCompanyModulesMap(assignedCompanies);
 
-  // Views
+  const closeEdit = () => {
+    setView('groups');
+    setEditGroup(null);
+    setOverrideMemberId(undefined);
+    setOverrideMemberName(undefined);
+    setOverrideMemberCompanyId(undefined);
+    setOverrideMemberCompanyIds([]);
+  };
+
+  // ── Edit / override view ──
   if (view === 'edit') return (
-    <AppShell>
-      <div className="pg-enter">
-        <EditView
-          group={overrideMemberId ? selectedGroup : editGroup}
-          onBack={() => { setView('groups'); setEditGroup(null); setOverrideMemberId(undefined); setOverrideMemberName(undefined); }}
-          overrideMemberId={overrideMemberId}
-          overrideMemberName={overrideMemberName}
-          overrideMemberCompanyId={overrideMemberCompanyId}
-          overrideMemberCompanyIds={overrideMemberCompanyIds}
-          groupName={selectedGroup?.name}
-          moduleCompanyMap={moduleCompanyMap}
-          assignedCompanies={assignedCompanies}
-        />
-      </div>
-    </AppShell>
+    <PermissionGuard permission="settings:edit">
+      <AppShell>
+        <div className="pg-enter">
+          <EditView
+            group={overrideMemberId ? selectedGroup : editGroup}
+            onBack={closeEdit}
+            overrideMemberId={overrideMemberId}
+            overrideMemberName={overrideMemberName}
+            overrideMemberCompanyId={overrideMemberCompanyId}
+            overrideMemberCompanyIds={overrideMemberCompanyIds}
+            groupName={selectedGroup?.name}
+            moduleCompanyMap={moduleCompanyMap}
+            assignedCompanies={assignedCompanies}
+            modules={modules}
+          />
+        </div>
+      </AppShell>
+    </PermissionGuard>
   );
 
-  // if (view === 'field-perms') return (
-  //   <AppShell>
-  //     <div className="pg-enter">
-  //       <FieldPermissionsView groupId={fpGroupId} onBack={() => setView('groups')} />
-  //     </div>
-  //   </AppShell>
-  // );
-
+  // ── Groups list view ──
   return (
     <PermissionGuard permission="settings:view">
       <AppShell>
@@ -1937,13 +1824,11 @@ export default function RolesPermissionsPage() {
             }
           />
 
-          {/* Stats — existing logic, new styling */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'Permission Groups', value: groups.length ? groups.length : '—', color: 'var(--blue)' },
-              { label: 'Employees Assigned', value: totalAssigned ?? '—', color: 'var(--green)' },
-              // { label: 'Unassigned', value: stats?.unassigned ?? '—', color: 'var(--amber)' },
-              { label: 'Field Rules', value: fieldRuleCount ?? '—', color: 'var(--purple)' },
+              { label: 'Permission Groups', value: groups.length, color: 'var(--blue)' },
+              { label: 'Employees Assigned', value: totalAssigned, color: 'var(--green)' },
+              { label: 'Module Rules', value: totalPermRules, color: 'var(--purple)' },
             ].map(s => (
               <div key={s.label} style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r3)', padding: '14px 18px', boxShadow: 'var(--sh)' }}>
                 <div style={{ fontSize: 26, fontWeight: 500, color: s.color }}>{s.value}</div>
@@ -1952,8 +1837,7 @@ export default function RolesPermissionsPage() {
             ))}
           </div>
 
-          {/* NEW UI: 2-column layout — left sidebar list + right detail panel */}
-          {isLoading ? (
+          {isLoading || modulesLoading ? (
             Array.from({ length: 3 }).map((_, i) => (
               <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r3)', height: 100, marginBottom: 12 }}>
                 <div className="skeleton" style={{ height: '100%', borderRadius: 'var(--r3)' }} />
@@ -1965,37 +1849,40 @@ export default function RolesPermissionsPage() {
               <div style={{ fontSize: 14, fontWeight: 600 }}>No permission groups yet</div>
               <div style={{ fontSize: 12, marginTop: 4, marginBottom: 16 }}>Seed the system defaults or create your first group</div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                <button className="btn btn-sec" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
-                  {seedMutation.isPending ? '…' : '🌱 Seed System Groups'}
-                </button>
-                <button className="btn btn-pri" onClick={() => { setEditGroup(null); setView('edit'); }}>+ New Group</button>
+                {canCreate('settings') && (
+                  <>
+                    <button className="btn btn-sec" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+                      {seedMutation.isPending ? '…' : '🌱 Seed System Groups'}
+                    </button>
+                    <button className="btn btn-pri" onClick={() => { setEditGroup(null); setView('edit'); }}>+ New Group</button>
+                  </>
+                )}
               </div>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 14, alignItems: 'start' }}>
 
-              {/* Left: group sidebar list */}
               <GroupSidebar
                 groups={groups}
                 selectedId={selectedGroup?.id ?? null}
                 onSelect={g => { setActiveGroupId(g.id); setAddPersonOpen(false); setMemberOverrides({}); }}
-                onNew={() => { setEditGroup(null); setView('edit'); }}
+                onNew={canCreate('settings') ? () => { setEditGroup(null); setView('edit'); } : undefined}
                 membersMap={groupMembersMap}
               />
 
-              {/* Right: selected group detail */}
               {selectedGroup ? (
                 <GroupDetail
                   group={selectedGroup}
                   members={groupMembersMap[selectedGroup.id] || []}
-                  onEdit={() => { setEditGroup(selectedGroup); setView('edit'); }}
-                  onFieldPerms={() => { setFpGroupId(selectedGroup.id); setView('edit'); }}
-                  onDelete={() => setDeleteTarget(selectedGroup)}
+                  onEdit={canEdit('settings') ? () => { setEditGroup(selectedGroup); setView('edit'); } : undefined}
+                  onDelete={canDelete('settings') ? () => setDeleteTarget(selectedGroup) : undefined}
                   addPersonOpen={addPersonOpen}
                   setAddPersonOpen={setAddPersonOpen}
                   onAddMember={(empId, companyIds) => addMemberMutation.mutate({ groupId: selectedGroup.id, empId, companyIds })}
                   onRemoveMember={(empId) => {
                     const member = (groupMembersMap[selectedGroup.id] || []).find((m: any) => m.id === empId);
+                    const nm = `${member?.first_name ?? ''} ${member?.last_name ?? ''}`.trim() || 'this member';
+                    if (!window.confirm(`Remove ${nm} from ${selectedGroup.name} in all companies?`)) return;
                     removeMemberMutation.mutate({ groupId: selectedGroup.id, empId, companyIds: member?.assigned_company_ids || [] });
                   }}
                   employees={employees}
@@ -2003,12 +1890,7 @@ export default function RolesPermissionsPage() {
                   overrides={memberOverrides}
                   onToggleOverrides={handleToggleOverrides}
                   onEditOverride={handleEditOverride}
-                  onDeleteOverride={(memberId, overrideId) =>
-                    deleteOverrideMutation.mutate({
-                      memberId,
-                      overrideId,
-                    })
-                  }
+                  modules={modules}
                 />
               ) : null}
             </div>
@@ -2017,11 +1899,14 @@ export default function RolesPermissionsPage() {
         </div>
       </AppShell>
 
-      {/* Delete confirmation modal — existing */}
+      {/* Delete confirmation modal */}
       {deleteTarget && (
         <Modal open onClose={() => setDeleteTarget(null)} title={`Delete "${deleteTarget.name}"?`}>
           <p style={{ fontSize: 13, color: 'var(--ink3)', marginBottom: 16 }}>
-            This will permanently delete the group and remove all member assignments. This cannot be undone.
+            This will permanently delete the group, its module and field permissions, and all member
+            assignments{(groupMembersMap[deleteTarget.id]?.length || 0) > 0
+              ? ` (${groupMembersMap[deleteTarget.id].length} member${groupMembersMap[deleteTarget.id].length === 1 ? '' : 's'})`
+              : ''}. This cannot be undone.
           </p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button className="btn btn-sec" onClick={() => setDeleteTarget(null)}>Cancel</button>

@@ -42,7 +42,7 @@ Shift.init(
   },
   {
     sequelize,
-    tableName: 'shifts',
+    tableName: 'shift',
     modelName: 'Shift',
     indexes: [{ fields: ['category'] }, { fields: ['is_active'] }],
   },

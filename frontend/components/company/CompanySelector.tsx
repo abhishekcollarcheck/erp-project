@@ -97,9 +97,9 @@ export function PageHeaderWithCompany({ title, description, actions }: PageHeade
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        {canSwitchCompany && (
+        {/* {canSwitchCompany && (
           <CompanySelector size="md" />
-        )}
+        )} */}
         {actions}
       </div>
     </div>

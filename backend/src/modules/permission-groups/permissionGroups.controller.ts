@@ -28,13 +28,17 @@ import { generateAccessToken } from "../../utils/jwt";
 import { refreshEmployeePermission } from "../../utils/refreshEmployeePermission";
 import { getIO } from "../../socket/socket";
 import { refreshEmployeeCompanies } from "../../utils/refreshEmployeeCompanies";
+import { FormBuilderService } from '../form-builder/formBuilder.service';
+
+
+const fbSvc = new FormBuilderService();
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 class PermissionGroupService {
   async list(companyId: number) {
     const groups = await PermissionGroup.findAll({
-      where: { company_id: 1 },
+      where: { company_id: companyId },
       include: [
         {
           model: Permission,
@@ -174,6 +178,7 @@ async setPermissions(
   companyId: number,
   slugs: string[],
   updatedBy?: number,
+  isSuperAdmin = false,
 ) {
   await this.getById(id, companyId);
 
@@ -195,7 +200,10 @@ async setPermissions(
       permission_id: p.id,
     }))
   );
-
+ const companyIds = await fbSvc.resolveGroupCompanyScope(id, updatedBy!, isSuperAdmin);
+  await fbSvc.applyModuleDefaultsToFields(
+    id, companyIds, permissions.map(p => p.slug), updatedBy,
+  );
   const userGroups = await UserGroup.findAll({ where: { group_id: id } });
 for (const ug of userGroups) {
 await refreshEmployeePermission(
@@ -680,6 +688,7 @@ async function setGroupPermissions(
         req.user!.companyId,
         req.body.slugs,
         req.user!.employeeId,
+        req.user!.isSuperAdmin,
       ),
     });
   } catch (e) {
