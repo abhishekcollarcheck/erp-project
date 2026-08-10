@@ -13,11 +13,7 @@ import logsRoutes from '../modules/compliance/activity.routes';
 import emailTemplateRoutes from '../modules/email-templates/emailTemplate.routes';
 import rbacRoutes from '../modules/form-builder/formBuilder.routes';
 import { userPermissionsRouter } from '../modules/user-permissions/userPermissions.controller';
-// import { assetRouter } from '../modules/assets/asset.controller';
-import { permissionGroupRouter } from '../modules/permission-groups/permissionGroups.controller';
-// import { superAdminRouter } from '../modules/super-admin/superAdmin.routes';
-// import { adminRouter } from '../modules/admin/admin.controller';
-// import { companyUsersRouter, companyEmployeesRouter } from '../modules/admin/company-users-controller';
+import { permissionGroupRouter } from '../modules/permission-groups/permissionGroups.routes';
 import { companyRouter } from '../modules/company/company.controller';
 import mssqlAttendanceRouter from "../modules/attendance/attendance.mssql.routes"
 import attendanceCombinedRouter from '../modules/attendance/attendance-combined.routes';
@@ -47,9 +43,6 @@ router.use('/email-templates', emailTemplateRoutes);
 router.use('/rbac', rbacRoutes);
 router.use('/user-permissions', userPermissionsRouter);
 router.use('/permission-groups', permissionGroupRouter);
-// router.use('/admin', adminRouter);
-// router.use('/admin/companies/:companyId/users',      companyUsersRouter);
-// router.use('/admin/companies/:companyId/employees',  companyEmployeesRouter);
 router.use('/companies', companyRouter);
 router.use('/shifts', shiftRouter)
 

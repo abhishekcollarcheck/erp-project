@@ -3,7 +3,7 @@ import { sequelize } from '../../config/database';
 
 interface ActivityLogAttributes {
   id: number;
-  company_id: number;
+  company_id: number | null;
   employee_id?: number | null;
   action: string;
   module?: string | null;
@@ -21,7 +21,7 @@ export class ActivityLog
   implements ActivityLogAttributes
 {
   public id!: number;
-  public company_id!: number;
+  public company_id!: number | null;
   public employee_id!: number | null;
   public action!: string;
   public module!: string | null;
@@ -36,7 +36,7 @@ export class ActivityLog
 ActivityLog.init(
   {
     id:         { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-    company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     employee_id:    { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     action:     { type: DataTypes.STRING(200), allowNull: false },
     module:     { type: DataTypes.STRING(100), allowNull: true },
@@ -54,7 +54,6 @@ ActivityLog.init(
     createdAt:  'created_at',
     updatedAt:  false,           // No updated_at on audit logs
     indexes: [
-      { fields: ['company_id'] },
       { fields: ['employee_id'] },
       { fields: ['module'] },
       { fields: ['created_at'] },

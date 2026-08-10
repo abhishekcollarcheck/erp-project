@@ -18,6 +18,7 @@ import { getSettings, updateSettings, updateTheme } from './companySetting'
 import { PermissionGroup, GroupPermission, SYSTEM_GROUPS } from '../../database/models/PermissionGroups';
 import { Permission } from '../../database/models/RoleModels';
 import { loadPermissions } from '../auth/auth.service';
+import { HrModule, ModuleCompany } from '../../database/models/FormBuilder';
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 
@@ -236,7 +237,7 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
   try {
     const {
       name, city, state, industry, email, theme_color, employee_code_skip, employee_code_end, employee_code_start,
-      employees = [],
+      employees = [], module_ids = [],
     } = req.body;
     const startCode = employee_code_start
       ? Number(employee_code_start)
@@ -298,6 +299,12 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
         return;
       }
     }
+    let moduleIds: number[] = [];
+    if (module_ids !== undefined) {
+      if (!Array.isArray(module_ids)) { sendError(res, 'module_ids must be an array', 400); return; }
+      moduleIds = module_ids.map((id: any) => +id);
+    }
+
     const slug = (req.body.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).slice(0, 100);
     const exists = await Company.findOne({ where: { slug }, paranoid: false });
     if (exists) { sendError(res, 'A company with this slug already exists', 409); return; }
@@ -355,34 +362,27 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
       const allPerms = await Permission.findAll({ attributes: ['id', 'slug'], transaction: t });
       const permMap = new Map(allPerms.map((p: any) => [p.slug, p.id]));
 
-      for (const tpl of SYSTEM_GROUPS) {
-        const [group] = await PermissionGroup.findOrCreate({
-          where: { company_id: company.id, slug: tpl.slug },
-          defaults: {
-            company_id: company.id, name: tpl.name, slug: tpl.slug,
-            description: tpl.description, color: tpl.color,
-            is_system: tpl.is_system, is_active: true
-          },
-          transaction: t,
-        } as any);
-
-        const permIds = (tpl.slug_grants as readonly string[])
-          .filter(s => s !== '*')
-          .map(s => permMap.get(s))
-          .filter(Boolean) as number[];
-
-        if (permIds.length) {
-          await GroupPermission.bulkCreate(
-            permIds.map(pid => ({ group_id: group.id, company_id: company.id, permission_id: pid })),
-            { ignoreDuplicates: true, transaction: t },
-          );
-        }
-      }
-
       await CompanyModule.bulkCreate(
         DEFAULT_MODULES.map(m => ({ ...m, company_id: company.id })),
         { ignoreDuplicates: true, transaction: t },
       );
+
+      // Step 3.6: Enable the form-builder modules the admin selected on the
+      // creation form (Employee/Payroll/Sales/…). No module is auto-enabled —
+      // only what was explicitly picked. Company can adjust this later via
+      // PUT /companies/modules.
+      if (moduleIds.length) {
+        const validModules = await HrModule.findAll({
+          where: { id: moduleIds, is_active: true }, attributes: ['id'], transaction: t,
+        });
+        if (validModules.length !== new Set(moduleIds).size) {
+          throw new AppError('One or more selected modules were not found', 404);
+        }
+        await ModuleCompany.bulkCreate(
+          moduleIds.map(module_id => ({ module_id, company_id: company.id })),
+          { transaction: t },
+        );
+      }
 
       // 4. Creator gets super_admin + CompanyManager (unchanged)
       await EmployeeRole.findOrCreate({
@@ -444,6 +444,7 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
           name: company.name,
           slug: company.slug,
           assigned_employees: assignedEmployees,
+          module_ids: moduleIds,
         },
       });
     } catch (e2) { await t.rollback(); throw e2; }

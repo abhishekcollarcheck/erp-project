@@ -1,0 +1,1 @@
+ALTER TABLE hr_modules DROP INDEX hr_modules_slug;

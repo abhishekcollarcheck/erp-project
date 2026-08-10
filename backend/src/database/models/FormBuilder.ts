@@ -23,8 +23,12 @@ export const DYNAMIC_SOURCES = [
 export type DynamicSource = typeof DYNAMIC_SOURCES[number];
 
 // ─── HrModule ─────────────────────────────────────────────────────────────────
+// A module is now a single, global catalog row (Employee, Payroll, Sales…) —
+// NOT owned by any one company. Which companies have it enabled lives in
+// ModuleCompany below. Forms/fields hang off module_id and are shared by
+// every company that has the module enabled.
 interface ModuleAttrs {
-  id: number; company_id: number | null; name: string; slug: string;
+  id: number; name: string; slug: string;
   icon?: string | null; description?: string | null;
   sort_order: number; is_active: boolean; is_system: boolean;
   created_at?: Date; updated_at?: Date;
@@ -32,7 +36,7 @@ interface ModuleAttrs {
 export class HrModule
   extends Model<ModuleAttrs, Optional<ModuleAttrs, 'id' | 'sort_order' | 'is_active' | 'is_system'>>
   implements ModuleAttrs {
-  public id!: number; public company_id!: number | null; public name!: string; public slug!: string;
+  public id!: number; public name!: string; public slug!: string;
   public icon!: string | null; public description!: string | null;
   public sort_order!: number; public is_active!: boolean; public is_system!: boolean;
   public readonly created_at!: Date; public readonly updated_at!: Date;
@@ -40,7 +44,6 @@ export class HrModule
 }
 HrModule.init({
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   name: { type: DataTypes.STRING(150), allowNull: false },
   slug: { type: DataTypes.STRING(150), allowNull: false },
   icon: { type: DataTypes.STRING(100), allowNull: true },
@@ -48,7 +51,39 @@ HrModule.init({
   sort_order: { type: DataTypes.INTEGER, defaultValue: 0 },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
   is_system: { type: DataTypes.BOOLEAN, defaultValue: false },
-}, { sequelize, tableName: 'hr_modules', modelName: 'HrModule', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at', indexes: [{ unique: true, fields: ['slug'] }] });
+}, {
+  sequelize, tableName: 'hr_modules', modelName: 'HrModule', timestamps: true,
+  createdAt: 'created_at', updatedAt: 'updated_at',
+  indexes: [{ unique: true, fields: ['slug'] }],
+});
+
+// ─── ModuleCompany — join: which companies have which modules enabled ────────
+// This is the "Company A selected Employee, Payroll, Sales, Assets" table.
+// Not the same as the pre-existing CompanyModule/company_modules table in
+// Company.ts/PermissionGroups.ts — that one toggles a fixed set of built-in
+// product areas on/off; this one governs access to form-builder modules.
+interface ModuleCompanyAttrs {
+  id: number; module_id: number; company_id: number;
+  created_at?: Date; updated_at?: Date;
+}
+export class ModuleCompany
+  extends Model<ModuleCompanyAttrs, Optional<ModuleCompanyAttrs, 'id'>>
+  implements ModuleCompanyAttrs {
+  public id!: number; public module_id!: number; public company_id!: number;
+  public readonly created_at!: Date; public readonly updated_at!: Date;
+}
+ModuleCompany.init({
+  id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  module_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+}, {
+  sequelize, tableName: 'module_companies', modelName: 'ModuleCompany', timestamps: true,
+  createdAt: 'created_at', updatedAt: 'updated_at',
+  indexes: [
+    { unique: true, fields: ['module_id', 'company_id'] },
+    { fields: ['company_id'] },
+  ],
+});
 
 // ─── FormDefinition ───────────────────────────────────────────────────────────
 interface FormDefAttrs {

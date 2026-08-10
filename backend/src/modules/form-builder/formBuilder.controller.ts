@@ -72,20 +72,42 @@ export async function getGroupFieldPermissions(req: Request, res: Response, next
 // MODULES
 // ─────────────────────────────────────────────────────────────────────────────
 
+export async function listAllModules(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try { sendResponse(res, { data: await fbSvc.listAllModules() }); } catch(e){ next(e); }
+}
+
 export async function listModules(req: Request, res: Response, next: NextFunction): Promise<void> {
   try { sendResponse(res, { data: await fbSvc.listModules(req.user!.companyId) }); } catch(e){ next(e); }
 }
 
 export async function createModule(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.createModule(req.user!.companyId, req.body, req.user!.employeeId), statusCode: 201 }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.createModule(req.body, req.user!.employeeId), statusCode: 201 }); } catch(e){ next(e); }
 }
 
 export async function updateModule(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.updateModule(+req.params.id, req.user!.companyId, req.body, req.user!.employeeId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.updateModule(+req.params.id, req.body, req.user!.employeeId) }); } catch(e){ next(e); }
 }
 
 export async function deleteModule(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.deleteModule(+req.params.id, req.user!.companyId, req.user!.employeeId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.deleteModule(+req.params.id, req.user!.employeeId) }); } catch(e){ next(e); }
+}
+
+// "Company A selects Employee, Payroll, Sales, Assets" — the actual
+// module-subscription endpoint. company_id defaults to the caller's own
+// company; a super admin managing another company should pass company_id
+// explicitly (validated via assertCompaniesManaged, same guard used
+// elsewhere for cross-company writes).
+export async function setCompanyModules(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const companyId = req.body.company_id ? +req.body.company_id : req.user!.companyId;
+    if (companyId !== req.user!.companyId) {
+      await fbSvc.assertCompaniesManaged([companyId], req.user!.employeeId, req.user!.isSuperAdmin);
+    }
+    if (!Array.isArray(req.body.module_ids)) throw new AppError('module_ids must be an array', 400);
+    const moduleIds = req.body.module_ids.map((id: any) => +id);
+    const data = await fbSvc.setCompanyModules(companyId, moduleIds, req.user!.employeeId);
+    sendResponse(res, { data });
+  } catch(e){ next(e); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,7 +115,7 @@ export async function deleteModule(req: Request, res: Response, next: NextFuncti
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function listForms(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.listForms(+req.params.moduleId, req.user!.companyId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.listForms(+req.params.moduleId) }); } catch(e){ next(e); }
 }
 
 export async function getForm(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -101,15 +123,15 @@ export async function getForm(req: Request, res: Response, next: NextFunction): 
 }
 
 export async function createForm(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.createForm(+req.params.moduleId, req.user!.companyId, req.body, req.user!.employeeId), statusCode: 201 }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.createForm(+req.params.moduleId, req.body, req.user!.employeeId), statusCode: 201 }); } catch(e){ next(e); }
 }
 
 export async function updateForm(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.updateForm(+req.params.formId, req.user!.companyId, req.body, req.user!.employeeId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.updateForm(+req.params.formId, req.body, req.user!.employeeId) }); } catch(e){ next(e); }
 }
 
 export async function deleteForm(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.deleteForm(+req.params.formId, req.user!.companyId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.deleteForm(+req.params.formId) }); } catch(e){ next(e); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,19 +139,19 @@ export async function deleteForm(req: Request, res: Response, next: NextFunction
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function createField(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.createField(+req.params.formId, req.user!.companyId, req.body, req.user!.employeeId), statusCode: 201 }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.createField(+req.params.formId, req.body, req.user!.employeeId), statusCode: 201 }); } catch(e){ next(e); }
 }
 
 export async function updateField(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.updateField(+req.params.fieldId, req.user!.companyId, req.body, req.user!.employeeId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.updateField(+req.params.fieldId, req.body, req.user!.employeeId) }); } catch(e){ next(e); }
 }
 
 export async function deleteField(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.deleteField(+req.params.fieldId, req.user!.companyId) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.deleteField(+req.params.fieldId) }); } catch(e){ next(e); }
 }
 
 export async function reorderFields(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.reorderFields(+req.params.formId, req.user!.companyId, req.body.order) }); } catch(e){ next(e); }
+  try { sendResponse(res, { data: await fbSvc.reorderFields(+req.params.formId, req.body.order) }); } catch(e){ next(e); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

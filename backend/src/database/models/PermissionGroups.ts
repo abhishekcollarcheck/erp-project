@@ -56,7 +56,6 @@ export const SYSTEM_GROUPS = [
 
 interface GroupAttrs {
   id: number;
-  company_id: number;
   name: string;
   slug: string;
   description?: string | null;
@@ -73,7 +72,6 @@ export class PermissionGroup
   extends Model<GroupAttrs, Optional<GroupAttrs, 'id' | 'is_system' | 'is_active'>>
   implements GroupAttrs {
   public id!: number;
-  public company_id!: number;
   public name!: string;
   public slug!: string;
   public description!: string | null;
@@ -91,7 +89,6 @@ export class PermissionGroup
 
 PermissionGroup.init({
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   name: { type: DataTypes.STRING(150), allowNull: false },
   slug: { type: DataTypes.STRING(150), allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: true },
@@ -108,7 +105,7 @@ PermissionGroup.init({
   createdAt: 'created_at',
   updatedAt: 'updated_at',
   deletedAt: 'deleted_at',
-  indexes: [{ unique: true, fields: ['company_id', 'slug'] }],
+  indexes: [{ unique: true, fields: ['slug'] }],
 });
 
 // ─── GroupPermission — join: permission_group ↔ permissions ──────────────────
@@ -138,7 +135,6 @@ GroupPermission.init({
 
 // ─── UserGroup — join: employee ↔ permission_group ───────────────────────────
 // NOTE: field is employee_id (was user_id — migrated in 002_user_groups_employee_id.sql)
-
 export class UserGroup extends Model {
   public id!: number;
   public employee_id!: number;
@@ -151,7 +147,6 @@ export class UserGroup extends Model {
 UserGroup.init({
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  // FK → employees.id (employee-as-identity — no users table)
   group_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   assigned_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },

@@ -8,17 +8,20 @@ import {
   getRolePermissions, setRolePermissions,
   getRoleMembers, assignMember, removeMember,
   listAllPermissions,
-  listModules, createModule, updateModule, deleteModule,
+  listAllModules, listModules, createModule, updateModule, deleteModule, setCompanyModules,
   listForms, getForm, createForm, updateForm, deleteForm,
   createField, updateField, deleteField, reorderFields,
   getPermissionMatrix, setFieldPermission, bulkSetPermissions, resolveFormPermissions,getGroupFieldPermissions, getGroupCompanyScope
 } from './formBuilder.controller';
 import { DynamicSourceService } from './dynamicSource.service';
+import { resolveCompanyContext } from '../../modules/auth/auth.middleware';
+
 const dynSvc = new DynamicSourceService();
 
 
 const router = Router();
 router.use(authenticate);
+router.use(resolveCompanyContext);
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
 router.get   ('/roles', authorize('settings:view'), listRoles);
@@ -33,10 +36,12 @@ router.delete('/roles/:id/members/:userId', authorize('settings:delete'), [param
 router.get   ('/permissions', authorize('settings:view'), listAllPermissions);
 
 // ─── Modules ──────────────────────────────────────────────────────────────────
+router.get   ('/modules/catalog', authorize('settings:view'), listAllModules);
 router.get   ('/modules', listModules);
 router.post  ('/modules', authorize('settings:edit'), [body('name').trim().notEmpty()], validate, createModule);
 router.put   ('/modules/:id', authorize('settings:edit'), [param('id').isInt()], validate, updateModule);
 router.delete('/modules/:id', authorize('settings:delete'), [param('id').isInt()], validate, deleteModule);
+router.put   ('/companies/modules', authorize('settings:edit'), [body('module_ids').isArray()], validate, setCompanyModules);
 
 // ─── Forms ────────────────────────────────────────────────────────────────────
 router.get   ('/modules/:moduleId/forms', [param('moduleId').isInt()], validate, listForms);

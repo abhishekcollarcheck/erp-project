@@ -111,7 +111,6 @@ export async function resolveCompanyContext(
   }
   const companyId = Number(req.headers["x-company-id"]);
   
-
   if (!companyId) {
     return next();
   }
@@ -131,6 +130,5 @@ export async function resolveCompanyContext(
   }
 
   req.user!.companyId = companyId;
-
   next();
 }

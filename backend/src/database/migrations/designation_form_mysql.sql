@@ -42,7 +42,7 @@ INSERT INTO dynamic_fields
      is_required, max_length, dynamic_source, dynamic_source_label, dynamic_source_value,
      dynamic_source_filter, sort_order, column_span, is_active, created_at, updated_at)
 VALUES
-    (NULL, 3, 'text', 'Designation Name', 'designation_name', 'Basic Info',
+    (1, 3, 'text', 'Designation Name', 'designation_name', 'Basic Info',
      'e.g. Software Engineer, Product Manager, Analyst', NULL,
      1, 150, NULL, NULL, NULL,
      NULL, 0, 1, 1, NOW(), NOW()),

@@ -491,7 +491,10 @@ export function patchGroupMembersWithOverrideCounts(router: Router): void {
 
 async function listFieldOverrides(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await getEmployeeFieldOverrides(+req.params.employeeId, +req.query.company_id!, req.query.module as string);
+    // Scope to this group only — otherwise an employee in multiple groups
+    // would see (and the panel would re-save) another group's override rows
+    // for the same module/company.
+    const data = await getEmployeeFieldOverrides(+req.params.employeeId, +req.query.company_id!, req.query.module as string, [+req.params.id]);
     sendResponse(res, { data });
   } catch (e) { next(e); }
 }

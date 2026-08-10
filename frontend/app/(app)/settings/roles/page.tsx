@@ -71,6 +71,16 @@ const COLOR_OPTS = [
   { key: 'pink', css: 'var(--pink, #c0265e)' },
 ];
 
+// Fallback when a field's label isn't in the loaded form data:
+// department_name → Department Name
+function humanizeFieldKey(key: string): string {
+  return key
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function cssForKey(key: string | null | undefined): string {
   return COLOR_OPTS.find((c) => c.key === key)?.css || key || 'var(--blue)';
 }
@@ -127,12 +137,24 @@ function useModuleList() {
   });
 }
 
-function useAllModuleForms(modules: Module[]) {
+// HrModule rows — these carry permission_key, which joins the form/field side
+// to the permission-module keys used by the matrix. Shared cache key so the
+// override panel and the field panel don't double-fetch.
+function useHrModules() {
+  return useQuery({
+    queryKey: ['field-perm-modules'],
+    queryFn: () => pgApi.listModules(),
+    select: (r: any): Module[] => r.data ?? [],
+    staleTime: 5 * 60_000,
+  });
+}
+
+function useAllModuleForms(modules: Module[], enabled = true) {
   return useQueries({
     queries: modules.map(module => ({
       queryKey: ['field-perm-forms', module.id],
       queryFn: () => pgApi.listForms(module.id),
-      enabled: modules.length > 0,
+      enabled: enabled && modules.length > 0,
       select: (r: any): Form[] => (Array.isArray(r.data) ? r.data : []),
     })),
   });
@@ -448,6 +470,10 @@ function GroupDetail({
   const [addCompanyFor, setAddCompanyFor] = useState<number | null>(null);
   const [selectedNewCompanies, setSelectedNewCompanies] = useState<Set<number>>(new Set());
 
+  const { data: groupSlugs = [] } = useGroupPerms(group.id);
+  const groupBaseModPerms = useMemo(() => slugsToModulePerms(groupSlugs, modules), [groupSlugs, modules]);
+  const { data: hrModules = [] } = useHrModules();
+
   const permSummary = useMemo(
     () => PERMS.map(p => ({ p, count: countPerm(modPerms, p, modules) })).filter(x => x.count > 0),
     [slugs.join(','), modules],
@@ -488,6 +514,77 @@ function GroupDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberCompanyPairs, overrideQueries.map(q => q.dataUpdatedAt).join(',')]);
 
+  // ── Field-level overrides, same shape as the module-level ones above ──
+  // Only modules the group can actually view can carry field rules, so the
+  // fan-out is bounded by granted modules and only fires when a panel is open.
+  const grantedModules = useMemo(
+    () => hrModules.filter((m: Module) => {
+      const k = (m.permission_key ?? m.slug) as string;
+      return !!k && !!groupBaseModPerms[k]?.view;
+    }),
+    [hrModules, groupBaseModPerms],
+  );
+
+  const grantedModuleKeys = useMemo(
+    () => grantedModules.map((m: Module) => (m.permission_key ?? m.slug) as string),
+    [grantedModules],
+  );
+
+  // Only fetch form/field metadata once a panel is actually expanded.
+  const anyOverridePanelOpen = Object.values(overrides).some(Boolean);
+  const grantedFormsQueries = useAllModuleForms(grantedModules, anyOverridePanelOpen);
+
+  // field_key → human label, sourced from the same forms the field panel uses.
+  const fieldLabelMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const q of grantedFormsQueries) {
+      for (const form of ((q.data || []) as Form[])) {
+        for (const fl of (form.fields || [])) {
+          if (fl?.field_key) map[fl.field_key] = (fl as any).label || fl.name || fl.field_key;
+        }
+      }
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grantedFormsQueries.map(q => q.dataUpdatedAt).join(',')]);
+
+  const fieldOverrideTargets = useMemo(
+    () => memberCompanyPairs.flatMap(pair =>
+      grantedModuleKeys.map(moduleKey => ({ ...pair, moduleKey }))
+    ),
+    [memberCompanyPairs, grantedModuleKeys],
+  );
+
+  const fieldOverrideQueries = useQueries({
+    queries: fieldOverrideTargets.map(({ memberId, companyId, moduleKey }) => ({
+      queryKey: ['group-field-overrides', group?.id, memberId, companyId, moduleKey],
+      queryFn: () => pgApi.listFieldOverrides(group!.id, memberId, companyId, moduleKey),
+      enabled: !!group && overrides[memberId] === true,
+    })),
+  });
+
+  // An override row only exists because it differs from the group baseline,
+  // so `previous` is always the inverse of the stored value — no extra fetch.
+  const memberFieldOverridesMap = useMemo(() => {
+    const map: Record<number, Record<number, { moduleKey: string; fields: { fieldKey: string; fieldLabel: string; changes: { permission: string; previous: boolean; current: boolean }[] }[] }[]>> = {};
+    fieldOverrideTargets.forEach((target, idx) => {
+      const raw = (fieldOverrideQueries[idx]?.data as any)?.data || {};
+      const fields = Object.entries(raw).map(([fieldKey, perms]) => ({
+        fieldKey,
+        fieldLabel: fieldLabelMap[fieldKey] || humanizeFieldKey(fieldKey),
+        changes: Object.entries(perms as Record<string, boolean>).map(([permission, granted]) => ({
+          permission, previous: !granted, current: !!granted,
+        })),
+      })).filter(f => f.changes.length > 0);
+      if (!fields.length) return;
+      if (!map[target.memberId]) map[target.memberId] = {};
+      if (!map[target.memberId][target.companyId]) map[target.memberId][target.companyId] = [];
+      map[target.memberId][target.companyId].push({ moduleKey: target.moduleKey, fields });
+    });
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldOverrideTargets, fieldLabelMap, fieldOverrideQueries.map(q => q.dataUpdatedAt).join(',')]);
+
   const deleteModuleOverridesMutation = useMutation({
     mutationFn: async ({ memberId, companyId, overrideIds }: { memberId: number; companyId: number; overrideIds: number[] }) => {
       await Promise.all(overrideIds.map((overrideId) => pgApi.deleteOverride(group!.id, memberId, overrideId)));
@@ -521,9 +618,6 @@ function GroupDetail({
       removeMemberCompanyMutation.mutate({ empId: member.id, companyId });
     }
   };
-
-  const { data: groupSlugs = [] } = useGroupPerms(group.id);
-  const groupBaseModPerms = useMemo(() => slugsToModulePerms(groupSlugs, modules), [groupSlugs, modules]);
 
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
@@ -602,7 +696,8 @@ function GroupDetail({
                   return acc;
                 }, {})
               );
-              return { companyId, companyName: co?.name || `Company ${companyId}`, moduleRows: grouped };
+              const fieldRows = (memberFieldOverridesMap[memberId] || {})[companyId] || [];
+              return { companyId, companyName: co?.name || `Company ${companyId}`, moduleRows: grouped, fieldRows };
             });
 
             const memberAssignedIds = new Set(m.assigned_company_ids || []);
@@ -647,8 +742,8 @@ function GroupDetail({
                     <div style={{ fontSize: 10, color: 'var(--ink4)', marginBottom: 10 }}>
                       These exceptions apply only to {m.first_name} — everyone else in <strong>{group.name}</strong> keeps the group&apos;s default permissions.
                     </div>
-                    {groupedOverridesByCompany.map(({ companyId, companyName, moduleRows }) => (
-                      moduleRows.length > 0 && (
+                    {groupedOverridesByCompany.map(({ companyId, companyName, moduleRows, fieldRows }) => (
+                      (moduleRows.length > 0 || fieldRows.length > 0) && (
                         <div key={companyId} style={{ marginBottom: 10 }}>
                           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
                             {companyName}
@@ -696,6 +791,50 @@ function GroupDetail({
                                 >
                                   ✕
                                 </button>
+                              </div>
+                            ))}
+
+                            {fieldRows.map(({ moduleKey, fields }) => (
+                              <div key={`f-${moduleKey}`} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 11 }}>
+                                <div style={{ fontWeight: 600, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', color: 'var(--ink4)' }}>
+                                    Field
+                                  </span>
+                                  {modules.find(x => x.key === moduleKey)?.label || moduleKey}
+                                </div>
+                                <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                  {fields.map(f => (
+                                    <div key={f.fieldKey} style={{ color: 'var(--ink3)' }}>
+                                      <strong style={{ color: 'var(--ink2)' }} title={f.fieldKey}>{f.fieldLabel}</strong>
+                                      {' — '}
+                                      {f.changes.map((c, idx) => (
+                                        <span key={c.permission}>
+                                          <strong style={{ textTransform: 'capitalize' }}>{c.permission}</strong>
+                                          {': '}
+                                          <span style={{ color: c.previous ? 'var(--green)' : 'var(--red)' }}>
+                                            {c.previous ? 'allowed' : 'denied'}
+                                          </span>
+                                          {' → '}
+                                          <span style={{ color: c.current ? 'var(--green)' : 'var(--red)' }}>
+                                            {c.current ? 'allowed' : 'denied'}
+                                          </span>
+                                          {idx < f.changes.length - 1 ? ', ' : ''}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                                  <button
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ fontSize: 10 }}
+                                    onClick={() => onEditOverride(memberId)}
+                                    title="Edit field overrides"
+                                    aria-label="Edit field overrides"
+                                  >
+                                    ✎
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -788,6 +927,7 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompan
   overrideTargetCompanyIds?: number[];
   modules: ModuleDef[];
 }) {
+ 
   const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
 
   const toggle = (mod: string, perm: string) => {
@@ -830,6 +970,7 @@ function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, moduleCompan
     if (companyFilter === 'all') return true;
     return (moduleCompanyMap[m.key]?.companies || []).some(co => co.id === companyFilter);
   });
+
 
   return (
     <div className="card cp">
@@ -1018,7 +1159,7 @@ function EditView({
   );
 
   // Field-permission save is registered by the panel and flushed by this view's save.
-  const fieldSaveRef = useRef<null | (() => Promise<any>)>(null);
+  const fieldSaveRef = useRef<null | ((createdGroupId?: number) => Promise<any>)>(null);
 
   useEffect(() => {
     if (overrideMemberCompanyId) {
@@ -1089,11 +1230,13 @@ function EditView({
       // ── NORMAL GROUP EDIT ──
       // existingSlugs passthrough keeps permissions for modules not in the UI list.
       const slugs = modulePermsToSlugs(modPerms, modules, existingSlugs);
+
       if (isNew) {
         const r = await pgApi.create({ name, description: desc, color: colorKey });
         const newId = r.data.id;
         await pgApi.setPerms(newId, slugs);
-        await fieldSaveRef.current?.();
+        // Field rules were staged before the group existed — apply them now.
+        await fieldSaveRef.current?.(newId);
         return r;
       }
       await pgApi.update(group!.id, { name, description: desc, color: colorKey });
@@ -1113,6 +1256,10 @@ function EditView({
           qc.refetchQueries({ queryKey: ['rp', 'employee-overrides', group.id, overrideMemberId, cid] });
           qc.invalidateQueries({ queryKey: ['group-overrides', group.id, overrideMemberId, cid] });
         }
+        // Field overrides are saved by the panel, which unmounts on onBack() —
+        // invalidate here so the group list reflects them straight away.
+        qc.invalidateQueries({ queryKey: ['field-overrides'] });
+        qc.invalidateQueries({ queryKey: ['group-field-overrides'] });
 
         showToast('✓ Employee override saved');
         onBack();
@@ -1130,7 +1277,11 @@ function EditView({
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
 
-  const effectiveModPerms = isOverrideMode ? baseModPerms : modPerms;
+  // Field panel needs the *effective* view state — base group perms merged
+  // with this employee's saved/live module overrides (Effect B keeps modPerms
+  // in sync) — not the frozen group baseline, or a module granted only via an
+  // employee override would never become editable here.
+  const effectiveModPerms = modPerms;
 
   return (
     <div>
@@ -1267,10 +1418,10 @@ function EditView({
         <PermSummary modPerms={modPerms} modules={modules} isOverrideMode={isOverrideMode} />
       </div>
 
-      {group && (
+      {!isOverrideMode || group ? (
         <div style={{ marginTop: 20 }}>
           <FieldPermissionsPanel
-            groupId={group.id}
+            groupId={group?.id ?? 0}
             assignedCompanies={assignedCompanies}
             isOverrideMode={isOverrideMode}
             overrideMemberId={overrideMemberId}
@@ -1279,7 +1430,7 @@ function EditView({
             onRegisterSave={fn => { fieldSaveRef.current = fn; }}
           />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1296,19 +1447,16 @@ function FieldPermissionsPanel({
   overrideMemberId?: number;
   selectedOverrideCompanyIds?: number[];
   modPerms: ModulePerms;
-  onRegisterSave?: (fn: () => Promise<any>) => void;
+  onRegisterSave?: (fn: (createdGroupId?: number) => Promise<any>) => void;
 }) {
-  // HrModule rows — these carry permission_key (see backend Step 1b) which joins
-  // the form/field side to the permission-module keys used by the matrix.
-  const { data: modules = [] } = useQuery({
-    queryKey: ['field-perm-modules'],
-    queryFn: () => pgApi.listModules(),
-    select: (r: any): Module[] => r.data ?? [],
-    staleTime: 5 * 60_000,
-  });
 
+  const isDraft = !(groupId > 0);
+
+  const qc = useQueryClient();
+
+  const { data: modules = [] } = useHrModules();
+  console.log('modules', modules);
   const allFormsQueries = useAllModuleForms(modules);
-
   const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
     const mod = modules[moduleIndex];
     if (!mod) return [];
@@ -1319,30 +1467,54 @@ function FieldPermissionsPanel({
       moduleKey: mod.permission_key ?? mod.slug,
     }));
   });
-
+  console.log('allForms', allForms);
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
 
-  useEffect(() => { setSelectedFormId(null); }, [groupId]);
-  useEffect(() => {
-    if (allForms.length && !selectedFormId) setSelectedFormId(allForms[0].id);
+  // Only sections whose module is checked in the matrix above. Reads live from
+  // modPerms, so ticking/unticking a module updates this list immediately —
+  // that's what makes it work for a group that doesn't exist yet.
+  const visibleForms = useMemo(
+    () => allForms.filter((f: any) => !!f.moduleKey && !!modPerms[f.moduleKey]?.view),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allForms.length, selectedFormId]);
+    [allForms.map((f: any) => f.id).join(','), modPerms],
+  );
 
-  const selectedForm = allForms.find((f: any) => f.id === selectedFormId);
+  useEffect(() => { setSelectedFormId(null); }, [groupId]);
+
+  // Keep the selection inside the visible set — unchecking a module must not
+  // leave a stale form selected and editable.
+  useEffect(() => {
+    if (!visibleForms.length) { if (selectedFormId !== null) setSelectedFormId(null); return; }
+    if (!selectedFormId || !visibleForms.some((f: any) => f.id === selectedFormId)) {
+      setSelectedFormId(visibleForms[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleForms.map((f: any) => f.id).join(','), selectedFormId]);
+
+  const selectedForm = visibleForms.find((f: any) => f.id === selectedFormId);
   const selectedModuleKey: string | undefined = selectedForm?.moduleKey;
-  const moduleAccessGranted = !!selectedModuleKey && !!modPerms[selectedModuleKey]?.view;
+  const moduleAccessGranted = visibleForms.length > 0 && !!selectedModuleKey;
+
+  // Same live-from-modPerms pattern as the View gate above, one level down:
+  // View gates whether the whole section is reachable, Edit gates just the
+  // Edit column within it — mirrors the backend's own ceiling in
+  // resolveFormPermissions (`can_edit = can_edit && moduleEdit`).
+  const moduleEditGranted = !!selectedModuleKey && !!modPerms[selectedModuleKey]?.edit;
 
   // Company scope comes from the group, not from its members — a brand-new
   // group with no members can still be configured.
-  const { data: groupCompanyIds = [] } = useQuery({
+  const { data: scopeCompanyIds = [] } = useQuery({
     queryKey: ['group-company-scope', groupId],
     queryFn: () => pgApi.groupCompanyScope(groupId),
-    enabled: groupId > 0,
+    enabled: !isDraft,
     select: (r: any): number[] => r.data ?? [],
   });
 
-  const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : groupCompanyIds[0];
+  // A draft group has no scope endpoint to call yet — fall back to the
+  // companies this admin manages so the field matrix can still render.
+  const groupCompanyIds: number[] = isDraft ? assignedCompanies.map(c => c.id) : scopeCompanyIds;
 
+  const matrixCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : groupCompanyIds[0];
   const { data: matrixData, refetch } = useGroupFieldPermissionMatrix(selectedFormId || 0, matrixCompanyId || 0);
   const fields = matrixData?.fields || [];
 
@@ -1388,6 +1560,10 @@ function FieldPermissionsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, selectedFormId, matrixCompanyId, groupPermsData, isOverrideMode, overrideData, matrixData]);
 
+  // Mirrors the backend's module-edit ceiling so the admin UI never shows or
+  // saves a field-level Edit grant the runtime would ignore anyway.
+  const effectiveCanEdit = (fp: any) => moduleEditGranted && !!fp?.can_edit;
+
   const toggleFP = (
     fieldId: number,
     perm: 'can_view' | 'can_edit' | 'can_copy' | 'can_download' | 'is_masked'
@@ -1419,10 +1595,10 @@ function FieldPermissionsPanel({
   const toggleFieldRow = (fieldId: number) => {
     setLocalPerms(prev => {
       const current = prev[fieldId] || {};
-      const allEnabled = current.can_view && current.can_edit && current.can_copy && current.can_download;
+      const allEnabled = current.can_view && effectiveCanEdit(current) && current.can_copy && current.can_download;
       const next = allEnabled
         ? { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false }
-        : { can_view: true, can_edit: true, can_copy: true, can_download: true, is_masked: !!current.is_masked };
+        : { can_view: true, can_edit: moduleEditGranted, can_copy: true, can_download: true, is_masked: !!current.is_masked };
       return { ...prev, [fieldId]: next };
     });
     setDirty(true);
@@ -1432,7 +1608,7 @@ function FieldPermissionsPanel({
     setLocalPerms(prev => {
       const n = { ...prev };
       for (const f of fields) {
-        n[f.id] = { can_view: true, can_edit: true, can_copy: true, can_download: true, is_masked: false };
+        n[f.id] = { can_view: true, can_edit: moduleEditGranted, can_copy: true, can_download: true, is_masked: false };
       }
       return n;
     });
@@ -1451,8 +1627,12 @@ function FieldPermissionsPanel({
   };
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (createdGroupId?: number) => {
       if (!selectedModuleKey) throw new Error('No form selected');
+
+      // For a new group the id only exists once the parent has created it.
+      const targetGroupId = createdGroupId ?? groupId;
+      if (!(targetGroupId > 0)) throw new Error('Group not saved yet');
 
       if (isOverrideMode) {
         if (!selectedOverrideCompanyIds?.length) throw new Error('Select at least one company to save overrides for');
@@ -1466,25 +1646,26 @@ function FieldPermissionsPanel({
           const cur = localPerms[f.id] || {};
           (['view', 'edit', 'copy', 'download'] as const).forEach(p => {
             const key = `can_${p}` as const;
-            if (!!cur[key] !== !!groupBase[key]) overrides.push({ field_name: f.field_key, permission: p, granted: !!cur[key] });
+            const curVal = p === 'edit' ? effectiveCanEdit(cur) : !!cur[key];
+            if (curVal !== !!groupBase[key]) overrides.push({ field_name: f.field_key, permission: p, granted: curVal });
           });
           if (!!cur.is_masked !== !!groupBase.is_masked) overrides.push({ field_name: f.field_key, permission: 'mask', granted: !!cur.is_masked });
         }
 
-        await pgApi.setFieldOverrides(groupId, overrideMemberId, selectedOverrideCompanyIds, selectedModuleKey, overrides);
+        await pgApi.setFieldOverrides(targetGroupId, overrideMemberId, selectedOverrideCompanyIds, selectedModuleKey, overrides);
       } else {
         if (!matrixCompanyId) throw new Error('No company in scope for this group');
         const permissions = fields.map((f: any) => ({
           field_id: f.id,
           can_view: !!localPerms[f.id]?.can_view,
-          can_edit: !!localPerms[f.id]?.can_edit,
+          can_edit: effectiveCanEdit(localPerms[f.id]),
           can_copy: !!localPerms[f.id]?.can_copy,
           can_download: !!localPerms[f.id]?.can_download,
           is_masked: !!localPerms[f.id]?.is_masked,
         }));
         // Writes to the company currently on screen only — writing to every
         // company would flatten per-company differences.
-        await pgApi.bulkSetFieldPermissions(groupId, [matrixCompanyId], permissions);
+        await pgApi.bulkSetFieldPermissions(targetGroupId, [matrixCompanyId], permissions);
       }
     },
     onSuccess: () => {
@@ -1493,13 +1674,20 @@ function FieldPermissionsPanel({
       refetch();
       refetchGroupPerms();
       if (isOverrideMode) refetchOverrides();
+      // The group list reads the same rows under a different key — invalidate
+      // both, or the inline override panel stays stale until a page reload.
+      qc.invalidateQueries({ queryKey: ['field-overrides'] });
+      qc.invalidateQueries({ queryKey: ['group-field-overrides'] });
+      qc.invalidateQueries({ queryKey: ['group-field-perms'] });
+      qc.invalidateQueries({ queryKey: ['field-perm-matrix'] });
     },
     onError: (e: any) => showToast(e?.message || 'Failed to save'),
   });
 
   // The parent's Save flushes this — one save button for the whole screen.
   useEffect(() => {
-    onRegisterSave?.(() => (dirty ? saveMutation.mutateAsync() : Promise.resolve()));
+    onRegisterSave?.((createdGroupId?: number) =>
+      (dirty ? saveMutation.mutateAsync(createdGroupId) : Promise.resolve()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirty, saveMutation, onRegisterSave]);
 
@@ -1532,8 +1720,8 @@ function FieldPermissionsPanel({
           {!allForms.length
             ? 'No forms configured yet — nothing to set field rules on.'
             : isOverrideMode
-              ? `This group has no view access to ${selectedForm?.moduleName || 'this module'} — there are no fields to override.`
-              : <>No view access to {selectedForm?.moduleName || 'this module'}.<br /><span style={{ fontSize: 11 }}>Grant module view access above to manage field-level rules.</span></>}
+              ? 'This group has no modules with field-level forms — there are no fields to override for this person.'
+              : <>No modules with field-level forms selected.<br /><span style={{ fontSize: 11 }}>Tick <strong>View</strong> on a module above to configure its fields.</span></>}
         </div>
       ) : (
         <>
@@ -1542,7 +1730,7 @@ function FieldPermissionsPanel({
             <div className="card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)' }}>Sections</div>
               <div style={{ padding: '6px 0' }}>
-                {allForms.map((f: any) => (
+                {visibleForms.map((f: any) => (
                   <div key={`${f.moduleId}-${f.id}`} onClick={() => setSelectedFormId(f.id)}
                     style={{ padding: '9px 14px', cursor: 'pointer', fontSize: 12, fontWeight: selectedFormId === f.id ? 600 : 400, color: selectedFormId === f.id ? 'var(--blue)' : 'var(--ink3)', background: selectedFormId === f.id ? 'var(--blue-lt)' : 'transparent', borderLeft: `3px solid ${selectedFormId === f.id ? 'var(--blue)' : 'transparent'}` }}>
                     {f.name}
@@ -1570,23 +1758,28 @@ function FieldPermissionsPanel({
                   <th style={{ padding: '7px 8px', textAlign: 'center', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)' }}>
                     All
                   </th>
-                  {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => (
-                    <th
-                      key={p}
-                      style={{
-                        padding: '7px 8px', fontSize: 10, fontWeight: 700,
-                        textTransform: 'uppercase', color: 'var(--ink4)',
-                        borderBottom: '1px solid var(--border)', textAlign: 'center',
-                      }}
-                    >
-                      {p.replace('can_', '').replace('is_', '')}
-                    </th>
-                  ))}
+                  {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
+                    const editGated = p === 'can_edit' && !moduleEditGranted;
+                    return (
+                      <th
+                        key={p}
+                        title={editGated ? 'Module-level Edit is off — enable it above to allow field-level Edit' : undefined}
+                        style={{
+                          padding: '7px 8px', fontSize: 10, fontWeight: 700,
+                          textTransform: 'uppercase', color: editGated ? 'var(--ink5, var(--ink4))' : 'var(--ink4)',
+                          borderBottom: '1px solid var(--border)', textAlign: 'center',
+                          opacity: editGated ? 0.6 : 1,
+                        }}
+                      >
+                        {p.replace('can_', '').replace('is_', '')}
+                      </th>
+                    );
+                  })}
                 </tr></thead>
                 <tbody>
                   {fields.map((f: any) => {
                     const fp = localPerms[f.id] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-                    const allOn = fp.can_view && fp.can_edit && fp.can_copy && fp.can_download;
+                    const allOn = fp.can_view && effectiveCanEdit(fp) && fp.can_copy && fp.can_download;
                     return (
                       <tr key={f.id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
@@ -1595,11 +1788,16 @@ function FieldPermissionsPanel({
                         <td style={{ padding: '7px 6px', textAlign: 'center' }}>
                           <PermToggle on={allOn} onClick={() => toggleFieldRow(f.id)} />
                         </td>
-                        {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => (
-                          <td key={p} style={{ padding: '7px 6px', textAlign: 'center' }}>
-                            <PermToggle on={!!fp[p]} onClick={() => toggleFP(f.id, p)} />
-                          </td>
-                        ))}
+                        {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
+                          const editGated = p === 'can_edit' && !moduleEditGranted;
+                          const on = p === 'can_edit' ? effectiveCanEdit(fp) : !!fp[p];
+                          return (
+                            <td key={p} style={{ padding: '7px 6px', textAlign: 'center', opacity: editGated ? 0.45 : 1 }}
+                              title={editGated ? 'Module-level Edit is off — enable it above to allow field-level Edit' : undefined}>
+                              <PermToggle on={on} onClick={editGated ? undefined : () => toggleFP(f.id, p)} />
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
@@ -1611,7 +1809,7 @@ function FieldPermissionsPanel({
             <div className="card cp">
               <div className="ct" style={{ marginBottom: 10 }}>Stats</div>
               {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
-                const on = fields.filter((f: any) => localPerms[f.id]?.[p]).length;
+                const on = fields.filter((f: any) => p === 'can_edit' ? effectiveCanEdit(localPerms[f.id]) : localPerms[f.id]?.[p]).length;
                 return (
                   <div key={p} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 11 }}>
                     <span style={{ color: 'var(--ink3)' }}>{p.replace('can_', '').replace('is_', '')}</span>
@@ -1632,7 +1830,7 @@ function FieldPermissionsPanel({
             ) : (
               <>
                 <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: 5 }}>🔒 How it works</strong>
-                Field rules sit under module rules. A field blocked here won&apos;t show even if the module is visible, and no field is visible without module view access.<br /><br />
+                Field rules sit under module rules. A field blocked here won&apos;t show even if the module is visible, and no field is visible without module view access. The <strong>Edit</strong> column follows the same rule — it&apos;s greyed out here whenever the module&apos;s own Edit permission is off.<br /><br />
                 <strong style={{ color: 'var(--amber)' }}>Mask</strong> shows the value as •••• — useful for salary &amp; ID numbers.
               </>
             )}

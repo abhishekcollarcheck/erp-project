@@ -51,6 +51,7 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const accessToken = store.getState().auth.accessToken;
     const activeCompanyId = store.getState().auth.activeCompanyId;
+    console.log('activeCompanyId', activeCompanyId);
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }

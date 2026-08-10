@@ -1,7 +1,7 @@
 import { Op, Transaction } from 'sequelize';
 import { sequelize } from '../../config/database';
 import {
-  HrModule, FormDefinition, DynamicField, FieldOption,
+  HrModule, ModuleCompany, FormDefinition, DynamicField, FieldOption,
   FieldPermissionV2, FIELD_TYPES,
 } from '../../database/models/FormBuilder';
 // import { Role }            from '../../database/models/RoleModels';
@@ -10,7 +10,7 @@ import { AppError } from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 import { PermissionGroup, UserGroup, GroupPermission } from '../../database/models/PermissionGroups';
 import { refreshEmployeePermission } from '../../utils/refreshEmployeePermission';
-import { CompanyModule, Employee } from '../../database/models';
+import { CompanyModule, Employee, CompanyManager } from '../../database/models';
 import { Permission } from '../../database/models/RoleModels';
 import { getEmployeeFieldOverrides, resolvePermissionsForEmployee } from '../permission-groups/permissionGroupOverrides';
 
@@ -46,9 +46,17 @@ export class FormBuilderService {
       attributes: ['company_id'],
     });
     const memberCompanies = [...new Set(ugs.map(u => u.company_id))];
-    if (memberCompanies.length) return memberCompanies.sort((a, b) => a - b);
+    const manageable = await this.manageableCompanyIds(actorEmployeeId, isSuperAdmin);
 
-    return this.manageableCompanyIds(actorEmployeeId, isSuperAdmin);
+    // A member row can point at a company the acting admin no longer manages
+    // (e.g. the company was later deleted/deactivated, leaving an orphaned
+    // user_groups row) — never hand back a company outside the admin's own
+    // authority, or a later company-scoped save (module or field) will be
+    // rejected for a company nobody asked to touch.
+    const inScope = memberCompanies.filter(id => manageable.includes(id));
+    if (inScope.length) return inScope.sort((a, b) => a - b);
+
+    return manageable;
   }
 
   async manageableCompanyIds(
@@ -60,11 +68,19 @@ export class FormBuilderService {
       const rows = await Company.findAll({ where: { is_active: true }, attributes: ['id'] });
       return rows.map((c: any) => c.id).sort((a: number, b: number) => a - b);
     }
-    const rows = await Employee.findAll({
-      where: { id: actorEmployeeId },
-      attributes: ['company_id'],
-    });
-    return [...new Set(rows.map((c: any) => c.company_id))].sort((a, b) => a - b);
+    // Home company (Employee.company_id) plus every company this employee
+    // has been delegated as a manager for (CompanyManager) — matches the
+    // scope resolution already used for the same concept in
+    // permissionGroups.controller.ts's addGroupMember/manageableCompanyIds.
+    const [employees, assignments] = await Promise.all([
+      Employee.findAll({ where: { id: actorEmployeeId }, attributes: ['company_id'] }),
+      CompanyManager.findAll({ where: { employee_id: actorEmployeeId }, attributes: ['company_id'] }),
+    ]);
+    const ids = new Set<number>([
+      ...employees.map((e: any) => e.company_id),
+      ...assignments.map((a: any) => a.company_id),
+    ]);
+    return [...ids].sort((a, b) => a - b);
   }
 
   async assertCompaniesManaged(
@@ -79,59 +95,130 @@ export class FormBuilderService {
     }
   }
 
-  // ════════════════════════ MODULES ════════════════════════
-  async listModules(companyId: number) {
-    const mods = await HrModule.findAll({
-      where: { company_id: companyId },
-      order: [['sort_order', 'ASC']],
-    });
-    return mods.map(m => ({
-      ...m.toJSON(),
-      permission_key: permKeyForModule(m.slug),
-    }));
+  // ════════════════════════ MODULES (catalog) ════════════════════════
+
+  // The module CATALOG — every module that exists at all, regardless of
+  // which companies have it enabled. Used for the "select modules" UI and
+  // for super-admin catalog management.
+  async listAllModules() {
+    const mods = await HrModule.findAll({ where: { is_active: true }, order: [['sort_order', 'ASC']] });
+    return mods.map(m => ({ ...m.toJSON(), permission_key: permKeyForModule(m.slug) }));
   }
 
-  async createModule(companyId: number, dto: {
+  // Modules a SPECIFIC company currently has enabled — this is what drives
+  // the company's sidebar/nav and what resolveFormPermissions gates on.
+  async listModules(companyId: number) {
+    const links = await ModuleCompany.findAll({ where: { company_id: companyId }, attributes: ['module_id'] });
+    const moduleIds = links.map(l => l.module_id);
+    if (!moduleIds.length) return [];
+
+    const mods = await HrModule.findAll({
+      where: { id: moduleIds, is_active: true },
+      order: [['sort_order', 'ASC']],
+    });
+    return mods.map(m => ({ ...m.toJSON(), permission_key: permKeyForModule(m.slug) }));
+  }
+
+  async getCompanyModuleIds(companyId: number): Promise<number[]> {
+    const links = await ModuleCompany.findAll({ where: { company_id: companyId }, attributes: ['module_id'] });
+    return links.map(l => l.module_id);
+  }
+
+  // Creates a module in the CATALOG — a single global row, e.g. "Payroll".
+  // Does not assign it to any company by itself; use setCompanyModules for
+  // that (mirrors how a company picks modules independently of catalog
+  // authoring, per the "Company A selects 4, Company B selects 2" flow).
+  async createModule(dto: {
     name: string; slug?: string; icon?: string; description?: string; sort_order?: number;
   }, createdBy?: number) {
     const slug = dto.slug || dto.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    const exists = await HrModule.findOne({ where: { company_id: companyId, slug } });
+    const exists = await HrModule.findOne({ where: { slug } });
     if (exists) throw new AppError('Module with this slug already exists', 409);
 
-    const mod = await HrModule.create({ company_id: companyId, name: dto.name, slug, icon: dto.icon || null, description: dto.description || null, sort_order: dto.sort_order || 0, is_active: true, is_system: false });
-    await logActivity({ companyId, employeeId: createdBy, action: 'MODULE_CREATED', module: 'settings', entityId: mod.id, newValues: { name: mod.name } });
+    const mod = await HrModule.create({
+      name: dto.name, slug, icon: dto.icon || null, description: dto.description || null,
+      sort_order: dto.sort_order || 0, is_active: true, is_system: false,
+    });
+    await logActivity({ companyId: 0, employeeId: createdBy, action: 'MODULE_CREATED', module: 'settings', entityId: mod.id, newValues: { name: mod.name, slug } });
     return mod;
   }
 
-  async updateModule(id: number, companyId: number, dto: {
+  async updateModule(id: number, dto: {
     name?: string; icon?: string; description?: string; sort_order?: number; is_active?: boolean;
   }, updatedBy?: number) {
     const mod = await HrModule.findOne({ where: { id } });
     if (!mod) throw new AppError('Module not found', 404);
     await mod.update(dto as any);
-    await logActivity({ companyId, employeeId: updatedBy, action: 'MODULE_UPDATED', module: 'settings', entityId: id });
+    await logActivity({ companyId: 0, employeeId: updatedBy, action: 'MODULE_UPDATED', module: 'settings', entityId: id });
     return mod;
   }
 
-  async deleteModule(id: number, companyId: number, deletedBy?: number) {
+  // Deletes a module from the CATALOG entirely — removes it (and its forms,
+  // fields, and field permissions) for EVERY company that had it enabled.
+  // This has a much larger blast radius than before; the frontend should
+  // confirm this explicitly (e.g. show "N companies currently use this").
+  async deleteModule(id: number, deletedBy?: number) {
     const mod = await HrModule.findOne({ where: { id } });
     if (!mod) throw new AppError('Module not found', 404);
     if (mod.is_system) throw new AppError('System modules cannot be deleted', 403);
-    // Cascade: destroy forms and their fields
-    const forms = await FormDefinition.findAll({ where: { module_id: id, company_id: companyId } });
+
+    const forms = await FormDefinition.findAll({ where: { module_id: id } });
     for (const f of forms) {
+      const fields = await DynamicField.findAll({ where: { form_id: f.id }, attributes: ['id'] });
+      if (fields.length) {
+        await FieldPermissionV2.destroy({ where: { field_id: fields.map(fl => fl.id) } });
+      }
       await DynamicField.destroy({ where: { form_id: f.id } });
     }
     await FormDefinition.destroy({ where: { module_id: id } });
+    await ModuleCompany.destroy({ where: { module_id: id } });
     await mod.destroy();
-    await logActivity({ companyId, employeeId: deletedBy, action: 'MODULE_DELETED', module: 'settings', entityId: id });
+
+    await logActivity({ companyId: 0, employeeId: deletedBy, action: 'MODULE_DELETED', module: 'settings', entityId: id });
     return { deleted: true };
   }
 
-  // ════════════════════════ FORMS ════════════════════════
+  // The "Company A selects Employee, Payroll, Sales, Assets" endpoint.
+  // Diffs the requested module_ids against what the company currently has
+  // and adds/removes ModuleCompany links accordingly. Does NOT touch forms,
+  // fields, or the catalog — those are shared and untouched by enable/disable.
+  // Existing FieldPermissionV2 rows for a removed module are left in place
+  // (harmless — resolveFormPermissions denies access once the module link is
+  // gone) so re-enabling the module later restores prior grants automatically.
+  async setCompanyModules(companyId: number, moduleIds: number[], updatedBy?: number) {
+    const modules = await HrModule.findAll({ where: { id: moduleIds, is_active: true }, attributes: ['id'] });
+    if (modules.length !== new Set(moduleIds).size) {
+      throw new AppError('One or more selected modules were not found', 404);
+    }
 
-  async listForms(moduleId: number, companyId: number) {
-    return FormDefinition.findAll({ where: { module_id: moduleId, company_id: companyId }, order: [['sort_order', 'ASC']] });
+    const existing = await ModuleCompany.findAll({ where: { company_id: companyId } });
+    const existingIds = new Set(existing.map(e => e.module_id));
+    const wantedIds = new Set(moduleIds);
+
+    const toAdd = moduleIds.filter(id => !existingIds.has(id));
+    const toRemove = existing.filter(e => !wantedIds.has(e.module_id));
+
+    if (toAdd.length) {
+      await ModuleCompany.bulkCreate(toAdd.map(module_id => ({ module_id, company_id: companyId })));
+    }
+    if (toRemove.length) {
+      await ModuleCompany.destroy({ where: { id: toRemove.map(r => r.id) } });
+    }
+
+    if (toAdd.length || toRemove.length) {
+      await logActivity({
+        companyId, employeeId: updatedBy, action: 'COMPANY_MODULES_UPDATED', module: 'settings',
+        entityId: companyId, newValues: { added: toAdd, removed: toRemove.map(r => r.module_id) },
+      });
+    }
+    return { added: toAdd, removed: toRemove.map(r => r.module_id) };
+  }
+
+  // ════════════════════════ FORMS ════════════════════════
+  // Forms belong to the module (shared catalog data), not to a company.
+
+  async listForms(moduleId: number) {
+    return FormDefinition.findAll({ where: { module_id: moduleId }, order: [['sort_order', 'ASC']] });
   }
 
   async getFormWithFields(formId: number) {
@@ -143,19 +230,19 @@ export class FormBuilderService {
     return form;
   }
 
-  async createForm(moduleId: number, companyId: number, dto: {
+  async createForm(moduleId: number, dto: {
     name: string; slug?: string; description?: string; sort_order?: number;
   }, createdBy?: number) {
     const slug = dto.slug || dto.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    const exists = await FormDefinition.findOne({ where: { company_id: companyId, module_id: moduleId, slug } });
+    const exists = await FormDefinition.findOne({ where: { module_id: moduleId, slug } });
     if (exists) throw new AppError('Form with this slug already exists in this module', 409);
 
-    const form = await FormDefinition.create({ company_id: companyId, module_id: moduleId, name: dto.name, slug, description: dto.description || null, sort_order: dto.sort_order || 0, is_active: true, is_system: false, created_by: createdBy || null });
-    await logActivity({ companyId, employeeId: createdBy, action: 'FORM_CREATED', module: 'settings', entityId: form.id, newValues: { name: form.name } });
+    const form = await FormDefinition.create({ company_id: null, module_id: moduleId, name: dto.name, slug, description: dto.description || null, sort_order: dto.sort_order || 0, is_active: true, is_system: false, created_by: createdBy || null });
+    await logActivity({ companyId: 0, employeeId: createdBy, action: 'FORM_CREATED', module: 'settings', entityId: form.id, newValues: { name: form.name } });
     return form;
   }
 
-  async updateForm(formId: number, companyId: number, dto: {
+  async updateForm(formId: number, dto: {
     name?: string; description?: string; sort_order?: number; is_active?: boolean;
   }, updatedBy?: number) {
     const form = await FormDefinition.findOne({ where: { id: formId } });
@@ -164,18 +251,21 @@ export class FormBuilderService {
     return form;
   }
 
-  async deleteForm(formId: number, companyId: number) {
+  async deleteForm(formId: number) {
     const form = await FormDefinition.findOne({ where: { id: formId } });
     if (!form) throw new AppError('Form not found', 404);
     if (form.is_system) throw new AppError('System forms cannot be deleted', 403);
+    const fields = await DynamicField.findAll({ where: { form_id: formId }, attributes: ['id'] });
+    if (fields.length) await FieldPermissionV2.destroy({ where: { field_id: fields.map(f => f.id) } });
     await DynamicField.destroy({ where: { form_id: formId } });
     await form.destroy();
     return { deleted: true };
   }
 
   // ════════════════════════ FIELDS ════════════════════════
+  // Fields belong to the form (shared catalog data), not to a company.
 
-  async createField(formId: number, companyId: number, dto: {
+  async createField(formId: number, dto: {
     field_type: string; label: string; field_key?: string;
     placeholder?: string; help_text?: string; section?: string;
     is_required?: boolean; is_readonly?: boolean; is_hidden?: boolean;
@@ -196,7 +286,7 @@ export class FormBuilderService {
     const t: Transaction = await sequelize.transaction();
     try {
       const field = await DynamicField.create({
-        company_id: companyId, form_id: formId,
+        company_id: null, form_id: formId,
         field_type: dto.field_type as any, label: dto.label, field_key,
         placeholder: dto.placeholder || null, help_text: dto.help_text || null,
         is_required: dto.is_required || false, is_readonly: dto.is_readonly || false,
@@ -217,12 +307,12 @@ export class FormBuilderService {
       }
 
       await t.commit();
-      await logActivity({ companyId, employeeId: createdBy, action: 'FIELD_CREATED', module: 'settings', entityId: field.id, newValues: { label: field.label, field_key } });
-      return this.getFieldById(field.id, companyId);
+      await logActivity({ companyId: 0, employeeId: createdBy, action: 'FIELD_CREATED', module: 'settings', entityId: field.id, newValues: { label: field.label, field_key } });
+      return this.getFieldById(field.id);
     } catch (e) { await t.rollback(); throw e; }
   }
 
-  async updateField(fieldId: number, companyId: number, dto: any, updatedBy?: number) {
+  async updateField(fieldId: number, dto: any, updatedBy?: number) {
     const field = await DynamicField.findOne({ where: { id: fieldId } });
     if (!field) throw new AppError('Field not found', 404);
 
@@ -237,11 +327,11 @@ export class FormBuilderService {
       })));
     }
 
-    await logActivity({ companyId, employeeId: updatedBy, action: 'FIELD_UPDATED', module: 'settings', entityId: fieldId });
-    return this.getFieldById(fieldId, companyId);
+    await logActivity({ companyId: 0, employeeId: updatedBy, action: 'FIELD_UPDATED', module: 'settings', entityId: fieldId });
+    return this.getFieldById(fieldId);
   }
 
-  async deleteField(fieldId: number, companyId: number) {
+  async deleteField(fieldId: number) {
     const field = await DynamicField.findOne({ where: { id: fieldId } });
     if (!field) throw new AppError('Field not found', 404);
     await FieldOption.destroy({ where: { field_id: fieldId } });
@@ -250,7 +340,7 @@ export class FormBuilderService {
     return { deleted: true };
   }
 
-  async getFieldById(fieldId: number, companyId: number) {
+  async getFieldById(fieldId: number) {
     const field = await DynamicField.findOne({
       where: { id: fieldId },
       include: [{ model: FieldOption, as: 'options', required: false, order: [['sort_order', 'ASC']] }],
@@ -259,9 +349,9 @@ export class FormBuilderService {
     return field;
   }
 
-  async reorderFields(formId: number, companyId: number, order: { id: number; sort_order: number }[]) {
+  async reorderFields(formId: number, order: { id: number; sort_order: number }[]) {
     await Promise.all(order.map(({ id, sort_order }) =>
-      DynamicField.update({ sort_order }, { where: { id, form_id: formId, company_id: companyId } })
+      DynamicField.update({ sort_order }, { where: { id, form_id: formId } })
     ));
     return { updated: true };
   }
@@ -270,7 +360,7 @@ export class FormBuilderService {
   async getPermissionMatrix(companyId: number, formId: number) {
     const [form, groups] = await Promise.all([
       this.getFormWithFields(formId),
-      PermissionGroup.findAll({ where: { company_id: companyId }, order: [['is_system', 'DESC'], ['name', 'ASC']] }),
+      PermissionGroup.findAll({ where: { }, order: [['is_system', 'DESC'], ['name', 'ASC']] }),
     ]);
     const fields = (form.fields || []) as DynamicField[];
     if (!fields.length) return { groups, fields, matrix: {} };
@@ -413,17 +503,18 @@ export class FormBuilderService {
     let created = 0, removed = 0;
 
     for (const companyId of companyIds) {
-      const modules = await HrModule.findAll({ where: { company_id: companyId } });
-      if (!modules.length) continue;
+      const moduleIds = await this.getCompanyModuleIds(companyId);
+      if (!moduleIds.length) continue;
+      const modules = await HrModule.findAll({ where: { id: moduleIds } });
 
       const forms = await FormDefinition.findAll({
-        where: { company_id: companyId, module_id: modules.map(m => m.id) },
+        where: { module_id: moduleIds },
         attributes: ['id', 'module_id'],
       });
       if (!forms.length) continue;
 
       const fields = await DynamicField.findAll({
-        where: { company_id: companyId, form_id: forms.map(f => f.id), is_active: true },
+        where: { form_id: forms.map(f => f.id), is_active: true },
         attributes: ['id', 'form_id', 'is_hidden'],
       });
       if (!fields.length) continue;
@@ -497,7 +588,7 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
 
     const form = await FormDefinition.findOne({ where: { id: formId }, attributes: ['id', 'module_id'] });
     if (!form) throw new AppError('Form not found', 404);
-    const hrModule = await HrModule.findOne({ where: { id: form.module_id }, attributes: ['slug'] });
+    const hrModule = await HrModule.findOne({ where: { id: form.module_id }, attributes: ['id', 'slug'] });
     const moduleKey = hrModule ? permKeyForModule(hrModule.slug) : null;
 
     const [fields, memberships] = await Promise.all([
@@ -512,6 +603,15 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
     const groupIds = memberships.map(m => m.group_id);
     const denyAll = () => fields.map(f => ({ ...f.toJSON(), resolved: { ...DENY } }));
     if (!groupIds.length || !fields.length) return denyAll();
+
+    // ── Company gate: module must be enabled for this company at all ──
+    // (independent of, and checked before, group permission slugs — a
+    // company that never selected this module gets nothing, regardless of
+    // what any group's permissions say.)
+    if (hrModule) {
+      const enabled = await ModuleCompany.findOne({ where: { module_id: hrModule.id, company_id: companyId } });
+      if (!enabled) return denyAll();
+    }
 
     // ── Module gate: no module view ⇒ no fields, whatever the field rows say ──
     const moduleSlugs = await this.resolveModuleSlugs(employeeId, companyId, groupIds);

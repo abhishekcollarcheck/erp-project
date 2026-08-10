@@ -6,7 +6,7 @@ import { ActivityLog } from '../database/models/ActivityLog';
 import { logger }      from '../config/logger';
 
 export interface LogActivityParams {
-  companyId: number;
+  companyId: number | null;
   employeeId?: number | null;
   action: string;
   module?: string;
@@ -20,7 +20,7 @@ export interface LogActivityParams {
 export async function logActivity(params: LogActivityParams): Promise<void> {
   try {
     await ActivityLog.create({
-      company_id:  params.companyId,
+      company_id:  params.companyId ?? null,
       employee_id: params.employeeId ?? null,   // ← was user_id
       action:      params.action,
       module:      params.module      ?? null,
