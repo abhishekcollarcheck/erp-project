@@ -42,17 +42,17 @@ INSERT INTO dynamic_fields
      is_required, max_length, dynamic_source, dynamic_source_label, dynamic_source_value,
      dynamic_source_filter, sort_order, column_span, is_active, created_at, updated_at)
 VALUES
-    (1, 4, 'text', 'Department Name', 'department_name', 'Basic Info',
+    (null, 3, 'text', 'Department Name', 'department_name', 'Basic Info',
      'e.g. Engineering, Finance, Product', NULL,
      1, 150, NULL, NULL, NULL,
      NULL, 0, 1, 1, NOW(), NOW()),
 
-    (1, 4, 'text', 'Department Code', 'code', 'Basic Info',
+    (null, 3, 'text', 'Department Code', 'department_code', 'Basic Info',
      'e.g. ENG, FIN, OPS', 'Short code for reports and exports (optional)',
      0, 20, NULL, NULL, NULL,
      NULL, 1, 1, 1, NOW(), NOW()),
 
-    (1, 4, 'select', 'Department Head', 'head_id', 'Basic Info',
+    (null, 3, 'select', 'Department Head', 'head_id', 'Basic Info',
      '— Assign a head later —', 'The employee responsible for this department',
      0, NULL, 'employees', 'name', 'id',
      NULL, 2, 1, 1, NOW(), NOW())

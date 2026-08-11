@@ -77,11 +77,25 @@ export async function listAllModules(req: Request, res: Response, next: NextFunc
 }
 
 export async function listModules(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.listModules(req.user!.companyId) }); } catch(e){ next(e); }
+  try {
+    const companyId = req.query.company_id ? +req.query.company_id : req.user!.companyId;
+    sendResponse(res, { data: await fbSvc.listModules(companyId) });
+  } catch(e){ next(e); }
 }
 
 export async function createModule(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await fbSvc.createModule(req.body, req.user!.employeeId), statusCode: 201 }); } catch(e){ next(e); }
+  try {
+    let companyIds: number[] = [];
+    if (req.body.company_ids !== undefined) {
+      if (!Array.isArray(req.body.company_ids)) throw new AppError('company_ids must be an array', 400);
+      companyIds = req.body.company_ids.map((id: any) => +id);
+    }
+    if (companyIds.length) {
+      await fbSvc.assertCompaniesManaged(companyIds, req.user!.employeeId, req.user!.isSuperAdmin);
+    }
+    const data = await fbSvc.createModule({ ...req.body, company_ids: companyIds }, req.user!.employeeId);
+    sendResponse(res, { data, statusCode: 201 });
+  } catch(e){ next(e); }
 }
 
 export async function updateModule(req: Request, res: Response, next: NextFunction): Promise<void> {

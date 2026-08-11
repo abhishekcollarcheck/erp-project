@@ -19,7 +19,7 @@ export const pgApi = {
   getOverrides: (groupId: number, employeeId: number, companyId: number) => apiClient.get<unknown, ApiResponse<{ module: string; permission: string; granted: boolean }[]>>(`/permission-groups/${groupId}/members/${employeeId}/overrides?company_id=${companyId}`),
   deleteOverride: (groupId: number, employeeId: number, overrideId: number) => apiClient.delete(`/permission-groups/${groupId}/members/${employeeId}/overrides/${overrideId}`),
   resolveMyFieldPermissions: (formId: number) => apiClient.get<unknown, ApiResponse<Record<string, { can_view: boolean; can_edit: boolean; can_copy: boolean; can_download: boolean; is_masked: boolean }>>>(`/field-permissions/forms/${formId}/resolve`),
-  listModules: () => apiClient.get<unknown, ApiResponse<any[]>>('/rbac/modules'),
+  listModules: () => apiClient.get<unknown, ApiResponse<any[]>>('/rbac/modules/catalog'),
   listForms: (moduleId: number) => apiClient.get<unknown, ApiResponse<any[]>>(`/rbac/modules/${moduleId}/forms`),
   fieldPermissionMatrix: (formId: number, companyId: number) => apiClient.get<unknown, ApiResponse<{ groups: any[]; fields: any[]; matrix: Record<number, Record<number, any>> }>>(`/rbac/forms/${formId}/permission-matrix?company_id=${companyId}`),
   groupFieldPermissions: (formId: number, groupId: number, companyId: number) =>

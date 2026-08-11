@@ -130,6 +130,7 @@ export class FormBuilderService {
   // authoring, per the "Company A selects 4, Company B selects 2" flow).
   async createModule(dto: {
     name: string; slug?: string; icon?: string; description?: string; sort_order?: number;
+    company_ids?: number[];
   }, createdBy?: number) {
     const slug = dto.slug || dto.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
     const exists = await HrModule.findOne({ where: { slug } });
@@ -140,6 +141,18 @@ export class FormBuilderService {
       sort_order: dto.sort_order || 0, is_active: true, is_system: false,
     });
     await logActivity({ companyId: 0, employeeId: createdBy, action: 'MODULE_CREATED', module: 'settings', entityId: mod.id, newValues: { name: mod.name, slug } });
+
+    // Optional: enable the module for the selected companies right away.
+    // Additive-only and safe here — this module_id is brand new, so there is
+    // no existing ModuleCompany state that could be wiped (unlike
+    // setCompanyModules, which replaces a company's full module set).
+    const companyIds = dto.company_ids ?? [];
+    if (companyIds.length) {
+      await ModuleCompany.bulkCreate(
+        companyIds.map(company_id => ({ module_id: mod.id, company_id })),
+        { ignoreDuplicates: true },
+      );
+    }
     return mod;
   }
 

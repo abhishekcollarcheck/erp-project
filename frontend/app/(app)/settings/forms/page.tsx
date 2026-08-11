@@ -81,7 +81,7 @@ interface Role    { id:number; name:string; slug:string; }
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 const api = {
-  modules:      () => apiClient.get<any,any>('/rbac/modules'),
+  modules:      () => apiClient.get<any,any>('/rbac/modules/catalog'),
   createModule: (d:any) => apiClient.post<any,any>('/rbac/modules', d),
   updateModule: (id:number,d:any) => apiClient.put<any,any>(`/rbac/modules/${id}`, d),
   deleteModule: (id:number) => apiClient.delete<any,any>(`/rbac/modules/${id}`),
@@ -614,8 +614,20 @@ export default function FormBuilderPage() {
   const [modName,  setModName]  = useState('');
   const [modIcon,  setModIcon]  = useState('📋');
   const [modDesc,  setModDesc]  = useState('');
+  const [modCompanyIds, setModCompanyIds] = useState<number[]>([]);
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
+
+  // Companies picker for the Create Module modal — lazy, only loads once
+  // that modal is actually open.
+  const { data: pickerCompanies = [] } = useQuery({
+    queryKey: ['companies-picker'],
+    queryFn:  () => apiClient.get<any,any>('/companies?limit=200'),
+    enabled:  modModal,
+    select:   (r:any) => (r.data?.rows ?? r.data ?? []) as { id:number; name:string; is_active:boolean }[],
+  });
+  const toggleModCompany = (id: number) =>
+    setModCompanyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   // Load modules
   const { data: modules = [], isLoading: modsLoading } = useQuery({
@@ -644,8 +656,8 @@ export default function FormBuilderPage() {
 
   // Mutations
   const createModMut = useMutation({
-    mutationFn: () => api.createModule({ name: modName, icon: modIcon, description: modDesc }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey:['fb-modules'] }); showToast('✓ Module created'); setModModal(false); setModName(''); },
+    mutationFn: () => api.createModule({ name: modName, icon: modIcon, description: modDesc, company_ids: modCompanyIds }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['fb-modules'] }); showToast('✓ Module created'); setModModal(false); setModName(''); setModCompanyIds([]); },
     onError: (e:any) => showToast(e?.message || 'Failed'),
   });
   const createFormMut = useMutation({
@@ -780,6 +792,27 @@ export default function FormBuilderPage() {
         <div className="fg"><label>Icon (emoji)</label><input value={modIcon} onChange={e => setModIcon(e.target.value)} style={{ fontSize:20, textAlign:'center', width:60 }} /></div>
         <div className="fg"><label>Module Name *</label><input value={modName} onChange={e => setModName(e.target.value)} autoFocus /></div>
         <div className="fg"><label>Description</label><textarea value={modDesc} onChange={e => setModDesc(e.target.value)} rows={2} /></div>
+        <div className="fg">
+          <label>Companies</label>
+          <div style={{ fontSize:11, color:'var(--ink4)', marginBottom:8 }}>
+            Optional — enable this module for companies now, or assign it later from each company's Settings tab.
+          </div>
+          {pickerCompanies.length === 0 ? (
+            <div style={{ fontSize:12, color:'var(--ink4)' }}>Loading companies…</div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:160, overflowY:'auto', border:'1px solid var(--border)', borderRadius:'var(--r2)', padding:8 }}>
+              {pickerCompanies.map(c => {
+                const sel = modCompanyIds.includes(c.id);
+                return (
+                  <label key={c.id} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, padding:'4px 6px', cursor: c.is_active ? 'pointer' : 'not-allowed', opacity: c.is_active ? 1 : 0.5, borderRadius:'var(--r)', background: sel ? 'var(--blue-lt)' : 'transparent' }}>
+                    <input type="checkbox" checked={sel} disabled={!c.is_active} onChange={() => toggleModCompany(c.id)} style={{width:14, height:14}} />
+                    {c.name}{!c.is_active && ' (Suspended)'}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </Modal>
 
       {/* Create Form */}
@@ -846,23 +879,63 @@ function ModuleFormModal({ open, module: mod, onClose }: { open: boolean; module
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('📦');
   const [desc, setDesc] = useState('');
+  const [companyIds, setCompanyIds] = useState<number[]>([]);
   const createMutation = useCreateModule();
   const updateMutation = useUpdateModule(mod?.id || 0);
-  useEffect(() => { if (open) { setName(mod?.name||''); setIcon(mod?.icon||'📦'); setDesc(mod?.description||''); } }, [open, mod]);
+  useEffect(() => {
+    if (open) { setName(mod?.name||''); setIcon(mod?.icon||'📦'); setDesc(mod?.description||''); setCompanyIds([]); }
+  }, [open, mod]);
+
+  // Companies picker — only needed when creating a new module. Editing an
+  // existing module's company assignment stays on that company's own
+  // Settings → Modules tab (PUT /companies/modules), not here.
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies-picker'],
+    queryFn:  () => apiClient.get<any,any>('/companies?limit=200'),
+    enabled:  open && !mod,
+    select:   (r:any) => (r.data?.rows ?? r.data ?? []) as { id:number; name:string; is_active:boolean }[],
+  });
+  const toggleCompany = (id: number) =>
+    setCompanyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
   const save = async () => {
     if (mod) await updateMutation.mutateAsync({ name, icon, description: desc });
-    else     await createMutation.mutateAsync({ name, icon, description: desc });
+    else     await createMutation.mutateAsync({ name, icon, description: desc, company_ids: companyIds } as any);
     onClose();
   };
   const isBusy = createMutation.isPending || updateMutation.isPending;
   return (
-    <Modal open={open} onClose={onClose} title={mod ? 'Edit Module' : 'New Module'} width={400}
+    <Modal open={open} onClose={onClose} title={mod ? 'Edit Module' : 'New Module'} width={440}
       footer={<><button className="btn btn-sec" onClick={onClose}>Cancel</button><button className="btn btn-pri" onClick={save} disabled={!name.trim()||isBusy}>{isBusy?'…':'✓ Save'}</button></>}>
       <div style={{ display:'grid', gridTemplateColumns:'60px 1fr', gap:'0 12px' }}>
         <div className="fg"><label>Icon</label><input value={icon} onChange={e => setIcon(e.target.value)} style={{ textAlign:'center', fontSize:20 }} maxLength={4} /></div>
         <div className="fg"><label>Module Name *</label><input value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
       </div>
       <div className="fg"><label>Description</label><textarea rows={2} value={desc} onChange={e => setDesc(e.target.value)} /></div>
+
+      {!mod && (
+        <div className="fg">
+          <label>Companies</label>
+          <div style={{ fontSize:11, color:'var(--ink4)', marginBottom:8 }}>
+            Optional — enable this module for companies now, or leave empty and assign it later from each company's Settings tab.
+          </div>
+          {companies.length === 0 ? (
+            <div style={{ fontSize:12, color:'var(--ink4)' }}>Loading companies…</div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:180, overflowY:'auto', border:'1px solid var(--border)', borderRadius:'var(--r2)', padding:8 }}>
+              {companies.map(c => {
+                const sel = companyIds.includes(c.id);
+                return (
+                  <label key={c.id} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, padding:'4px 6px', cursor: c.is_active ? 'pointer' : 'not-allowed', opacity: c.is_active ? 1 : 0.5, borderRadius:'var(--r)', background: sel ? 'var(--blue-lt)' : 'transparent' }}>
+                    <input type="checkbox" checked={sel} disabled={!c.is_active} onChange={() => toggleCompany(c.id)} />
+                    {c.name}{!c.is_active && ' (Suspended)'}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }

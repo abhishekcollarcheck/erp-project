@@ -127,13 +127,17 @@ function useGroupFieldPermissions(formId: number, groupId: number, companyId: nu
 }
 
 // Permission-module list — the single source of truth for the module matrix.
+// Sourced from the HrModule catalog (our module system) — NOT the old
+// CompanyModule/company_modules table anymore. Shape kept identical
+// ({key,label}[]) so every downstream consumer (slugsToModulePerms,
+// modulePermsToSlugs, the matrix UI) needs no changes.
 function useModuleList() {
   return useQuery({
     queryKey: ['rp', 'company-modules'],
-    queryFn: () => pgApi.companyModules(),
+    queryFn: () => pgApi.listModules(),
     staleTime: 5 * 60_000,
     select: (r: any): ModuleDef[] =>
-      ((r.data ?? []) as any[]).map(m => ({ key: m.module, label: m.label })),
+      ((r.data ?? []) as any[]).map(m => ({ key: m.permission_key ?? m.slug, label: m.name })),
   });
 }
 

@@ -113,12 +113,13 @@ function StatCard({ label, value, sub, color = 'var(--ink)' }: { label: string; 
 function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const dispatch = useAppDispatch();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
   const [pendingEmps, setPendingEmps] = useState<{ employee_id: number; role_slug: string; }[]>([]);
   const [empSearch, setEmpSearch] = useState('');
   const [selEmpId, setSelEmpId] = useState<number | null>(null);
   const [selRoleSlug, setSelRoleSlug] = useState<string>('hr_manager');
+  const [moduleIds, setModuleIds] = useState<number[]>([]);
 
   const [f, setF] = useState({ name: '', city: '', state: '', country: 'India', industry: '', email: '', employee_code_start: 0, employee_code_end: 0, employee_code_skip: '', theme_color: null });
   const F = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -127,7 +128,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   useEffect(() => {
     if (open) {
       setStep(1); setEmpSearch(''); setSelEmpId(null); setSelRoleSlug('hr_manager');
-      setPendingEmps([]);
+      setPendingEmps([]); setModuleIds([]);
       setF({ name: '', city: '', state: '', country: 'India', industry: '', email: '', employee_code_start: 0, employee_code_end: 0, employee_code_skip: '', theme_color: null });
     }
   }, [open]);
@@ -138,6 +139,18 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     enabled: open && step === 2,
     select: (r: any) => (r.data?.rows ?? r.data ?? []) as any[],
   });
+
+  // Module catalog — Employee, Payroll, Sales, etc. Nothing is auto-selected;
+  // admin explicitly picks what this company needs.
+  const { data: moduleCatalog = [], isLoading: modulesLoading } = useQuery({
+    queryKey: ['module-catalog'],
+    queryFn: () => apiClient.get<any, any>('/rbac/modules/catalog'),
+    enabled: open && step === 3,
+    select: (r: any) => (r.data ?? []) as { id: number; name: string; slug: string; icon: string | null; is_active: boolean }[],
+    staleTime: 30_000,
+  });
+  const toggleModule = (id: number) =>
+    setModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const ROLES = [
     { slug: 'super_admin', name: 'Super Admin' },
@@ -191,6 +204,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         : '[]',
       theme_color: f.theme_color || null,
       employees: pendingEmps.map(p => ({ employee_id: p.employee_id, role_slug: p.role_slug })),
+      module_ids: moduleIds,
     }),
     onSuccess: async (r: any) => {
       qc.invalidateQueries({ queryKey: ['companies'] });
@@ -221,9 +235,16 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
               Next: Assign Employees →
             </button>
           </>
-        ) : (
+        ) : step === 2 ? (
           <>
             <button className="btn btn-sec" onClick={() => setStep(1)}>← Back</button>
+            <button className="btn btn-pri" onClick={() => setStep(3)}>
+              Next: Modules →
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn btn-sec" onClick={() => setStep(2)}>← Back</button>
             <button className="btn btn-pri" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
               {mutation.isPending ? 'Creating…' : '✓ Create Company'}
             </button>
@@ -233,7 +254,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
 
       {/* Step indicator */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, marginTop: -4 }}>
-        {['Company Details', 'Assign Employees'].map((label, i) => (
+        {['Company Details', 'Assign Employees', 'Modules'].map((label, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
@@ -249,7 +270,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
                 {label}
               </span>
             </div>
-            {i < 1 && <div style={{ flex: 1, height: 2, background: step > 1 ? 'var(--green)' : 'var(--border)', margin: '0 12px', borderRadius: 99 }} />}
+            {i < 2 && <div style={{ flex: 1, height: 2, background: step > i + 1 ? 'var(--green)' : 'var(--border)', margin: '0 12px', borderRadius: 99 }} />}
           </div>
         ))}
       </div>
@@ -349,6 +370,45 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
                 ))}
               </div>
             </>
+          )}
+        </>
+      )}
+
+      {/* ── Step 3: Modules (optional — can be enabled later) ── */}
+      {step === 3 && (
+        <>
+          <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 11, color: 'var(--ink3)', marginBottom: 12 }}>
+            Select the modules this company needs. Forms, fields, and field permissions are
+            shared across every company with a module enabled — this only controls access.
+            You can change this later from the company's settings.
+          </div>
+
+          {modulesLoading ? (
+            <div style={{ padding: 16, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>Loading modules…</div>
+          ) : moduleCatalog.length === 0 ? (
+            <div style={{ padding: 16, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>No modules in the catalog yet.</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {moduleCatalog.map(m => {
+                const sel = moduleIds.includes(m.id);
+                return (
+                  <div key={m.id} onClick={() => m.is_active && toggleModule(m.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                      cursor: m.is_active ? 'pointer' : 'not-allowed', opacity: m.is_active ? 1 : 0.5,
+                      border: `1px solid ${sel ? 'var(--blue)' : 'var(--border)'}`, borderRadius: 'var(--r2)',
+                      background: sel ? 'var(--blue-lt)' : 'transparent',
+                    }}>
+                    <div style={{ width: 14, height: 14, borderRadius: 4, border: `2px solid ${sel ? 'var(--blue)' : 'var(--border2)'}`, background: sel ? 'var(--blue)' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {sel && <span style={{ color: '#fff', fontSize: 10, lineHeight: 1 }}>✓</span>}
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: sel ? 600 : 400, color: sel ? 'var(--blue)' : 'var(--ink)' }}>
+                      {m.icon} {m.name}{!m.is_active && ' (inactive)'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </>
       )}

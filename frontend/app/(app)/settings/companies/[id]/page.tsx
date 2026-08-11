@@ -489,12 +489,27 @@ function SettingsTab({ companyId, company }: { companyId:number; company:Company
   const [themeDirty,  setThemeDirty]  = useState(false);
   const [settings,    setSettings]    = useState<Record<string,string>>({});
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [moduleIds,     setModuleIds]     = useState<number[]>([]);
+  const [modulesDirty,  setModulesDirty]  = useState(false);
 
   // Load current settings
   const { data: currentSettings } = useQuery({
     queryKey: ['company-settings', companyId],
     queryFn:  () => apiClient.get<any,any>(`/companies/${companyId}/settings`),
     select:   (r:any) => r.data as Record<string,string>,
+  });
+
+  // Module catalog + this company's currently enabled modules
+  const { data: moduleCatalog=[] } = useQuery({
+    queryKey: ['module-catalog'],
+    queryFn:  () => apiClient.get<any,any>('/rbac/modules/catalog'),
+    select:   (r:any) => (r.data ?? []) as { id:number; name:string; slug:string; icon:string|null; is_active:boolean }[],
+    staleTime: 30_000,
+  });
+  const { data: currentModules, isError: modulesLoadError } = useQuery({
+    queryKey: ['company-modules', companyId],
+    queryFn:  () => apiClient.get<any,any>(`/rbac/modules?company_id=${companyId}`),
+    select:   (r:any) => (r.data ?? []) as { id:number }[],
   });
 
   useEffect(() => {
@@ -504,6 +519,13 @@ function SettingsTab({ companyId, company }: { companyId:number; company:Company
       setSettings(s);
     }
   }, [currentSettings]);
+
+  useEffect(() => {
+    if (currentModules) {
+      setModuleIds(currentModules.map(m => m.id));
+      setModulesDirty(false);
+    }
+  }, [currentModules]);
 
   const themeMut = useMutation({
     mutationFn: () => apiClient.put<any,any>(`/companies/${companyId}/theme`, { theme_color: themeColor }),
@@ -526,6 +548,21 @@ function SettingsTab({ companyId, company }: { companyId:number; company:Company
     },
     onError: (e:any) => showToast(e?.message || 'Failed'),
   });
+
+  const modulesMut = useMutation({
+    mutationFn: () => apiClient.put<any,any>('/rbac/companies/modules', { company_id: companyId, module_ids: moduleIds }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company-modules', companyId] });
+      setModulesDirty(false);
+      showToast('✓ Modules updated');
+    },
+    onError: (e:any) => showToast(e?.message || 'Failed'),
+  });
+
+  const toggleModule = (id: number) => {
+    setModuleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setModulesDirty(true);
+  };
 
   const handleThemeSelect = (color: string) => {
     setThemeColor(color);
@@ -632,6 +669,53 @@ function SettingsTab({ companyId, company }: { companyId:number; company:Company
             <button className="btn btn-pri btn-sm" style={{ marginTop:14 }}
               onClick={() => settingsMut.mutate()} disabled={settingsMut.isPending}>
               {settingsMut.isPending ? 'Saving…' : '✓ Save Settings'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Modules ────────────────────────────────────────── */}
+      {canEdit('companies') && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r3)', padding:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'var(--ink)', marginBottom:4 }}>Modules</div>
+          <div style={{ fontSize:12, color:'var(--ink4)', marginBottom:14 }}>
+            Choose which modules this company has access to. Forms, fields, and field
+            permissions are shared across every company with a module enabled — this
+            only controls access.
+          </div>
+
+          {moduleCatalog.length === 0 ? (
+            <div style={{ fontSize:12, color:'var(--ink4)' }}>No modules in the catalog yet.</div>
+          ) : modulesLoadError ? (
+            <div style={{ fontSize:12, color:'var(--red)' }}>Couldn't load this company's current modules — try refreshing.</div>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {moduleCatalog.map(m => {
+                const sel = moduleIds.includes(m.id);
+                return (
+                  <div key={m.id} onClick={() => m.is_active && toggleModule(m.id)}
+                    style={{
+                      display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
+                      cursor: m.is_active ? 'pointer' : 'not-allowed', opacity: m.is_active ? 1 : 0.5,
+                      border:`1px solid ${sel ? 'var(--blue)' : 'var(--border)'}`, borderRadius:'var(--r2)',
+                      background: sel ? 'var(--blue-lt)' : 'transparent',
+                    }}>
+                    <div style={{ width:14, height:14, borderRadius:4, border:`2px solid ${sel ? 'var(--blue)' : 'var(--border2)'}`, background: sel ? 'var(--blue)' : 'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      {sel && <span style={{ color:'#fff', fontSize:10, lineHeight:1 }}>✓</span>}
+                    </div>
+                    <span style={{ fontSize:12, fontWeight: sel?600:400, color: sel ? 'var(--blue)' : 'var(--ink)' }}>
+                      {m.icon} {m.name}{!m.is_active && ' (inactive)'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {modulesDirty && (
+            <button className="btn btn-pri btn-sm" style={{ marginTop:14 }}
+              onClick={() => modulesMut.mutate()} disabled={modulesMut.isPending}>
+              {modulesMut.isPending ? 'Saving…' : '✓ Save Modules'}
             </button>
           )}
         </div>
