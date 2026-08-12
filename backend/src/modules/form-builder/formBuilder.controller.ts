@@ -106,6 +106,14 @@ export async function deleteModule(req: Request, res: Response, next: NextFuncti
   try { sendResponse(res, { data: await fbSvc.deleteModule(+req.params.id, req.user!.employeeId) }); } catch(e){ next(e); }
 }
 
+// One-time (but safe to re-run) backfill — seeds Permission rows for every
+// catalog module that predates ensureModulePermissions. Not called
+// automatically; an admin triggers it explicitly, same shape as
+// POST /permission-groups/seed.
+export async function backfillModulePermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try { sendResponse(res, { data: await fbSvc.backfillModulePermissions() }); } catch(e){ next(e); }
+}
+
 // "Company A selects Employee, Payroll, Sales, Assets" — the actual
 // module-subscription endpoint. company_id defaults to the caller's own
 // company; a super admin managing another company should pass company_id

@@ -82,6 +82,7 @@ export async function getGroupPermissions(
     const companyId = req.query.company_id ? +req.query.company_id : req.user!.companyId;
     const group = await svc.getById(+req.params.id, companyId);
     const slugs = (group.permissions ?? []).map(p => p.slug);
+    console.log("Group permissions for group:", { groupId: +req.params.id, companyId, slugs });
     sendResponse(res, { data: slugs });
   } catch (e) {
     next(e);

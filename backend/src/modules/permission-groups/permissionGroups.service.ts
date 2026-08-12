@@ -158,12 +158,12 @@ export class PermissionGroupService {
     updatedBy?: number,
     isSuperAdmin = false,
   ) {
+    console.log("Setting permissions for group:", { id, companyId, slugs, updatedBy, isSuperAdmin });
     await this.getById(id, companyId);
 
     const permissions = await Permission.findAll({
       where: { slug: [...new Set(slugs)] },
     });
-
     // Fix: remove ALL existing rows for this group, regardless of any
     // legacy/missing company_id value — group_id alone is a sufficient,
     // unambiguous scope since a group belongs to exactly one company.

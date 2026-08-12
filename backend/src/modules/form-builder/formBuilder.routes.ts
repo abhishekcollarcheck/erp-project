@@ -8,7 +8,7 @@ import {
   getRolePermissions, setRolePermissions,
   getRoleMembers, assignMember, removeMember,
   listAllPermissions,
-  listAllModules, listModules, createModule, updateModule, deleteModule, setCompanyModules,
+  listAllModules, listModules, createModule, updateModule, deleteModule, backfillModulePermissions,
   listForms, getForm, createForm, updateForm, deleteForm,
   createField, updateField, deleteField, reorderFields,
   getPermissionMatrix, setFieldPermission, bulkSetPermissions, resolveFormPermissions,getGroupFieldPermissions, getGroupCompanyScope
@@ -36,12 +36,15 @@ router.delete('/roles/:id/members/:userId', authorize('settings:delete'), [param
 router.get   ('/permissions', authorize('settings:view'), listAllPermissions);
 
 // ─── Modules ──────────────────────────────────────────────────────────────────
-router.get   ('/modules/catalog', authorize('settings:view'), listAllModules);
+router.get   ('/modules/catalog', listAllModules);
 router.get   ('/modules', listModules);
-router.post  ('/modules', authorize('settings:edit'), [body('name').trim().notEmpty()], validate, createModule);
+router.post  ('/modules', [body('name').trim().notEmpty()], validate, createModule);
 router.put   ('/modules/:id', authorize('settings:edit'), [param('id').isInt()], validate, updateModule);
 router.delete('/modules/:id', authorize('settings:delete'), [param('id').isInt()], validate, deleteModule);
-router.put   ('/companies/modules', authorize('settings:edit'), [body('module_ids').isArray()], validate, setCompanyModules);
+router.post  ('/modules/backfill-permissions', authorize('settings:edit'), backfillModulePermissions);
+// NOTE: company-module assignment (PUT /companies/modules) intentionally lives in
+// company.routes.ts, not here — this router isn't mounted at /companies, and
+// registering it here would never actually be reachable at that path.
 
 // ─── Forms ────────────────────────────────────────────────────────────────────
 router.get   ('/modules/:moduleId/forms', [param('moduleId').isInt()], validate, listForms);

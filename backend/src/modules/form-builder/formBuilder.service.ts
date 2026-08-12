@@ -34,7 +34,28 @@ export const HR_MODULE_TO_PERM_KEY: Record<string, string> = {
 };
 export const permKeyForModule = (slug: string) => HR_MODULE_TO_PERM_KEY[slug] ?? slug;
 
+// Fixed action set for every module — mirrors the frontend's PERMS constant
+// (page.tsx: ['view','create','edit','delete','download']). Kept as its own
+// exported constant here so both live in one place on the backend; if the
+// frontend's PERMS ever changes, this needs to change with it.
+export const MODULE_PERM_ACTIONS = ['view', 'create', 'edit', 'delete', 'download'] as const;
+
 export class FormBuilderService {
+
+  // Ensures a Permission row exists for every (moduleKey, action) pair.
+  // findOrCreate keeps this idempotent — safe to call for a brand-new module
+  // or as a backfill against an existing one; never overwrites `description`
+  // on rows that already exist.
+  async ensureModulePermissions(moduleKey: string) {
+    return Promise.all(
+      MODULE_PERM_ACTIONS.map(action =>
+        Permission.findOrCreate({
+          where: { slug: `${moduleKey}:${action}` },
+          defaults: { module: moduleKey, action, slug: `${moduleKey}:${action}` },
+        }),
+      ),
+    );
+  }
 
   async resolveGroupCompanyScope(
     groupId: number,
@@ -105,6 +126,21 @@ export class FormBuilderService {
     return mods.map(m => ({ ...m.toJSON(), permission_key: permKeyForModule(m.slug) }));
   }
 
+  // One-time backfill for modules created before ensureModulePermissions
+  // existed — call this once (e.g. via a script or an admin-only route), not
+  // on every request. Idempotent (findOrCreate under the hood), safe to
+  // re-run. Returns how many (module, action) pairs were newly created.
+  async backfillModulePermissions() {
+    const mods = await HrModule.findAll({ attributes: ['slug'] });
+    const keys = new Set(mods.map(m => permKeyForModule(m.slug)));
+    let created = 0;
+    for (const key of keys) {
+      const results = await this.ensureModulePermissions(key);
+      created += results.filter(([, wasCreated]) => wasCreated).length;
+    }
+    return { modulesChecked: keys.size, permissionsCreated: created };
+  }
+
   // Modules a SPECIFIC company currently has enabled — this is what drives
   // the company's sidebar/nav and what resolveFormPermissions gates on.
   async listModules(companyId: number) {
@@ -141,6 +177,12 @@ export class FormBuilderService {
       sort_order: dto.sort_order || 0, is_active: true, is_system: false,
     });
     await logActivity({ companyId: 0, employeeId: createdBy, action: 'MODULE_CREATED', module: 'settings', entityId: mod.id, newValues: { name: mod.name, slug } });
+
+    // Seed the fixed action set into the Permission table for this module's
+    // key — without this, any newly created module's slugs (e.g. 'sales:view')
+    // never exist as real Permission rows, and setPermissions' Permission.findAll
+    // silently drops them when a group tries to grant them.
+    await this.ensureModulePermissions(permKeyForModule(slug));
 
     // Optional: enable the module for the selected companies right away.
     // Additive-only and safe here — this module_id is brand new, so there is

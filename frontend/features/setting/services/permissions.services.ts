@@ -39,7 +39,14 @@ export const pgApi = {
     ),
   groupCompanyScope: (groupId: number) =>
     apiClient.get<unknown, ApiResponse<number[]>>(`/rbac/groups/${groupId}/company-scope`),
-companyModules: (companyId?: number) =>
+  companyModules: (companyId?: number) =>
     apiClient.get<unknown, ApiResponse<{ module: string; label: string }[]>>(
       `/permission-groups/company-modules${companyId ? `?company_id=${companyId}` : ''}`),
+  // NEW — modules actually enabled for ONE specific company, sourced from our
+  // HrModule/ModuleCompany catalog (NOT the old CompanyModule table above).
+  // This is what company badges and sidebar visibility should use — the old
+  // `companyModules` above stays only for whatever still legitimately reads
+  // the old on/off toggle table; don't repoint it, add alongside it instead.
+  companyEnabledModules: (companyId: number) =>
+    apiClient.get<unknown, ApiResponse<any[]>>(`/rbac/modules?company_id=${companyId}`),
 };

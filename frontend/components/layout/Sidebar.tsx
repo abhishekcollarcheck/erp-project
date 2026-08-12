@@ -11,6 +11,8 @@ import {
 import { useAuth, usePermission } from "../../features/auth/hooks/useAuth";
 import { useCompany } from "../../features/company/hooks/useCompany";
 import { authService } from "../../services/api/auth.service";
+import { useQuery } from "@tanstack/react-query";
+import { pgApi } from "../../features/setting/services/permissions.services";
 import { ChevronDown, ChevronRight, Brain, LayoutDashboard, SquareUserRound, Target, BookKey, ArrowUpNarrowWide, BookA, Settings, Building2, ShieldUser, Form, Shrink } from "lucide-react";
 import { toggleSidebarMenu } from "../../store/slices/uiSlice";
 
@@ -27,12 +29,14 @@ interface NavItem {
   children?: NavItem[];
 }
 interface NavSection {
+  id: string;
   items: NavItem[];
   superOnly?: boolean;
 }
 
-const NAV: NavSection[] = [
+export const NAV: NavSection[] = [
   {
+    id: "overview",
     // label: "Overview",
     items: [
       {
@@ -59,6 +63,7 @@ const NAV: NavSection[] = [
     ],
   },
   {
+    id: "hrms-section",
     items: [
       {
         id: "hrms",
@@ -96,7 +101,7 @@ const NAV: NavSection[] = [
             icon: <BookA size={16} />,
             href: "/departments",
             permission: "department:view",
-            module: "departments",
+            module: "department",
           },
           {
             id: "subdepartments",
@@ -112,7 +117,7 @@ const NAV: NavSection[] = [
             icon: <Target size={16} />,
             href: "/designations",
             permission: "designation:view",
-            module: "designations",
+            module: "designation",
           },
           {
             id: "subdesignations",
@@ -120,13 +125,14 @@ const NAV: NavSection[] = [
             icon: <Target size={16} />,
             href: "/sub-designation",
             permission: "sub-designation:view",
-            module: "sub-designations",
+            module: "sub-designation",
           },          
         ],
       },
     ],
   },
   {
+    id: "settings-section",
     items: [
       {
         id: "setting",
@@ -174,6 +180,37 @@ const NAV: NavSection[] = [
     ],
   },
 ];
+
+// Flattened, longest-prefix-first list of every {href, permission} pair in
+// NAV — built once at module load, not per-call. Used by AppShell to decide
+// whether the CURRENT route is still allowed after permissions change (e.g.
+// company switch), independent of what's shown/hidden in the nav itself.
+const FLAT_ROUTE_PERMISSIONS: { href: string; permission: string | null }[] = (() => {
+  const flat: { href: string; permission: string | null }[] = [];
+  for (const section of NAV) {
+    for (const item of section.items) {
+      if (item.href) flat.push({ href: item.href, permission: item.permission });
+      for (const child of item.children ?? []) {
+        if (child.href) flat.push({ href: child.href, permission: child.permission });
+      }
+    }
+  }
+  // Longest href first, so `/employees/new` matches `/employees` correctly
+  // even if a more specific but shorter-prefix route also exists.
+  return flat.sort((a, b) => b.href.length - a.href.length);
+})();
+
+// Returns the permission slug required for `pathname`, or null if either no
+// NAV entry matches (route isn't permission-gated at all — e.g. /dashboard,
+// /profile) or the matching entry has permission: null (open to any
+// authenticated user). AppShell should NOT block when this returns null —
+// only block on an explicit, unmet permission requirement.
+export function getRequiredPermissionForPath(pathname: string): string | null {
+  const match = FLAT_ROUTE_PERMISSIONS.find(
+    (r) => pathname === r.href || pathname.startsWith(r.href + "/"),
+  );
+  return match?.permission ?? null;
+}
 
 const ROLE_LABEL: Record<string, string> = {
   hr_manager: "HR Manager",
@@ -420,8 +457,18 @@ const dispatch = useAppDispatch();
   const { logout } = useAuth();
   const { hasPermission } = usePermission();
   const { company, companyId, companies } = useCompany();
-  // Active modules for the current company — filters sidebar items
-  const activeModules: string[] = (company as any)?.active_modules ?? [];
+  // Active modules for the current company — live from the ModuleCompany
+  // catalog, scoped to whichever company is currently active. Refetches
+  // automatically on company switch since companyId is in the query key.
+  // Super admins bypass module gating entirely below, so skip the fetch for
+  // them — matches existing behavior exactly, just skips the wasted call.
+  const { data: activeModules = [] } = useQuery({
+    queryKey: ['sidebar-active-modules', companyId],
+    queryFn: () => pgApi.companyEnabledModules(companyId),
+    enabled: !!companyId && !isSuperAdmin,
+    staleTime: 60_000,
+    select: (r: any): string[] => ((r.data ?? []) as any[]).map(m => m.permission_key ?? m.slug),
+  });
   const initials = user?.fullName
     ? user.fullName
         .split(" ")
@@ -528,9 +575,8 @@ const dispatch = useAppDispatch();
             return hasPermission(item.permission);
           });
           if (visibleItems.length === 0) return null;
-
           return (
-            <div>
+            <div key={section.id}>
               {/* {!collapsed && <div className="sb-sec">{section.label}</div>} */}
               {visibleItems.map((item) => {
                 // Parent active state

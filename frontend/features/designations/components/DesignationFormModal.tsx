@@ -43,7 +43,6 @@ export function DesignationFormModal({ open, onClose, designation }: Props) {
   const perm = {
     designation_name: f('designation_name'),
   };
-  console.log("perm", f('first_name'))
   const anyVisible  = Object.values(perm).some(canView);
   const anyEditable = Object.values(perm).some(canEdit);
 

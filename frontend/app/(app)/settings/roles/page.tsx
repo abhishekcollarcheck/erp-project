@@ -185,8 +185,23 @@ function initModulePerms(modules: ModuleDef[], on = false): ModulePerms {
   return out;
 }
 
+// Counts DISTINCT module keys with `perm` on — not array entries. Two
+// different HrModule catalog rows can share the same key (permission_key
+// collisions via HR_MODULE_TO_PERM_KEY, or two modules whose slugs both
+// resolve to the same passthrough key), and modulePermsToSlugs already
+// dedupes by key when saving (`new Set(out)`) — this makes counting match
+// what actually gets saved instead of over-counting duplicates.
 function countPerm(mp: ModulePerms, perm: string, modules: ModuleDef[]) {
-  return modules.filter(m => mp[m.key]?.[perm]).length;
+  const keys = new Set(modules.map(m => m.key));
+  let n = 0;
+  for (const key of keys) if (mp[key]?.[perm]) n++;
+  return n;
+}
+
+// Distinct module count — same dedup basis as countPerm, so a "X / Y" denominator
+// never shows more slots than actually exist as distinct permission keys.
+function distinctModuleCount(modules: ModuleDef[]) {
+  return new Set(modules.map(m => m.key)).size;
 }
 
 function slugsToModulePerms(slugs: string[], modules: ModuleDef[]): ModulePerms {
@@ -1110,7 +1125,7 @@ function PermSummary({ modPerms, modules, isOverrideMode = false }: {
             <div key={p} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
               <span style={{ color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: 5 }}>{PERM_ICONS[p]} {PERM_LABELS[p]}</span>
               <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: count > 0 ? 'var(--blue)' : 'var(--ink4)' }}>
-                {count} / {modules.length}
+                {count} / {distinctModuleCount(modules)}
               </span>
             </div>
           );
@@ -1459,7 +1474,6 @@ function FieldPermissionsPanel({
   const qc = useQueryClient();
 
   const { data: modules = [] } = useHrModules();
-  console.log('modules', modules);
   const allFormsQueries = useAllModuleForms(modules);
   const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
     const mod = modules[moduleIndex];
@@ -1471,7 +1485,6 @@ function FieldPermissionsPanel({
       moduleKey: mod.permission_key ?? mod.slug,
     }));
   });
-  console.log('allForms', allForms);
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
 
   // Only sections whose module is checked in the matrix above. Reads live from
