@@ -22,6 +22,7 @@ import { showToast } from '../../../utils/toast';
 import type { Employee, EmployeeStatus } from '../../../features/employees/types/employee.types';
 import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE } from '../../../features/employees/constants/employee.constants';
 import { BulkUploadModal } from '../../../features/employees/components/BulkUploadModal';
+import { PermissionGuard } from '@/utils/permissionGuard';
 
 type StatusFilter     = EmployeeStatus | '';
 type EmpTypeFilter    = 'Permanent' | 'Contractual' | '';
@@ -223,8 +224,9 @@ export default function EmployeesPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <AppShell onAddNew={canCreate('employees') ? () => router.push('/employees/new') : undefined}>
-      <div className="pg-enter">
+    <PermissionGuard permission="employees:view">
+      <AppShell onAddNew={canCreate('employees') ? () => router.push('/employees/new') : undefined}>
+        <div className="pg-enter">
 
         {/* Page header */}
         <div className="ph">
@@ -293,5 +295,6 @@ export default function EmployeesPage() {
 
       <BulkUploadModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
     </AppShell>
+   </PermissionGuard> 
   );
 }

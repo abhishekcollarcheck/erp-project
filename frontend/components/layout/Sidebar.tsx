@@ -34,7 +34,7 @@ interface NavSection {
   superOnly?: boolean;
 }
 
-export const NAV: NavSection[] = [
+const NAV: NavSection[] = [
   {
     id: "overview",
     // label: "Overview",
@@ -44,20 +44,6 @@ export const NAV: NavSection[] = [
         label: "Dashboard",
         icon: <LayoutDashboard size={16} />,
         href: "/dashboard",
-        permission: null,
-      },
-      {
-        id: "attendance",
-        label: "Attendance",
-        icon: <LayoutDashboard size={16} />,
-        href: "/attendance",
-        permission: null,
-      },
-      {
-        id: "leaves",
-        label: "Leaves",
-        icon: <LayoutDashboard size={16} />,
-        href: "/leaves",
         permission: null,
       },
     ],
@@ -104,14 +90,6 @@ export const NAV: NavSection[] = [
             module: "department",
           },
           {
-            id: "subdepartments",
-            label: "Sub Departments",
-            icon: <BookA size={16} />,
-            href: "/sub-department",
-            permission: "sub-department:view",
-            module: "sub-department",
-          },          
-          {
             id: "designations",
             label: "Designations",
             icon: <Target size={16} />,
@@ -120,13 +98,19 @@ export const NAV: NavSection[] = [
             module: "designation",
           },
           {
-            id: "subdesignations",
-            label: "Sub Designations",
-            icon: <Target size={16} />,
-            href: "/sub-designation",
-            permission: "sub-designation:view",
-            module: "sub-designation",
-          },          
+            id: "attendance",
+            label: "Attendance",
+            icon: <LayoutDashboard size={16} />,
+            href: "/attendance",
+            permission: null,
+          },
+          {
+            id: "leaves",
+            label: "Leaves",
+            icon: <LayoutDashboard size={16} />,
+            href: "/leaves",
+            permission: null,
+          },
         ],
       },
     ],
@@ -160,14 +144,7 @@ export const NAV: NavSection[] = [
             icon: <Building2 size={16} />,
             href: "/settings/companies",
             permission: "companies:view",
-          },
-          {
-            id: "super-admins",
-            label: "Super Admins",
-            icon: <ShieldUser size={16} />,
-            href: "/settings/super-admins",
-            permission: "super_admin:manage",
-          },
+          }
         ],
       },
 
@@ -180,37 +157,6 @@ export const NAV: NavSection[] = [
     ],
   },
 ];
-
-// Flattened, longest-prefix-first list of every {href, permission} pair in
-// NAV — built once at module load, not per-call. Used by AppShell to decide
-// whether the CURRENT route is still allowed after permissions change (e.g.
-// company switch), independent of what's shown/hidden in the nav itself.
-const FLAT_ROUTE_PERMISSIONS: { href: string; permission: string | null }[] = (() => {
-  const flat: { href: string; permission: string | null }[] = [];
-  for (const section of NAV) {
-    for (const item of section.items) {
-      if (item.href) flat.push({ href: item.href, permission: item.permission });
-      for (const child of item.children ?? []) {
-        if (child.href) flat.push({ href: child.href, permission: child.permission });
-      }
-    }
-  }
-  // Longest href first, so `/employees/new` matches `/employees` correctly
-  // even if a more specific but shorter-prefix route also exists.
-  return flat.sort((a, b) => b.href.length - a.href.length);
-})();
-
-// Returns the permission slug required for `pathname`, or null if either no
-// NAV entry matches (route isn't permission-gated at all — e.g. /dashboard,
-// /profile) or the matching entry has permission: null (open to any
-// authenticated user). AppShell should NOT block when this returns null —
-// only block on an explicit, unmet permission requirement.
-export function getRequiredPermissionForPath(pathname: string): string | null {
-  const match = FLAT_ROUTE_PERMISSIONS.find(
-    (r) => pathname === r.href || pathname.startsWith(r.href + "/"),
-  );
-  return match?.permission ?? null;
-}
 
 const ROLE_LABEL: Record<string, string> = {
   hr_manager: "HR Manager",
@@ -447,8 +393,8 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 // ─── Sidebar component ────────────────────────────────────────────────────────
 
 export function Sidebar() {
-const openMenus = useAppSelector((s: any) => s.ui.openMenus);
-const dispatch = useAppDispatch();
+  const openMenus = useAppSelector((s: any) => s.ui.openMenus);
+  const dispatch = useAppDispatch();
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = useAppSelector((s: any) => s.ui.sidebarCollapsed);
@@ -471,11 +417,11 @@ const dispatch = useAppDispatch();
   });
   const initials = user?.fullName
     ? user.fullName
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase()
     : (user?.email?.[0]?.toUpperCase() ?? "U");
 
   const roleSlug = user?.roleSlug || "emp";
@@ -582,13 +528,13 @@ const dispatch = useAppDispatch();
                 // Parent active state
                 const isActive = item.children
                   ? item.children.some(
-                      (child) =>
-                        child.href &&
-                        (pathname === child.href ||
-                          pathname.startsWith(child.href)),
-                    )
+                    (child) =>
+                      child.href &&
+                      (pathname === child.href ||
+                        pathname.startsWith(child.href)),
+                  )
                   : !!item.href &&
-                    (pathname === item.href || pathname.startsWith(item.href));
+                  (pathname === item.href || pathname.startsWith(item.href));
 
                 // ==========================
                 // Dropdown Menu (HRMS)
@@ -607,12 +553,10 @@ const dispatch = useAppDispatch();
                     }
 
                     if (child.permission === null) return true;
-
                     return hasPermission(child.permission);
                   });
 
                   if (visibleChildren.length === 0) return null;
-
                   return (
                     <div key={item.id}>
                       {/* Parent */}
@@ -622,7 +566,7 @@ const dispatch = useAppDispatch();
                         onClick={() => dispatch(toggleSidebarMenu(item.id))}
                       >
                         <span className="ni-ic">{item.icon}</span>
-                        {collapsed} 
+                        {collapsed}
                         {!collapsed && (
                           <>
                             <span className="ni-lb">{item.label}</span>

@@ -638,7 +638,7 @@ function SettingsTab({ companyId, company }: { companyId:number; company:Company
       )}
 
       {/* ── Company Settings ──────────────────────────────── */}
-      {canEdit('companies') && (
+      {/* {canEdit('companies') && (
         <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r3)', padding:20 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'var(--ink)', marginBottom:4 }}>Company Settings</div>
           <div style={{ fontSize:12, color:'var(--ink4)', marginBottom:16 }}>Leave aur attendance ke default settings configure karo.</div>
@@ -672,7 +672,7 @@ function SettingsTab({ companyId, company }: { companyId:number; company:Company
             </button>
           )}
         </div>
-      )}
+      )} */}
 
       {/* ── Modules ────────────────────────────────────────── */}
       {canEdit('companies') && (

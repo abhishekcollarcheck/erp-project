@@ -546,12 +546,21 @@ export class FormBuilderService {
     } catch (e) { await t.rollback(); throw e; }
   }
 
+  // Keeps every field's permission row in sync with its module's current
+  // grants, EVERY time module permissions are saved — not just the first
+  // time a field is exposed. This is a deliberate behavior: if an admin has
+  // manually customized a field (e.g. unchecked edit on one sensitive field
+  // while the module itself stays edit:on), that customization is
+  // OVERWRITTEN back to the module default on the next module-permission
+  // save. There is no is_override flag in FieldPermissionV2 to distinguish
+  // "admin deliberately set this" from "this was an auto-default" — adding
+  // one would let per-field overrides survive a module resync, but that's a
+  // schema change beyond this fix.
   async applyModuleDefaultsToFields(
     groupId: number,
     companyIds: number[],
     grantedSlugs: string[],
     updatedBy?: number,
-    opts: { overwriteExisting?: boolean } = {},
   ) {
     if (!companyIds.length) return { created: 0, removed: 0 };
     const granted = new Set(grantedSlugs);
@@ -582,12 +591,6 @@ export class FormBuilderService {
         fieldsByModule.get(mid)!.push(f);
       }
 
-      const existing = await FieldPermissionV2.findAll({
-        where: { company_id: companyId, group_id: groupId, field_id: fields.map(f => f.id) },
-        attributes: ['field_id'],
-      });
-      const hasRow = new Set(existing.map(r => r.field_id));
-
       const toCreate: any[] = [];
       const toRemove: number[] = [];
 
@@ -606,8 +609,13 @@ export class FormBuilderService {
         const edit = granted.has(`${key}:edit`);
         const down = granted.has(`${key}:download`);
 
+        // Always resync — every field under a view-granted module gets its
+        // row upserted fresh from the module's CURRENT edit/download grants,
+        // regardless of whether a row already existed. can_copy mirrors
+        // can_view (no separate module-level "copy" permission exists
+        // anywhere in PERMS/MODULE_PERM_ACTIONS to drive it independently —
+        // this is intentional, not an arbitrary hardcode).
         for (const f of modFields) {
-          if (hasRow.has(f.id) && !opts.overwriteExisting) continue;
           toCreate.push({
             company_id: companyId, group_id: groupId, field_id: f.id,
             can_view: true, can_edit: edit, can_copy: true,

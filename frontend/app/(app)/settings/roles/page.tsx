@@ -1474,6 +1474,7 @@ function FieldPermissionsPanel({
   const qc = useQueryClient();
 
   const { data: modules = [] } = useHrModules();
+  
   const allFormsQueries = useAllModuleForms(modules);
   const allForms = allFormsQueries.flatMap((query, moduleIndex) => {
     const mod = modules[moduleIndex];
@@ -1485,6 +1486,7 @@ function FieldPermissionsPanel({
       moduleKey: mod.permission_key ?? mod.slug,
     }));
   });
+
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
 
   // Only sections whose module is checked in the matrix above. Reads live from
@@ -1576,6 +1578,67 @@ function FieldPermissionsPanel({
     setLocalPerms(merged);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, selectedFormId, matrixCompanyId, groupPermsData, isOverrideMode, overrideData, matrixData]);
+
+  // Live-sync: the instant a module's View/Edit/Download is toggled in the
+  // top matrix, mirror that into this module's field checkboxes right away —
+  // matching exactly what applyModuleDefaultsToFields will persist on save,
+  // so the panel never shows a state that then silently flips after saving.
+  //
+  // Baseline is seeded ONCE, at mount, from whatever modPerms looked like
+  // for every module at that moment — not lazily the first time we happen
+  // to look at a given module. This matters for a module whose fields only
+  // become visible/selectable AFTER being toggled on: without a pre-seeded
+  // baseline, the toggle-on event and "first time seeing this module" are
+  // the exact same render, so a lazy per-module seed would incorrectly
+  // treat the toggle itself as "nothing to compare against yet" and defer
+  // to the fetch-based merge — which shows nothing for a brand-new,
+  // never-saved group. Seeding everything up front means ANY change
+  // relative to mount-time state — including a module going from
+  // false→true for the first time — is correctly detected as a real toggle.
+  const prevModulePermsRef = useRef<Record<string, { view: boolean; edit: boolean; download: boolean }> | null>(null);
+  useEffect(() => {
+    if (prevModulePermsRef.current) return; // seed exactly once per panel instance
+    const seed: Record<string, { view: boolean; edit: boolean; download: boolean }> = {};
+    for (const key of Object.keys(modPerms)) {
+      seed[key] = {
+        view: !!modPerms[key]?.view,
+        edit: !!modPerms[key]?.edit,
+        download: !!modPerms[key]?.download,
+      };
+    }
+    prevModulePermsRef.current = seed;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (isOverrideMode) return; // override mode has its own merge above; don't fight it
+    if (!selectedModuleKey || !fields.length) return;
+    if (!prevModulePermsRef.current) return; // baseline not seeded yet
+
+    const cur = {
+      view: !!modPerms[selectedModuleKey]?.view,
+      edit: !!modPerms[selectedModuleKey]?.edit,
+      download: !!modPerms[selectedModuleKey]?.download,
+    };
+    // Module not present in the mount-time seed at all (e.g. a module added
+    // to the catalog mid-session) — falls back to the natural false
+    // baseline, same treatment as any other brand-new module.
+    const prev = prevModulePermsRef.current[selectedModuleKey] ?? { view: false, edit: false, download: false };
+    prevModulePermsRef.current[selectedModuleKey] = cur;
+
+    if (prev.view === cur.view && prev.edit === cur.edit && prev.download === cur.download) return;
+
+    setLocalPerms(p => {
+      const next = { ...p };
+      for (const f of fields) {
+        next[f.id] = cur.view
+          ? { can_view: true, can_edit: cur.edit, can_copy: true, can_download: cur.download, is_masked: !!f.is_hidden }
+          : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+      }
+      return next;
+    });
+    setDirty(true);
+  }, [selectedModuleKey, modPerms, fields, isOverrideMode]);
 
   // Mirrors the backend's module-edit ceiling so the admin UI never shows or
   // saves a field-level Edit grant the runtime would ignore anyway.
@@ -1682,6 +1745,7 @@ function FieldPermissionsPanel({
         }));
         // Writes to the company currently on screen only — writing to every
         // company would flatten per-company differences.
+        console.log('Saving field permissions for group', targetGroupId, 'company', matrixCompanyId, permissions);
         await pgApi.bulkSetFieldPermissions(targetGroupId, [matrixCompanyId], permissions);
       }
     },

@@ -481,7 +481,7 @@ export default function CompaniesPage() {
         )}
 
         {/* Filters */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {/* <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 12px' }}>
             <span style={{ color: 'var(--ink4)' }}>⌕</span>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search companies…"
@@ -494,7 +494,7 @@ export default function CompaniesPage() {
             <option value="growth">Growth</option>
             <option value="enterprise">Enterprise</option>
           </select>
-        </div>
+        </div> */}
 
         {isLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

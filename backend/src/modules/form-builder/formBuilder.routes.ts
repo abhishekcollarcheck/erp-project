@@ -11,7 +11,7 @@ import {
   listAllModules, listModules, createModule, updateModule, deleteModule, backfillModulePermissions,
   listForms, getForm, createForm, updateForm, deleteForm,
   createField, updateField, deleteField, reorderFields,
-  getPermissionMatrix, setFieldPermission, bulkSetPermissions, resolveFormPermissions,getGroupFieldPermissions, getGroupCompanyScope
+  getPermissionMatrix, setFieldPermission, bulkSetPermissions, resolveFormPermissions,getGroupFieldPermissions, getGroupCompanyScope, setCompanyModules
 } from './formBuilder.controller';
 import { DynamicSourceService } from './dynamicSource.service';
 import { resolveCompanyContext } from '../../modules/auth/auth.middleware';
@@ -42,6 +42,7 @@ router.post  ('/modules', [body('name').trim().notEmpty()], validate, createModu
 router.put   ('/modules/:id', authorize('settings:edit'), [param('id').isInt()], validate, updateModule);
 router.delete('/modules/:id', authorize('settings:delete'), [param('id').isInt()], validate, deleteModule);
 router.post  ('/modules/backfill-permissions', authorize('settings:edit'), backfillModulePermissions);
+router.put   ('/companies/modules', authorize('settings:edit'), [body('module_ids').isArray()], validate, setCompanyModules);
 // NOTE: company-module assignment (PUT /companies/modules) intentionally lives in
 // company.routes.ts, not here — this router isn't mounted at /companies, and
 // registering it here would never actually be reachable at that path.
