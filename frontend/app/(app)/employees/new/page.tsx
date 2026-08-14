@@ -10,6 +10,7 @@ import { AppShell } from '../../../../layouts/AppLayout';
 import { EmployeeWizard } from '../../../../features/employees/components/EmployeeWizard';
 import { usePermission } from '../../../../features/auth/hooks/usePermission';
 import type { Employee } from '../../../../features/employees/types/employee.types';
+import { PermissionGuard } from '../../../../utils/permissionGuard';
 
 export default function NewEmployeePage() {
   const router   = useRouter();
@@ -23,6 +24,7 @@ export default function NewEmployeePage() {
   // Guard — redirect if no permission
   if (!canCreate('employees')) {
     return (
+      <PermissionGuard permission="employees:view">
       <AppShell>
         <div style={{ padding: 48, textAlign: 'center' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
@@ -31,10 +33,12 @@ export default function NewEmployeePage() {
           <button className="btn btn-sec" onClick={() => router.back()}>← Go Back</button>
         </div>
       </AppShell>
+      </PermissionGuard>
     );
   }
 
   return (
+    <PermissionGuard permission="employees:view">
     <AppShell>
       <div className="pg-enter">
         <div className="ph">
@@ -54,5 +58,6 @@ export default function NewEmployeePage() {
         />
       </div>
     </AppShell>
+    </PermissionGuard>
   );
 }

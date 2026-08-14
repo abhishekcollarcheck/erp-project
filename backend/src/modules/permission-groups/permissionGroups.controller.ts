@@ -182,19 +182,6 @@ export async function getMyGroups(
   }
 }
 
-export async function seedGroups(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  try {
-    await svc.seedSystemGroups(req.user!.companyId);
-    sendResponse(res, { data: { seeded: true } });
-  } catch (e) {
-    next(e);
-  }
-}
-
 // Export service for use in seeder
 export { PermissionGroupService, svc as permissionGroupService };
 

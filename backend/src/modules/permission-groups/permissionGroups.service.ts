@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import { PermissionGroup, GroupPermission, UserGroup, SYSTEM_GROUPS } from "../../database/models/PermissionGroups";
+import { PermissionGroup, GroupPermission, UserGroup } from "../../database/models/PermissionGroups";
 import { Permission } from "../../database/models/RoleModels";
 import { Employee } from "../../database/models/Employee";
 import { AppError } from "../../middleware/errorHandler.middleware";
@@ -93,7 +93,7 @@ export class PermissionGroupService {
       entityId: group.id,
       newValues: { name: group.name },
     });
-    console.log("Created permission group:", group.toJSON());
+
     return group;
   }
 
@@ -158,7 +158,7 @@ export class PermissionGroupService {
     updatedBy?: number,
     isSuperAdmin = false,
   ) {
-    console.log("Setting permissions for group:", { id, companyId, slugs, updatedBy, isSuperAdmin });
+
     await this.getById(id, companyId);
 
     const permissions = await Permission.findAll({
@@ -340,8 +340,6 @@ export class PermissionGroupService {
         },
       });
 
-      console.log("UserGroup findOrCreate result:", { groupId, employeeId, companyId: cid, created });
-
       if (created) {
         added.push(cid);
 
@@ -471,36 +469,4 @@ export class PermissionGroupService {
     });
   }
 
-  // ── Seed system groups for a new company ─────────────────────────────────────
-  async seedSystemGroups(companyId: number) {
-    const allPerms = await Permission.findAll({ attributes: ["id", "slug"] });
-    const permMap = new Map(allPerms.map((p) => [p.slug, p.id]));
-
-    for (const tpl of SYSTEM_GROUPS) {
-      const [group] = await PermissionGroup.findOrCreate({
-        where: { slug: tpl.slug },
-        defaults: {
-          name: tpl.name,
-          slug: tpl.slug,
-          description: tpl.description,
-          color: tpl.color,
-          is_system: tpl.is_system,
-          is_active: true,
-        },
-      });
-
-      // Assign permissions
-      const permIds = (tpl.slug_grants as readonly string[])
-        .map((s) => permMap.get(s))
-        .filter(Boolean) as number[];
-
-      if (permIds.length) {
-        await GroupPermission.destroy({ where: { group_id: group.id } });
-        await GroupPermission.bulkCreate(
-          permIds.map((pid) => ({ group_id: group.id, permission_id: pid })),
-          { ignoreDuplicates: true },
-        );
-      }
-    }
-  }
 }

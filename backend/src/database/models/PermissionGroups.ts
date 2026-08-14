@@ -2,55 +2,55 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
 
 
-export const SYSTEM_GROUPS = [
-  {
-    name: 'Super Admin',
-    slug: 'super_admin',
-    description: 'Full access to everything — cannot be modified',
-    color: '#cc2a2a',
-    is_system: true,
-    slug_grants: ['employees:view', 'employees:create', 'employees:edit', 'employees:delete', 'employees:download',
-      'aptitude:view', 'aptitude:create', 'aptitude:edit', 'aptitude:delete', 'aptitude:download',
-      'recruitment:view', 'recruitment:create', 'recruitment:edit', 'recruitment:delete', 'recruitment:download',
-      'department:view', 'department:create', 'department:edit', 'department:delete', 'department:download',
-      'designation:view', 'designation:create', 'designation:edit', 'designation:delete', 'designation:download',
-      'settings:view', 'settings:create', 'settings:edit', 'settings:delete', 'settings:download',
-      'companies:view', 'companies:create', 'companies:edit', 'companies:delete', 'companies:download'
-    ] as string[], // handled by is_super_admin flag
-  },
-  {
-    name: 'HR Manager',
-    slug: 'hr_manager',
-    description: 'Full HR operations — employee lifecycle, leave, attendance',
-    color: '#1e56d9',
-    is_system: true,
-    slug_grants: ['employees:view', 'employees:create', 'employees:edit', 'employees:delete', 'employees:download', 'aptitude:view', 'aptitude:create', 'aptitude:edit', 'aptitude:delete', 'aptitude:download', 'recruitment:view', 'recruitment:create', 'recruitment:edit', 'recruitment:delete', 'recruitment:download'] as string[], // handled by is_super_admin flag
-  },
-  {
-    name: 'Recruiter',
-    slug: 'recruiter',
-    description: 'End-to-end recruitment and ATS management',
-    color: '#c96f00',
-    is_system: true,
-    slug_grants: ['aptitude:view', 'aptitude:create', 'aptitude:edit', 'aptitude:delete', 'aptitude:download', 'recruitment:view', 'recruitment:create', 'recruitment:edit', 'recruitment:delete', 'recruitment:download'] as string[],
-  },
-  {
-    name: 'Department Manager',
-    slug: 'dept_manager',
-    description: 'Manage team members, approve leaves and attendance',
-    color: '#0d9669',
-    is_system: true,
-    slug_grants: ['department:view', 'department:create', 'department:edit', 'department:delete', 'department:download', 'designation:view', 'designation:create', 'designation:edit', 'designation:delete', 'designation:download'] as string[],
-  },
-  {
-    name: 'Employee Self-Service',
-    slug: 'employee_self',
-    description: 'View own data, apply for leaves, request assets',
-    color: '#94a3b8',
-    is_system: true,
-    slug_grants: ['employees:view'],
-  },
-] as const;
+// export const SYSTEM_GROUPS = [
+//   {
+//     name: 'Super Admin',
+//     slug: 'super_admin',
+//     description: 'Full access to everything — cannot be modified',
+//     color: '#cc2a2a',
+//     is_system: true,
+//     slug_grants: ['employees:view', 'employees:create', 'employees:edit', 'employees:delete', 'employees:download',
+//       'aptitude:view', 'aptitude:create', 'aptitude:edit', 'aptitude:delete', 'aptitude:download',
+//       'recruitment:view', 'recruitment:create', 'recruitment:edit', 'recruitment:delete', 'recruitment:download',
+//       'department:view', 'department:create', 'department:edit', 'department:delete', 'department:download',
+//       'designation:view', 'designation:create', 'designation:edit', 'designation:delete', 'designation:download',
+//       'settings:view', 'settings:create', 'settings:edit', 'settings:delete', 'settings:download',
+//       'companies:view', 'companies:create', 'companies:edit', 'companies:delete', 'companies:download'
+//     ] as string[], // handled by is_super_admin flag
+//   },
+//   {
+//     name: 'HR Manager',
+//     slug: 'hr_manager',
+//     description: 'Full HR operations — employee lifecycle, leave, attendance',
+//     color: '#1e56d9',
+//     is_system: true,
+//     slug_grants: ['employees:view', 'employees:create', 'employees:edit', 'employees:delete', 'employees:download', 'aptitude:view', 'aptitude:create', 'aptitude:edit', 'aptitude:delete', 'aptitude:download', 'recruitment:view', 'recruitment:create', 'recruitment:edit', 'recruitment:delete', 'recruitment:download'] as string[], // handled by is_super_admin flag
+//   },
+//   {
+//     name: 'Recruiter',
+//     slug: 'recruiter',
+//     description: 'End-to-end recruitment and ATS management',
+//     color: '#c96f00',
+//     is_system: true,
+//     slug_grants: ['aptitude:view', 'aptitude:create', 'aptitude:edit', 'aptitude:delete', 'aptitude:download', 'recruitment:view', 'recruitment:create', 'recruitment:edit', 'recruitment:delete', 'recruitment:download'] as string[],
+//   },
+//   {
+//     name: 'Department Manager',
+//     slug: 'dept_manager',
+//     description: 'Manage team members, approve leaves and attendance',
+//     color: '#0d9669',
+//     is_system: true,
+//     slug_grants: ['department:view', 'department:create', 'department:edit', 'department:delete', 'department:download', 'designation:view', 'designation:create', 'designation:edit', 'designation:delete', 'designation:download'] as string[],
+//   },
+//   {
+//     name: 'Employee Self-Service',
+//     slug: 'employee_self',
+//     description: 'View own data, apply for leaves, request assets',
+//     color: '#94a3b8',
+//     is_system: true,
+//     slug_grants: ['employees:view'],
+//   },
+// ] as const;
 
 // ─── PermissionGroup ──────────────────────────────────────────────────────────
 

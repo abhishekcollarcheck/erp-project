@@ -15,7 +15,6 @@ import { logActivity } from '../../utils/activityLogger';
 import { isCompanySuperAdmin, countCompanySuperAdmins } from '../auth/auth.service';
 import { sendResponse, sendError, sendPaginated, parsePaginationParams, buildPaginationMeta } from '../../utils/response';
 import { getSettings, updateSettings, updateTheme } from './companySetting'
-import { PermissionGroup, GroupPermission, SYSTEM_GROUPS } from '../../database/models/PermissionGroups';
 import { Permission } from '../../database/models/RoleModels';
 import { loadPermissions } from '../auth/auth.service';
 import { HrModule, ModuleCompany } from '../../database/models/FormBuilder';

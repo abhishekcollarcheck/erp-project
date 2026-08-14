@@ -408,13 +408,19 @@ export function Sidebar() {
   // automatically on company switch since companyId is in the query key.
   // Super admins bypass module gating entirely below, so skip the fetch for
   // them — matches existing behavior exactly, just skips the wasted call.
-  const { data: activeModules = [] } = useQuery({
-    queryKey: ['sidebar-active-modules', companyId],
+  const { data: activeModules = [], isLoading: modulesLoading } = useQuery({
+    // Shared cache key with PermissionGuard's modules query — same endpoint,
+    // same shape — so both consumers hit the network once, not twice.
+    queryKey: ['company-enabled-modules', companyId],
     queryFn: () => pgApi.companyEnabledModules(companyId),
     enabled: !!companyId && !isSuperAdmin,
     staleTime: 60_000,
     select: (r: any): string[] => ((r.data ?? []) as any[]).map(m => m.permission_key ?? m.slug),
   });
+  // Same "ready" gate as PermissionGuard: don't decide a module-gated item's
+  // visibility until we actually know the module list, so a not-yet-enabled
+  // module never flashes in the menu before disappearing.
+  const modulesReady = isSuperAdmin || !modulesLoading;
   const initials = user?.fullName
     ? user.fullName
       .split(" ")
@@ -512,9 +518,11 @@ export function Sidebar() {
           // Filter items
           const visibleItems = section.items.filter((item) => {
             if (item.superOnly && !isSuperAdmin) return false;
-            // Module filter: hide item if company has modules loaded but this module is inactive
-            // Super admins see everything; empty activeModules = fallback show all
-            if (item.module && !isSuperAdmin && activeModules.length > 0) {
+            // Module filter: same rule as PermissionGuard — super admins bypass,
+            // everyone else waits for the module list before the item can show,
+            // then it must be in activeModules.
+            if (item.module && !isSuperAdmin) {
+              if (!modulesReady) return false;
               if (!activeModules.includes(item.module)) return false;
             }
             if (item.permission === null) return true;
@@ -543,13 +551,9 @@ export function Sidebar() {
                   const visibleChildren = item.children.filter((child) => {
                     if (child.superOnly && !isSuperAdmin) return false;
 
-                    if (
-                      child.module &&
-                      !isSuperAdmin &&
-                      activeModules.length > 0 &&
-                      !activeModules.includes(child.module)
-                    ) {
-                      return false;
+                    if (child.module && !isSuperAdmin) {
+                      if (!modulesReady) return false;
+                      if (!activeModules.includes(child.module)) return false;
                     }
 
                     if (child.permission === null) return true;

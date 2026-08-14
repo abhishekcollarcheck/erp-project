@@ -3,7 +3,7 @@ import { body, param } from "express-validator";
 import { authenticate, authorize } from "../auth/auth.middleware";
 import { employeeOverrideRouter, patchGroupMembersWithOverrideCounts, } from "./permissionGroupOverrides";
 import { getMyGroups, listGroups } from "./permissionGroups.controller";
-import { createGroup, updateGroup, deleteGroup, getGroupPermissions, setGroupPermissions, getGroupMembers, addGroupMember, removeGroupMember, seedGroups } from "./permissionGroups.controller";
+import { createGroup, updateGroup, deleteGroup, getGroupPermissions, setGroupPermissions, getGroupMembers, addGroupMember, removeGroupMember } from "./permissionGroups.controller";
 import { validate } from "../../middleware/validate.middleware";
 import { sendResponse } from "../../utils/response";
 import { CompanyModule } from "../../database/models/PermissionGroups";
@@ -22,7 +22,6 @@ permissionGroupRouter.put("/:id/permissions",[param("id").isInt(), body("slugs")
 permissionGroupRouter.get("/:id/members",[param("id").isInt()],validate,getGroupMembers,);
 permissionGroupRouter.post("/:id/members",[param("id").isInt(), body("employee_id").isInt()],validate,addGroupMember);
 permissionGroupRouter.delete("/:id/members/:employeeId",[param("id").isInt(), param("employeeId").isInt()],validate,removeGroupMember,);
-permissionGroupRouter.post("/seed", seedGroups);
 
 // GET /permission-groups/company-modules?company_id=N
 permissionGroupRouter.get("/company-modules",authenticate,

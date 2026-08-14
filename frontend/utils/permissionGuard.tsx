@@ -25,7 +25,9 @@ export function PermissionGuard({
   const moduleKey = permission.split(":")[0];
 
   const { data: activeModules = [], isLoading: modulesLoading } = useQuery({
-    queryKey: ["permission-guard-modules", companyId],
+    // Shared cache key with Sidebar's active-modules query — same endpoint,
+    // same shape — so both consumers hit the network once, not twice.
+    queryKey: ["company-enabled-modules", companyId],
     queryFn: () => pgApi.companyEnabledModules(companyId!),
     enabled: !!companyId && !isSuperAdmin,
     staleTime: 60_000,

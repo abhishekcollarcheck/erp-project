@@ -11,6 +11,7 @@ import { EmployeeWizard } from '../../../../../features/employees/components/Emp
 import { useEmployee } from '../../../../../features/employees/hooks/useEmployees';
 import { usePermission } from '../../../../../features/auth/hooks/usePermission';
 import type { Employee } from '../../../../../features/employees/types/employee.types';
+import { PermissionGuard } from '../../../../../utils/permissionGuard';
 
 export default function EditEmployeePage() {
   const params   = useParams<{ id: string }>();
@@ -59,6 +60,7 @@ export default function EditEmployeePage() {
   );
 
   return (
+    <PermissionGuard permission="employees:view">
     <AppShell>
       <div className="pg-enter">
         <div className="ph">
@@ -77,5 +79,6 @@ export default function EditEmployeePage() {
         />
       </div>
     </AppShell>
+    </PermissionGuard>
   );
 }
