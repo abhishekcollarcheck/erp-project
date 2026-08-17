@@ -8,7 +8,7 @@ import {
 } from "../../database/models/PermissionGroups";
 import { Employee } from "../../database/models/Employee";
 import { AppError } from "../../middleware/errorHandler.middleware";
-import { authenticate } from "../auth/auth.middleware";
+import { authenticate, authorize } from "../auth/auth.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import { sendResponse } from "../../utils/response";
 import { logActivity } from "../../utils/activityLogger";
@@ -462,6 +462,7 @@ export function patchGroupMembersWithOverrideCounts(router: Router): void {
   router.get(
     "/:id/members-with-overrides",
     authenticate,
+    authorize('settings:view'),
     [param("id").isInt()],
     validate,
     async (req: Request, res: Response, next: NextFunction) => {
@@ -515,6 +516,7 @@ employeeOverrideRouter.use(authenticate);
 
 employeeOverrideRouter.get(
   "/:id/members/:employeeId/overrides",
+  authorize('settings:view'),
   [
     param("id").isInt(),
     param("employeeId").isInt(),
@@ -526,6 +528,7 @@ employeeOverrideRouter.get(
 
 employeeOverrideRouter.put(
   "/:id/members/:employeeId/overrides",
+  authorize('settings:edit'),
   [
     param("id").isInt(),
     param("employeeId").isInt(),
@@ -542,6 +545,7 @@ employeeOverrideRouter.put(
 
 employeeOverrideRouter.delete(
   "/:id/members/:employeeId/overrides/:overrideId",
+  authorize('settings:delete'),
   [
     param("id").isInt(),
     param("employeeId").isInt(),
@@ -553,6 +557,7 @@ employeeOverrideRouter.delete(
 
 employeeOverrideRouter.put(
   "/:id/members/:employeeId/field-overrides",
+  authorize('settings:edit'),
   [
     param("id").isInt(),
     param("employeeId").isInt(),
@@ -570,6 +575,7 @@ employeeOverrideRouter.put(
 
 employeeOverrideRouter.get(
   "/:id/members/:employeeId/field-overrides",
+  authorize('settings:view'),
   [param("id").isInt(), param("employeeId").isInt(), query("company_id").isInt(), query("module").notEmpty()],
   validate,
   listFieldOverrides,

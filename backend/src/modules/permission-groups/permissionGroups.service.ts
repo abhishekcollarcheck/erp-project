@@ -11,6 +11,7 @@ import { CompanyManager } from "../../database/models";
 import { refreshEmployeePermission } from "../../utils/refreshEmployeePermission";
 import { refreshEmployeeCompanies } from "../../utils/refreshEmployeeCompanies";
 import { FormBuilderService } from '../form-builder/formBuilder.service';
+import { resolvePermissionsForEmployee } from './permissionGroupOverrides';
 
 
 const fbSvc = new FormBuilderService();
@@ -23,7 +24,10 @@ export class PermissionGroupService {
           model: Permission,
           as: "permissions",
           attributes: ["id", "slug", "module", "action"],
-          through: { attributes: [] },
+          // company_id filter on the junction row — same reasoning as
+          // getById(): a group shared across companies would otherwise
+          // show whichever company's permissions were saved, not this one.
+          through: { attributes: [], where: { company_id: companyId } },
         },
       ],
       order: [
@@ -52,7 +56,18 @@ export class PermissionGroupService {
     const group = await PermissionGroup.findOne({
       where: { id },
       include: [
-        { model: Permission, as: "permissions", through: { attributes: [] } },
+        {
+          model: Permission,
+          as: "permissions",
+          // company_id filter on the junction row — without this, a group
+          // shared across companies (see resolveGroupCompanyScope) returns
+          // whichever company's permissions were saved, not necessarily
+          // THIS company's. This directly feeds groupBaseModPerms in
+          // GroupDetail.tsx (via useGroupPerms), which decides which
+          // modules get checked for field-level overrides and what
+          // "previous" value the override diff panel displays.
+          through: { attributes: [], where: { company_id: companyId } },
+        },
       ],
     });
     if (!group) throw new AppError("Permission group not found", 404);
@@ -164,11 +179,15 @@ export class PermissionGroupService {
     const permissions = await Permission.findAll({
       where: { slug: [...new Set(slugs)] },
     });
-    // Fix: remove ALL existing rows for this group, regardless of any
-    // legacy/missing company_id value — group_id alone is a sufficient,
-    // unambiguous scope since a group belongs to exactly one company.
+    // Scope the wipe to THIS company only. A group's members can span
+    // multiple companies (see resolveGroupCompanyScope) and GroupPermission
+    // rows are company-scoped by design (company_id column) — deleting by
+    // group_id alone here used to wipe every other company's saved
+    // permissions for this same group, and since the reads never filtered
+    // by company_id either, whichever company saved last silently became
+    // the baseline for ALL companies sharing this group.
     await GroupPermission.destroy({
-      where: { group_id: id },
+      where: { group_id: id, company_id: companyId },
     });
 
     await GroupPermission.bulkCreate(
@@ -207,20 +226,13 @@ export class PermissionGroupService {
 
     const groupIds = groups.map((g) => g.group_id);
 
+    // company_id filter here matters: GroupPermission rows are company-scoped,
+    // and a group can have members in several companies at once — without
+    // this filter, the baseline would include permissions saved for ANY
+    // company that shares this group, not just this one.
     const groupPermissions = await GroupPermission.findAll({
       where: {
         group_id: groupIds,
-      },
-      include: [
-        {
-          model: Permission,
-        },
-      ],
-    });
-
-    const overrides = await EmployeePermission.findAll({
-      where: {
-        employee_id: employeeId,
         company_id: companyId,
       },
       include: [
@@ -236,19 +248,14 @@ export class PermissionGroupService {
       finalPermissions.add((gp as any).Permission.slug);
     }
 
-    const grants = overrides.filter((o) => o.type === "grant");
-
-    const revokes = overrides.filter((o) => o.type === "revoke");
-
-    for (const grant of grants) {
-      finalPermissions.add((grant as any).Permission.slug);
-    }
-
-    for (const revoke of revokes) {
-      finalPermissions.delete((revoke as any).Permission.slug);
-    }
-
-    return [...finalPermissions];
+    // Apply the employee's actual module-level overrides — EmployeePermissionOverride
+    // is what the override UI (setOverrides) and the runtime resolver
+    // (resolveModuleSlugs in formBuilder.service.ts) both read/write.
+    // EmployeePermission (a separate, differently-shaped model — `type`
+    // grant/revoke vs `granted` boolean) is never written to anywhere in
+    // this codebase, so reading it here silently ignored every override an
+    // admin ever set.
+    return [...(await resolvePermissionsForEmployee(employeeId, companyId, groupIds, finalPermissions))];
   }
 
   // ── Member management ────────────────────────────────────────────────────────
