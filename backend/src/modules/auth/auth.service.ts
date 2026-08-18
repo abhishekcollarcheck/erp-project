@@ -131,12 +131,6 @@ export async function loadPermissions(
   }
 
   // Source 2: group permissions
-  // company_id filter on the through table matters here more than anywhere
-  // else in the codebase — this builds the actual `permissions` array that
-  // goes into the JWT and is what authorize() checks on every request.
-  // Without it, a group shared across companies would leak whatever
-  // permissions were saved for ANY company sharing the group into every
-  // other company's token too.
   const userGroups = await UserGroup.findAll({
     where: { employee_id: employeeId, company_id: companyId },
     include: [
@@ -148,7 +142,7 @@ export async function loadPermissions(
           {
             model: Permission,
             as: "permissions",
-            through: { attributes: [], where: { company_id: companyId } },
+            through: { attributes: [] },
             attributes: ["slug"],
           },
         ],

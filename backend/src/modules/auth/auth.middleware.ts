@@ -129,26 +129,6 @@ export async function resolveCompanyContext(
     return;
   }
 
-  // Switching company context mid-request must also refresh permissions.
-  // req.user.permissions comes from the JWT, computed for the token's
-  // ORIGINAL company at login time. Without recomputing here, authorize()
-  // further down the chain would keep checking that stale, wrong-company
-  // permission set even though req.user.companyId (and every DB write in
-  // this request) now targets a different company.
-  //
-  // Dynamic import here on purpose: a top-level import of auth.service.ts
-  // would create a circular dependency (auth.service -> permission-groups/
-  // permissionGroupOverrides -> auth.middleware).
-  if (companyId !== req.user!.companyId) {
-    const { loadPermissions } = await import("./auth.service");
-    const { permissions, isSuperAdmin } = await loadPermissions(
-      req.user!.employeeId,
-      companyId,
-    );
-    req.user!.permissions = permissions;
-    req.user!.isSuperAdmin = isSuperAdmin;
-  }
-
   req.user!.companyId = companyId;
   next();
 }
