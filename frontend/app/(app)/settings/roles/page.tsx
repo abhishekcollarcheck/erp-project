@@ -128,12 +128,13 @@ export default function RolesPermissionsPage() {
     setMemberOverrides(prev => ({ ...prev, [memberId]: !prev[memberId] }));
   };
 
-  const handleEditOverride = (memberId: number) => {
+  const handleEditOverride = (memberId: number, companyId?: number) => {
     const member = groupMembersMap[selectedGroup?.id || 0]?.find((m: any) => m.id === memberId);
     const name = member ? `${member.first_name} ${member.last_name}`.trim() : '';
+    const resolvedCompanyId = companyId ?? member?.assigned_company_ids?.[0];
     setOverrideMemberId(memberId);
     setOverrideMemberName(name);
-    setOverrideMemberCompanyId(member?.assigned_company_ids?.[0]);
+    setOverrideMemberCompanyId(resolvedCompanyId);
     setOverrideMemberCompanyIds(member?.assigned_company_ids || []);
     setView('edit');
   };

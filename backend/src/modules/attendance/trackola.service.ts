@@ -51,9 +51,6 @@ export class TrakolaService {
    * the raw parsed shape while confirming column names during testing.
    */
   async getParsedReportRows(startDate: string, endDate: string, employeeId?: string): Promise<Record<string, string | number>[]> {
-    console.log("startDate", startDate)
-    console.log("endDate", endDate)
-    console.log("employeeId", employeeId)
     if (!TRAKOLA_REPORT_ID) {
       throw new AppError('TRAKOLA_REPORT_ID is not configured', 500);
     }

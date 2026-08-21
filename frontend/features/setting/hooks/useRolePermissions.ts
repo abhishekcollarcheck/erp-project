@@ -5,8 +5,13 @@ import type { Form, Module, ModuleDef } from '../types/permissions.types';
 export function useGroups() {
   return useQuery({ queryKey: ['rp', 'groups'], queryFn: () => pgApi.list(), staleTime: 0, select: r => r.data ?? [] });
 }
-export function useGroupPerms(id: number) {
-  return useQuery({ queryKey: ['rp', 'group-perms', id], queryFn: () => pgApi.getPerms(id), enabled: id > 0, select: r => r.data ?? [] });
+export function useGroupPerms(id: number, companyId?: number) {
+  return useQuery({
+    queryKey: ['rp', 'group-perms', id, companyId],
+    queryFn: () => pgApi.getPerms(id, companyId),
+    enabled: id > 0,
+    select: r => r.data ?? [],
+  });
 }
 export function useEmployees() {
   return useQuery({ queryKey: ['employees-light'], queryFn: () => pgApi.employees(), staleTime: 5 * 60_000, select: r => r.data ?? [] });

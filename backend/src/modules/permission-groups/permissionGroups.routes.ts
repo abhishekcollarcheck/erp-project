@@ -20,16 +20,11 @@ permissionGroupRouter.post("/", authorize('settings:edit'), [body("name").trim()
 permissionGroupRouter.put("/:id", authorize('settings:edit'), [param("id").isInt()], validate, updateGroup);
 permissionGroupRouter.delete("/:id", authorize('settings:delete'), [param("id").isInt()], validate, deleteGroup,);
 permissionGroupRouter.get("/:id/permissions", authorize('settings:view'), [param("id").isInt()],validate,getGroupPermissions);
-permissionGroupRouter.put("/:id/permissions", authorize('settings:edit'), [param("id").isInt(), body("slugs").isArray()],validate,setGroupPermissions);
+permissionGroupRouter.put("/:id/permissions", authorize('settings:edit'), [param("id").isInt(), body("slugs").isArray(), body("companyIds").isArray(), body("companyIds.*").isInt(),],validate,setGroupPermissions);
 permissionGroupRouter.get("/:id/members", authorize('settings:view'), [param("id").isInt()],validate,getGroupMembers,);
 permissionGroupRouter.post("/:id/members", authorize('settings:edit'), [param("id").isInt(), body("employee_id").isInt()],validate,addGroupMember);
 permissionGroupRouter.delete("/:id/members/:employeeId", authorize('settings:delete'), [param("id").isInt(), param("employeeId").isInt()],validate,removeGroupMember,);
 
-// GET /permission-groups/company-modules?company_id=N
-// Reads the SAME source setCompanyModules() writes to (ModuleCompany/HrModule)
-// and resolveFormPermissions() enforces against — the legacy CompanyModule
-// table this used to read is seeded once at company creation and never
-// updated, so toggling modules in Settings never showed up here.
 permissionGroupRouter.get("/company-modules", authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {

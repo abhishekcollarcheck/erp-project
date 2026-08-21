@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAppDispatch } from '../../../store';
 import { updateToken, setPermissions } from '../../../store/slices/authSlice';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { showToast } from '../../../utils/toast';
 import { pgApi } from '../../../features/setting/services/permissions.services';
 import type { PermGroup, ModuleDef } from '../../../features/setting/types/permissions.types';
@@ -42,14 +42,43 @@ export function EditView({
   const [modPerms, setModPerms] = useState<ModulePerms>({});
   const [baseModPerms, setBaseModPerms] = useState<ModulePerms>({});
   const [baseLoaded, setBaseLoaded] = useState(false);
-  // Shared with FieldPermissionsPanel so a field-permission save respects
-  // whichever single company the admin has filtered the Module Permissions
-  // matrix down to, instead of always writing to every company that has the
-  // module enabled.
   const [companyFilter, setCompanyFilter] = useState<number | 'all'>('all');
-
-  const { data: existingSlugs = [] } = useGroupPerms(group?.id || 0);
+  const { data: scopeCompanyIds = [] } = useQuery({
+    queryKey: ['group-company-scope', group?.id],
+    queryFn: () => pgApi.groupCompanyScope(group!.id),
+    enabled: !!group?.id,
+    select: (r: any): number[] => r.data ?? [],
+  });
+  const baseModPermsCompanyId = isOverrideMode
+    ? overrideMemberCompanyId
+    : (companyFilter !== 'all' ? Number(companyFilter) : (scopeCompanyIds[0] ?? assignedCompanies[0]?.id));
+  const { data: existingSlugs = [] } = useGroupPerms(group?.id || 0, baseModPermsCompanyId);
   const { data: savedOverrides = [] } = useEmployeeOverrides(group?.id || 0, overrideMemberId, overrideMemberCompanyId);
+
+  // Companies to show in the Permission Summary breakdown — the group's own
+  // scope once it has one, or every company this admin manages while it's
+  // still a draft with no scope yet.
+  const companiesForSummary = scopeCompanyIds.length ? scopeCompanyIds : assignedCompanies.map(c => c.id);
+  const perCompanySlugQueries = useQueries({
+    queries: companiesForSummary.map(cid => ({
+      // Same key shape useGroupPerms uses internally — shares its cache, so
+      // the currently-filtered company doesn't get fetched twice.
+      queryKey: ['rp', 'group-perms', group?.id, cid],
+      queryFn: () => pgApi.getPerms(group!.id, cid),
+      enabled: !!group?.id && !isOverrideMode,
+      select: (r: any): string[] => r.data ?? [],
+    })),
+  });
+  const perCompanyModPerms = isOverrideMode ? [] : companiesForSummary.map((cid, i) => {
+    const co = assignedCompanies.find(c => c.id === cid);
+    const mp = cid === baseModPermsCompanyId ? modPerms : slugsToModulePerms(perCompanySlugQueries[i]?.data || [], modules);
+    return {
+      companyId: cid,
+      companyName: co?.name || `Company ${cid}`,
+      shortName: co?.shortName || String(cid),
+      modPerms: mp,
+    };
+  });
 
   const [selectedOverrideCompanyIds, setSelectedOverrideCompanyIds] = useState<number[]>(
     overrideMemberCompanyId ? [overrideMemberCompanyId] : []
@@ -65,8 +94,6 @@ export function EditView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overrideMemberId]);
 
-  // Effect A: load the group baseline. Must wait for the module list, otherwise
-  // slugsToModulePerms builds an empty matrix and every toggle renders off.
   useEffect(() => {
     if (!modules.length) return;
     if (!group) { setBaseModPerms({}); setModPerms({}); setBaseLoaded(true); return; }
@@ -75,19 +102,8 @@ export function EditView({
     setModPerms(mp);
     setBaseLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group?.id, existingSlugs.join(','), modules]);
+  }, [group?.id, existingSlugs.join(','), modules, baseModPermsCompanyId]);
 
-  // Effect B: apply saved employee overrides on top of the baseline.
-  // IMPORTANT: savedOverrides is only ever fetched for ONE company
-  // (overrideMemberCompanyId). If the admin has expanded the selection to
-  // include OTHER companies too, we never fetched THEIR saved state — so
-  // pre-filling modPerms from company #1's overrides and then broadcasting
-  // the resulting diff to every selected company would silently copy
-  // company #1's exceptions (e.g. an "edit" override) onto a brand-new
-  // company that never had it. Only pre-fill when we're viewing exactly
-  // the one company we actually loaded; any other selection starts clean
-  // from the group baseline, so only toggles the admin makes THIS session
-  // get diffed and saved.
   useEffect(() => {
     if (!baseLoaded || !isOverrideMode) return;
     const viewingSingleLoadedCompany =
@@ -107,7 +123,13 @@ export function EditView({
       return mp;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedOverrides.map((o: any) => `${o.module}:${o.permission}:${o.granted}`).join(','), baseLoaded, isOverrideMode, selectedOverrideCompanyIds.join(',')]);
+  }, [savedOverrides.map((o: any) => `${o.module}:${o.permission}:${o.granted}`).join(','), baseLoaded, isOverrideMode, selectedOverrideCompanyIds.join(','), baseModPerms]);
+
+  const targetCompanyIds =
+  companyFilter === "all"
+    ? assignedCompanies.map(c => c.id)
+    : [Number(companyFilter)];
+
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -143,17 +165,16 @@ export function EditView({
       // ── NORMAL GROUP EDIT ──
       // existingSlugs passthrough keeps permissions for modules not in the UI list.
       const slugs = modulePermsToSlugs(modPerms, modules, existingSlugs);
-
       if (isNew) {
         const r = await pgApi.create({ name, description: desc, color: colorKey });
         const newId = r.data.id;
-        await pgApi.setPerms(newId, slugs);
+        await pgApi.setPerms(newId, slugs, targetCompanyIds);
         // Field rules were staged before the group existed — apply them now.
         await fieldSaveRef.current?.(newId);
         return r;
       }
       await pgApi.update(group!.id, { name, description: desc, color: colorKey });
-      await pgApi.setPerms(group!.id, slugs);
+      await pgApi.setPerms(group!.id, slugs, targetCompanyIds);
       await fieldSaveRef.current?.();
     },
     onSuccess: (data: any) => {
@@ -190,10 +211,7 @@ export function EditView({
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
 
-  // Field panel needs the *effective* view state — base group perms merged
-  // with this employee's saved/live module overrides (Effect B keeps modPerms
-  // in sync) — not the frozen group baseline, or a module granted only via an
-  // employee override would never become editable here.
+
   const effectiveModPerms = modPerms;
 
   return (
@@ -221,7 +239,7 @@ export function EditView({
       </div>
 
       {/* 3-col layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 240px', gap: 14, alignItems: 'flex-start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 264px', gap: 14, alignItems: 'flex-start' }}>
 
         {/* Col 1 */}
         {isOverrideMode ? (
@@ -333,7 +351,7 @@ export function EditView({
         />
 
         {/* Col 3 */}
-        <PermSummary modPerms={modPerms} modules={modules} isOverrideMode={isOverrideMode} />
+        <PermSummary modPerms={modPerms} modules={modules} isOverrideMode={isOverrideMode} perCompanyModPerms={perCompanyModPerms} />
       </div>
 
       {!isOverrideMode || group ? (

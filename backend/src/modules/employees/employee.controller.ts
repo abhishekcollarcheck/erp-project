@@ -142,13 +142,13 @@ export const employeeController = {
     sendResponse(res, { data: mgr });
   },
 
-  // async fieldPermissions(req: Request, res: Response) {
-  //   const perms = await employeeService.getFieldPermissions(req.user!.employeeId, req.user!.companyId);
-  //   sendResponse(res, { data: perms });
-  // },
-
+  // Reused by other forms (Department, Designation, etc.) that need their
+  // own module's field-level permissions — pass ?module=department and so
+  // on. Defaults to 'employees' so the Employee wizard's own existing calls
+  // (no module in the query string) keep working exactly as before.
   async fieldPermissions(req: Request, res: Response) {
-  const perms = await employeeService.getFieldPermissions(req.user!.employeeId);
+  const moduleKey = (req.query.module as string) || 'employees';
+  const perms = await employeeService.getFieldPermissions(req.user!.employeeId, moduleKey);
   sendResponse(res, { data: perms });
 },
 

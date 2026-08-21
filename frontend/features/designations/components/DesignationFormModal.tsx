@@ -27,7 +27,7 @@ const canView = (p: Perm) => p?.can_view !== false;
 const canEdit = (p: Perm) => p?.can_edit !== false;
 
 export function DesignationFormModal({ open, onClose, designation }: Props) {
-  const { data: fp } = useFieldPermissions();
+  const { data: fp } = useFieldPermissions('designation');
   const f = (n: string) => resolveFieldPerm(fp, n);
   const isEdit         = !!designation;
   const createMutation = useCreateDesignation();

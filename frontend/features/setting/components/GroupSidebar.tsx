@@ -3,14 +3,40 @@ import type { PermGroup } from '../types/permissions.types';
 import { cssForKey } from '../utils/rolePermissionsUtils';
 
 export function GroupSidebar({
-  groups, selectedId, onSelect, onNew, membersMap,
+  groups, selectedId, onSelect, onNew, membersMap, compact = false,
 }: {
   groups: PermGroup[];
   selectedId: number | null;
   onSelect: (g: PermGroup) => void;
   onNew?: () => void;
   membersMap: Record<number, any[]>;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {groups.map(g => {
+          const isActive = g.id === selectedId;
+          return (
+            <div
+              key={g.id}
+              onClick={() => onSelect(g)}
+              title={g.name}
+              style={{
+                cursor: 'pointer', background: isActive ? 'var(--blue-lt)' : 'transparent',
+                border: `1px solid ${isActive ? 'var(--blue)' : 'transparent'}`,
+                borderRadius: 'var(--r2)', padding: '8px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: cssForKey(g.color), flexShrink: 0 }} />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {groups.map(g => {

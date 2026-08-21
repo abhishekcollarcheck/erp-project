@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { sendResponse, sendError } from "../../utils/response";
 import { PermissionGroupService } from './permissionGroups.service';
+import { FormBuilderService } from '../form-builder/formBuilder.service';
 
 const svc = new PermissionGroupService();
+const fbSvc = new FormBuilderService();
 
 // ─── Controllers ──────────────────────────────────────────────────────────────
 
@@ -94,10 +96,12 @@ export async function setGroupPermissions(
   next: NextFunction,
 ): Promise<void> {
   try {
+    const companyIds = (req.body.companyIds ?? []).map((id: any) => +id);
+    await fbSvc.assertCompaniesManaged(companyIds, req.user!.employeeId, req.user!.isSuperAdmin);
     sendResponse(res, {
       data: await svc.setPermissions(
         +req.params.id,
-        req.user!.companyId,
+        companyIds,
         req.body.slugs,
         req.user!.employeeId,
         req.user!.isSuperAdmin,

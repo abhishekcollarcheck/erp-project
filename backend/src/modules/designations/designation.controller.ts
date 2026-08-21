@@ -16,7 +16,6 @@ export async function getDesignations(req: Request, res: Response, next: NextFun
 export async function getDesignationStats(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const data = await designationService.getStats();
-    console.log("data", data)
     sendResponse(res, { data, message: 'Designation stats' });
   } catch (e) { next(e); }
 }

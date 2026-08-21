@@ -23,6 +23,5 @@ export const COLOR_OPTS = [
   { key: 'purple', css: 'var(--purple)' },
   { key: 'amber', css: 'var(--amber)' },
   { key: 'red', css: 'var(--red)' },
-  { key: 'teal', css: 'var(--teal)' },
-  { key: 'pink', css: 'var(--pink, #c0265e)' },
+  { key: 'teal', css: 'var(--teal)' }
 ];

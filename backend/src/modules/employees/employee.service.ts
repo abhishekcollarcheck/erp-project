@@ -22,6 +22,9 @@ import { SENSITIVE_FIELDS } from './employee.constants';
 import { Transaction } from 'sequelize';
 import { normalizePhone } from '../../utils/normalizeNumber';
 import { getEmployeeFieldOverrides } from '../permission-groups/permissionGroupOverrides';
+import { FormBuilderService } from '../form-builder/formBuilder.service';
+
+const fbSvc = new FormBuilderService();
 
 // ─── Field permission cache ───────────────────────────────────────────────────
 const fpCache = new Map<string, { data: FieldPermissionMap; ts: number }>();
@@ -470,21 +473,33 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
   async discardDraft(sessionId: string, actorId: number) { return repo.deleteDraft(sessionId, actorId); }
 
 
-async getFieldPermissions(employeeId: number) {
-  const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } });
-
+// moduleKey defaults to 'employees' so the Employee wizard's own existing
+// calls (no module passed) keep working exactly as before. Any OTHER form
+// (Department, Designation, etc.) reusing this same endpoint must pass its
+// own module key — previously this was hardcoded to 'employees' everywhere.
+async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
+  const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } }); 
   const byCompany: Record<number, number[]> = {};
   for (const m of memberships) {
     (byCompany[m.company_id] ??= []).push(m.group_id);
   }
 
+  const DENY_ALL_FIELDS: FieldPermissionMap = {};
+
   const result: Record<number, FieldPermissionMap> = {};
   for (const [companyIdStr, groupIds] of Object.entries(byCompany)) {
     const companyId = +companyIdStr;
+
+    const moduleSlugs = await fbSvc.resolveModuleSlugs(employeeId, companyId, groupIds);
+    if (!moduleSlugs.has(`${moduleKey}:view`)) {
+      result[companyId] = DENY_ALL_FIELDS;
+      continue;
+    }
+
     const groupPerms = await loadFieldPerms(groupIds, companyId);
 
     // ── Layer employee-specific field overrides on top — override wins ──
-    const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, 'employees');
+    const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, moduleKey);
     const merged: FieldPermissionMap = { ...groupPerms };
 
     for (const [fieldName, permMap] of Object.entries(fieldOverrides)) {

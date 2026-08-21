@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { showToast } from '../../../utils/toast';
 import { pgApi } from '../../../features/setting/services/permissions.services';
 import type { PermGroup, Form, Module, ModuleDef } from '../../../features/setting/types/permissions.types';
@@ -29,23 +29,48 @@ export function GroupDetail({
   assignedCompanies: { id: number; name: string; shortName: string }[];
   overrides: Record<string, boolean>;
   onToggleOverrides: (memberId: number) => void;
-  onEditOverride: (memberId: number) => void;
+  onEditOverride: (memberId: number, companyId?: number) => void;
   modules: ModuleDef[];
 }) {
-  const slugs = group.permissions?.map(p => p.slug) || [];
-  const modPerms = slugsToModulePerms(slugs, modules);
   const [search, setSearch] = useState('');
   const qc = useQueryClient();
   const [addCompanyFor, setAddCompanyFor] = useState<number | null>(null);
   const [selectedNewCompanies, setSelectedNewCompanies] = useState<Set<number>>(new Set());
 
-  const { data: groupSlugs = [] } = useGroupPerms(group.id);
+  const { data: scopeCompanyIds = [] } = useQuery({
+    queryKey: ['group-company-scope', group?.id],
+    queryFn: () => pgApi.groupCompanyScope(group.id),
+    enabled: !!group?.id,
+    select: (r: any): number[] => r.data ?? [],
+  });
+  const summaryCompanyId = scopeCompanyIds[0] ?? assignedCompanies[0]?.id;
+
+  const { data: groupSlugs = [] } = useGroupPerms(group.id, summaryCompanyId);
   const groupBaseModPerms = useMemo(() => slugsToModulePerms(groupSlugs, modules), [groupSlugs, modules]);
   const { data: hrModules = [] } = useHrModules();
 
+  const companiesForSummary = scopeCompanyIds.length ? scopeCompanyIds : assignedCompanies.map(c => c.id);
+  const perCompanySlugQueries = useQueries({
+    queries: companiesForSummary.map(cid => ({
+      queryKey: ['rp', 'group-perms', group.id, cid],
+      queryFn: () => pgApi.getPerms(group.id, cid),
+      enabled: !!group?.id,
+      select: (r: any): string[] => r.data ?? [],
+    })),
+  });
+  const perCompanyModPerms = companiesForSummary.map((cid, i) => {
+    const co = assignedCompanies.find(c => c.id === cid);
+    return {
+      companyId: cid,
+      companyName: co?.name || `Company ${cid}`,
+      shortName: co?.shortName || String(cid),
+      modPerms: slugsToModulePerms(perCompanySlugQueries[i]?.data || [], modules),
+    };
+  });
+
   const permSummary = useMemo(
-    () => PERMS.map(p => ({ p, count: countPerm(modPerms, p, modules) })).filter(x => x.count > 0),
-    [slugs.join(','), modules],
+    () => PERMS.map(p => ({ p, count: countPerm(groupBaseModPerms, p, modules) })).filter(x => x.count > 0),
+    [groupSlugs.join(','), modules],
   );
 
   const notMembers = useMemo(() => {
@@ -205,16 +230,41 @@ export function GroupDetail({
       {/* Permission summary */}
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink4)', marginBottom: 8 }}>Permission Summary</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {permSummary.length === 0 ? (
-            <span style={{ fontSize: 11, color: 'var(--ink4)', fontStyle: 'italic' }}>None assigned</span>
-          ) : permSummary.map(({ p, count }) => (
-            <span key={p} title={`${PERM_LABELS[p]}: ${count} modules`}
-              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 9px', fontSize: 11, fontWeight: 600, color: 'var(--ink3)', borderRadius: 99 }}>
-              {PERM_ICONS[p]} {count}
-            </span>
-          ))}
-        </div>
+        {perCompanyModPerms.length > 1 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {perCompanyModPerms.map(co => {
+              const rows = PERMS.map(p => ({ p, count: countPerm(co.modPerms, p, modules) })).filter(x => x.count > 0);
+              return (
+                <div key={co.companyId} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink4)', minWidth: 32 }} title={co.companyName}>
+                    {co.shortName}
+                  </span>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {rows.length === 0 ? (
+                      <span style={{ fontSize: 11, color: 'var(--ink4)', fontStyle: 'italic' }}>None assigned</span>
+                    ) : rows.map(({ p, count }) => (
+                      <span key={p} title={`${PERM_LABELS[p]}: ${count} modules`}
+                        style={{ background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 9px', fontSize: 11, fontWeight: 600, color: 'var(--ink3)', borderRadius: 99 }}>
+                        {PERM_ICONS[p]} {count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {permSummary.length === 0 ? (
+              <span style={{ fontSize: 11, color: 'var(--ink4)', fontStyle: 'italic' }}>None assigned</span>
+            ) : permSummary.map(({ p, count }) => (
+              <span key={p} title={`${PERM_LABELS[p]}: ${count} modules`}
+                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 9px', fontSize: 11, fontWeight: 600, color: 'var(--ink3)', borderRadius: 99 }}>
+                {PERM_ICONS[p]} {count}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Members */}
@@ -342,7 +392,7 @@ export function GroupDetail({
                                 <button
                                   className="btn btn-ghost btn-sm"
                                   style={{ fontSize: 10 }}
-                                  onClick={() => onEditOverride(memberId)}
+                                  onClick={() => onEditOverride(memberId, companyId)}
                                   title="Edit this override"
                                   aria-label="Edit this override"
                                 >
@@ -395,7 +445,7 @@ export function GroupDetail({
                                   <button
                                     className="btn btn-ghost btn-sm"
                                     style={{ fontSize: 10 }}
-                                    onClick={() => onEditOverride(memberId)}
+                                    onClick={() => onEditOverride(memberId, companyId)}
                                     title="Edit field overrides"
                                     aria-label="Edit field overrides"
                                   >

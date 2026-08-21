@@ -10,7 +10,7 @@ import { AppError } from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 import { PermissionGroup, UserGroup, GroupPermission } from '../../database/models/PermissionGroups';
 import { refreshEmployeePermission } from '../../utils/refreshEmployeePermission';
-import { CompanyModule, Employee, CompanyManager } from '../../database/models';
+import { Employee, CompanyManager } from '../../database/models';
 import { Permission } from '../../database/models/RoleModels';
 import { getEmployeeFieldOverrides, resolvePermissionsForEmployee } from '../permission-groups/permissionGroupOverrides';
 import { clearPermissionCache } from '../../middleware/rbac.middleware';
@@ -761,7 +761,15 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
   }
 
   /** Employee's effective module slugs: group grants + module-level overrides. */
-  private async resolveModuleSlugs(
+  /**
+   * Employee's effective module slugs: group grants + module-level overrides.
+   * Public on purpose — this is the single source of truth for "does this
+   * employee have module-level access", reused by resolveFormPermissions()
+   * here AND by employee.service.ts's getFieldPermissions() so both field-
+   * permission paths apply the exact same module gate instead of drifting
+   * into two different implementations.
+   */
+  async resolveModuleSlugs(
     employeeId: number, companyId: number, groupIds: number[],
   ): Promise<Set<string>> {
     // company_id filter matters here: GroupPermission rows are company-scoped,
@@ -770,13 +778,17 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
     // wrong for THIS company — which means it could deny the whole form
     // (denyAll()) before field-level overrides ever get evaluated, even when
     // the override rows themselves are saved correctly.
+    // Association is GroupPermission.belongsTo(Permission, { as: 'permission' })
+    // (confirmed in Associations.ts) — the alias is required and must match
+    // exactly (lowercase 'permission'), both in the include and the access
+    // key below.
     const rows = await GroupPermission.findAll({
       where: { group_id: groupIds, company_id: companyId },
-      include: [{ model: Permission, attributes: ['slug'] }],
+      include: [{ model: Permission, as: 'permission', attributes: ['slug'] }],
     });
     const set = new Set<string>();
     for (const r of rows) {
-      const slug = (r as any).Permission?.slug;
+      const slug = (r as any).permission?.slug;
       if (slug) set.add(slug);
     }
     return resolvePermissionsForEmployee(employeeId, companyId, groupIds, set);

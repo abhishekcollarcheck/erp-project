@@ -2,11 +2,10 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { body, param } from 'express-validator';
 import { Op } from 'sequelize';
 import { sequelize } from '../../config/database';
-import { Company, DEFAULT_MODULES, CompanyModule } from '../../database/models/Company';
+import { Company } from '../../database/models/Company';
 import { Employee } from '../../database/models/Employee';
 import { Role, RoleModulePermission } from '../../database/models/RoleModels';
 import { EmployeeRole, RoleTemplate, RoleTemplatePermission } from '../../database/models/AuthModels';
-import { Department } from '../../database/models/Department';
 import { CompanyManager } from '../../database/models/CompanyManager';
 import { AppError } from '../../middleware/errorHandler.middleware';
 import { authenticate, authorize, resolveCompanyContext } from '../auth/auth.middleware';
@@ -360,28 +359,6 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
       // Step 3.5: Seed permission groups with default permissions
       const allPerms = await Permission.findAll({ attributes: ['id', 'slug'], transaction: t });
       const permMap = new Map(allPerms.map((p: any) => [p.slug, p.id]));
-
-      await CompanyModule.bulkCreate(
-        DEFAULT_MODULES.map(m => ({ ...m, company_id: company.id })),
-        { ignoreDuplicates: true, transaction: t },
-      );
-
-      // Step 3.6: Enable the form-builder modules the admin selected on the
-      // creation form (Employee/Payroll/Sales/…). No module is auto-enabled —
-      // only what was explicitly picked. Company can adjust this later via
-      // PUT /companies/modules.
-      if (moduleIds.length) {
-        const validModules = await HrModule.findAll({
-          where: { id: moduleIds, is_active: true }, attributes: ['id'], transaction: t,
-        });
-        if (validModules.length !== new Set(moduleIds).size) {
-          throw new AppError('One or more selected modules were not found', 404);
-        }
-        await ModuleCompany.bulkCreate(
-          moduleIds.map(module_id => ({ module_id, company_id: company.id })),
-          { transaction: t },
-        );
-      }
 
       // 4. Creator gets super_admin + CompanyManager (unchanged)
       await EmployeeRole.findOrCreate({

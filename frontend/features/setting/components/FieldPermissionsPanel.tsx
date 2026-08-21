@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useAppSelector } from '../../../store';
 import { selectActiveCompanyId } from '../../../store/slices/authSlice';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -114,46 +114,84 @@ export function FieldPermissionsPanel({
   const { data: groupPermsData, refetch: refetchGroupPerms } = useGroupFieldPermissions(
     selectedFormId || 0, groupId, matrixCompanyId || 0
   );
-  console.log("FieldPermissionsPanel RENDER", { groupPermsData});
 
   const [localPerms, setLocalPerms] = useState<Record<number, any>>({});
   const [dirty, setDirty] = useState(false);
+  const [touchedFieldIds, setTouchedFieldIds] = useState<Set<number>>(new Set());
+
+  // Tracks the module View/Edit/Download state as of the last merge run, so
+  // the effect below can tell "this is the first time we're populating this
+  // field-set" (respect whatever was saved, as-is) apart from "the admin
+  // just toggled the module checkbox in THIS session" (cascade that change
+  // onto every untouched field, even ones with an existing saved row).
+  // null means "not established yet" — reset on every company/form switch
+  // so a fresh context never gets misread as an in-session toggle.
+  const prevModuleViewRef = useRef<boolean | null>(null);
+  const prevModuleEditRef = useRef<boolean | null>(null);
+  const prevModuleDownloadRef = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    prevModuleViewRef.current = null;
+    prevModuleEditRef.current = null;
+    prevModuleDownloadRef.current = null;
+  }, [groupId, selectedFormId, matrixCompanyId]);
 
   const displayCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : undefined;
   const { data: overrideData, refetch: refetchOverrides } = useEmployeeFieldOverrides(
     groupId, overrideMemberId, displayCompanyId, selectedModuleKey || ''
   );
 
-  console.log("FieldPermissionsPanel RENDER 2", { overrideData });
-
   useEffect(() => {
     if (isOverrideMode) return; // override mode has its own merge below; don't fight it
-    if (dirty) return;
     if (!fields.length) return;
 
     const moduleView     = !!(selectedModuleKey && modPerms[selectedModuleKey]?.view);
     const moduleEdit     = !!(selectedModuleKey && modPerms[selectedModuleKey]?.edit);
     const moduleDownload = !!(selectedModuleKey && modPerms[selectedModuleKey]?.download);
 
-    const merged: Record<number, any> = {};
-    for (const f of fields) {
-      const saved = groupPermsData?.perms?.[f.id] || matrixData?.matrix?.[groupId]?.[f.id];
-      merged[f.id] = saved
-        ? saved
-        : (moduleView
+    const viewChanged     = prevModuleViewRef.current !== null && prevModuleViewRef.current !== moduleView;
+    const editChanged     = prevModuleEditRef.current !== null && prevModuleEditRef.current !== moduleEdit;
+    const downloadChanged = prevModuleDownloadRef.current !== null && prevModuleDownloadRef.current !== moduleDownload;
+
+    setLocalPerms(prev => {
+      const merged: Record<number, any> = { ...prev };
+      for (const f of fields) {
+        if (touchedFieldIds.has(f.id)) continue; // admin already set this one manually — leave it alone
+        const saved = groupPermsData?.perms?.[f.id] || matrixData?.matrix?.[groupId]?.[f.id];
+
+        if (!saved) {
+          // Never configured at all — always follows the live module state.
+          merged[f.id] = moduleView
             ? { can_view: true, can_edit: moduleEdit, can_copy: false, can_download: moduleDownload, is_masked: !!f.is_hidden }
-            : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false });
-    }
-    setLocalPerms(merged);
+            : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+        } else if (viewChanged || editChanged || downloadChanged) {
+          // A saved row exists, but the admin just changed the module grant
+          // THIS session — apply that change on top of the saved baseline,
+          // consistent in both directions (checking OR unchecking).
+          merged[f.id] = {
+            ...saved,
+            can_view: viewChanged ? moduleView : saved.can_view,
+            can_edit: editChanged ? moduleEdit : saved.can_edit,
+            can_download: downloadChanged ? moduleDownload : saved.can_download,
+          };
+        } else {
+          // First population of this field-set — show the saved baseline
+          // exactly as persisted, untouched by the current module state.
+          merged[f.id] = saved;
+        }
+      }
+      return merged;
+    });
+
+    prevModuleViewRef.current = moduleView;
+    prevModuleEditRef.current = moduleEdit;
+    prevModuleDownloadRef.current = moduleDownload;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     groupId, selectedFormId, matrixCompanyId, groupPermsData, matrixData,
     isOverrideMode, selectedModuleKey, modPerms, fields.map((f: any) => f.id).join(','),
   ]);
 
-  // Employee-override mode has its own merge, kept separate since it layers
-  // per-employee overrides on top of the group baseline rather than falling
-  // back to module defaults for an unsaved field.
   useEffect(() => {
     if (!isOverrideMode) return;
     if (dirty) return;
@@ -205,6 +243,7 @@ export function FieldPermissionsPanel({
 
       return { ...prev, [fieldId]: next };
     });
+    setTouchedFieldIds(prev => new Set(prev).add(fieldId));
     setDirty(true);
   };
 
@@ -219,6 +258,7 @@ export function FieldPermissionsPanel({
         : { can_view: true, can_edit: moduleEditGranted, can_copy: true, can_download: true, is_masked: !!current.is_masked };
       return { ...prev, [fieldId]: next };
     });
+    setTouchedFieldIds(prev => new Set(prev).add(fieldId));
     setDirty(true);
   };
 
@@ -230,6 +270,11 @@ export function FieldPermissionsPanel({
       }
       return n;
     });
+    setTouchedFieldIds(prev => {
+      const next = new Set(prev);
+      for (const f of fields) next.add(f.id);
+      return next;
+    });
     setDirty(true);
   };
 
@@ -240,6 +285,11 @@ export function FieldPermissionsPanel({
         n[f.id] = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
       }
       return n;
+    });
+    setTouchedFieldIds(prev => {
+      const next = new Set(prev);
+      for (const f of fields) next.add(f.id);
+      return next;
     });
     setDirty(true);
   };
@@ -314,6 +364,7 @@ export function FieldPermissionsPanel({
     onSuccess: () => {
       showToast(isOverrideMode ? '✓ Field overrides saved' : '✓ Field permissions saved');
       setDirty(false);
+      setTouchedFieldIds(new Set());
       refetch();
       refetchGroupPerms();
       if (isOverrideMode) refetchOverrides();

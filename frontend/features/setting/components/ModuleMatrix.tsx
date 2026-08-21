@@ -16,7 +16,6 @@ export function ModuleMatrix({ modPerms, onChange, isOverrideMode = false, modul
   companyFilter: number | 'all';
   setCompanyFilter: (f: number | 'all') => void;
 }) {
- 
   const toggle = (mod: string, perm: string) => {
     const current = modPerms[mod] || {};
 
