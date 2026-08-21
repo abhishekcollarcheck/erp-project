@@ -14,7 +14,6 @@ import {
 import { usePermission }        from '../../../../features/auth/hooks/usePermission';
 import { departmentService }    from '../../../../services/api/department.service';
 import { getInitials }          from '../../../../utils/formatters';
-import { PermissionGuard } from '@/utils/permissionGuard';
 
 export default function DesignationDetailPage() {
   const params = useParams();
@@ -83,7 +82,6 @@ export default function DesignationDetailPage() {
   const employeeCount = designation.employees?.length ?? 0;
 
   return (
-    <PermissionGuard permission='designation:view'>
     <AppShell>
       <div className="pg-enter">
 
@@ -266,6 +264,5 @@ export default function DesignationDetailPage() {
         </div>
       </Modal>
     </AppShell>
-    </PermissionGuard>
   );
 }

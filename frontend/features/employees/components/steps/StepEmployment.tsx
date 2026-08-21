@@ -5,6 +5,7 @@ import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees'
 import { WORKING_SITE_OPTIONS, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS, REGISTRATION_LOCATION_OPTIONS, SATURDAY_OFF_OPTIONS, SHIFT_TIMING_OPTIONS } from "../../constants/employee.constants"
 import { FormSection } from '../../../../components/form/FormSection';
 import { useShifts } from '../../../../features/shift/hooks/useShift';
+import { useWatch } from 'react-hook-form';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -13,8 +14,13 @@ export function StepEmployment({ }: Props) {
   const f = (n: string) => resolveFieldPerm(fp, n);
   const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
 
+  const shiftType = useWatch({
+    name: 'shift_type',
+  });
+
+
   return (
-    <FormSection fields={[f('working_site'), f('working_city'), f('working_state_country'), f('pay_register_location'), f('saturday_off'), f('shift_id'), f('grace_minutes')]}>
+    <FormSection fields={[f('working_site'), f('working_city'), f('working_state_country'), f('pay_register_location'), f('saturday_off'), f('shift_type'), f('shift_id'), f('duration'), f('grace_minutes')]}>
       <div style={{ display: 'grid', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <FormSelect
@@ -63,13 +69,38 @@ export function StepEmployment({ }: Props) {
             fieldPerm={f('saturday_off')}
           />
           <FormSelect
-            name="shift_id"
-            label="Working Shift"
+            name="shift_type"
+            label="Shift Category"
             required
-            placeholder={shiftsLoading ? 'Loading shifts…' : 'Select'}
-            options={shiftOptions}
-            fieldPerm={f('shift_id')}
+            placeholder="Select"
+            options={[
+              { label: 'Shift', value: 'shift' },
+              { label: 'Duration', value: 'duration' },
+            ]}
+            fieldPerm={f('shift_type')}
           />
+
+          {shiftType === 'shift' && (
+            <FormSelect
+              name="shift_id"
+              label="Working Shift"
+              required
+              placeholder={shiftsLoading ? 'Loading shifts…' : 'Select'}
+              options={shiftOptions}
+              fieldPerm={f('shift_id')}
+            />
+          )}
+
+          {shiftType === 'duration' && (
+            <FormInput
+              name="duration"
+              label="Duration"
+              type="number"
+              placeholder="Enter duration"
+              hint="Enter duration in hours"
+              fieldPerm={f('duration')}
+            />
+          )}
           <FormInput name="grace_minutes" label="Grace (Minutes)" type="number" hint="Allowed late arrival in minutes" fieldPerm={f('grace_minutes')} />
         </div>
       </div>

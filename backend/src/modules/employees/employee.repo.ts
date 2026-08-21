@@ -20,6 +20,9 @@ const MGR_ATTRS = ['id', 'employee_code', 'first_name', 'last_name',];
 const DETAIL_INCLUDES: any[] = [
   { association: 'l1Manager', attributes: MGR_ATTRS },
   { association: 'l2Manager', attributes: MGR_ATTRS },
+  { association: 'company',     attributes: ['id', 'name'] },
+  { association: 'department',  attributes: ['id', 'department_name' ]},
+  { association: 'designation', attributes: ['id', 'designation_name']},
   { association: 'commitmentProbation' },
   { association: 'schemes' },
   { association: 'personal' },

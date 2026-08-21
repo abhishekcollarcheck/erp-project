@@ -4,6 +4,9 @@ import { env }               from './config/env';
 import { connectDatabase }   from './config/database';
 import { logger }            from './config/logger';
 import { initSocket }        from './socket/socket';
+import { startMonthlyLeaveCron } from './modules/leaves/monthlyLeave.cron';
+import { scheduleAttendanceMonthlyCron } from './modules/attendance/attendance-monthly.cron';
+
 
 async function bootstrap(): Promise<void> {
   try {
@@ -11,6 +14,10 @@ async function bootstrap(): Promise<void> {
 
     // Create HTTP server from Express app
     // Socket.IO MUST share the same HTTP server instance
+    startMonthlyLeaveCron()
+    scheduleAttendanceMonthlyCron();
+
+
     const httpServer = http.createServer(app);
 
     // Initialise Socket.IO on the HTTP server
@@ -45,3 +52,4 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap();
+// startMonthlyLeaveCron();

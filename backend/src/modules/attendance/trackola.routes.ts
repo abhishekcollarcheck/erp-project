@@ -38,8 +38,6 @@ trackolaRouter.get(
         req.query.start_date as string,
         req.query.end_date as string,
       );
-      console.log("req.query.start_date", req.query.start_date)
-      console.log("req.query.end_date", req.query.end_date)
       sendResponse(res, {
         data: rows,
         message: `${rows.length} row(s) from Trakola report`,

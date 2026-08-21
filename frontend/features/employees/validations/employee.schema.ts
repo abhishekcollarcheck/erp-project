@@ -20,6 +20,18 @@ const reqInt  = (msg: string) => z.union([
   z.undefined(),
 ]).refine(v => v !== '' && v !== null && v !== undefined && Number(v) >= 1, { message: msg });
 
+// Shared refinement: shift_id required when shift_type === 'shift',
+// duration required when shift_type === 'duration'.
+function refineShift(ctx: z.RefinementCtx, data: { shift_type?: 'shift' | 'duration'; shift_id?: any; duration?: any }) {
+  const isEmpty = (v: any) => v === undefined || v === null || v === '';
+  if (data.shift_type === 'shift' && isEmpty(data.shift_id)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Working shift is required', path: ['shift_id'] });
+  }
+  if (data.shift_type === 'duration' && isEmpty(data.duration)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Duration is required', path: ['duration'] });
+  }
+}
+
 // ─── Step 1: Basic Info ───────────────────────────────────────────────────────
 export const basicSchema = z.object({
   first_name:      reqStr('First name is required').max(100),
@@ -46,9 +58,11 @@ export const employmentSchema = z.object({
   working_state_country:   reqStr('Working state/country is required'),
   pay_register_location:   reqStr('Pay register location is required'),
   saturday_off:            optStr,
-  shift_id:                reqInt('Working shift is required'),
+  shift_type:              z.enum(['shift', 'duration'], { required_error: 'Shift type is required' }).default('shift'),
+  shift_id:                optInt,
+  duration:                optNum,
   grace_minutes:           z.number({ coerce: true }).int().min(0).max(120).optional().default(0),
-});
+}).superRefine((data, ctx) => refineShift(ctx, data));
 
 // ─── Step 3: Reporting & Official Contact ─────────────────────────────────────
 export const reportingSchema = z.object({
@@ -255,7 +269,7 @@ export const onboardingDocsSchema = z.object({
 // TypeScript loses inference on deep .merge() chains (13+ levels) and collapses
 // the type to {} — causing "Property X does not exist on type {}" errors.
 // Individual step schemas above remain unchanged for per-step validation.
-export const fullEmployeeSchema = z.object({
+const fullEmployeeObject = z.object({
   // ── Step 1: Basic ────────────────────────────────────────────────────────
   first_name:        reqStr('First name is required').max(100),
   middle_name:       optStr,
@@ -278,7 +292,9 @@ export const fullEmployeeSchema = z.object({
   working_state_country: reqStr('Working state/country is required'),
   pay_register_location: reqStr('Pay register location is required'),
   saturday_off:          optStr,
-  shift_id:              reqInt('Working shift is required'),
+  shift_type:            z.enum(['shift', 'duration'], { required_error: 'Shift type is required' }).default('shift'),
+  shift_id:              optInt,
+  duration:              optNum,
   grace_minutes:         z.number({ coerce: true }).int().min(0).max(120).optional().default(0),
 
   // ── Step 3: Reporting ────────────────────────────────────────────────────
@@ -460,6 +476,8 @@ export const fullEmployeeSchema = z.object({
   nda:                    yesNo,
 });
 
+export const fullEmployeeSchema = fullEmployeeObject.superRefine((data, ctx) => refineShift(ctx, data));
+
 // ─── Step schema map ──────────────────────────────────────────────────────────
 export const STEP_SCHEMA_MAP = {
   basic:           basicSchema,
@@ -479,7 +497,7 @@ export const STEP_SCHEMA_MAP = {
   review:          z.object({}).optional(),
 } as const;
 
-export type FullEmployeeForm = z.infer<typeof fullEmployeeSchema>;
+export type FullEmployeeForm = z.infer<typeof fullEmployeeObject>;
 export type StepSchemaKey = keyof typeof STEP_SCHEMA_MAP;
 
 /** Alias kept for backward compatibility with existing step components */

@@ -50,12 +50,12 @@ async function loadFieldPerms(groupIds: number[], companyId: number): Promise<Fi
   }
 
   for (const [fieldKey, rows] of byFieldKey) {
-    const can_view     = rows.some(r => r.can_view);
-    const can_edit     = rows.some(r => r.can_edit);
-    const can_copy     = rows.some(r => r.can_copy);
+    const can_view = rows.some(r => r.can_view);
+    const can_edit = rows.some(r => r.can_edit);
+    const can_copy = rows.some(r => r.can_copy);
     const can_download = rows.some(r => r.can_download);
     const viewGranting = rows.filter(r => r.can_view);
-    const is_masked     = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
+    const is_masked = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
     map[fieldKey] = { can_view, can_edit, can_copy, can_download, is_masked };
   }
 
@@ -92,7 +92,7 @@ export class EmployeeService {
 
   async getAll(params: EmployeeQueryParams, companyId: number, isSuperAdmin: boolean) {
     const result = await repo.findAll(params, companyId);
-    const perms  = isSuperAdmin ? {} : '';
+    const perms = isSuperAdmin ? {} : '';
     return {
       ...result,
       rows: result.rows.map(e => applyMasking(e.toJSON() as any, perms, isSuperAdmin)),
@@ -105,11 +105,11 @@ export class EmployeeService {
     if (!emp) throw new AppError('Employee not found', 404);
 
     const perms = isSuperAdmin ? {} : '';
-    const json  = emp.toJSON() as any;
+    const json = emp.toJSON() as any;
     // Apply masking to sensitive sub-objects
-    if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms, isSuperAdmin);
-    if (json.salaries)    json.salaries     = json.salaries.map((s: any) => applyMasking(s, perms, isSuperAdmin));
-    if (json.bankDetails) json.bankDetails  = json.bankDetails.map((b: any) => applyMasking(b, perms, isSuperAdmin));
+    if (json.statutory) json.statutory = applyMasking(json.statutory, perms, isSuperAdmin);
+    if (json.salaries) json.salaries = json.salaries.map((s: any) => applyMasking(s, perms, isSuperAdmin));
+    if (json.bankDetails) json.bankDetails = json.bankDetails.map((b: any) => applyMasking(b, perms, isSuperAdmin));
     return json;
   }
 
@@ -138,27 +138,27 @@ export class EmployeeService {
     return sequelize.transaction(async (t) => {
       const refCode = await generateReferenceCode(dto.company_id);
       const emp = await repo.create({
-        company_id:      dto.company_id,
-        employee_code:   useCode,
-        reference_code:  refCode,
-        status:          dto.status || 'Active',
-        first_name:      dto.first_name.trim(),
-        middle_name:     dto.middle_name?.trim() || null,
-        last_name:       dto.last_name.trim(),
+        company_id: dto.company_id,
+        employee_code: useCode,
+        reference_code: refCode,
+        status: dto.status || 'Active',
+        first_name: dto.first_name.trim(),
+        middle_name: dto.middle_name?.trim() || null,
+        last_name: dto.last_name.trim(),
         employment_type: dto.employment_type || 'Permanent',
-        department_id:   dto.department_id || null,
+        department_id: dto.department_id || null,
         sub_department_id: dto.sub_department_id || null,
-        designation_id:  dto.designation_id || null,
+        designation_id: dto.designation_id || null,
         sub_designation: dto.sub_designation || null,
-        email:  dto.email?.toLowerCase().trim() || null,
+        email: dto.email?.toLowerCase().trim() || null,
         phone: dto.phone ? normalizePhone(dto.phone) : null,
         // Auth defaults
-        portal_access:   true,        // enabled on creation — employee can log in immediately
-        is_super_admin:  false,
-        otp_attempts:    0,
+        portal_access: true,        // enabled on creation — employee can log in immediately
+        is_super_admin: false,
+        otp_attempts: 0,
         must_change_password: false,
         form_completion_pct: 15,
-        created_by:      actorId,
+        created_by: actorId,
       }, t);
 
       await logActivity({ companyId: dto.company_id, employeeId: actorId, action: 'EMPLOYEE_CREATED', module: 'employees', entityId: emp.id, newValues: { employee_code: emp.employee_code, name: emp.fullName }, ipAddress });
@@ -170,12 +170,14 @@ export class EmployeeService {
     const emp = await repo.findById(id, companyId);
     if (!emp) throw new AppError('Employee not found', 404);
 
+    // console.log("hitted");
+
     return sequelize.transaction(async (t) => {
       await this.routeStep(id, companyId, step, dto, actorId, t);
 
       // Recalculate completion
       const fresh = await repo.findById(id, companyId, true);
-      const pct   = computeCompletionPct(fresh?.toJSON());
+      const pct = computeCompletionPct(fresh?.toJSON());
       await repo.updateCompletionPct(id, pct, t);
 
       await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_STEP_SAVED', module: 'employees', entityId: id, newValues: { step }, ipAddress });
@@ -193,32 +195,36 @@ export class EmployeeService {
           if (dup) throw new AppError('Employee code already in use', 409);
         }
         await repo.update(id, companyId, {
-          first_name:     d.first_name?.trim(),
-          middle_name:    d.middle_name?.trim() || null,
-          last_name:      d.last_name?.trim(),
-          status:         d.status,
+          first_name: d.first_name?.trim(),
+          middle_name: d.middle_name?.trim() || null,
+          last_name: d.last_name?.trim(),
+          status: d.status,
           employment_type: d.employment_type,
-          department_id:  d.department_id || null,
+          department_id: d.department_id || null,
           sub_department_id: d.sub_department_id || null,
           designation_id: d.designation_id || null,
           sub_designation: d.sub_designation || null,
           ...(d.employee_code ? { employee_code: d.employee_code } : {}),
-          updated_by:     actorId,
+          updated_by: actorId,
         }, t);
         break;
       }
 
       case 'employment': {
         const d = dto as EmploymentDto;
+        const shiftType = d.shift_type || 'shift';
+
         await repo.update(id, companyId, {
-          working_site:          d.working_site,
-          working_city:          d.working_city,
+          working_site: d.working_site,
+          working_city: d.working_city,
           working_state_country: d.working_state_country,
           pay_register_location: d.pay_register_location,
-          saturday_off:          d.saturday_off ?? false,
-          shift_id:              d.shift_id || null,
-          grace_minutes:         d.grace_minutes || 0,
-          updated_by:            actorId,
+          saturday_off: d.saturday_off ?? false,
+          shift_type: shiftType,
+          shift_id: shiftType === 'shift' ? (d.shift_id || null) : null,
+          duration: shiftType === 'duration' ? (d.duration ?? null) : null,
+          grace_minutes: d.grace_minutes || 0,
+          updated_by: actorId,
         }, t);
         break;
       }
@@ -235,15 +241,15 @@ export class EmployeeService {
           if (mgr.id === id) throw new AppError('Employee cannot be their own manager', 400);
         }
 
-        const actualDoj  = d.actual_doj ? parseDdMmYyyy(d.actual_doj) : null;
+        const actualDoj = d.actual_doj ? parseDdMmYyyy(d.actual_doj) : null;
         const currentDoj = d.current_doj ? parseDdMmYyyy(d.current_doj) : actualDoj;
 
         await repo.update(id, companyId, {
-          l1_manager_id:   l1Id,
-          l2_manager_id:   l2Id,
-          actual_doj:      actualDoj,
-          current_doj:     currentDoj,
-          updated_by:      actorId,
+          l1_manager_id: l1Id,
+          l2_manager_id: l2Id,
+          actual_doj: actualDoj,
+          current_doj: currentDoj,
+          updated_by: actorId,
         }, t);
         break;
       }
@@ -259,24 +265,24 @@ export class EmployeeService {
           ? (new Date() < commitEndDate ? 'Active' : 'Completed')
           : 'N/A';
 
-const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_doj)
-  ? computeProbationEndDate(String(emp.actual_doj), d.probation_period)
-  : null;
+        const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_doj)
+          ? computeProbationEndDate(String(emp.actual_doj), d.probation_period)
+          : null;
 
         await repo.upsertCommitmentProbation(id, {
-          commitment:               d.commitment,
-          commitment_term:          d.commitment_term || null,
-          commitment_entered_on:    d.commitment_entered_on ? parseDdMmYyyy(d.commitment_entered_on) : null,
-          commitment_end_date:      commitEndDate,
-          commitment_status:        commitStatus,
-          on_probation:             d.on_probation,
-          probation_period:         d.probation_period || null,
-          probation_end_date:       probationEndDate,
-          probation_status:         probationEndDate ? (new Date() < probationEndDate ? 'On Probation' : 'Completed') : 'N/A',
-          probation_extended_period:d.probation_extended_period || null,
-          probation_final_status:   d.on_probation ? 'Pending' : 'N/A',
-          confirmation_status:      d.confirmation_status || null,
-          confirmed_on:             d.confirmed_on ? parseDdMmYyyy(d.confirmed_on) : null,
+          commitment: d.commitment,
+          commitment_term: d.commitment_term || null,
+          commitment_entered_on: d.commitment_entered_on ? parseDdMmYyyy(d.commitment_entered_on) : null,
+          commitment_end_date: commitEndDate,
+          commitment_status: commitStatus,
+          on_probation: d.on_probation,
+          probation_period: d.probation_period || null,
+          probation_end_date: probationEndDate,
+          probation_status: probationEndDate ? (new Date() < probationEndDate ? 'On Probation' : 'Completed') : 'N/A',
+          probation_extended_period: d.probation_extended_period || null,
+          probation_final_status: d.on_probation ? 'Pending' : 'N/A',
+          confirmation_status: d.confirmation_status || null,
+          confirmed_on: d.confirmed_on ? parseDdMmYyyy(d.confirmed_on) : null,
         }, t);
         break;
       }
@@ -291,7 +297,7 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
         }
         await repo.upsertSchemes(id, {
           ...d,
-          rd_maturity_date:   rdMaturityDate,
+          rd_maturity_date: rdMaturityDate,
           rd_maturity_amount: rdMaturityAmount,
           rd_status: d.rd_scheme ? 'Active' : 'Inactive',
         }, t);
@@ -327,17 +333,17 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
       case 'statutory': {
         const d = dto as StatutoryDto;
         await repo.upsertStatutory(id, {
-          passport_number:        d.passport_number,
-          passport_expiry:        d.passport_expiry ? parseDdMmYyyy(d.passport_expiry) : null,
-          yellow_fever:           d.yellow_fever,
-          yellow_fever_date:      d.yellow_fever_date ? parseDdMmYyyy(d.yellow_fever_date) : null,
+          passport_number: d.passport_number,
+          passport_expiry: d.passport_expiry ? parseDdMmYyyy(d.passport_expiry) : null,
+          yellow_fever: d.yellow_fever,
+          yellow_fever_date: d.yellow_fever_date ? parseDdMmYyyy(d.yellow_fever_date) : null,
           driving_license_number: d.driving_license_number,
           driving_license_expiry: d.driving_license_expiry ? parseDdMmYyyy(d.driving_license_expiry) : null,
-          aadhaar_number:         d.aadhaar_number,
-          aadhaar_address:        d.aadhaar_address,
-          pan_number:             d.pan_number?.toUpperCase(),
-          pan_full_name:          d.pan_full_name,
-          pan_dob:                d.pan_dob ? parseDdMmYyyy(d.pan_dob) : null,
+          aadhaar_number: d.aadhaar_number,
+          aadhaar_address: d.aadhaar_address,
+          pan_number: d.pan_number?.toUpperCase(),
+          pan_full_name: d.pan_full_name,
+          pan_dob: d.pan_dob ? parseDdMmYyyy(d.pan_dob) : null,
           pan_parent_spouse_name: d.pan_parent_spouse_name,
         }, t);
         break;
@@ -346,17 +352,17 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
       case 'bank': {
         const d = dto as BankDto;
         await repo.upsertBank(id, 'personal', {
-          bank_name:      d.personal_bank_name,
+          bank_name: d.personal_bank_name,
           account_number: d.personal_bank_account,
-          ifsc_code:      d.personal_ifsc?.toUpperCase(),
-          branch_name:    d.personal_bank_branch,
+          ifsc_code: d.personal_ifsc?.toUpperCase(),
+          branch_name: d.personal_bank_branch,
         }, t);
         if (d.official_bank_name || d.official_bank_account) {
           await repo.upsertBank(id, 'official', {
-            bank_name:      d.official_bank_name || null,
+            bank_name: d.official_bank_name || null,
             account_number: d.official_bank_account || null,
-            ifsc_code:      d.official_ifsc?.toUpperCase() || null,
-            branch_name:    d.official_bank_branch || null,
+            ifsc_code: d.official_ifsc?.toUpperCase() || null,
+            branch_name: d.official_bank_branch || null,
           }, t);
         }
         break;
@@ -365,22 +371,22 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
       case 'experience': {
         const d = dto as ExperienceEducationDto;
         await repo.upsertExperience(id, {
-          is_experienced:          d.is_experienced,
-          last_company_name:       d.last_company_name || null,
-          last_designation:        d.last_designation || null,
-          last_working_day:        d.last_working_day ? parseDdMmYyyy(d.last_working_day) : null,
-          exp_contact_name:        d.exp_contact_name || null,
-          exp_contact_number:      d.exp_contact_number || null,
+          is_experienced: d.is_experienced,
+          last_company_name: d.last_company_name || null,
+          last_designation: d.last_designation || null,
+          last_working_day: d.last_working_day ? parseDdMmYyyy(d.last_working_day) : null,
+          exp_contact_name: d.exp_contact_name || null,
+          exp_contact_number: d.exp_contact_number || null,
           exp_contact_designation: d.exp_contact_designation || null,
-          last_inhand_salary:      d.last_inhand_salary || null,
+          last_inhand_salary: d.last_inhand_salary || null,
         }, t);
         await repo.upsertEducation(id, {
           highest_education: d.highest_education,
-          education_stream:  d.education_stream || null,
-          education_mode:    d.education_mode || null,
-          institute_name:    d.institute_name || null,
-          passing_year:      d.passing_year || null,
-          education_marks:   d.education_marks || null,
+          education_stream: d.education_stream || null,
+          education_mode: d.education_mode || null,
+          institute_name: d.institute_name || null,
+          passing_year: d.passing_year || null,
+          education_marks: d.education_marks || null,
         }, t);
         break;
       }
@@ -397,11 +403,11 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
           : { monthlyDeduction: 0, lastInstallment: 0 };
         await repo.upsertAssetDeduction(id, {
           asset_deduction_applicable: d.asset_deduction_applicable,
-          security_amount:   d.security_amount || null,
-          deduction_months:  d.deduction_months || null,
-          deduction_from:    d.deduction_from || null,
+          security_amount: d.security_amount || null,
+          deduction_months: d.deduction_months || null,
+          deduction_from: d.deduction_from || null,
           monthly_deduction: monthlyDeduction || null,
-          last_installment:  lastInstallment || null,
+          last_installment: lastInstallment || null,
         }, t);
         break;
       }
@@ -419,7 +425,7 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
 
       case 'review': {
         if (dto.transfers) await repo.replaceTransfers(id, dto.transfers, t);
-        if (dto.exit)      await repo.upsertExit(id, dto.exit, t);
+        if (dto.exit) await repo.upsertExit(id, dto.exit, t);
         break;
       }
 
@@ -470,38 +476,38 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
   async discardDraft(sessionId: string, actorId: number) { return repo.deleteDraft(sessionId, actorId); }
 
 
-async getFieldPermissions(employeeId: number) {
-  const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } });
+  async getFieldPermissions(employeeId: number) {
+    const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } });
 
-  const byCompany: Record<number, number[]> = {};
-  for (const m of memberships) {
-    (byCompany[m.company_id] ??= []).push(m.group_id);
-  }
-
-  const result: Record<number, FieldPermissionMap> = {};
-  for (const [companyIdStr, groupIds] of Object.entries(byCompany)) {
-    const companyId = +companyIdStr;
-    const groupPerms = await loadFieldPerms(groupIds, companyId);
-
-    // ── Layer employee-specific field overrides on top — override wins ──
-    const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, 'employees');
-    const merged: FieldPermissionMap = { ...groupPerms };
-
-    for (const [fieldName, permMap] of Object.entries(fieldOverrides)) {
-      const base = merged[fieldName] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-      merged[fieldName] = {
-        can_view: permMap.view !== undefined ? permMap.view : base.can_view,
-        can_edit: permMap.edit !== undefined ? permMap.edit : base.can_edit,
-        can_copy: permMap.copy !== undefined ? permMap.copy : base.can_copy,
-        can_download: permMap.download !== undefined ? permMap.download : base.can_download,
-        is_masked: permMap.mask !== undefined ? permMap.mask : base.is_masked,
-      };
+    const byCompany: Record<number, number[]> = {};
+    for (const m of memberships) {
+      (byCompany[m.company_id] ??= []).push(m.group_id);
     }
 
-    result[companyId] = merged;
+    const result: Record<number, FieldPermissionMap> = {};
+    for (const [companyIdStr, groupIds] of Object.entries(byCompany)) {
+      const companyId = +companyIdStr;
+      const groupPerms = await loadFieldPerms(groupIds, companyId);
+
+      // ── Layer employee-specific field overrides on top — override wins ──
+      const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, 'employees');
+      const merged: FieldPermissionMap = { ...groupPerms };
+
+      for (const [fieldName, permMap] of Object.entries(fieldOverrides)) {
+        const base = merged[fieldName] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+        merged[fieldName] = {
+          can_view: permMap.view !== undefined ? permMap.view : base.can_view,
+          can_edit: permMap.edit !== undefined ? permMap.edit : base.can_edit,
+          can_copy: permMap.copy !== undefined ? permMap.copy : base.can_copy,
+          can_download: permMap.download !== undefined ? permMap.download : base.can_download,
+          is_masked: permMap.mask !== undefined ? permMap.mask : base.is_masked,
+        };
+      }
+
+      result[companyId] = merged;
+    }
+    return result;
   }
-  return result;
-}
 
 
   async getSummary(companyId: number) { return repo.getSummary(companyId); }
@@ -696,10 +702,10 @@ async getFieldPermissions(employeeId: number) {
     return result;
   }
 
-// private async hasSensitiveAccess(employeeId: number, companyId: number): Promise<boolean> {
-//   const perms = await this.getFieldPermissions(employeeId, companyId);
-//   return SENSITIVE_FIELDS.some(f => perms[f]?.can_view !== false);
-// }
+  // private async hasSensitiveAccess(employeeId: number, companyId: number): Promise<boolean> {
+  //   const perms = await this.getFieldPermissions(employeeId, companyId);
+  //   return SENSITIVE_FIELDS.some(f => perms[f]?.can_view !== false);
+  // }
 }
 
 export const employeeService = new EmployeeService();

@@ -9,26 +9,28 @@ import { WIZARD_STEPS } from '../constants/employee.constants';
 import { useCreateEmployee, useUpdateStep, useSaveDraft, useNextCode } from '../hooks/useEmployees';
 import { usePermission } from '../../auth/hooks/usePermission';
 
-import { StepBasic }          from './steps/StepBasic';
-import { StepEmployment }     from './steps/StepEmployment';
-import { StepReporting }      from './steps/StepReporting';
-import { StepCommitment }     from './steps/StepCommitment';
-import { StepSchemes }        from './steps/StepSchemes';
-import { StepPersonal }       from './steps/StepPersonal';
-import { StepAddress }        from './steps/StepAddress';
-import { StepFamily }         from './steps/StepFamily';
-import { StepEmergency }      from './steps/StepEmergency';
-import { StepStatutory }      from './steps/StepStatutory';
-import { StepBank }           from './steps/StepBank';
-import { StepExperience }     from './steps/StepExperience';
-import { StepSalary }         from './steps/StepSalary';
+import { StepBasic } from './steps/StepBasic';
+import { StepEmployment } from './steps/StepEmployment';
+import { StepReporting } from './steps/StepReporting';
+import { StepCommitment } from './steps/StepCommitment';
+import { StepSchemes } from './steps/StepSchemes';
+import { StepPersonal } from './steps/StepPersonal';
+import { StepAddress } from './steps/StepAddress';
+import { StepFamily } from './steps/StepFamily';
+import { StepEmergency } from './steps/StepEmergency';
+import { StepStatutory } from './steps/StepStatutory';
+import { StepBank } from './steps/StepBank';
+import { StepExperience } from './steps/StepExperience';
+import { StepSalary } from './steps/StepSalary';
 import { StepOnboardingDocs } from './steps/StepOnboardingDocs';
-import { StepReview }         from './steps/StepReview';
+import { StepReview } from './steps/StepReview';
 
-import type { Employee, CommitmentProbation, EmployeePersonal, EmployeeFamily,
+import type {
+  Employee, CommitmentProbation, EmployeePersonal, EmployeeFamily,
   EmployeeStatutory, EmployeeSchemes, EmployeeBankDetail, EmployeeSalary,
   EmployeeAssetDeduction, EmployeeExperience, EmployeeEducation, OnboardingDocs,
-  EmployeeAddress, EmergencyContact } from '../types/employee.types';
+  EmployeeAddress, EmergencyContact
+} from '../types/employee.types';
 
 const getOrCreateSid = () => {
   if (typeof window === 'undefined') return 'ssr';
@@ -45,26 +47,26 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   const { isHR, isAdmin, isSuperAdmin } = usePermission();
   const canSeeSensitive = isHR || isAdmin || isSuperAdmin;
 
-  const sidRef        = useRef(getOrCreateSid());
+  const sidRef = useRef(getOrCreateSid());
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const [currentIdx,   setCurrentIdx]   = useState(0);
-  const [savedId,      setSavedId]      = useState<number | null>(employee?.id ?? null);
-  const [completedSet, setCompletedSet] = useState<Set<number>>(new Set(mode === 'edit' ? WIZARD_STEPS.map((_,i)=>i) : []));
-  const [errorSet,     setErrorSet]     = useState<Set<number>>(new Set());
-  const [isDirty,      setIsDirty]      = useState(false);
-  const [draftSaving,  setDraftSaving]  = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [savedId, setSavedId] = useState<number | null>(employee?.id ?? null);
+  const [completedSet, setCompletedSet] = useState<Set<number>>(new Set(mode === 'edit' ? WIZARD_STEPS.map((_, i) => i) : []));
+  const [errorSet, setErrorSet] = useState<Set<number>>(new Set());
+  const [isDirty, setIsDirty] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
 
   const visibleSteps = useMemo(() => WIZARD_STEPS.filter(s => !s.sensitive || canSeeSensitive), [canSeeSensitive]);
-  const step    = visibleSteps[currentIdx];
+  const step = visibleSteps[currentIdx];
   const isFirst = currentIdx === 0;
-  const isLast  = currentIdx === visibleSteps.length - 1;
+  const isLast = currentIdx === visibleSteps.length - 1;
 
-  const { data: nextCodeData }  = useNextCode();
-  const createMutation  = useCreateEmployee();
-  const updateMutation  = useUpdateStep(savedId ?? 0);
-  const draftMutation   = useSaveDraft();
+  const { data: nextCodeData } = useNextCode();
+  const createMutation = useCreateEmployee();
+  const updateMutation = useUpdateStep(savedId ?? 0);
+  const draftMutation = useSaveDraft();
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const methods = useForm<FullEmployeeForm>({
@@ -78,49 +80,58 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       yellow_fever: false, is_experienced: false, asset_deduction_applicable: false,
       offer_letter: false, address_verification: false, service_agreement: false,
       indemnity_bond: false, asset_deduction_letter: false, account_opening_letter: false, nda: false,
-      company_id:        undefined as number | undefined,
-      email:             '',
-      phone:             '',
-      department_id:     undefined as number | undefined,
+      company_id: undefined as number | undefined,
+      email: '',
+      phone: '',
+      department_id: undefined as number | undefined,
       sub_department_id: undefined as number | undefined,
+      shift_type: 'shift',
+      shift_id: undefined,
+      duration: undefined,
+      grace_minutes: undefined,
+
     },
   });
 
   // Populate form on edit
   useEffect(() => {
     if (!employee) return;
-    const p   = (employee.personal            ?? {}) as Partial<EmployeePersonal>;
-    const fam = (employee.family              ?? {}) as Partial<EmployeeFamily>;
-    const st  = (employee.statutory           ?? {}) as Partial<EmployeeStatutory>;
-    const cp  = (employee.commitmentProbation ?? {}) as Partial<CommitmentProbation>;
-    const sch = (employee.schemes             ?? {}) as Partial<EmployeeSchemes>;
-    const pb  = (employee.bankDetails?.find(b => b.bank_type === 'personal') ?? {}) as Partial<EmployeeBankDetail>;
-    const ob  = (employee.bankDetails?.find(b => b.bank_type === 'official') ?? {}) as Partial<EmployeeBankDetail>;
-    const cur = (employee.salaries?.find(s => s.salary_type === 'current')   ?? {}) as Partial<EmployeeSalary>;
-    const joi = (employee.salaries?.find(s => s.salary_type === 'joining')   ?? {}) as Partial<EmployeeSalary>;
-    const ad  = (employee.assetDeduction      ?? {}) as Partial<EmployeeAssetDeduction>;
-    const exp = (employee.experience          ?? {}) as Partial<EmployeeExperience>;
-    const edu = (employee.education           ?? {}) as Partial<EmployeeEducation>;
-    const doc = (employee.onboardingDocs      ?? {}) as Partial<OnboardingDocs>;
-    const pAddr = (employee.addresses?.find(a => a.address_type === 'present')   ?? {}) as Partial<EmployeeAddress>;
+    const p = (employee.personal ?? {}) as Partial<EmployeePersonal>;
+    const fam = (employee.family ?? {}) as Partial<EmployeeFamily>;
+    const st = (employee.statutory ?? {}) as Partial<EmployeeStatutory>;
+    const cp = (employee.commitmentProbation ?? {}) as Partial<CommitmentProbation>;
+    const sch = (employee.schemes ?? {}) as Partial<EmployeeSchemes>;
+    const pb = (employee.bankDetails?.find(b => b.bank_type === 'personal') ?? {}) as Partial<EmployeeBankDetail>;
+    const ob = (employee.bankDetails?.find(b => b.bank_type === 'official') ?? {}) as Partial<EmployeeBankDetail>;
+    const cur = (employee.salaries?.find(s => s.salary_type === 'current') ?? {}) as Partial<EmployeeSalary>;
+    const joi = (employee.salaries?.find(s => s.salary_type === 'joining') ?? {}) as Partial<EmployeeSalary>;
+    const ad = (employee.assetDeduction ?? {}) as Partial<EmployeeAssetDeduction>;
+    const exp = (employee.experience ?? {}) as Partial<EmployeeExperience>;
+    const edu = (employee.education ?? {}) as Partial<EmployeeEducation>;
+    const doc = (employee.onboardingDocs ?? {}) as Partial<OnboardingDocs>;
+    const pAddr = (employee.addresses?.find(a => a.address_type === 'present') ?? {}) as Partial<EmployeeAddress>;
     const xAddr = (employee.addresses?.find(a => a.address_type === 'permanent') ?? {}) as Partial<EmployeeAddress>;
-    const emg   = (employee.emergencyContacts?.[0] ?? {}) as Partial<EmergencyContact>;
+    const emg = (employee.emergencyContacts?.[0] ?? {}) as Partial<EmergencyContact>;
 
-methods.reset({
+    methods.reset({
       first_name: employee.first_name, middle_name: employee.middle_name ?? '',
       last_name: employee.last_name, status: employee.status as any,
       employment_type: employee.employment_type, employee_code: employee.employee_code,
-      company_id:        employee.company_id,
-      email:             employee.email ?? '',
-      phone:             employee.phone ?? '',
-      reference_code:    employee.reference_code ?? '',
-      department_id:     employee.department_id ?? undefined,
+      company_id: employee.company_id,
+      email: employee.email ?? '',
+      phone: employee.phone ?? '',
+      reference_code: employee.reference_code ?? '',
+      department_id: employee.department_id ?? undefined,
       sub_department_id: employee.sub_department_id ?? undefined,
       designation_id: employee.designation_id ?? undefined, sub_designation: employee.sub_designation ?? '',
       working_site: employee.working_site ?? '', working_city: employee.working_city ?? '',
       working_state_country: employee.working_state_country ?? '',
       pay_register_location: employee.pay_register_location ?? '',
-      saturday_off: employee.saturday_off, shift_id: employee.shift_id ?? undefined,
+      saturday_off: employee.saturday_off,
+      // shift_id: employee.shift_id ?? undefined,
+      shift_type: employee.shift_type ?? 'shift',
+      shift_id: employee.shift_id ?? undefined,
+      duration: employee.duration ?? undefined,
       grace_minutes: employee.grace_minutes,
       l1_manager_id: employee.l1_manager_id ?? null, l2_manager_id: employee.l2_manager_id ?? null,
       actual_doj: employee.actual_doj ?? '', current_doj: employee.current_doj ?? '',
@@ -244,21 +255,21 @@ methods.reset({
   const validateStep = useCallback(async (): Promise<boolean> => {
     if (!step || step.key === 'review') return true;
     const schema = STEP_SCHEMA_MAP[step.key as StepSchemaKey];
-  const values = methods.getValues();
+    const values = methods.getValues();
 
     if (!schema) return true;
     const result = (schema as any).safeParse(methods.getValues());
     if (!result.success) {
       if (!result.success) {
 
-  await methods.trigger(
-    Object.keys(result.error.flatten().fieldErrors) as any
-  );
+        await methods.trigger(
+          Object.keys(result.error.flatten().fieldErrors) as any
+        );
 
-  setErrorSet(prev => new Set([...prev, currentIdx]));
+        setErrorSet(prev => new Set([...prev, currentIdx]));
 
-  return false;
-}
+        return false;
+      }
       await methods.trigger(Object.keys(result.error.flatten().fieldErrors) as any);
       setErrorSet(prev => new Set([...prev, currentIdx]));
       return false;
@@ -274,7 +285,8 @@ methods.reset({
     const n = (x: any) => (x === '' || x === undefined || x === null) ? null : Number(x);
     switch (key) {
       case 'basic': return { reference_code: c(v.reference_code), first_name: v.first_name?.trim(), middle_name: c(v.middle_name), last_name: v.last_name?.trim(), status: v.status, employment_type: v.employment_type, employee_code: c(v.employee_code), department_id: n(v.department_id), sub_department_id: n(v.sub_department_id), designation_id: n(v.designation_id), sub_designation: c(v.sub_designation), email: v.email?.toLowerCase().trim() ?? null, phone: v.phone?.trim() ?? null, company_id: n(v.company_id) };
-      case 'employment': return { working_site: v.working_site?.trim(), working_city: v.working_city?.trim(), working_state_country: v.working_state_country?.trim(), pay_register_location: v.pay_register_location?.trim(), saturday_off: v.saturday_off ?? false, shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) ?? 0 };
+      // case 'employment': return { working_site: v.working_site?.trim(), working_city: v.working_city?.trim(), working_state_country: v.working_state_country?.trim(), pay_register_location: v.pay_register_location?.trim(), saturday_off: v.saturday_off ?? false, shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) ?? 0 };
+      case 'employment': return { working_site: v.working_site?.trim(), working_city: v.working_city?.trim(), working_state_country: v.working_state_country?.trim(), pay_register_location: v.pay_register_location?.trim(), saturday_off: v.saturday_off ?? false, shift_type: v.shift_type ?? null,  shift_id: v.shift_type === 'shift' ? n(v.shift_id) : null ,  duration: v.shift_type === 'duration'   ? n(v.duration)   : null,  grace_minutes: n(v.grace_minutes) ?? 0 };
       case 'reporting': return { l1_manager_id: n(v.l1_manager_id), l2_manager_id: n(v.l2_manager_id), actual_doj: c(v.actual_doj), current_doj: c(v.current_doj) };
       case 'commitment': return { commitment: v.commitment ?? false, commitment_term: c(v.commitment_term), commitment_entered_on: c(v.commitment_entered_on), on_probation: v.on_probation ?? true, probation_period: c(v.probation_period), probation_extended_period: c(v.probation_extended_period), confirmation_status: c(v.confirmation_status), confirmed_on: c(v.confirmed_on) };
       case 'schemes': return { pf_status: v.pf_status ?? false, uan_number: c(v.uan_number), epfo_member_id: c(v.epfo_member_id), pf_contribution_pct: n(v.pf_contribution_pct), pf_employer_from: c(v.pf_employer_from), esic_status: v.esic_status ?? false, esic_number: c(v.esic_number), mediclaim_status: v.mediclaim_status ?? 'No', mediclaim_number: c(v.mediclaim_number), mediclaim_amount: n(v.mediclaim_amount), rd_scheme: v.rd_scheme ?? false, rd_term: c(v.rd_term), rd_opening_date: c(v.rd_opening_date), rd_account_number: c(v.rd_account_number), rd_deduction_from: c(v.rd_deduction_from), rd_amount_employee: n(v.rd_amount_employee), rd_amount_employer: n(v.rd_amount_employer), rd_maturity_date: c(v.rd_maturity_date), rd_maturity_amount: n(v.rd_maturity_amount), rd_status: c(v.rd_status) };
@@ -322,22 +334,22 @@ methods.reset({
     if (!step) return null;
     const p = { isEdit: mode === 'edit', employeeId: savedId };
     switch (step.key) {
-      case 'basic':           return <StepBasic {...p} />;
-      case 'employment':      return <StepEmployment {...p} />;
-      case 'reporting':       return <StepReporting {...p} />;
-      case 'commitment':      return <StepCommitment {...p} />;
-      case 'schemes':         return <StepSchemes {...p} />;
-      case 'personal':        return <StepPersonal {...p} />;
-      case 'address':         return <StepAddress {...p} />;
-      case 'family':          return <StepFamily {...p} />;
-      case 'emergency':       return <StepEmergency {...p} />;
-      case 'statutory':       return <StepStatutory {...p} />;
-      case 'bank':            return <StepBank {...p} />;
-      case 'experience':      return <StepExperience {...p} />;
-      case 'salary':          return <StepSalary {...p} />;
+      case 'basic': return <StepBasic {...p} />;
+      case 'employment': return <StepEmployment {...p} />;
+      case 'reporting': return <StepReporting {...p} />;
+      case 'commitment': return <StepCommitment {...p} />;
+      case 'schemes': return <StepSchemes {...p} />;
+      case 'personal': return <StepPersonal {...p} />;
+      case 'address': return <StepAddress {...p} />;
+      case 'family': return <StepFamily {...p} />;
+      case 'emergency': return <StepEmergency {...p} />;
+      case 'statutory': return <StepStatutory {...p} />;
+      case 'bank': return <StepBank {...p} />;
+      case 'experience': return <StepExperience {...p} />;
+      case 'salary': return <StepSalary {...p} />;
       case 'onboarding_docs': return <StepOnboardingDocs {...p} />;
-      case 'review':          return <StepReview employeeId={savedId} methods={methods} />;
-      default:                return null;
+      case 'review': return <StepReview employeeId={savedId} methods={methods} />;
+      default: return null;
     }
   }
 
@@ -358,8 +370,8 @@ methods.reset({
           <nav>
             {visibleSteps.map((s, idx) => {
               const isActive = idx === currentIdx;
-              const isDone   = completedSet.has(idx);
-              const hasErr   = errorSet.has(idx);
+              const isDone = completedSet.has(idx);
+              const hasErr = errorSet.has(idx);
               // const canGo    = idx === 0 || savedId !== null || isDone;
               return (
                 <div key={s.key} role="button" tabIndex={0}

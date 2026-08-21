@@ -44,15 +44,28 @@ export interface BasicInfoDto {
 }
 
 // ─── Step 2: Employment Details ───────────────────────────────────────────────
+// export interface EmploymentDto {
+//   working_site:             string;   
+//   working_city:             string;   
+//   working_state_country:    string;   
+//   pay_register_location:    string;   
+//   saturday_off:             boolean;  
+//   shift_id:                 number;   
+//   grace_minutes?:           number;
+// }
+
 export interface EmploymentDto {
-  working_site:             string;   
-  working_city:             string;   
-  working_state_country:    string;   
-  pay_register_location:    string;   
-  saturday_off:             boolean;  
-  shift_id:                 number;   
+  working_site:             string;
+  working_city:             string;
+  working_state_country:    string;
+  pay_register_location:    string;
+  saturday_off:             boolean;
+  shift_type?:              'shift' | 'duration';
+  shift_id?:                number | null;
+  duration?:                number | null;
   grace_minutes?:           number;
 }
+
 
 // ─── Step 3: Reporting & Official Contact ─────────────────────────────────────
 export interface ReportingDto {

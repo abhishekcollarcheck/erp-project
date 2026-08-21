@@ -44,13 +44,30 @@ export const basicValidation: ValidationChain[] = [
 ];
 
 // ─── Step 2: Employment Details ───────────────────────────────────────────────
+// export const employmentValidation: ValidationChain[] = [
+//   body('working_site').trim().notEmpty().withMessage('Working site is required'),
+//   body('working_city').trim().notEmpty().withMessage('Working city is required'),
+//   body('working_state_country').trim().notEmpty().withMessage('Working state/country is required'),
+//   body('pay_register_location').trim().notEmpty().withMessage('Pay register location is required'),
+//   body('saturday_off').trim().notEmpty().withMessage('Saturday off is required'),
+//   body('shift_id').isInt({ min: 1 }).withMessage('Working shift is required'),
+//   opt(body('grace_minutes').isInt({ min: 0, max: 120 })),
+// ];
+
+
 export const employmentValidation: ValidationChain[] = [
   body('working_site').trim().notEmpty().withMessage('Working site is required'),
   body('working_city').trim().notEmpty().withMessage('Working city is required'),
   body('working_state_country').trim().notEmpty().withMessage('Working state/country is required'),
   body('pay_register_location').trim().notEmpty().withMessage('Pay register location is required'),
   body('saturday_off').trim().notEmpty().withMessage('Saturday off is required'),
-  body('shift_id').isInt({ min: 1 }).withMessage('Working shift is required'),
+  body('shift_type').isIn(['shift', 'duration']).withMessage('Shift type is required'),
+  body('shift_id')
+    .if(body('shift_type').equals('shift'))
+    .isInt({ min: 1 }).withMessage('Working shift is required'),
+  body('duration')
+    .if(body('shift_type').equals('duration'))
+    .isFloat({ min: 0 }).withMessage('Duration is required'),
   opt(body('grace_minutes').isInt({ min: 0, max: 120 })),
 ];
 

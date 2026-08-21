@@ -1,0 +1,33 @@
+[
+  {
+    card_no: '00000045',
+    punch_date: '2026-08-19',
+    first_in: '10:01:31',
+    last_out: '10:01:31',
+    punch_count: 1
+  },
+  {
+    card_no: '00000045',
+    punch_date: '2026-08-17',
+    first_in: '10:01:00',
+    last_out: '19:10:29',
+    punch_count: 2
+  },
+  {
+    card_no: '00000045',
+    punch_date: '2026-08-14',
+    first_in: '10:10:02',
+    last_out: '19:40:00',
+    punch_count: 2
+  },
+  {
+    card_no: '00000045',
+    punch_date: '2026-08-13',
+    first_in: '10:08:20',
+    last_out: '19:12:25',
+    punch_count: 2
+  }
+]
+
+
+======================== Bio rows Response =========================== 

@@ -50,10 +50,12 @@ export class TrakolaService {
    * Exposed separately from getNormalizedAttendance() so we can inspect
    * the raw parsed shape while confirming column names during testing.
    */
-  async getParsedReportRows(startDate: string, endDate: string, employeeId?: string): Promise<Record<string, string | number>[]> {
-    console.log("startDate", startDate)
-    console.log("endDate", endDate)
-    console.log("employeeId", employeeId)
+  async getParsedReportRows(
+    startDate: string,
+    endDate: string,
+    employeeId?: string,
+    employeeName?: string,
+  ): Promise<Record<string, string | number>[]> {
     if (!TRAKOLA_REPORT_ID) {
       throw new AppError('TRAKOLA_REPORT_ID is not configured', 500);
     }
@@ -65,23 +67,55 @@ export class TrakolaService {
       throw new AppError(`Trakola API unavailable: ${e.message}`, 502);
     }
     const allRows = response.rows.map((row) => this.zipRowToObject(response.columns, row));
-    if(employeeId){
-      const filter = allRows.filter(row => {
-        const empId = this.normalizeEmployeeId(row[COLUMN.employeeId]);
-        return empId === employeeId;
-      }) 
-      return filter;
+
+    if (!employeeId && !employeeName) {
+      return allRows;
     }
-    return allRows;
+
+    // BUGFIX: COLUMN.employeeId ('Identifier') is not a column Trakola
+    // actually sends yet (see the const above). Filtering on it unconditionally
+    // meant `row[COLUMN.employeeId]` was always undefined, normalizeEmployeeId()
+    // always returned null, `null === employeeId` was always false, and every
+    // row was filtered out — this is why trakRows always came back empty.
+    //
+    // Fix: only filter by Identifier when the report actually contains that
+    // column (i.e. at least one row has a non-empty value there). Until then,
+    // fall back to matching on employee_name, which Trakola does send today.
+    const hasIdentifierColumn = allRows.some((row) => {
+      const raw = row[COLUMN.employeeId];
+      return raw !== undefined && raw !== null && String(raw).trim() !== '';
+    });
+
+    if (employeeId && hasIdentifierColumn) {
+      return allRows.filter((row) => this.normalizeEmployeeId(row[COLUMN.employeeId]) === employeeId);
+    }
+
+    if (employeeName) {
+      const target = employeeName.trim().toLowerCase();
+      return allRows.filter((row) => String(row[COLUMN.employeeName] || '').trim().toLowerCase() === target);
+    }
+
+    // No reliable way to filter by this employee (no Identifier column, no
+    // name supplied) — return nothing rather than silently mixing another
+    // employee's rows into this employee's attendance.
+    return [];
   }
 
   /**
    * Fetches, parses, AND normalizes into our common attendance row shape —
    * the same spirit as MSSQLAttendanceRow, so downstream merge logic can
    * treat both sources uniformly once employee_ref is reliably populated.
+   *
+   * `employeeName` is a temporary fallback filter key — see getParsedReportRows —
+   * needed until Trakola's report actually exposes an Identifier column.
    */
-  async getNormalizedAttendance(startDate: string, endDate: string, employeeId?: string): Promise<TrakolaAttendanceRow[]> {
-    const parsedRows = await this.getParsedReportRows(startDate, endDate, employeeId);
+  async getNormalizedAttendance(
+    startDate: string,
+    endDate: string,
+    employeeId?: string,
+    employeeName?: string,
+  ): Promise<TrakolaAttendanceRow[]> {
+    const parsedRows = await this.getParsedReportRows(startDate, endDate, employeeId, employeeName);
     return parsedRows.map((row) => this.normalizeRow(row));
   }
 

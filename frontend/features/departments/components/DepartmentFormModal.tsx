@@ -37,8 +37,8 @@ export function DepartmentFormModal({ open, onClose, department, departments, ma
 
   // ── Field permissions ──────────────────────────────────────────────────────
   const perm = {
-    department_name: f('department_name'),
-    department_code: f('department_code'),
+    dpname: f('dpname'),
+    code: f('code'),
     head_id: f('head_id'),
   };
 
@@ -100,7 +100,7 @@ export function DepartmentFormModal({ open, onClose, department, departments, ma
         </>
       }
     >
-      <FormSection fields={[(perm.department_name), (perm.department_code), (perm.head_id)]}>
+      <FormSection fields={[(perm.dpname), (perm.code), (perm.head_id)]}>
       <FormProvider {...methods}>
         <div style={{ display: 'grid', gap: 12 }}>
           <FormInput
@@ -108,14 +108,14 @@ export function DepartmentFormModal({ open, onClose, department, departments, ma
             label="Department Name"
             required
             placeholder="e.g. Engineering, Finance, Product"
-            fieldPerm={perm.department_name}
+            fieldPerm={perm.dpname}
           />
           <FormInput
             name="department_code"
             label="Department Code"
             placeholder="e.g. ENG, FIN, OPS"
             hint="Short code for reports and exports (optional)"
-            fieldPerm={perm.department_code}
+            fieldPerm={perm.code}
             onChange={v => setValue('department_code', v.toUpperCase(), { shouldDirty: true })}
           />
 
