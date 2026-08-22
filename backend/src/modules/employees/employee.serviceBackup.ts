@@ -479,53 +479,12 @@ export class EmployeeService {
   async discardDraft(sessionId: string, actorId: number) { return repo.deleteDraft(sessionId, actorId); }
 
 
-<<<<<<< HEAD
   async getFieldPermissions(employeeId: number) {
     const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } });
 
     const byCompany: Record<number, number[]> = {};
     for (const m of memberships) {
       (byCompany[m.company_id] ??= []).push(m.group_id);
-=======
-// moduleKey defaults to 'employees' so the Employee wizard's own existing
-// calls (no module passed) keep working exactly as before. Any OTHER form
-// (Department, Designation, etc.) reusing this same endpoint must pass its
-// own module key — previously this was hardcoded to 'employees' everywhere.
-async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
-  const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } }); 
-  const byCompany: Record<number, number[]> = {};
-  for (const m of memberships) {
-    (byCompany[m.company_id] ??= []).push(m.group_id);
-  }
-
-  const DENY_ALL_FIELDS: FieldPermissionMap = {};
-
-  const result: Record<number, FieldPermissionMap> = {};
-  for (const [companyIdStr, groupIds] of Object.entries(byCompany)) {
-    const companyId = +companyIdStr;
-
-    const moduleSlugs = await fbSvc.resolveModuleSlugs(employeeId, companyId, groupIds);
-    if (!moduleSlugs.has(`${moduleKey}:view`)) {
-      result[companyId] = DENY_ALL_FIELDS;
-      continue;
-    }
-
-    const groupPerms = await loadFieldPerms(groupIds, companyId);
-
-    // ── Layer employee-specific field overrides on top — override wins ──
-    const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, moduleKey);
-    const merged: FieldPermissionMap = { ...groupPerms };
-
-    for (const [fieldName, permMap] of Object.entries(fieldOverrides)) {
-      const base = merged[fieldName] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-      merged[fieldName] = {
-        can_view: permMap.view !== undefined ? permMap.view : base.can_view,
-        can_edit: permMap.edit !== undefined ? permMap.edit : base.can_edit,
-        can_copy: permMap.copy !== undefined ? permMap.copy : base.can_copy,
-        can_download: permMap.download !== undefined ? permMap.download : base.can_download,
-        is_masked: permMap.mask !== undefined ? permMap.mask : base.is_masked,
-      };
->>>>>>> 0cbd54f5b46b8acd7b901323047d3be50524a4f0
     }
 
     const result: Record<number, FieldPermissionMap> = {};
