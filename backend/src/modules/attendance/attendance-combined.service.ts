@@ -2614,35 +2614,27 @@
 
 
 import { Op } from "sequelize";
-
-import { Employee } from "../../database/models/Employee";
-import { Shift } from "../../database/models/Shift";
-import { AttendanceRegularization } from "../../database/models/AttendanceRegularization";
-
+// import { Shift } from "../../database/models/Shift";
+// import { AttendanceRegularization } from "../../database/models/AttendanceRegularization";
 import {
   attendanceMSSQLService,
   MSSQLAttendanceRow,
 } from "./attendance.mssql.service";
-
 import {
   trakolaService,
   TrakolaAttendanceRow,
 } from "./trackola.service";
-
-import { AppError } from "../../middleware/errorHandler.middleware";
-
+// import { AppError } from "../../middleware/errorHandler.middleware";
 import {
   evaluateAttendanceStatus,
   FinalAttendanceStatus,
   AppliedLeaveDetails,
 } from "./shift-rule-evaluator.service";
-
 import { holidayService } from "./holiday.service";
 import { isWeeklyOff } from "./weekly-off.util";
-
-import { LeaveRequest, LeaveType } from "@/database/models";
-import { EmployeeLeaveBalance } from "@/database/models/LeaveModels";
+import { AttendanceRegularization, Employee, LeaveRequest, LeaveType, Shift } from "@/database/models";
 import { resolveLeaveContextForDate } from "./leaveResolver.services";
+import { AppError } from "@/middleware/errorHandler.middleware";
 
 export type CombinedDayStatus =
   | "Present"
@@ -2749,8 +2741,8 @@ export class AttendanceCombinedService {
         .catch((error: any) => {
           console.error(
             `[attendance-combined] Trakola fetch failed for employee ${employeeId} ` +
-              `(${startDate} to ${endDate}). ` +
-              `Continuing with Biometric-only data.`,
+            `(${startDate} to ${endDate}). ` +
+            `Continuing with Biometric-only data.`,
             error?.message,
           );
 
@@ -2818,12 +2810,12 @@ export class AttendanceCombinedService {
     const leaveTypes =
       leaveTypeIds.length > 0
         ? await LeaveType.findAll({
-            where: {
-              id: {
-                [Op.in]: leaveTypeIds,
-              },
+          where: {
+            id: {
+              [Op.in]: leaveTypeIds,
             },
-          })
+          },
+        })
         : [];
 
     const leaveTypesById = new Map(
@@ -2837,11 +2829,11 @@ export class AttendanceCombinedService {
     // 4. GET EMPLOYEE LEAVE BALANCES
     // ============================================================
 
-    const leaveBalances = await EmployeeLeaveBalance.findAll({
-      where: {
-        employee_id: employeeId,
-      },
-    });
+    // const leaveBalances = await EmployeeLeaveBalance.findAll({
+    //   where: {
+    //     employee_id: employeeId,
+    //   },
+    // });
 
     // ============================================================
     // 5. MERGE BIOMETRIC + TRAKOLA + REGULARIZATION
@@ -2882,7 +2874,7 @@ export class AttendanceCombinedService {
         row.date,
         leaveRequests,
         leaveTypesById,
-        leaveBalances,
+        // leaveBalances,
       );
 
       // ----------------------------------------------------------
@@ -2916,8 +2908,8 @@ export class AttendanceCombinedService {
       const leaveApproved =
         leaveContext.appliedLeave?.approved ?? false;
 
-      const availableLeaveDays =
-        leaveContext.availableLeaveDays;
+      // const availableLeaveDays =
+      //   leaveContext.availableLeaveDays;
 
       // ==========================================================
       // HOLIDAY
@@ -2939,7 +2931,7 @@ export class AttendanceCombinedService {
           leaveType,
           leavePosition,
           leaveApproved,
-          availableLeaveDays,
+          // availableLeaveDays,
         };
       }
 
@@ -2962,7 +2954,7 @@ export class AttendanceCombinedService {
           leaveType,
           leavePosition,
           leaveApproved,
-          availableLeaveDays,
+          // availableLeaveDays,
         };
       }
 
@@ -2981,7 +2973,7 @@ export class AttendanceCombinedService {
           leaveType,
           leavePosition,
           leaveApproved,
-          availableLeaveDays,
+          // availableLeaveDays,
         };
       }
 
@@ -3003,8 +2995,8 @@ export class AttendanceCombinedService {
           appliedLeave:
             leaveContext.appliedLeave,
 
-          availableLeaveDays:
-            leaveContext.availableLeaveDays,
+          // availableLeaveDays:
+          //   leaveContext.availableLeaveDays,
         },
       );
 
@@ -3024,7 +3016,7 @@ export class AttendanceCombinedService {
         leaveType,
         leavePosition,
         leaveApproved,
-        availableLeaveDays,
+        // availableLeaveDays,
       };
     });
   }
@@ -3200,9 +3192,16 @@ export class AttendanceCombinedService {
       // Punch count
       // ----------------------------------------------------------
 
+      // const punch_count =
+      //   (bio?.punch_count ?? 0) +
+      //   (trak?.punch_count ?? 0);
+
       const punch_count =
         (bio?.punch_count ?? 0) +
-        (trak?.punch_count ?? 0);
+        (trak
+          ? (trak.check_in ? 1 : 0) +
+          (trak.check_out ? 1 : 0)
+          : 0);
 
       // ----------------------------------------------------------
       // Check-ins
@@ -3248,8 +3247,8 @@ export class AttendanceCombinedService {
       const mergedCheckOut =
         checkOuts.length > 0
           ? [...checkOuts].sort()[
-              checkOuts.length - 1
-            ]
+          checkOuts.length - 1
+          ]
           : null;
 
       // ----------------------------------------------------------
@@ -3296,9 +3295,9 @@ export class AttendanceCombinedService {
       const working_hours =
         check_in && check_out
           ? this.diffHours(
-              check_in,
-              check_out,
-            )
+            check_in,
+            check_out,
+          )
           : null;
       // ----------------------------------------------------------
       // Basic day status

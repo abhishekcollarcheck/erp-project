@@ -1,14 +1,13 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { query } from 'express-validator';
-import { validate } from '../../middleware/validate.middleware';
-import { authenticate } from '../auth/auth.middleware';
+// import { validate } from '../../middleware/validate.middleware';
+// import { authenticate } from '../auth/auth.middleware';
 import { attendanceCombinedService } from './attendance-combined.service';
-import { sendResponse, sendError } from '../../utils/response';
-
-
-import { LeaveRequest, LeaveType } from "@/database/models";
-import { EmployeeLeaveBalance } from "@/database/models/LeaveModels";
+// import { sendResponse, sendError } from '../../utils/response';
 import { runMonthlyAttendanceForAllEmployees } from './attendance.controller';
+import { validate } from '@/middleware/validate.middleware';
+import { authenticate } from '../auth/auth.middleware';
+import { sendError, sendResponse } from './response';
 
 // import {
 //   resolveLeaveContextForDate,
@@ -37,7 +36,6 @@ attendanceCombinedRouter.get(
         req.query.date_from as string,
         req.query.date_to as string,
         req.user!.companyId,
-        isDemo, // <-- Pass demo flag to trigger demo list when requested or falling back
       );
 
       const responseMessage = isDemo

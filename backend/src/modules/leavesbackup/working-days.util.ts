@@ -25,9 +25,15 @@ export async function getWorkingDaysInMonth(
   const rows = await attendanceCombinedService.getCombinedForEmployee(employeeId, startDate, endDate, companyId);
 
   let workingDays = 0;
+  // for (const row of rows) {
+  //   if (row.finalStatus === 'Full Day Present') workingDays += 1;
+  //   else if (row.finalStatus === 'First Half Present' || row.finalStatus === 'Second Half Present') workingDays += 0.5;
+  //   // Full Day Absent, Holiday, Weekly Off, Unclassified, null → 0, no contribution
+  // }
+
   for (const row of rows) {
-    if (row.finalStatus === 'Full Day Present') workingDays += 1;
-    else if (row.finalStatus === 'First Half Present' || row.finalStatus === 'Second Half Present') workingDays += 0.5;
+    if (row.finalStatus === 'PRESENT') workingDays += 1;
+    else if (row.finalStatus === 'FIRST_HALF_PRESENT' || row.finalStatus === 'SECOND_HALF_PRESENT') workingDays += 0.5;
     // Full Day Absent, Holiday, Weekly Off, Unclassified, null → 0, no contribution
   }
   return workingDays;

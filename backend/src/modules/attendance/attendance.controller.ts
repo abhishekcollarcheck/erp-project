@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { AttendanceService } from './attendance.service';
-import { sendResponse, sendPaginated } from '../../utils/response';
+// import { sendResponse, sendPaginated } from '../../utils/response';
 import { AppError } from '@/middleware/errorHandler.middleware';
 import { runMonthlyAttendanceJob } from './attendance-monthly.cron';
+import { sendPaginated, sendResponse } from './response';
 
 const attendanceService = new AttendanceService();
 
