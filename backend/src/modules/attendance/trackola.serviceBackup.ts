@@ -50,16 +50,12 @@ export class TrakolaService {
    * Exposed separately from getNormalizedAttendance() so we can inspect
    * the raw parsed shape while confirming column names during testing.
    */
-<<<<<<< HEAD
   async getParsedReportRows(
     startDate: string,
     endDate: string,
     employeeId?: string,
     employeeName?: string,
   ): Promise<Record<string, string | number>[]> {
-=======
-  async getParsedReportRows(startDate: string, endDate: string, employeeId?: string): Promise<Record<string, string | number>[]> {
->>>>>>> 0cbd54f5b46b8acd7b901323047d3be50524a4f0
     if (!TRAKOLA_REPORT_ID) {
       throw new AppError('TRAKOLA_REPORT_ID is not configured', 500);
     }
