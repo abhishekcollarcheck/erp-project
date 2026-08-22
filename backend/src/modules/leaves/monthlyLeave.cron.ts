@@ -1,8 +1,6 @@
-import { Employee } from '@/database/models';
+import { Employee } from '../../database/models';
 import cron from 'node-cron';
 import { processMonthlyLeave } from './monthlyLeave.service';
-// import { Employee } from '@/database/models';
-// import { processMonthlyLeave } from './monthlyLeaveProcess.service';
 
 export function startMonthlyLeaveCron() {
 

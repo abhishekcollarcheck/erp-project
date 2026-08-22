@@ -2632,9 +2632,9 @@ import {
 } from "./shift-rule-evaluator.service";
 import { holidayService } from "./holiday.service";
 import { isWeeklyOff } from "./weekly-off.util";
-import { AttendanceRegularization, Employee, LeaveRequest, LeaveType, Shift } from "@/database/models";
+import { AttendanceRegularization, Employee, LeaveRequest, LeaveType, Shift } from "../../database/models";
 import { resolveLeaveContextForDate } from "./leaveResolver.services";
-import { AppError } from "@/middleware/errorHandler.middleware";
+import { AppError } from "../../middleware/errorHandler.middleware";
 
 export type CombinedDayStatus =
   | "Present"

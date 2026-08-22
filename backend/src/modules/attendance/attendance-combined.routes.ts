@@ -5,7 +5,7 @@ import { query } from 'express-validator';
 import { attendanceCombinedService } from './attendance-combined.service';
 // import { sendResponse, sendError } from '../../utils/response';
 import { runMonthlyAttendanceForAllEmployees } from './attendance.controller';
-import { validate } from '@/middleware/validate.middleware';
+import { validate } from '../../middleware/validate.middleware';
 import { authenticate } from '../auth/auth.middleware';
 import { sendError, sendResponse } from './response';
 

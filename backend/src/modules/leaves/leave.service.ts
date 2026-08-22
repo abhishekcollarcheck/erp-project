@@ -864,7 +864,7 @@ import { AppError } from '../../middleware/errorHandler.middleware';
 import { parsePaginationParams, buildPaginationMeta } from '../../utils/response';
 import { logActivity } from '../../utils/activityLogger';
 import { sequelize } from '../../config/database';
-import { EmployeeMonthlyAttendance } from '@/database/models/EmployeeMonthlyAttendance';
+import { EmployeeMonthlyAttendance } from '../../database/models/EmployeeMonthlyAttendance';
 
 
 const SHORT_LEAVE_APPLICATION_TYPES: LeaveApplicationType[] = ['arrival_late', 'leaving_early'];

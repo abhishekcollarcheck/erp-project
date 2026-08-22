@@ -7,9 +7,9 @@ import { sequelize } from '../../config/database';
 // import { EmployeeLeaveAccrual } from './models/EmployeeLeaveAccrual';
 // import { EmployeeCommitmentProbation } from './models/EmployeeCommitmentProbation';
 import { MonthlyLeaveCalculation } from './leaveRuleEngine.service';
-import { EmployeeCommitmentProbation, LeaveType } from '@/database/models';
-import { EmployeeLeaveBalance } from '@/database/models/LeaveModels';
-import { EmployeeLeaveAccrual } from '@/database/models/EmployeeLeaveAccrual';
+import { EmployeeCommitmentProbation, LeaveType } from '../../database/models';
+import { EmployeeLeaveBalance } from '../../database/models/LeaveModels';
+import { EmployeeLeaveAccrual } from '../../database/models/EmployeeLeaveAccrual';
 
 // ============================================================
 // TYPES

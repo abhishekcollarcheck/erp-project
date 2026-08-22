@@ -1,6 +1,6 @@
-import { LeaveRequest, LeaveType } from "@/database/models";
+import { LeaveRequest, LeaveType } from "../../database/models";
 import { AppliedLeaveDetails } from "./shift-rule-evaluator.service";
-import { EmployeeLeaveBalance } from "@/database/models/LeaveModels";
+import { EmployeeLeaveBalance } from "../../database/models/LeaveModels";
 
 // ═══════════════════════════════════════════════════════════════════════
 // Bridges the LeaveRequest / EmployeeLeaveBalance / LeaveType models to

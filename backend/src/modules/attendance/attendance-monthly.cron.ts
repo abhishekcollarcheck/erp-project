@@ -1,4 +1,4 @@
-import { Employee } from "@/database/models";
+import { Employee } from "../../database/models";
 import cron from "node-cron";
 import pLimit from "p-limit";
 import { attendanceMonthlyService } from "./attendance-monthly.service";

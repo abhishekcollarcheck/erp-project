@@ -1,6 +1,6 @@
 // import { queryMSSQL, sql } from '../../config/mssql.config';
 
-import { queryMSSQL, sql } from "@/config/mssql.config";
+import { queryMSSQL, sql } from "../../config/mssql.config";
 
 // const MSSQL_TABLE_NAME = 'Tran_MachineRawPunch';
 
