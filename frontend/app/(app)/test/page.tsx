@@ -7,7 +7,6 @@ export default function TestMultiStepFormPage() {
 
   const handleSubmit = async (values: Record<string, any>) => {
     setIsSubmitting(true);
-    console.log('Form submitted with values:', values);
     setSubmittedValues(values);
     setIsSubmitting(false);
   };

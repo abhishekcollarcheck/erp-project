@@ -8,7 +8,7 @@ import {
 } from "../../database/models/PermissionGroups";
 import { Employee } from "../../database/models/Employee";
 import { AppError } from "../../middleware/errorHandler.middleware";
-import { authenticate } from "../auth/auth.middleware";
+import { authenticate, authorize } from "../auth/auth.middleware";
 import { validate } from "../../middleware/validate.middleware";
 import { sendResponse } from "../../utils/response";
 import { logActivity } from "../../utils/activityLogger";
@@ -329,20 +329,9 @@ export async function resolvePermissionsForEmployee(
       slugSet.delete(slug);
     }
   }
-
   return slugSet;
 }
 
-/**
- * getEmployeeFieldOverrides
- *
- * Returns field-level overrides for one employee in a module.
- * Use this inside controllers that apply field masking after
- * loading the group-level FieldPermission rows.
- *
- *   const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, 'employees');
- *   // { 'Aadhaar Number': { mask: false } }  ← unmasked for this employee only
- */
 export async function getEmployeeFieldOverrides(
   employeeId: number,
   companyId: number,
@@ -376,6 +365,8 @@ export async function getEmployeeFieldOverrides(
 async function setFieldOverrides(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const companyIds = Array.isArray(req.body.company_ids) ? req.body.company_ids.map((id: any) => +id) : [];
+    const { FormBuilderService } = await import("../form-builder/formBuilder.service");
+    await new FormBuilderService().assertCompaniesManaged(companyIds, req.user!.employeeId, req.user!.isSuperAdmin);
     const data = await overrideSvc.setFieldOverrides(
       +req.params.id,
       +req.params.employeeId,
@@ -416,6 +407,8 @@ async function setOverrides(
     const companyIds = Array.isArray(req.body.company_ids)
       ? req.body.company_ids.map((id: any) => +id)
       : [];
+    const { FormBuilderService } = await import("../form-builder/formBuilder.service");
+    await new FormBuilderService().assertCompaniesManaged(companyIds, req.user!.employeeId, req.user!.isSuperAdmin);
     const data = await overrideSvc.setOverrides(
       +req.params.id,
       +req.params.employeeId,
@@ -462,6 +455,7 @@ export function patchGroupMembersWithOverrideCounts(router: Router): void {
   router.get(
     "/:id/members-with-overrides",
     authenticate,
+    authorize('settings:view'),
     [param("id").isInt()],
     validate,
     async (req: Request, res: Response, next: NextFunction) => {
@@ -515,6 +509,7 @@ employeeOverrideRouter.use(authenticate);
 
 employeeOverrideRouter.get(
   "/:id/members/:employeeId/overrides",
+  authorize('settings:view'),
   [
     param("id").isInt(),
     param("employeeId").isInt(),
@@ -526,6 +521,7 @@ employeeOverrideRouter.get(
 
 employeeOverrideRouter.put(
   "/:id/members/:employeeId/overrides",
+  authorize('settings:edit'),
   [
     param("id").isInt(),
     param("employeeId").isInt(),
@@ -542,6 +538,7 @@ employeeOverrideRouter.put(
 
 employeeOverrideRouter.delete(
   "/:id/members/:employeeId/overrides/:overrideId",
+  authorize('settings:delete'),
   [
     param("id").isInt(),
     param("employeeId").isInt(),
@@ -553,6 +550,7 @@ employeeOverrideRouter.delete(
 
 employeeOverrideRouter.put(
   "/:id/members/:employeeId/field-overrides",
+  authorize('settings:edit'),
   [
     param("id").isInt(),
     param("employeeId").isInt(),
@@ -570,6 +568,7 @@ employeeOverrideRouter.put(
 
 employeeOverrideRouter.get(
   "/:id/members/:employeeId/field-overrides",
+  authorize('settings:view'),
   [param("id").isInt(), param("employeeId").isInt(), query("company_id").isInt(), query("module").notEmpty()],
   validate,
   listFieldOverrides,

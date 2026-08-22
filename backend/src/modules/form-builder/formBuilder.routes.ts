@@ -38,7 +38,7 @@ router.get   ('/permissions', authorize('settings:view'), listAllPermissions);
 // ─── Modules ──────────────────────────────────────────────────────────────────
 router.get   ('/modules/catalog', listAllModules);
 router.get   ('/modules', listModules);
-router.post  ('/modules', [body('name').trim().notEmpty()], validate, createModule);
+router.post  ('/modules', authorize('settings:edit'), [body('name').trim().notEmpty()], validate, createModule);
 router.put   ('/modules/:id', authorize('settings:edit'), [param('id').isInt()], validate, updateModule);
 router.delete('/modules/:id', authorize('settings:delete'), [param('id').isInt()], validate, deleteModule);
 router.post  ('/modules/backfill-permissions', authorize('settings:edit'), backfillModulePermissions);
@@ -48,7 +48,7 @@ router.put   ('/companies/modules', authorize('settings:edit'), [body('module_id
 // registering it here would never actually be reachable at that path.
 
 // ─── Forms ────────────────────────────────────────────────────────────────────
-router.get   ('/modules/:moduleId/forms', [param('moduleId').isInt()], validate, listForms);
+router.get   ('/modules/:moduleId/forms', authorize('settings:view'), [param('moduleId').isInt()], validate, listForms);
 router.post  ('/modules/:moduleId/forms', authorize('settings:edit'), [param('moduleId').isInt(), body('name').trim().notEmpty()], validate, createForm);
 router.get   ('/forms/:formId', authorize('settings:view'), [param('formId').isInt()], validate, getForm);
 router.put   ('/forms/:formId', authorize('settings:edit'), [param('formId').isInt()], validate, updateForm);
@@ -56,18 +56,21 @@ router.delete('/forms/:formId', authorize('settings:delete'), [param('formId').i
 router.put   ('/forms/:formId/reorder', authorize('settings:edit'), [param('formId').isInt(), body('order').isArray()], validate, reorderFields);
 
 // ─── Fields ───────────────────────────────────────────────────────────────────
-router.post  ('/forms/:formId/fields',         [param('formId').isInt(), body('label').trim().notEmpty(), body('field_type').notEmpty()], validate, createField);
-router.put   ('/fields/:fieldId',              [param('fieldId').isInt()], validate, updateField);
-router.delete('/fields/:fieldId',              [param('fieldId').isInt()], validate, deleteField);
+router.post  ('/forms/:formId/fields',         authorize('settings:edit'), [param('formId').isInt(), body('label').trim().notEmpty(), body('field_type').notEmpty()], validate, createField);
+router.put   ('/fields/:fieldId',              authorize('settings:edit'), [param('fieldId').isInt()], validate, updateField);
+router.delete('/fields/:fieldId',              authorize('settings:delete'), [param('fieldId').isInt()], validate, deleteField);
 
 // ─── Field Permissions ────────────────────────────────────────────────────────
-router.get   ('/forms/:formId/permission-matrix',   [param('formId').isInt()], validate, getPermissionMatrix);
-router.put('/fields/:fieldId/permissions', [param('fieldId').isInt(), body('group_id').isInt()], validate, setFieldPermission);
-router.post('/permissions/bulk', [body('group_id').isInt(), body('permissions').isArray()], validate, bulkSetPermissions);
+router.get   ('/forms/:formId/permission-matrix',   authorize('settings:view'), [param('formId').isInt()], validate, getPermissionMatrix);
+router.put('/fields/:fieldId/permissions', authorize('settings:edit'), [param('fieldId').isInt(), body('group_id').isInt()], validate, setFieldPermission);
+router.post('/permissions/bulk', authorize('settings:edit'), [body('group_id').isInt(), body('permissions').isArray()], validate, bulkSetPermissions);
+// Runtime resolver — every employee needs this to render their own field
+// access on regular module pages, not just settings admins. Self-scoped to
+// req.user's own employeeId in the controller, so left un-gated on purpose.
 router.get   ('/forms/:formId/resolve',              [param('formId').isInt()], validate, resolveFormPermissions);
-router.get('/forms/:formId/groups/:groupId/permissions', getGroupFieldPermissions);
+router.get('/forms/:formId/groups/:groupId/permissions', authorize('settings:view'), getGroupFieldPermissions);
 
-router.get('/groups/:groupId/company-scope', [param('groupId').isInt()], validate, getGroupCompanyScope);
+router.get('/groups/:groupId/company-scope', authorize('settings:view'), [param('groupId').isInt()], validate, getGroupCompanyScope);
 
 router.get(
   '/dynamic-source/meta',

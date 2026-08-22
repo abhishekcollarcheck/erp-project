@@ -21,16 +21,16 @@ export default function SettingsPage() {
   const sections = [
     {
       title:'Access Control', items:[
-        { title:'Roles & Groups',       icon:'🔑', href:'/settings/roles',       color:'var(--blue)',   desc:'Custom roles, permissions, team assignments', stats: [`${customRoles.length} custom`, `${systemRoles.length} system`] },
+        // { title:'Roles & Groups',       icon:'🔑', href:'/settings/roles',       color:'var(--blue)',   desc:'Custom roles, permissions, team assignments', stats: [`${customRoles.length} custom`, `${systemRoles.length} system`] },
         { title:'Form Builder',         icon:'🧩', href:'/settings/forms',       color:'var(--green)',  desc:'Dynamic forms with 17 field types', stats: [`${modules.length} modules`, `${modules.reduce((s, m) => s + (m.forms?.length||0), 0)} forms`] },
-        { title:'Permission Matrix',    icon:'🔐', href:'/settings/permissions', color:'var(--purple)', desc:'Field-level View/Edit/Copy/Mask per role', stats: ['5 flags', `${roles.length} roles`] },
+        // { title:'Permission Matrix',    icon:'🔐', href:'/settings/permissions', color:'var(--purple)', desc:'Field-level View/Edit/Copy/Mask per role', stats: ['5 flags', `${roles.length} roles`] },
       ],
     },
-    {
-      title:'Communication', items:[
-        { title:'Email Templates',      icon:'📧', href:'/settings/email-templates', color:'var(--teal)',   desc:'Branded email templates for all flows', stats:['19 types','Branding'] },
-      ],
-    },
+    // {
+    //   title:'Communication', items:[
+    //     { title:'Email Templates',      icon:'📧', href:'/settings/email-templates', color:'var(--teal)',   desc:'Branded email templates for all flows', stats:['19 types','Branding'] },
+    //   ],
+    // },
   ];
 
   return (

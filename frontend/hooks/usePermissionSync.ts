@@ -1,24 +1,4 @@
 'use client';
-/**
- * usePermissionSocket.ts
- *
- * Handles two types of 'permissions:updated' events:
- *
- * Type A — emitted by permissionBroadcast.middleware (group permission edit):
- *   { eventType: 'permissions_updated', changes: {...}, message, timestamp }
- *   No permissions array, no accessToken.
- *   → Call /auth/me to get fresh permissions for the current user.
- *
- * Type B — emitted by addMember / removeMember / setOverrides (our additions):
- *   { eventType: 'permissions_updated', permissions: string[], accessToken: string }
- *   Sent directly to the AFFECTED employee's room (employee_${targetId}).
- *   → Use the payload directly — no /auth/me needed.
- *
- * The socket room ensures the event only arrives at the correct employee's browser.
- * The admin who triggered the action receives their own event from the broadcast
- * middleware (Type A) and calls /auth/me — which returns their own unchanged permissions.
- * The affected employee receives the Type B event with their new permissions directly.
- */
 
 import { useEffect, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store';
@@ -46,8 +26,6 @@ export function usePermissionSocket() {
   const employeeId = useAppSelector(selectEmployeeId);
   const { companyId } = useCompany();
   const managedCompanies = useAppSelector(selectManagedCompanies)
-  // Called when the event has no embedded permissions (Type A — broadcast middleware).
-  // Fetches the current user's own fresh permissions from the server.
   const refreshFromServer = useCallback(async () => {
     try {
       const res = await authService.getMe();
@@ -77,8 +55,7 @@ export function usePermissionSocket() {
     socketService.register(employeeId);
 
 const unsubscribe = socketService.on("permissions:updated", (payload: any) => {
-  console.log("🔥 PERMISSION EVENT RECEIVED", payload);
-
+  console.log("🔥 PERMISSION EVENT RECEIVED", payload);  
   if (Number(payload.companyId) !== Number(companyId)) {
     console.log("❌ EVENT IGNORED", { eventCompany: payload.companyId, activeCompany: companyId });
     return;

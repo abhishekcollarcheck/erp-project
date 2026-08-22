@@ -50,7 +50,16 @@ export class TrakolaService {
    * Exposed separately from getNormalizedAttendance() so we can inspect
    * the raw parsed shape while confirming column names during testing.
    */
+<<<<<<< HEAD
+  async getParsedReportRows(
+    startDate: string,
+    endDate: string,
+    employeeId?: string,
+    employeeName?: string,
+  ): Promise<Record<string, string | number>[]> {
+=======
   async getParsedReportRows(startDate: string, endDate: string, employeeId?: string): Promise<Record<string, string | number>[]> {
+>>>>>>> 0cbd54f5b46b8acd7b901323047d3be50524a4f0
     if (!TRAKOLA_REPORT_ID) {
       throw new AppError('TRAKOLA_REPORT_ID is not configured', 500);
     }
@@ -63,7 +72,7 @@ export class TrakolaService {
     }
     const allRows = response.rows.map((row) => this.zipRowToObject(response.columns, row));
 
-    if (!employeeId) {
+    if (!employeeId && !employeeName) {
       return allRows;
     }
 
@@ -85,10 +94,10 @@ export class TrakolaService {
       return allRows.filter((row) => this.normalizeEmployeeId(row[COLUMN.employeeId]) === employeeId);
     }
 
-    // if (employeeName) {
-    //   const target = employeeName.trim().toLowerCase();
-    //   return allRows.filter((row) => String(row[COLUMN.employeeName] || '').trim().toLowerCase() === target);
-    // }
+    if (employeeName) {
+      const target = employeeName.trim().toLowerCase();
+      return allRows.filter((row) => String(row[COLUMN.employeeName] || '').trim().toLowerCase() === target);
+    }
 
     // No reliable way to filter by this employee (no Identifier column, no
     // name supplied) — return nothing rather than silently mixing another
@@ -110,7 +119,7 @@ export class TrakolaService {
     employeeId?: string,
     employeeName?: string,
   ): Promise<TrakolaAttendanceRow[]> {
-    const parsedRows = await this.getParsedReportRows(startDate, endDate, employeeId);
+    const parsedRows = await this.getParsedReportRows(startDate, endDate, employeeId, employeeName);
     return parsedRows.map((row) => this.normalizeRow(row));
   }
 

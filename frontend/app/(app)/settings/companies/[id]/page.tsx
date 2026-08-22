@@ -353,7 +353,7 @@ function AssignManagerModal({ companyId, onClose }: { companyId:number; onClose:
       </>}>
 
       <div style={{ background:'var(--blue-lt)', border:'1px solid var(--blue-md)', borderRadius:'var(--r)', padding:'8px 12px', fontSize:11, color:'var(--blue)', marginBottom:14 }}>
-        ℹ The selected employee keeps their home company unchanged. They get access to this company via the chosen permission group.
+        ℹ The selected employee keeps their home company unchanged. They get access to this company super admin permission.
       </div>
 
       {/* Employee search */}
@@ -383,22 +383,6 @@ function AssignManagerModal({ companyId, onClose }: { companyId:number; onClose:
           );
         })}
       </div>
-
-      {/* Role select */}
-      <div style={{ fontSize:11, fontWeight:600, color:'var(--ink3)', marginBottom:6 }}>Role *</div>
-      <select value={selRoleSlug} onChange={e => setSelRoleSlug(e.target.value)}
-        style={{ width:'100%', padding:'8px 12px', border:'1px solid var(--border2)', borderRadius:'var(--r)', fontSize:12, fontFamily:'var(--font)', background:'var(--surface)', color:'var(--ink)', marginBottom:12 }}>
-        {companyRoles.map((r:any) => (
-          <option key={r.id} value={r.slug}>{r.name}</option>
-        ))}
-      </select>
-
-      {/* Confirmation */}
-      {selEmp && selRoleSlug && (
-        <div style={{ padding:'8px 12px', background:'var(--green-lt,#f0fdf4)', border:'1px solid var(--green-bd,#bbf7d0)', borderRadius:'var(--r)', fontSize:11, color:'var(--green)' }}>
-          ✓ <strong>{selEmp.full_name ?? `${selEmp.first_name} ${selEmp.last_name}`.trim()}</strong> → <strong>{companyRoles.find((r:any) => r.slug === selRoleSlug)?.name ?? selRoleSlug}</strong>
-        </div>
-      )}
     </Modal>
   );
 }

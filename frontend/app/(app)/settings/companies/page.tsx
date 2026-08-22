@@ -511,7 +511,7 @@ export default function CompaniesPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--surface2)' }}>
-                  {['Company', 'Plan', 'Employees', 'Manager', 'Status', 'Created', ''].map(h => (
+                  {['Company', 'Primary Manager', 'Status', 'Created', 'Action'].map(h => (
                     <th key={h} style={{
                       padding: '10px 14px', textAlign: 'left', fontWeight: 700, fontSize: 10,
                       textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink4)',

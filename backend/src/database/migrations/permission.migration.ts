@@ -36,3 +36,5 @@
 // ADD CONSTRAINT fk_employee_shift
 // FOREIGN KEY (shift_id)
 // REFERENCES shifts(id);
+
+// ALTER TABLE group_permissions DROP INDEX group_permissions_permission_id_group_id_unique;

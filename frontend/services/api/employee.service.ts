@@ -15,7 +15,7 @@ export const employeeService = {
   delete:              (id: number)        => apiClient.delete(`/employees/${id}`),
   summary:             ()                  => apiClient.get('/employees/summary'),
   nextCode:            ()                  => apiClient.get('/employees/next-code'),
-  fieldPermissions:    ()                  => apiClient.get('/employees/field-permissions'),
+  fieldPermissions:    (module: string = 'employees') => apiClient.get('/employees/field-permissions', { params: { module } }),
   managerById:         (id: number)        => apiClient.get(`/employees/managers/${id}`),
   saveDraft:           (data: object)      => apiClient.post('/employees/draft', data),
   getDraft:            (sid: string)       => apiClient.get(`/employees/draft/${sid}`),

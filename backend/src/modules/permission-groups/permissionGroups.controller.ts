@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { sendResponse, sendError } from "../../utils/response";
 import { PermissionGroupService } from './permissionGroups.service';
+import { FormBuilderService } from '../form-builder/formBuilder.service';
 
 const svc = new PermissionGroupService();
+const fbSvc = new FormBuilderService();
 
 // ─── Controllers ──────────────────────────────────────────────────────────────
 
@@ -82,7 +84,6 @@ export async function getGroupPermissions(
     const companyId = req.query.company_id ? +req.query.company_id : req.user!.companyId;
     const group = await svc.getById(+req.params.id, companyId);
     const slugs = (group.permissions ?? []).map(p => p.slug);
-    console.log("Group permissions for group:", { groupId: +req.params.id, companyId, slugs });
     sendResponse(res, { data: slugs });
   } catch (e) {
     next(e);
@@ -95,10 +96,12 @@ export async function setGroupPermissions(
   next: NextFunction,
 ): Promise<void> {
   try {
+    const companyIds = (req.body.companyIds ?? []).map((id: any) => +id);
+    await fbSvc.assertCompaniesManaged(companyIds, req.user!.employeeId, req.user!.isSuperAdmin);
     sendResponse(res, {
       data: await svc.setPermissions(
         +req.params.id,
-        req.user!.companyId,
+        companyIds,
         req.body.slugs,
         req.user!.employeeId,
         req.user!.isSuperAdmin,
@@ -186,4 +189,3 @@ export async function getMyGroups(
 export { PermissionGroupService, svc as permissionGroupService };
 
 // ─── Router ───────────────────────────────────────────────────────────────────
-

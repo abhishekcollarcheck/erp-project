@@ -10,9 +10,10 @@ import { AppError } from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 import { PermissionGroup, UserGroup, GroupPermission } from '../../database/models/PermissionGroups';
 import { refreshEmployeePermission } from '../../utils/refreshEmployeePermission';
-import { CompanyModule, Employee, CompanyManager } from '../../database/models';
+import { Employee, CompanyManager } from '../../database/models';
 import { Permission } from '../../database/models/RoleModels';
 import { getEmployeeFieldOverrides, resolvePermissionsForEmployee } from '../permission-groups/permissionGroupOverrides';
+import { clearPermissionCache } from '../../middleware/rbac.middleware';
 
 // ─── Default system modules seeded on company creation ────────────────────────
 export const SYSTEM_MODULES = [
@@ -487,6 +488,7 @@ export class FormBuilderService {
     }
     for (const [companyId, employeeIds] of byCompany) {
       for (const employeeId of employeeIds) {
+        clearPermissionCache(employeeId);
         await refreshEmployeePermission(employeeId, [companyId]);
       }
     }
@@ -539,6 +541,7 @@ export class FormBuilderService {
       }
       for (const [companyId, employeeIds] of byCompany) {
         for (const employeeId of employeeIds) {
+          clearPermissionCache(employeeId);
           await refreshEmployeePermission(employeeId, [companyId]);
         }
       }
@@ -546,16 +549,21 @@ export class FormBuilderService {
     } catch (e) { await t.rollback(); throw e; }
   }
 
-  // Keeps every field's permission row in sync with its module's current
-  // grants, EVERY time module permissions are saved — not just the first
-  // time a field is exposed. This is a deliberate behavior: if an admin has
-  // manually customized a field (e.g. unchecked edit on one sensitive field
-  // while the module itself stays edit:on), that customization is
-  // OVERWRITTEN back to the module default on the next module-permission
-  // save. There is no is_override flag in FieldPermissionV2 to distinguish
-  // "admin deliberately set this" from "this was an auto-default" — adding
-  // one would let per-field overrides survive a module resync, but that's a
-  // schema change beyond this fix.
+  // Seeds a field's permission row from its module's current grants the
+  // FIRST time that field gets a row for this group+company — a brand-new
+  // field under a newly view-granted module. Once a row exists (whether it
+  // was auto-seeded before or an admin customized it via the Field
+  // Permissions panel), a later module-permission save leaves it alone.
+  // Previously this resynced EVERY field on EVERY module-permission save,
+  // which silently reverted any field-level customization back to the
+  // module default — that's the bug this fixes. Trade-off: toggling a
+  // module's own Edit/Download checkbox no longer cascades into fields that
+  // already have a row; use the Field Permissions panel (Grant All / per
+  // field) to update those explicitly. There is still no is_override flag
+  // in FieldPermissionV2 to distinguish "auto-seeded" from "admin set" — a
+  // schema change would be needed to cascade module Edit/Download changes
+  // while still protecting deliberate per-field overrides; this is the best
+  // fix available without that.
   async applyModuleDefaultsToFields(
     groupId: number,
     companyIds: number[],
@@ -591,6 +599,15 @@ export class FormBuilderService {
         fieldsByModule.get(mid)!.push(f);
       }
 
+      // Fields that already have a permission row for this group+company —
+      // these are left untouched below, whether they were auto-seeded
+      // before or an admin customized them via the Field Permissions panel.
+      const existingRows = await FieldPermissionV2.findAll({
+        where: { company_id: companyId, group_id: groupId, field_id: fields.map(f => f.id) },
+        attributes: ['field_id'],
+      });
+      const existingFieldIds = new Set(existingRows.map(r => r.field_id));
+
       const toCreate: any[] = [];
       const toRemove: number[] = [];
 
@@ -609,16 +626,15 @@ export class FormBuilderService {
         const edit = granted.has(`${key}:edit`);
         const down = granted.has(`${key}:download`);
 
-        // Always resync — every field under a view-granted module gets its
-        // row upserted fresh from the module's CURRENT edit/download grants,
-        // regardless of whether a row already existed. can_copy mirrors
-        // can_view (no separate module-level "copy" permission exists
-        // anywhere in PERMS/MODULE_PERM_ACTIONS to drive it independently —
-        // this is intentional, not an arbitrary hardcode).
+        // Seed defaults only for fields with no existing row yet — see the
+        // function comment above for why existing rows are never
+        // overwritten here. can_copy defaults to false: granting View no
+        // longer implies Copy, that's now a separate deliberate grant.
         for (const f of modFields) {
+          if (existingFieldIds.has(f.id)) continue;
           toCreate.push({
             company_id: companyId, group_id: groupId, field_id: f.id,
-            can_view: true, can_edit: edit, can_copy: true,
+            can_view: true, can_edit: edit, can_copy: false,
             can_download: down, is_masked: !!f.is_hidden,
           });
         }
@@ -679,8 +695,7 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
     // ── Module gate: no module view ⇒ no fields, whatever the field rows say ──
     const moduleSlugs = await this.resolveModuleSlugs(employeeId, companyId, groupIds);
     if (!moduleKey || !moduleSlugs.has(`${moduleKey}:view`)) return denyAll();
-    const moduleEdit     = moduleSlugs.has(`${moduleKey}:edit`);
-    const moduleDownload = moduleSlugs.has(`${moduleKey}:download`);
+    const moduleEdit = moduleSlugs.has(`${moduleKey}:edit`);
 
     const [perms, fieldOv] = await Promise.all([
       FieldPermissionV2.findAll({
@@ -707,8 +722,16 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
       if (ov.mask     !== undefined) is_masked    = ov.mask;
 
       // ── Module ceiling ──
-      can_edit     = can_edit     && moduleEdit;
-      can_download = can_download && moduleDownload;
+      // Only can_edit is capped by its module-level counterpart. can_copy
+      // never had a module-level equivalent to begin with (no "copy" action
+      // exists in module-level PERMS), and can_download now matches that —
+      // a field's Download grant is independent of the module's own
+      // Download permission, not a subset of it. Previously can_download
+      // was ANDed with moduleDownload here, which meant checking Download
+      // on a field silently had no effect unless the module's own Download
+      // checkbox was also on — confusing for an admin who'd already saved
+      // the field-level grant successfully.
+      can_edit = can_edit && moduleEdit;
 
       // ── Dependency rule (mirrors the UI's toggle logic) ──
       if (!can_view) { can_edit = false; can_copy = false; can_download = false; is_masked = false; }
@@ -738,16 +761,34 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
   }
 
   /** Employee's effective module slugs: group grants + module-level overrides. */
-  private async resolveModuleSlugs(
+  /**
+   * Employee's effective module slugs: group grants + module-level overrides.
+   * Public on purpose — this is the single source of truth for "does this
+   * employee have module-level access", reused by resolveFormPermissions()
+   * here AND by employee.service.ts's getFieldPermissions() so both field-
+   * permission paths apply the exact same module gate instead of drifting
+   * into two different implementations.
+   */
+  async resolveModuleSlugs(
     employeeId: number, companyId: number, groupIds: number[],
   ): Promise<Set<string>> {
+    // company_id filter matters here: GroupPermission rows are company-scoped,
+    // and a group can have members in several companies at once. Without this
+    // filter, the `moduleKey:view` gate in resolveFormPermissions() could be
+    // wrong for THIS company — which means it could deny the whole form
+    // (denyAll()) before field-level overrides ever get evaluated, even when
+    // the override rows themselves are saved correctly.
+    // Association is GroupPermission.belongsTo(Permission, { as: 'permission' })
+    // (confirmed in Associations.ts) — the alias is required and must match
+    // exactly (lowercase 'permission'), both in the include and the access
+    // key below.
     const rows = await GroupPermission.findAll({
-      where: { group_id: groupIds },
-      include: [{ model: Permission, attributes: ['slug'] }],
+      where: { group_id: groupIds, company_id: companyId },
+      include: [{ model: Permission, as: 'permission', attributes: ['slug'] }],
     });
     const set = new Set<string>();
     for (const r of rows) {
-      const slug = (r as any).Permission?.slug;
+      const slug = (r as any).permission?.slug;
       if (slug) set.add(slug);
     }
     return resolvePermissionsForEmployee(employeeId, companyId, groupIds, set);

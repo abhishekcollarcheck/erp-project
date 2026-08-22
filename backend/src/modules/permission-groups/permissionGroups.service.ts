@@ -11,6 +11,7 @@ import { CompanyManager } from "../../database/models";
 import { refreshEmployeePermission } from "../../utils/refreshEmployeePermission";
 import { refreshEmployeeCompanies } from "../../utils/refreshEmployeeCompanies";
 import { FormBuilderService } from '../form-builder/formBuilder.service';
+import { resolvePermissionsForEmployee } from './permissionGroupOverrides';
 
 
 const fbSvc = new FormBuilderService();
@@ -23,7 +24,10 @@ export class PermissionGroupService {
           model: Permission,
           as: "permissions",
           attributes: ["id", "slug", "module", "action"],
-          through: { attributes: [] },
+          // company_id filter on the junction row — same reasoning as
+          // getById(): a group shared across companies would otherwise
+          // show whichever company's permissions were saved, not this one.
+          through: { attributes: [], where: { company_id: companyId } },
         },
       ],
       order: [
@@ -52,7 +56,18 @@ export class PermissionGroupService {
     const group = await PermissionGroup.findOne({
       where: { id },
       include: [
-        { model: Permission, as: "permissions", through: { attributes: [] } },
+        {
+          model: Permission,
+          as: "permissions",
+          // company_id filter on the junction row — without this, a group
+          // shared across companies (see resolveGroupCompanyScope) returns
+          // whichever company's permissions were saved, not necessarily
+          // THIS company's. This directly feeds groupBaseModPerms in
+          // GroupDetail.tsx (via useGroupPerms), which decides which
+          // modules get checked for field-level overrides and what
+          // "previous" value the override diff panel displays.
+          through: { attributes: [], where: { company_id: companyId } },
+        },
       ],
     });
     if (!group) throw new AppError("Permission group not found", 404);
@@ -151,51 +166,78 @@ export class PermissionGroupService {
 
   // ── Permission assignment ────────────────────────────────────────────────────
 
-  async setPermissions(
-    id: number,
-    companyId: number,
-    slugs: string[],
-    updatedBy?: number,
-    isSuperAdmin = false,
-  ) {
+async setPermissions(
+  id: number,
+  companyIds: number[],
+  slugs: string[],
+  updatedBy?: number,
+  isSuperAdmin = false,
+) {
+  const uniqueCompanyIds = [...new Set(companyIds)];
 
-    await this.getById(id, companyId);
-
-    const permissions = await Permission.findAll({
-      where: { slug: [...new Set(slugs)] },
-    });
-    // Fix: remove ALL existing rows for this group, regardless of any
-    // legacy/missing company_id value — group_id alone is a sufficient,
-    // unambiguous scope since a group belongs to exactly one company.
-    await GroupPermission.destroy({
-      where: { group_id: id },
-    });
-
-    await GroupPermission.bulkCreate(
-      permissions.map((p) => ({
-        group_id: id,
-        company_id: companyId,
-        permission_id: p.id,
-      }))
-    );
-    const companyIds = await fbSvc.resolveGroupCompanyScope(id, updatedBy!, isSuperAdmin);
-    await fbSvc.applyModuleDefaultsToFields(
-      id, companyIds, permissions.map(p => p.slug), updatedBy,
-    );
-    const userGroups = await UserGroup.findAll({ where: { group_id: id } });
-    for (const ug of userGroups) {
-      await refreshEmployeePermission(
-        ug.employee_id,
-        [ug.company_id],
-      );
-      clearPermissionCache(ug.employee_id);
-    }
-
-    // await refreshEmployeeCompanies(employee_Id);
-    // await refreshEmployeePermission(employeeId, added);
-
-    return { groupId: id, slugs, updated: permissions.length };
+  if (!uniqueCompanyIds.length) {
+    throw new Error("At least one company must be selected");
   }
+
+  const permissions = await Permission.findAll({
+    where: {
+      slug: [...new Set(slugs)],
+    },
+  });
+
+  // Remove existing permissions for selected companies
+  await GroupPermission.destroy({
+    where: {
+      group_id: id,
+      company_id: uniqueCompanyIds,
+    },
+  });
+
+  // Create permissions for every selected company
+  const rows = uniqueCompanyIds.flatMap((companyId) =>
+    permissions.map((p) => ({
+      group_id: id,
+      company_id: companyId,
+      permission_id: p.id,
+    }))
+  );
+
+  if (rows.length) {
+    await GroupPermission.bulkCreate(rows);
+  }
+
+  // Apply module defaults to fields for all selected companies
+  await fbSvc.applyModuleDefaultsToFields(
+    id,
+    uniqueCompanyIds,
+    permissions.map(p => p.slug),
+    updatedBy,
+  );
+
+  // Refresh only users belonging to the affected companies
+  const userGroups = await UserGroup.findAll({
+    where: {
+      group_id: id,
+      company_id: uniqueCompanyIds,
+    },
+  });
+
+  for (const ug of userGroups) {
+    await refreshEmployeePermission(
+      ug.employee_id,
+      [ug.company_id],
+    );
+
+    clearPermissionCache(ug.employee_id);
+  }
+
+  return {
+    groupId: id,
+    companyIds: uniqueCompanyIds,
+    slugs,
+    updated: permissions.length,
+  };
+}
 
   async getEmployeePermissions(employeeId: number, companyId: number) {
     const groups = await UserGroup.findAll({
@@ -207,20 +249,13 @@ export class PermissionGroupService {
 
     const groupIds = groups.map((g) => g.group_id);
 
+    // company_id filter here matters: GroupPermission rows are company-scoped,
+    // and a group can have members in several companies at once — without
+    // this filter, the baseline would include permissions saved for ANY
+    // company that shares this group, not just this one.
     const groupPermissions = await GroupPermission.findAll({
       where: {
         group_id: groupIds,
-      },
-      include: [
-        {
-          model: Permission,
-        },
-      ],
-    });
-
-    const overrides = await EmployeePermission.findAll({
-      where: {
-        employee_id: employeeId,
         company_id: companyId,
       },
       include: [
@@ -236,19 +271,14 @@ export class PermissionGroupService {
       finalPermissions.add((gp as any).Permission.slug);
     }
 
-    const grants = overrides.filter((o) => o.type === "grant");
-
-    const revokes = overrides.filter((o) => o.type === "revoke");
-
-    for (const grant of grants) {
-      finalPermissions.add((grant as any).Permission.slug);
-    }
-
-    for (const revoke of revokes) {
-      finalPermissions.delete((revoke as any).Permission.slug);
-    }
-
-    return [...finalPermissions];
+    // Apply the employee's actual module-level overrides — EmployeePermissionOverride
+    // is what the override UI (setOverrides) and the runtime resolver
+    // (resolveModuleSlugs in formBuilder.service.ts) both read/write.
+    // EmployeePermission (a separate, differently-shaped model — `type`
+    // grant/revoke vs `granted` boolean) is never written to anywhere in
+    // this codebase, so reading it here silently ignored every override an
+    // admin ever set.
+    return [...(await resolvePermissionsForEmployee(employeeId, companyId, groupIds, finalPermissions))];
   }
 
   // ── Member management ────────────────────────────────────────────────────────
@@ -330,7 +360,7 @@ export class PermissionGroupService {
     const added: number[] = [];
     for (const cid of targetCompanies) {
       // Bug 2 fix: UserGroup.company_id = the TARGET company (cid), not admin's company
-      const [created] = await UserGroup.findOrCreate({
+      const [, created] = await UserGroup.findOrCreate({
         where: { group_id: groupId, employee_id: employeeId, company_id: cid },
         defaults: {
           group_id: groupId,
@@ -354,6 +384,37 @@ export class PermissionGroupService {
             assigned_by: addedBy || null,
           },
         } as any);
+
+        const existingCount = await GroupPermission.count({
+          where: { group_id: groupId, company_id: cid },
+        });
+
+        if (!existingCount) {
+          const sourceRow = await GroupPermission.findOne({ where: { group_id: groupId } });
+
+          if (sourceRow) {
+            const sourcePermRows = await GroupPermission.findAll({
+              where: { group_id: groupId, company_id: sourceRow.company_id },
+              include: [{ model: Permission, as: "permission", attributes: ["id", "slug"] }],
+            });
+
+            if (sourcePermRows.length) {
+              const bulkResult = await GroupPermission.bulkCreate(
+                sourcePermRows.map((p: any) => ({
+                  group_id: groupId,
+                  company_id: cid,
+                  permission_id: p.permission_id,
+                })),
+                { ignoreDuplicates: true },
+              );
+
+              const slugs = sourcePermRows.map((p: any) => p.permission?.slug).filter(Boolean);
+              if (slugs.length) {
+                await fbSvc.applyModuleDefaultsToFields(groupId, [cid], slugs, addedBy);
+              }
+            }
+          }
+        }
       }
     }
 

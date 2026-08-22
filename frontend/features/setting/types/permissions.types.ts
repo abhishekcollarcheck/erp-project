@@ -19,3 +19,30 @@ export interface Employee {
   designation?: string;
   user?: { id: number; email: string };
 }
+
+export type View = 'groups' | 'edit';
+
+export interface Form {
+  id: number;
+  name: string;
+  fields?: Array<{
+    id: number;
+    field_key: string;
+    name: string;
+    [key: string]: any;
+  }>;
+  moduleId?: number;
+  moduleName?: string;
+  moduleKey?: string;
+  [key: string]: any;
+}
+
+export interface Module {
+  id: number;
+  name: string;
+  slug?: string;
+  permission_key?: string;
+  [key: string]: any;
+}
+
+export type ModuleDef = { key: string; label: string };

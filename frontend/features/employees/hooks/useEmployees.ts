@@ -90,21 +90,11 @@ export function useNextCode() {
   });
 }
 
-// ─── Field permissions ────────────────────────────────────────────────────────
-// export function useFieldPermissions() {
-//   return useQuery({
-//     queryKey: EMP_KEYS.fieldPerms,
-//     queryFn: () => employeeService.fieldPermissions(),
-//     staleTime: 0,
-//     select: (res: any) => res.data as Record<string, { can_view: boolean; can_edit: boolean; is_masked: boolean; can_copy: boolean; can_download: boolean }>,
-//   });
-// }
-
-export function useFieldPermissions() {
+export function useFieldPermissions(module: string = 'employees') {
   const activeCompanyId = useAppSelector(selectActiveCompanyId);
   return useQuery({
-    queryKey: EMP_KEYS.fieldPerms,
-    queryFn: () => employeeService.fieldPermissions(),
+    queryKey: [...EMP_KEYS.fieldPerms, module],
+    queryFn: () => employeeService.fieldPermissions(module),
     enabled: activeCompanyId != null,
     select: (res: any) => (activeCompanyId != null ? res.data?.[activeCompanyId] : {}) ?? {},
     staleTime: 0,
