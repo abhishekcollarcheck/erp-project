@@ -2131,7 +2131,7 @@
 
 "use client";
 import { useEffect, useRef } from "react";
-import { useForm, FormProvider, useWatch } from "react-hook-form";
+import { useForm, FormProvider, useWatch, Path, PathValue } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { usePermission } from "../../auth/hooks/usePermission";
@@ -2631,13 +2631,12 @@ function LeaveBalanceCard({
 
       {caption && (
         <span
-          className={`mt-0.5 text-[10px] font-medium leading-snug ${
-            s.usedUp
+          className={`mt-0.5 text-[10px] font-medium leading-snug ${s.usedUp
               ? "text-rose-600"
               : s.pendingBlocked
                 ? "text-amber-600"
                 : "text-slate-400"
-          }`}
+            }`}
         >
           {caption}
         </span>
@@ -2700,10 +2699,20 @@ export function ApplyLeaveForm({ onSuccess }: Props) {
     formState: { errors },
   } = methods;
 
+  // const setField = <K extends keyof ApplyLeaveFormData>(
+  //   field: K,
+  //   value: ApplyLeaveFormData[K],
+  // ) => setValue(field, value, { shouldValidate: true, shouldDirty: true });
+
   const setField = <K extends keyof ApplyLeaveFormData>(
     field: K,
     value: ApplyLeaveFormData[K],
-  ) => setValue(field, value, { shouldValidate: true, shouldDirty: true });
+  ) =>
+    setValue(
+      field as Path<ApplyLeaveFormData>,
+      value as PathValue<ApplyLeaveFormData, Path<ApplyLeaveFormData>>,
+      { shouldValidate: true, shouldDirty: true },
+    );
 
   const submissionType = useWatch({ control, name: "submission_type" });
   const targetEmployeeId = useWatch({ control, name: "target_employee_id" });

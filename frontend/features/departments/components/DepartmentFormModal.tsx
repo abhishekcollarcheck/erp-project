@@ -4,12 +4,13 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/ui/Modal';
 import { useCreateDepartment, useUpdateDepartment } from '../hooks/useDepartments';
-import { createDepartmentSchema, type CreateDepartmentFormData } from '../validations/department.schema';
+// import { createDepartmentSchema, type CreateDepartmentFormData } from '../validations/department.schema';
 import type { Department } from '../../../services/api/department.service';
 import { FormInput } from '../../../components/form/FormInput';
 import { FormSelect } from '../../../components/form/FormSelect';
 import { useFieldPermissions, resolveFieldPerm } from '../../employees/hooks/useEmployees';
 import { FormSection } from '../../../components/form/FormSection';
+import { CreateDepartmentFormData, createDepartmentSchema } from '../validations/department.schema';
 
 interface Props {
   open: boolean;

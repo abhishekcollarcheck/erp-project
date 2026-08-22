@@ -1644,7 +1644,7 @@ export default function AttendancePage() {
                           {r.isRegularized && (
                             <Chip
                               variant="green"
-                              style={{ marginLeft: 6 }}
+                              // style={{ marginLeft: 6 }}
                             >
                               Regularized
                             </Chip>
