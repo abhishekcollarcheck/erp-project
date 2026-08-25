@@ -5,11 +5,11 @@
  */
 
 // F6
-export const EMPLOYEE_STATUS = ['Active', 'Left', 'Retired'] as const;
+export const EMPLOYEE_STATUS = ['Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive'] as const;
 export type EmployeeStatus = typeof EMPLOYEE_STATUS[number];
 
 // E15
-export const EMPLOYMENT_TYPE = ['Permanent', 'Contractual'] as const;
+export const EMPLOYMENT_TYPE = ['Permanent', 'Contract', 'Intern', 'Consultant', 'Probation'] as const;
 export type EmploymentType = typeof EMPLOYMENT_TYPE[number];
 
 // B50 (Yes/No fields — used across many cells)
@@ -28,7 +28,7 @@ export const PF_EMPLOYER_FROM = ['Employee', 'Employer', 'N/A'] as const;
 export type PfEmployerFrom = typeof PF_EMPLOYER_FROM[number];
 
 // E75
-export const MEDICLAIM_STATUS = ['Yes', 'No', 'Deactivate'] as const;
+export const MEDICLAIM_STATUS = ['Yes', 'No', 'Not Applicable'] as const;
 export type MediclaimStatus = typeof MEDICLAIM_STATUS[number];
 
 // E81
@@ -36,31 +36,35 @@ export const RD_TERM = ['6 Months', '12 Months', '18 Months', '24 Months', '30 M
 export type RdTerm = typeof RD_TERM[number];
 
 // B97 / F97
-export const HOUSE_TYPE = ['Own', 'Rent'] as const;
+export const HOUSE_TYPE = ['Owned', 'Rented', 'Company Provided', 'PG / Hostel', 'Other'] as const;
 export type HouseType = typeof HOUSE_TYPE[number];
 
 // F95
-export const PERM_ADDRESS_TYPE = ['Same as Present', 'Other'] as const;
+export const PERM_ADDRESS_TYPE = ['Same as Present', 'Different', 'Not Applicable'] as const;
 export type PermAddressType = typeof PERM_ADDRESS_TYPE[number];
 
 // B152
-export const FATHER_SALUTATION = ['Mr.', 'Late'] as const;
+export const FATHER_SALUTATION = ['Mr.', 'Dr.', 'Late'] as const;
 export type FatherSalutation = typeof FATHER_SALUTATION[number];
 
 // E154 — Mother's salutation
-export const MOTHER_SALUTATION = ['Mrs.', 'Late'] as const;
+export const MOTHER_SALUTATION = ['Mrs.', 'Ms.', 'Dr.', 'Late'] as const;
 export type MotherSalutation = typeof MOTHER_SALUTATION[number];
 
-// B154 — Father's occupation status
+// B154 — DEPRECATED: father_status column was dropped from employee_family
+// (schema now uses a single free-text father_occupation field, matching the UI).
+// Left exported in case other files still reference this type.
 export const PARENT_OCCUPATION_STATUS = ['Working', 'Retired', 'Not Applicable'] as const;
 export type ParentOccupationStatus = typeof PARENT_OCCUPATION_STATUS[number];
 
-// E156 — Mother's occupation (adds 'House Wife')
+// E156 — DEPRECATED: mother_occupation is now free text in the schema (matching
+// the UI's plain text input), not this constrained enum. Left exported in case
+// other files still reference this type.
 export const MOTHER_OCCUPATION_STATUS = ['Working', 'Retired', 'Not Applicable', 'House Wife'] as const;
 export type MotherOccupationStatus = typeof MOTHER_OCCUPATION_STATUS[number];
 
 // B197
-export const SALARY_MODE = ['Transfer', 'Cheque'] as const;
+export const SALARY_MODE = ['Bank Transfer', 'Cash', 'Cheque'] as const;
 export type SalaryMode = typeof SALARY_MODE[number];
 
 // B213, E83
@@ -76,38 +80,40 @@ export const DEDUCTION_MONTHS = [
 export type DeductionMonths = typeof DEDUCTION_MONTHS[number];
 
 // Standard enums not in data validations but implied by form
-export const GENDER = ['Male', 'Female', 'Other', 'Prefer not to say'] as const;
+export const GENDER = ['Male', 'Female'] as const;
 export type Gender = typeof GENDER[number];
 
-export const BLOOD_GROUP = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
+export const BLOOD_GROUP = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Not Available'] as const;
 export type BloodGroup = typeof BLOOD_GROUP[number];
 
-export const MARITAL_STATUS = ['Single', 'Married', 'Divorced', 'Widowed', 'Separated'] as const;
+export const MARITAL_STATUS = ['Unmarried', 'Married', 'Divorced', 'Widow', 'Widower'] as const;
 export type MaritalStatus = typeof MARITAL_STATUS[number];
 
 // AMDB % from salary calculator (Row 5, cell K5 = 0.3)
 export const AMDB_PERCENTAGE = 0.30;
 
-// Wizard steps — ordered exactly as spreadsheet sections
+// Wizard steps — 3 parts: HR (7 steps) → Candidate self-service (5 steps) → Finalize (1 step)
 export const WIZARD_STEPS = [
-  { key: 'basic',               label: 'Basic Info',             icon: 'user',         required: true,  sensitive: false },
-  { key: 'employment',          label: 'Employment Details',     icon: 'briefcase',    required: true,  sensitive: false },
-  { key: 'reporting',           label: 'Reporting & Contact',    icon: 'users',        required: true,  sensitive: false },
-  { key: 'commitment',          label: 'Commitment & Probation', icon: 'calendar',     required: true,  sensitive: false },
-  { key: 'schemes',             label: 'Enrolled Schemes',       icon: 'shield',       required: true,  sensitive: false },
-  { key: 'personal',            label: 'Personal Details',       icon: 'heart',        required: true,  sensitive: false },
-  { key: 'address',             label: 'Address',                icon: 'map-pin',      required: true,  sensitive: false },
-  { key: 'family',              label: 'Family Details',         icon: 'users',        required: true,  sensitive: false },
-  { key: 'emergency',           label: 'Emergency Contact',      icon: 'phone',        required: true,  sensitive: false },
-  { key: 'statutory',           label: 'Documents & Govt IDs',   icon: 'file-text',    required: true,  sensitive: true  },
-  { key: 'bank',                label: 'Bank Details',           icon: 'credit-card',  required: true,  sensitive: true  },
-  { key: 'experience',          label: 'Experience & Education', icon: 'book',         required: true,  sensitive: false },
-  { key: 'salary',              label: 'Salary & Asset Deduction','icon': 'indian-rupee', required: true, sensitive: true },
-  { key: 'onboarding_docs',     label: 'Onboarding Documents',   icon: 'check-square', required: true,  sensitive: false },
-  { key: 'review',              label: 'Review & Submit',        icon: 'check-circle', required: true,  sensitive: false },
+  // ── Part 1 · HR ────────────────────────────────────────────────────────────
+  { key: 'role_identity',        label: 'Role & Identity',         icon: 'user',         part: 'hr',        required: true, sensitive: false },
+  { key: 'location_attendance',  label: 'Location & Attendance',   icon: 'briefcase',    part: 'hr',        required: true, sensitive: false },
+  { key: 'managers_work_contact',label: 'Managers & Work Contact', icon: 'users',        part: 'hr',        required: true, sensitive: false },
+  { key: 'commitment_probation', label: 'Commitment & Probation',  icon: 'calendar',     part: 'hr',        required: true, sensitive: false },
+  { key: 'statutory_schemes',    label: 'Statutory Schemes',       icon: 'shield',       part: 'hr',        required: true, sensitive: false },
+  { key: 'compensation',         label: 'Compensation',            icon: 'indian-rupee', part: 'hr',        required: true, sensitive: true  },
+  { key: 'hr_joining_checklist', label: 'HR Joining Checklist',    icon: 'check-square', part: 'hr',        required: true, sensitive: false },
+  // ── Part 2 · Candidate (self-service portal) ──────────────────────────────
+  { key: 'personal_profile',     label: 'Personal Profile',        icon: 'heart',        part: 'candidate', required: true, sensitive: false },
+  { key: 'address',              label: 'Address',                 icon: 'map-pin',      part: 'candidate', required: true, sensitive: false },
+  { key: 'family_emergency',     label: 'Family & Emergency',      icon: 'users',        part: 'candidate', required: true, sensitive: false },
+  { key: 'ids_bank',             label: 'IDs & Bank',              icon: 'credit-card',  part: 'candidate', required: true, sensitive: true  },
+  { key: 'experience_education', label: 'Experience & Education',  icon: 'book',         part: 'candidate', required: true, sensitive: false },
+  // ── Finalize ───────────────────────────────────────────────────────────────
+  { key: 'review',               label: 'Review & Submit',         icon: 'check-circle', part: 'review',    required: true, sensitive: false },
 ] as const;
 
 export type StepKey = typeof WIZARD_STEPS[number]['key'];
+export type WizardPart = typeof WIZARD_STEPS[number]['part'];
 
 // Masked fields for field-level permissions
 export const SENSITIVE_FIELDS = [
@@ -117,21 +123,23 @@ export const SENSITIVE_FIELDS = [
   'last_inhand_salary',
 ] as const;
 
-// Step completion weights (must total 100)
-export const STEP_WEIGHTS: Record<StepKey, number> = {
-  basic: 15,
-  employment: 12,
-  reporting: 8,
-  commitment: 5,
-  schemes: 8,
-  personal: 8,
-  address: 5,
-  family: 5,
-  emergency: 4,
-  statutory: 8,
-  bank: 8,
-  experience: 4,
-  salary: 8,
-  onboarding_docs: 4,
-  review: 0,
+// Step completion weights — two independent pools, each summing to 100:
+// HR part (7 steps) and Candidate part (5 steps). 'review' carries no weight
+// in either pool since it's the finalize step, not a data-entry step.
+export const HR_STEP_WEIGHTS: Record<string, number> = {
+  role_identity:         25,
+  location_attendance:   20,
+  managers_work_contact: 15,
+  commitment_probation:  10,
+  statutory_schemes:     15,
+  compensation:          10,
+  hr_joining_checklist:  5,
+};
+
+export const CANDIDATE_STEP_WEIGHTS: Record<string, number> = {
+  personal_profile:      20,
+  address:               15,
+  family_emergency:      20,
+  ids_bank:               30,
+  experience_education:  15,
 };

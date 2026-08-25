@@ -28,7 +28,7 @@ export async function connectDatabase(): Promise<void> {
     logger.info('Database connection established');
 
     if (env.nodeEnv === 'development') {
-      await sequelize.sync({alter: false});
+      await sequelize.sync({alter: true, logging: console.log});
     }
 
   }catch (error: any) {
@@ -42,7 +42,6 @@ export async function connectDatabase(): Promise<void> {
   console.error("Stack:", error?.stack);
   console.error("Original:", error?.original);
   console.error("====================================");
-
   process.exit(1);
 }
 }

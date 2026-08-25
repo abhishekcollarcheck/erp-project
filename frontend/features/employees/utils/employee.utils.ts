@@ -54,10 +54,14 @@ export function getFullName(emp: Pick<Employee, 'first_name' | 'middle_name' | '
 /** Status → chip variant */
 export function statusVariant(status: EmployeeStatus): 'green' | 'amber' | 'red' | 'gray' {
   switch (status) {
-    case 'Active':  return 'green';
-    case 'Left':    return 'red';
-    case 'Retired': return 'gray';
-    default:        return 'gray';
+    case 'Active':     return 'green';
+    case 'On Notice':  return 'amber';
+    case 'Left':       return 'red';
+    case 'Relieved':   return 'red';
+    case 'Absconded':  return 'red';
+    case 'Retired':    return 'gray';
+    case 'Inactive':   return 'gray';
+    default:           return 'gray';
   }
 }
 

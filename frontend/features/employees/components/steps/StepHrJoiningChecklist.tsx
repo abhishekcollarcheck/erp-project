@@ -1,6 +1,5 @@
 'use client';
 import { useFormContext } from 'react-hook-form';
-import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { FormSection } from '@/components/form/FormSection';
 
 const DOCS = [
@@ -15,14 +14,21 @@ const DOCS = [
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
-export function StepOnboardingDocs(_: Props) {
+export function StepHrJoiningChecklist(_: Props) {
   const { register, watch } = useFormContext();
   const values = watch();
   const complete = DOCS.filter(d => values[d.name]).length;
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      <SectionTitle title="UNG Documentation Checklist" subtitle={`${complete} / ${DOCS.length} documents confirmed`} />
+      <div style={{ fontSize: 12, color: 'var(--ink4)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
+        Exit / resignation fields appear only when Status is On Notice, Relieved, Absconded, or Inactive. Company transfers are done from the employee directory via <strong>Transfer</strong>.
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: 600 }}>
+        Joining Letters
+        <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 11, color: 'var(--ink4)' }}>{complete} / {DOCS.length} confirmed</span>
+      </div>
 
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 600, color: 'var(--ink4)' }}>
@@ -43,6 +49,11 @@ export function StepOnboardingDocs(_: Props) {
             </label>
           );
         })}
+      </div>
+
+      <div className="fg">
+        <label>Remarks If Any</label>
+        <input type="text" placeholder="Optional notes" {...register('remarks')} />
       </div>
 
       {complete < DOCS.length && (

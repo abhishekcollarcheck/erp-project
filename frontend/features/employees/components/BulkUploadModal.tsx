@@ -13,6 +13,7 @@ import { saveAs } from 'file-saver';
 import { Modal } from '../../../components/ui/Modal';
 import { useBulkUpload } from '../hooks/useEmployees';
 import type { BulkUploadResult } from '../types/employee.types';
+import { DEPARTMENT_OPTIONS, DESIGNATION_OPTIONS } from '../constants/employee.constants';
 
 interface Props {
   open: boolean;
@@ -23,16 +24,18 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 const ACCEPTED_EXTENSIONS = ['csv', 'xlsx', 'xls'];
 
-// Keep only essential fields
+// employee_code removed — it's never uploadable, generated automatically once
+// HR + Candidate parts both reach 100% completion. company/department/
+// designation hold NAME strings (not raw IDs) — the backend maps these
+// names to their actual FK IDs.
 const HEADERS = [
-  'employee_code',
   'first_name',
   'last_name',
   'email',
   'phone',
-  'company_id',
-  'department_id',
-  'designation_id',
+  'company',
+  'department',
+  'designation',
   'date_of_birth',
   'gender',
   'date_of_joining',
@@ -42,12 +45,11 @@ const HEADERS = [
 ];
 
 const SAMPLE_ROW = [
-  '28',
   'Priya',
   'Kumari',
   'priya@company.com',
   '+919876543210',
-  'Collarcheck',
+  'Collar Check Pvt. Ltd.',
   'Commercial',
   'Accountant',
   '1995-07-15',
@@ -58,47 +60,25 @@ const SAMPLE_ROW = [
   'Active',
 ];
 
-// Dropdown options
+// Dropdown options — company names must match the real company records exactly
 const VALID_COMPANIES = [
   'Narula Exports',
-  'Med Freshe',
-  'Greenvac Solutions',
-  'Collarcheck',
+  'Med Freshe Pvt. Ltd.',
+  'Greenvac Solutions Pvt. Ltd.',
+  'Collar Check Pvt. Ltd.',
 ];
 
-const VALID_DEPARTMENTS = [
-  'Commercial',
-  'Accounts',
-  'HR',
-  'IT',
-  'Sales',
-  'Admin',
-  'Operations',
-  'Marketing',
-];
+// Full real department/designation lists (label only — the backend resolves
+// these names to their actual department_id/designation_id via lookup).
+// Too long for Excel's inline dropdown (255-char limit), so these are
+// validated via a hidden helper sheet + named range instead — see
+// applyListSheetValidation below.
+const VALID_DEPARTMENTS = DEPARTMENT_OPTIONS.map(d => d.label);
+const VALID_DESIGNATIONS = DESIGNATION_OPTIONS.map(d => d.label);
 
-const VALID_DESIGNATIONS = [
-  'Accountant',
-  'Manager',
-  'Senior Manager',
-  'Executive',
-  'Engineer',
-  'Developer',
-  'Coordinator',
-  'Supervisor',
-];
+const VALID_GENDERS = ['Male', 'Female'];
 
-const VALID_GENDERS = [
-  'Male',
-  'Female',
-  'Other',
-];
-
-const VALID_STATUS = [
-  'Active',
-  'Inactive',
-  'Leave',
-];
+const VALID_STATUS = ['Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive'];
 
 const BOOLEAN_OPTIONS = ['true', 'false'];
 
@@ -221,6 +201,32 @@ export function BulkUploadModal({
     }
   };
 
+  // For lists too long for Excel's 255-char inline dropdown limit (department
+  // has 32 entries, designation has 76 — both exceed it), write the values to
+  // a hidden helper sheet and reference that range instead.
+  const applyListSheetValidation = (
+    workbook: ExcelJS.Workbook,
+    sheet: ExcelJS.Worksheet,
+    column: string,
+    sheetName: string,
+    values: string[],
+  ) => {
+    const listSheet = workbook.addWorksheet(sheetName, { state: 'veryHidden' });
+    values.forEach((v, i) => { listSheet.getCell(`A${i + 1}`).value = v; });
+
+    for (let row = 2; row <= 500; row++) {
+      sheet.getCell(`${column}${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`${sheetName}!$A$1:$A$${values.length}`],
+        showErrorMessage: true,
+        errorStyle: 'error',
+        errorTitle: 'Invalid value',
+        error: 'Please select a value from the dropdown',
+      } as any;
+    }
+  };
+
   const downloadTemplate = async () => {
     try {
       const workbook = new ExcelJS.Workbook();
@@ -262,8 +268,8 @@ export function BulkUploadModal({
       });
 
       // Date Formats
-      sheet.getColumn(9).numFmt = 'yyyy-mm-dd'; // date_of_birth
-      sheet.getColumn(11).numFmt = 'yyyy-mm-dd'; // date_of_joining
+      sheet.getColumn(8).numFmt = 'yyyy-mm-dd'; // date_of_birth
+      sheet.getColumn(10).numFmt = 'yyyy-mm-dd'; // date_of_joining
 
       // Freeze Header
       sheet.views = [
@@ -276,37 +282,43 @@ export function BulkUploadModal({
       // Filters
       sheet.autoFilter = {
         from: 'A1',
-        to: `N${sheet.rowCount}`,
+        to: `M${sheet.rowCount}`,
       };
 
-      // Dropdowns - only for specific columns
+      // Dropdowns — short lists use inline validation, long lists (department/
+      // designation) use a hidden helper sheet since they exceed Excel's
+      // 255-character inline dropdown limit.
       applyDropdownValidation(
         sheet,
-        'F',
+        'E',
         VALID_COMPANIES,
       );
 
-      applyDropdownValidation(
+      applyListSheetValidation(
+        workbook,
         sheet,
-        'G',
+        'F',
+        '_DepartmentList',
         VALID_DEPARTMENTS,
       );
 
-      applyDropdownValidation(
+      applyListSheetValidation(
+        workbook,
         sheet,
-        'H',
+        'G',
+        '_DesignationList',
         VALID_DESIGNATIONS,
       );
 
       applyDropdownValidation(
         sheet,
-        'J',
+        'I',
         VALID_GENDERS,
       );
 
       applyDropdownValidation(
         sheet,
-        'N',
+        'M',
         VALID_STATUS,
       );
 
@@ -514,7 +526,7 @@ export function BulkUploadModal({
                   color: 'var(--ink4)',
                 }}
               >
-                14 columns with dropdowns and sample data
+                13 columns with dropdowns and sample data
               </div>
             </div>
 
@@ -558,9 +570,9 @@ export function BulkUploadModal({
           >
             <strong>Validation rules:</strong>
             <br />
-            • email must be unique per company
+            • email must be globally unique (across all companies)
             <br />
-            • phone must be unique per company
+            • phone must be globally unique (across all companies)
             <br />
             • date_of_birth and date_of_joining must be yyyy-mm-dd format
             <br />

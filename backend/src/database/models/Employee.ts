@@ -1,45 +1,50 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. employees  (core identity + employment + auth — single source of truth)
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 1 (HR) · Role & Identity  +  STEP 2 (HR) · Location & Attendance
+// +  STEP 3 (HR) · Managers & Work Contact  — all on the `employees` table
+// ═════════════════════════════════════════════════════════════════════════════
 interface EmployeeAttrs {
   id:                     number;
-  employee_code:          string;
-  reference_code:         string | null;
-  company_id:             number;
+  avatar_url?:            string | null;
+  employee_code:          string;   // generated automatically once HR+Candidate parts both reach 100%
+  reference_code:         string | null;   // generated immediately at creation
+  status:                 'Active' | 'Left' | 'Retired' | 'On Notice' | 'Relieved' | 'Absconded' | 'Inactive';
   first_name:             string;
   middle_name?:           string | null;
   last_name:              string;
-  status:                 'Active' | 'Left' | 'Retired';
-  employment_type:        'Permanent' | 'Contractual';
-  email:                  string | null;
-  phone:                  string | null;
-  department_id?:         number;
-  sub_department_id?:     number | null;
-  designation_id?:        number;
-  sub_designation?:       string | null;
+  company_id:             number;
+  employment_type:        'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
+  department_id:          number;
+  sub_department_id:      number | null;
+  designation_id:         number;
+  sub_designations:     number | null;
+  // Step 1 · Portal invite contact (personal email/mobile — required)
+  email:                  string;   // = "Personal Email" in the UI
+  phone:                  string;   // = "Personal Mobile Number" in the UI
 
-  // Reporting — INTEGER FK into employees.id (not employee_code string)
-  l1_manager_id?:         number | null;  // FK → employees.id
-  l2_manager_id?:         number | null;  // FK → employees.id
+  // Step 2 · Location & Attendance
+  working_state_country:  string | null;   // single combined field, e.g. "Delhi, India"
+  working_city:            string | null;
+  working_site:            string | null;
+  pay_register_location:   string | null;
+  actual_doj:              Date | null;    // "Date of Joining" (required once this step is filled)
+  current_doj:             Date | null;
+  weekly_off:               string | null;  // renamed from saturday_off to match UI label exactly
+  shift_id:                 number;
+  grace_minutes:            number;  // stored as minutes even though UI shows "15 minutes"/"1 hour" labels
 
-  actual_doj?:            Date | null;
-  current_doj?:           Date | null;
-  working_site?:          string | null;
-  working_city?:          string | null;
-  working_state_country?: string | null;
-  pay_register_location?: string | null;
-  shift_id?:              number | null;
-  saturday_off:           string | null;
-  grace_minutes:          number;
+  // Step 3 · Managers & Work Contact
+  l1_manager_id:           number | null;
+  l2_manager_id?:          number | null;
+  official_email?:         string | null;   // "Work Email" — separate from personal email, optional
+  official_mobile?:        string | null;   // "Work Mobile" — separate from personal mobile, optional
+
   form_completion_pct:    number;
-  avatar_url?:            string | null;
 
-  // ── Auth fields (no separate users table — employee IS the user) ─────────
-  portal_access:          boolean;    // controls login ability, independent of HR status
-  is_super_admin:         boolean;    // bypasses ALL permission checks
+  portal_access:          boolean;
+  is_super_admin:         boolean;
   otp_hash?:              string | null;
   otp_expires?:           Date | null;
   otp_attempts:           number;
@@ -49,22 +54,21 @@ interface EmployeeAttrs {
   last_login_at?:         Date | null;
   must_change_password:   boolean;
 
-  // ── Meta ──────────────────────────────────────────────────────────────────
   created_by?:            number | null;
   updated_by?:            number | null;
   deleted_by?:            number | null;
   created_at?:            Date;
   updated_at?:            Date;
-  deleted_at?:            Date | null;
+  deleted_at?:             Date | null;
 }
 
 type EmployeeCreation = Optional<EmployeeAttrs,
-  'id' | 'reference_code' | 'middle_name' | 'sub_designation'
-  | 'l1_manager_id' | 'l2_manager_id' | 'email' | 'phone'
-  | 'actual_doj' | 'current_doj' | 'working_site' | 'working_city'
-  | 'working_state_country' | 'pay_register_location' | 'shift_id'
-  | 'saturday_off' | 'grace_minutes' | 'form_completion_pct' | 'avatar_url'
-  | 'portal_access' | 'is_super_admin' | 'otp_hash' | 'otp_expires'
+  'id' | 'avatar_url' | 'employee_code' | 'reference_code' | 'middle_name'
+  | 'sub_department_id' | 'sub_designations'
+  | 'working_state_country' | 'working_city' | 'working_site' | 'pay_register_location'
+  | 'actual_doj' | 'current_doj' | 'weekly_off' | 'shift_id' | 'grace_minutes'
+  | 'l1_manager_id' | 'l2_manager_id' | 'official_email' | 'official_mobile'
+  | 'form_completion_pct' | 'portal_access' | 'is_super_admin' | 'otp_hash' | 'otp_expires'
   | 'otp_attempts' | 'otp_locked_until' | 'refresh_token' | 'refresh_expires'
   | 'last_login_at' | 'must_change_password'
   | 'created_by' | 'updated_by' | 'deleted_by' | 'created_at' | 'updated_at' | 'deleted_at'
@@ -72,33 +76,38 @@ type EmployeeCreation = Optional<EmployeeAttrs,
 
 export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements EmployeeAttrs {
   public id!:                    number;
+  public avatar_url!:            string | null;
   public employee_code!:         string;
   public reference_code!:        string | null;
-  public company_id!:            number;
+  public status!:                'Active' | 'Left' | 'Retired' | 'On Notice' | 'Relieved' | 'Absconded' | 'Inactive';
   public first_name!:            string;
   public middle_name!:           string | null;
   public last_name!:             string;
-  public status!:                'Active' | 'Left' | 'Retired';
-  public employment_type!:       'Permanent' | 'Contractual';
-  public email!:                 string;
-  public phone!:                 string;
+  public company_id!:            number;
+  public employment_type!:       'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
   public department_id!:         number;
   public sub_department_id!:     number | null;
   public designation_id!:        number;
-  public sub_designation!:       string | null;
-  public l1_manager_id!:         number | null;
-  public l2_manager_id!:         number | null;
+  public sub_designations!:    number | null;
+  public email!:                 string;
+  public phone!:                 string;
+
+  public working_state_country!: string | null;
+  public working_city!:          string | null;
+  public working_site!:          string | null;
+  public pay_register_location!: string | null;
   public actual_doj!:            Date | null;
   public current_doj!:           Date | null;
-  public working_site!:          string | null;
-  public working_city!:          string | null;
-  public working_state_country!: string | null;
-  public pay_register_location!: string | null;
-  public shift_id!:              number | null;
-  public saturday_off!:          string | null;
+  public weekly_off!:            string | null;
+  public shift_id!:              number;
   public grace_minutes!:         number;
+
+  public l1_manager_id!:         number | null;
+  public l2_manager_id!:         number | null;
+  public official_email!:        string | null;
+  public official_mobile!:       string | null;
+
   public form_completion_pct!:   number;
-  public avatar_url!:            string | null;
   // Auth
   public portal_access!:         boolean;
   public is_super_admin!:        boolean;
@@ -130,14 +139,17 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
   public schemes?: any;
   public personal?: any;
   public family?: any;
+  public familyMembers?: any[];
   public addresses?: any[];
   public emergencyContacts?: any[];
   public statutory?: any;
+  public vaccinations?: any[];
+  public documents?: any[];
   public bankDetails?: any[];
   public salaries?: any[];
   public assetDeduction?: any;
-  public experience?: any;
-  public education?: any;
+  public experience?: any[];
+  public education?: any[];
   public onboardingDocs?: any;
   public transfers?: any[];
   public exit?: any;
@@ -145,34 +157,38 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
 
 Employee.init({
   id:                     { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  avatar_url:             { type: DataTypes.STRING(500), allowNull: true },
   employee_code:          { type: DataTypes.STRING(30), allowNull: false },
   reference_code:         { type: DataTypes.STRING(50), allowNull: true },
-  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  status:                 { type: DataTypes.ENUM('Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive'), defaultValue: 'Active' },
   first_name:             { type: DataTypes.STRING(100), allowNull: false },
   middle_name:            { type: DataTypes.STRING(100), allowNull: true },
   last_name:              { type: DataTypes.STRING(100), allowNull: false },
-  status:                 { type: DataTypes.ENUM('Active', 'Left', 'Retired'), defaultValue: 'Active' },
-  employment_type:        { type: DataTypes.ENUM('Permanent', 'Contractual'), defaultValue: 'Permanent' },
+  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  employment_type:        { type: DataTypes.ENUM('Permanent', 'Contract', 'Intern', 'Consultant', 'Probation'), defaultValue: 'Permanent' },
+  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  sub_designations:       { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'sub_designations', key: 'id'},onUpdate: 'CASCADE',onDelete: 'SET NULL'},
   email:                  { type: DataTypes.STRING(255), allowNull: false },
   phone:                  { type: DataTypes.STRING(20), allowNull: false },
-  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
-  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: undefined },
-  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, },
-  sub_designation:        { type: DataTypes.STRING(200), allowNull: true },
-  // FK to employees.id — NOT employee_code
-  l1_manager_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  l2_manager_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  actual_doj:             { type: DataTypes.DATEONLY, allowNull: true },
-  current_doj:            { type: DataTypes.DATEONLY, allowNull: true },
-  working_site:           { type: DataTypes.STRING(200), allowNull: true },
-  working_city:           { type: DataTypes.STRING(100), allowNull: true },
-  working_state_country:  { type: DataTypes.STRING(200), allowNull: true },
-  pay_register_location:  { type: DataTypes.STRING(200), allowNull: true },
-  shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'shift', key: 'id',}, onUpdate: 'CASCADE', onDelete: 'SET NULL',},
-  saturday_off:           { type: DataTypes.STRING(200), allowNull: true },
-  grace_minutes:          { type: DataTypes.SMALLINT.UNSIGNED, defaultValue: 0 },
+
+  working_state_country:  { type: DataTypes.STRING(150), allowNull: true },
+  working_city:            { type: DataTypes.STRING(100), allowNull: true },
+  working_site:            { type: DataTypes.STRING(200), allowNull: true },
+  pay_register_location:   { type: DataTypes.STRING(100), allowNull: true },
+  actual_doj:              { type: DataTypes.DATEONLY, allowNull: true },
+  current_doj:             { type: DataTypes.DATEONLY, allowNull: true },
+  weekly_off:               { type: DataTypes.STRING(200), allowNull: true },
+  shift_id:                 { type: DataTypes.BIGINT.UNSIGNED, allowNull: false, references: { model: 'shifts', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+  grace_minutes:            { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+
+  l1_manager_id:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'employees', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+  l2_manager_id:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'employees', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+  official_email:          { type: DataTypes.STRING(255), allowNull: true },
+  official_mobile:         { type: DataTypes.STRING(20), allowNull: true },
+
   form_completion_pct:    { type: DataTypes.TINYINT.UNSIGNED, defaultValue: 0 },
-  avatar_url:             { type: DataTypes.STRING(500), allowNull: true },
   // ── Auth ─────────────────────────────────────────────────────────────────
   portal_access:          { type: DataTypes.BOOLEAN, defaultValue: true },
   is_super_admin:         { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -192,8 +208,8 @@ Employee.init({
   sequelize, tableName: 'employees', modelName: 'Employee',
   paranoid: true, timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at', deletedAt: 'deleted_at',
   indexes: [
-    { unique: true, fields: ['company_id', 'employee_code'], where: { deleted_at: null } },
-    { unique: true, fields: ['company_id', 'reference_code'], where: { deleted_at: null } },
+    { unique: true, fields: ['employee_code'], where: { deleted_at: null } },   // globally unique
+    { unique: true, fields: ['reference_code'], where: { deleted_at: null } }, // globally unique
     { fields: ['company_id', 'status'] },
     { fields: ['department_id'] },
     { fields: ['l1_manager_id'] },
@@ -202,9 +218,12 @@ Employee.init({
   ],
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. employee_commitment_probation
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 4 (HR) · Commitment & Probation
+// Kept the full field set — the simple Yes/No/NA "commitment"/"probation" toggles
+// on screen conditionally reveal these detail fields once set to "Yes" (confirmed
+// in emp-master.js), they are not being removed.
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeCommitmentProbation extends Model {
   public employee_id!:               number;
   public commitment!:                boolean;
@@ -238,9 +257,12 @@ EmployeeCommitmentProbation.init({
   confirmed_on:              { type: DataTypes.DATEONLY, allowNull: true },
 }, { sequelize, tableName: 'employee_commitment_probation', modelName: 'EmployeeCommitmentProbation', timestamps: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. employee_schemes  (PF / ESIC / Mediclaim / RD)
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 5 (HR) · Statutory Schemes  (PF / ESI / Mediclaim / RD)
+// Detail fields (uan, epfo, contribution %s etc.) kept — same reasoning as above.
+// Added the three PF breakdown fields confirmed in emp-master.js
+// (pfEmployee12 / epsEmployer833 / epfEpsDiff367) which weren't in the schema before.
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeSchemes extends Model {
   public employee_id!: number;
   public pf_status!: boolean;
@@ -248,9 +270,12 @@ export class EmployeeSchemes extends Model {
   public epfo_member_id!: string | null;
   public pf_contribution_pct!: number | null;
   public pf_employer_from!: 'Employee' | 'Employer' | 'N/A' | null;
+  public pf_employee_12!: number | null;      // "pfEmployee12" in UI
+  public eps_employer_833!: number | null;    // "epsEmployer833" in UI
+  public epf_eps_diff_367!: number | null;    // "epfEpsDiff367" in UI
   public esic_status!: boolean;
   public esic_number!: string | null;
-  public mediclaim_status!: 'Yes' | 'No' | 'Deactivate';
+  public mediclaim_status!: 'Yes' | 'No' | 'Not Applicable';
   public mediclaim_number!: string | null;
   public mediclaim_amount!: number | null;
   public rd_scheme!: boolean;
@@ -260,6 +285,7 @@ export class EmployeeSchemes extends Model {
   public rd_deduction_from!: 'Salary' | 'AMDB' | 'N/A' | null;
   public rd_amount_employee!: number | null;
   public rd_amount_employer!: number | null;
+  public ttl_m_contribution!: number | null;
   public rd_maturity_date!: Date | null;
   public rd_maturity_amount!: number | null;
   public rd_status!: string | null;
@@ -271,9 +297,12 @@ EmployeeSchemes.init({
   epfo_member_id:      { type: DataTypes.STRING(30), allowNull: true },
   pf_contribution_pct: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
   pf_employer_from:    { type: DataTypes.ENUM('Employee', 'Employer', 'N/A'), allowNull: true },
+  pf_employee_12:      { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+  eps_employer_833:    { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+  epf_eps_diff_367:    { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   esic_status:         { type: DataTypes.BOOLEAN, defaultValue: false },
   esic_number:         { type: DataTypes.STRING(30), allowNull: true },
-  mediclaim_status:    { type: DataTypes.ENUM('Yes', 'No', 'Deactivate'), defaultValue: 'No' },
+  mediclaim_status:    { type: DataTypes.ENUM('Yes', 'No', 'Not Applicable'), defaultValue: 'No' },
   mediclaim_number:    { type: DataTypes.STRING(50), allowNull: true },
   mediclaim_amount:    { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   rd_scheme:           { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -283,18 +312,20 @@ EmployeeSchemes.init({
   rd_deduction_from:   { type: DataTypes.ENUM('Salary', 'AMDB', 'N/A'), allowNull: true },
   rd_amount_employee:  { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   rd_amount_employer:  { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+  ttl_m_contribution:  { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   rd_maturity_date:    { type: DataTypes.DATEONLY, allowNull: true },
   rd_maturity_amount:  { type: DataTypes.DECIMAL(14, 2), allowNull: true },
   rd_status:           { type: DataTypes.STRING(50), allowNull: true },
 }, { sequelize, tableName: 'employee_schemes', modelName: 'EmployeeSchemes', timestamps: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. employee_personal
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 8 (Candidate) · Personal Profile
+// Widened shirt_size/tshirt_size (UI values like "XS (36)" exceed old STRING(10)).
+// marital_status/spouse/children fields moved conceptually to the Family &
+// Emergency step's UI, but stay on this same table (no table split needed).
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeePersonal extends Model {
   public employee_id!: number;
-  public personal_email!: string | null;
-  public personal_mobile!: string | null;
   public date_of_birth!: Date | null;
   public gender!: string | null;
   public shirt_size!: string | null;
@@ -315,16 +346,14 @@ export class EmployeePersonal extends Model {
 }
 EmployeePersonal.init({
   employee_id:     { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-  personal_email:  { type: DataTypes.STRING(255), allowNull: true },
-  personal_mobile: { type: DataTypes.STRING(20), allowNull: true },
   date_of_birth:   { type: DataTypes.DATEONLY, allowNull: true },
-  gender:          { type: DataTypes.ENUM('Male', 'Female', 'Other', 'Prefer not to say'), allowNull: true },
-  shirt_size:      { type: DataTypes.STRING(10), allowNull: true },
-  tshirt_size:     { type: DataTypes.STRING(10), allowNull: true },
+  gender:          { type: DataTypes.ENUM('Male', 'Female'), allowNull: true },
+  shirt_size:      { type: DataTypes.STRING(20), allowNull: true },
+  tshirt_size:     { type: DataTypes.STRING(20), allowNull: true },
   nationality:     { type: DataTypes.STRING(100), allowNull: true },
   religion:        { type: DataTypes.STRING(100), allowNull: true },
-  blood_group:     { type: DataTypes.ENUM('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'), allowNull: true },
-  marital_status:  { type: DataTypes.ENUM('Single', 'Married', 'Divorced', 'Widowed', 'Separated'), allowNull: true },
+  blood_group:     { type: DataTypes.ENUM('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Not Available'), allowNull: true },
+  marital_status:  { type: DataTypes.ENUM('Unmarried', 'Married', 'Divorced', 'Widow', 'Widower'), allowNull: true },
   marriage_date:   { type: DataTypes.DATEONLY, allowNull: true },
   spouse_name:     { type: DataTypes.STRING(200), allowNull: true },
   spouse_dob:      { type: DataTypes.DATEONLY, allowNull: true },
@@ -336,42 +365,67 @@ EmployeePersonal.init({
   child3_dob:      { type: DataTypes.DATEONLY, allowNull: true },
 }, { sequelize, tableName: 'employee_personal', modelName: 'EmployeePersonal', timestamps: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. employee_family
-// ─────────────────────────────────────────────────────────────────────────────
+// Note: personal_email / personal_mobile removed from this table — they now
+// live on `employees.email` / `employees.phone` per the earlier decision that
+// those columns ARE the "Personal Email"/"Personal Mobile Number" fields.
+
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 9 (Candidate) · Family & Emergency
+// father_status ENUM dropped (no longer shown in UI — replaced by free-text
+// occupation); mother_occupation changed from ENUM to free text to match;
+// age/dob fields changed from STRING to DATEONLY (UI uses a real date input);
+// salutation ENUMs expanded with new UI options.
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeFamily extends Model {
-  public employee_id!:      number;
+  public employee_id!:       number;
   public father_salutation!: string | null;
   public father_name!:       string | null;
-  public father_age_dob!:    string | null;
+  public father_dob!:        Date | null;
   public father_occupation!: string | null;
-  public father_status!:     string | null;
   public mother_salutation!: string | null;
   public mother_name!:       string | null;
-  public mother_age_dob!:    string | null;
+  public mother_dob!:        Date | null;
   public mother_occupation!: string | null;
 }
 EmployeeFamily.init({
   employee_id:        { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-  father_salutation:  { type: DataTypes.ENUM('Mr.', 'Late'), allowNull: true },
+  father_salutation:  { type: DataTypes.ENUM('Mr.', 'Dr.', 'Late'), allowNull: true },
   father_name:        { type: DataTypes.STRING(200), allowNull: true },
-  father_age_dob:     { type: DataTypes.STRING(50), allowNull: true },
+  father_dob:         { type: DataTypes.DATEONLY, allowNull: true },
   father_occupation:  { type: DataTypes.STRING(100), allowNull: true },
-  father_status:      { type: DataTypes.ENUM('Working', 'Retired', 'Not Applicable'), allowNull: true },
-  mother_salutation:  { type: DataTypes.ENUM('Mrs.', 'Late'), allowNull: true },
+  mother_salutation:  { type: DataTypes.ENUM('Mrs.', 'Ms.', 'Dr.', 'Late'), allowNull: true },
   mother_name:        { type: DataTypes.STRING(200), allowNull: true },
-  mother_age_dob:     { type: DataTypes.STRING(50), allowNull: true },
-  mother_occupation:  { type: DataTypes.ENUM('Working', 'Retired', 'Not Applicable', 'House Wife'), allowNull: true },
+  mother_dob:         { type: DataTypes.DATEONLY, allowNull: true },
+  mother_occupation:  { type: DataTypes.STRING(100), allowNull: true },
 }, { sequelize, tableName: 'employee_family', modelName: 'EmployeeFamily', timestamps: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. employee_addresses
-// ─────────────────────────────────────────────────────────────────────────────
+// NEW — "Other Family Members" repeatable list (brother, sister, other relatives)
+export class EmployeeFamilyMember extends Model {
+  public id!:           number;
+  public employee_id!:  number;
+  public name!:          string;
+  public relationship!:  string | null;
+  public dob!:            Date | null;
+  public occupation!:     string | null;
+}
+EmployeeFamilyMember.init({
+  id:           { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  employee_id:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  name:          { type: DataTypes.STRING(200), allowNull: false },
+  relationship:  { type: DataTypes.STRING(100), allowNull: true },
+  dob:           { type: DataTypes.DATEONLY, allowNull: true },
+  occupation:    { type: DataTypes.STRING(100), allowNull: true },
+}, { sequelize, tableName: 'employee_family_members', modelName: 'EmployeeFamilyMember', timestamps: true,
+  indexes: [{ fields: ['employee_id'] }] });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 8 (Candidate) · Address  (part of the same "Address" wizard step)
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeAddress extends Model {
   public id!:                 number;
   public employee_id!:        number;
   public address_type!:       'present' | 'permanent';
-  public house_type!:         'Own' | 'Rent' | null;
+  public house_type!:         'Owned' | 'Rented' | 'Company Provided' | 'PG / Hostel' | 'Other' | null;
   public house_no!:           string | null;
   public area!:               string | null;
   public district!:           string | null;
@@ -385,7 +439,7 @@ EmployeeAddress.init({
   id:                 { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   employee_id:        { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   address_type:       { type: DataTypes.ENUM('present', 'permanent'), allowNull: false },
-  house_type:         { type: DataTypes.ENUM('Own', 'Rent'), allowNull: true },
+  house_type:         { type: DataTypes.ENUM('Owned', 'Rented', 'Company Provided', 'PG / Hostel', 'Other'), allowNull: true },
   house_no:           { type: DataTypes.STRING(50), allowNull: true },
   area:               { type: DataTypes.STRING(300), allowNull: true },
   district:           { type: DataTypes.STRING(100), allowNull: true },
@@ -397,14 +451,17 @@ EmployeeAddress.init({
 }, { sequelize, tableName: 'employee_addresses', modelName: 'EmployeeAddress', timestamps: true,
   indexes: [{ unique: true, fields: ['employee_id', 'address_type'] }] });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 7. employee_emergency_contacts
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 9 (Candidate) · Family & Emergency — Emergency Contact section
+// Added `email` (new in UI). Supports multiple contacts via is_primary flag
+// (primary + backups, per "More Emergency Contacts" in the UI).
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeEmergencyContact extends Model {
   public id!:             number;
   public employee_id!:    number;
   public contact_name!:   string;
   public contact_number!: string;
+  public email!:          string | null;
   public relationship!:   string;
   public is_primary!:     boolean;
 }
@@ -413,47 +470,116 @@ EmployeeEmergencyContact.init({
   employee_id:    { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   contact_name:   { type: DataTypes.STRING(200), allowNull: false },
   contact_number: { type: DataTypes.STRING(20), allowNull: false },
+  email:          { type: DataTypes.STRING(255), allowNull: true },
   relationship:   { type: DataTypes.STRING(100), allowNull: false },
   is_primary:     { type: DataTypes.BOOLEAN, defaultValue: true },
 }, { sequelize, tableName: 'employee_emergency_contacts', modelName: 'EmployeeEmergencyContact', timestamps: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 8. employee_statutory  (SENSITIVE)
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 10 (Candidate) · IDs & Bank  (SENSITIVE) — substantially expanded.
+// Added name-as-on-document / DOB / issue-date / place-of-issue / scan-URL
+// fields per document type, all confirmed present in the actual UI.
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeStatutory extends Model {
   public employee_id!:            number;
-  public passport_number!:        string | null;
-  public passport_expiry!:        Date | null;
-  public yellow_fever!:           boolean;
-  public yellow_fever_date!:      Date | null;
-  public driving_license_number!: string | null;
-  public driving_license_expiry!: Date | null;
+  // Aadhaar (required)
   public aadhaar_number!:         string | null;
+  public aadhaar_name!:           string | null;
+  public aadhaar_dob!:            Date | null;
   public aadhaar_address!:        string | null;
+  public aadhaar_scan_url!:       string | null;
+  // PAN (optional)
   public pan_number!:             string | null;
   public pan_full_name!:          string | null;
   public pan_dob!:                Date | null;
   public pan_parent_spouse_name!: string | null;
+  public pan_scan_url!:           string | null;
+  // Passport (optional)
+  public passport_number!:        string | null;
+  public passport_full_name!:     string | null;
+  public passport_nationality!:   string | null;
+  public passport_issue_date!:    Date | null;
+  public passport_expiry!:        Date | null;
+  public passport_place_of_issue!: string | null;
+  public passport_scan_url!:      string | null;
+  // Driving licence (optional)
+  public driving_license_number!: string | null;
+  public driving_license_name!:   string | null;
+  public driving_license_issue_date!: Date | null;
+  public driving_license_expiry!: Date | null;
+  public driving_license_authority!: string | null;
+  public driving_license_scan_url!: string | null;
+  // Legacy single yellow-fever flag — kept, though superseded by employee_vaccinations below
+  public yellow_fever!:           boolean;
+  public yellow_fever_date!:      Date | null;
 }
 EmployeeStatutory.init({
   employee_id:              { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-  passport_number:          { type: DataTypes.STRING(30), allowNull: true },
-  passport_expiry:          { type: DataTypes.DATEONLY, allowNull: true },
-  yellow_fever:             { type: DataTypes.BOOLEAN, defaultValue: false },
-  yellow_fever_date:        { type: DataTypes.DATEONLY, allowNull: true },
-  driving_license_number:   { type: DataTypes.STRING(30), allowNull: true },
-  driving_license_expiry:   { type: DataTypes.DATEONLY, allowNull: true },
   aadhaar_number:           { type: DataTypes.STRING(12), allowNull: true },
+  aadhaar_name:             { type: DataTypes.STRING(200), allowNull: true },
+  aadhaar_dob:              { type: DataTypes.DATEONLY, allowNull: true },
   aadhaar_address:          { type: DataTypes.TEXT, allowNull: true },
+  aadhaar_scan_url:         { type: DataTypes.STRING(500), allowNull: true },
   pan_number:               { type: DataTypes.STRING(10), allowNull: true },
   pan_full_name:            { type: DataTypes.STRING(200), allowNull: true },
   pan_dob:                  { type: DataTypes.DATEONLY, allowNull: true },
   pan_parent_spouse_name:   { type: DataTypes.STRING(200), allowNull: true },
+  pan_scan_url:             { type: DataTypes.STRING(500), allowNull: true },
+  passport_number:          { type: DataTypes.STRING(30), allowNull: true },
+  passport_full_name:       { type: DataTypes.STRING(200), allowNull: true },
+  passport_nationality:     { type: DataTypes.STRING(100), allowNull: true },
+  passport_issue_date:      { type: DataTypes.DATEONLY, allowNull: true },
+  passport_expiry:          { type: DataTypes.DATEONLY, allowNull: true },
+  passport_place_of_issue:  { type: DataTypes.STRING(200), allowNull: true },
+  passport_scan_url:        { type: DataTypes.STRING(500), allowNull: true },
+  driving_license_number:   { type: DataTypes.STRING(30), allowNull: true },
+  driving_license_name:     { type: DataTypes.STRING(200), allowNull: true },
+  driving_license_issue_date: { type: DataTypes.DATEONLY, allowNull: true },
+  driving_license_expiry:   { type: DataTypes.DATEONLY, allowNull: true },
+  driving_license_authority: { type: DataTypes.STRING(200), allowNull: true },
+  driving_license_scan_url: { type: DataTypes.STRING(500), allowNull: true },
+  yellow_fever:             { type: DataTypes.BOOLEAN, defaultValue: false },
+  yellow_fever_date:        { type: DataTypes.DATEONLY, allowNull: true },
 }, { sequelize, tableName: 'employee_statutory', modelName: 'EmployeeStatutory', timestamps: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 9. employee_bank_details  (SENSITIVE)
-// ─────────────────────────────────────────────────────────────────────────────
+// NEW — general vaccinations list (UI replaced the single yellow-fever toggle
+// with a repeatable "Add vaccination" list covering COVID, boosters, etc.)
+export class EmployeeVaccination extends Model {
+  public id!:            number;
+  public employee_id!:   number;
+  public vaccine_name!:  string;
+  public date!:          Date | null;
+  public notes!:         string | null;
+}
+EmployeeVaccination.init({
+  id:           { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  employee_id:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  vaccine_name: { type: DataTypes.STRING(100), allowNull: false },
+  date:         { type: DataTypes.DATEONLY, allowNull: true },
+  notes:        { type: DataTypes.STRING(300), allowNull: true },
+}, { sequelize, tableName: 'employee_vaccinations', modelName: 'EmployeeVaccination', timestamps: true,
+  indexes: [{ fields: ['employee_id'] }] });
+
+// NEW — "Additional documents" repeatable list (certificates, photos, etc.)
+export class EmployeeDocument extends Model {
+  public id!:            number;
+  public employee_id!:   number;
+  public doc_type!:      string;
+  public doc_type_other!: string | null;   // when doc_type === 'Other'
+  public file_url!:      string;
+}
+EmployeeDocument.init({
+  id:            { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  employee_id:   { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  doc_type:      { type: DataTypes.STRING(100), allowNull: false },
+  doc_type_other:{ type: DataTypes.STRING(100), allowNull: true },
+  file_url:      { type: DataTypes.STRING(500), allowNull: false },
+}, { sequelize, tableName: 'employee_documents', modelName: 'EmployeeDocument', timestamps: true,
+  indexes: [{ fields: ['employee_id'] }] });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 10 (Candidate) · IDs & Bank — personal bank account section
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeBankDetail extends Model {
   public id!:             number;
   public employee_id!:    number;
@@ -474,14 +600,16 @@ EmployeeBankDetail.init({
 }, { sequelize, tableName: 'employee_bank_details', modelName: 'EmployeeBankDetail', timestamps: true,
   indexes: [{ unique: true, fields: ['employee_id', 'bank_type'] }] });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 10. employee_salary  (SENSITIVE)
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 6 (HR) · Compensation
+// Added "Cash" to salary_mode, added final_monthly_deduction (confirmed in
+// emp-master.js as distinct from monthly_deduction).
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeSalary extends Model {
   public id!:               number;
   public employee_id!:      number;
   public salary_type!:      'current' | 'joining';
-  public salary_mode!:      'Transfer' | 'Cheque' | null;
+  public salary_mode!:      'Bank Transfer' | 'Cash' | 'Cheque' | null;
   public basic!:            number | null;
   public hra!:              number | null;
   public allowance1!:       number | null;
@@ -494,7 +622,7 @@ EmployeeSalary.init({
   id:               { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   employee_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   salary_type:      { type: DataTypes.ENUM('current', 'joining'), allowNull: false },
-  salary_mode:      { type: DataTypes.ENUM('Transfer', 'Cheque'), allowNull: true },
+  salary_mode:      { type: DataTypes.ENUM('Bank Transfer', 'Cash', 'Cheque'), allowNull: true },
   basic:            { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   hra:              { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   allowance1:       { type: DataTypes.DECIMAL(12, 2), allowNull: true },
@@ -505,9 +633,6 @@ EmployeeSalary.init({
 }, { sequelize, tableName: 'employee_salary', modelName: 'EmployeeSalary', timestamps: true,
   indexes: [{ unique: true, fields: ['employee_id', 'salary_type'] }] });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 11. employee_asset_deduction
-// ─────────────────────────────────────────────────────────────────────────────
 export class EmployeeAssetDeduction extends Model {
   public employee_id!:                 number;
   public asset_deduction_applicable!:  boolean;
@@ -515,6 +640,7 @@ export class EmployeeAssetDeduction extends Model {
   public deduction_months!:            string | null;
   public deduction_from!:              'Salary' | 'AMDB' | 'N/A' | null;
   public monthly_deduction!:           number | null;
+  public final_monthly_deduction!:     number | null;   // NEW — confirmed distinct field in UI
   public last_installment!:            number | null;
 }
 EmployeeAssetDeduction.init({
@@ -524,26 +650,31 @@ EmployeeAssetDeduction.init({
   deduction_months:            { type: DataTypes.STRING(20), allowNull: true },
   deduction_from:              { type: DataTypes.ENUM('Salary', 'AMDB', 'N/A'), allowNull: true },
   monthly_deduction:           { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+  final_monthly_deduction:     { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   last_installment:            { type: DataTypes.DECIMAL(12, 2), allowNull: true },
 }, { sequelize, tableName: 'employee_asset_deduction', modelName: 'EmployeeAssetDeduction', timestamps: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 12. employee_experience
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 11 (Candidate) · Experience & Education
+// Both tables converted from one-row-per-employee to one-to-many — the UI
+// explicitly supports "add earlier ones if needed" (experience) and
+// "+ Add qualification" (education), confirmed via emp-master.js's repeatable
+// experience list (m.lastWorkingDay, m.designation, m.lastInHand).
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeExperience extends Model {
-  public employee_id!:             number;
-  public is_experienced!:          boolean;
-  public last_company_name!:       string | null;
-  public last_designation!:        string | null;
-  public last_working_day!:        Date | null;
-  public exp_contact_name!:        string | null;
-  public exp_contact_number!:      string | null;
-  public exp_contact_designation!: string | null;
-  public last_inhand_salary!:      number | null;
+  public id!:                       number;
+  public employee_id!:              number;
+  public last_company_name!:        string | null;
+  public last_designation!:         string | null;
+  public last_working_day!:         Date | null;
+  public exp_contact_name!:         string | null;
+  public exp_contact_number!:       string | null;
+  public exp_contact_designation!:  string | null;
+  public last_inhand_salary!:       number | null;
 }
 EmployeeExperience.init({
-  employee_id:              { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-  is_experienced:           { type: DataTypes.BOOLEAN, defaultValue: false },
+  id:                       { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  employee_id:              { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   last_company_name:        { type: DataTypes.STRING(300), allowNull: true },
   last_designation:         { type: DataTypes.STRING(200), allowNull: true },
   last_working_day:         { type: DataTypes.DATEONLY, allowNull: true },
@@ -551,33 +682,53 @@ EmployeeExperience.init({
   exp_contact_number:       { type: DataTypes.STRING(20), allowNull: true },
   exp_contact_designation:  { type: DataTypes.STRING(200), allowNull: true },
   last_inhand_salary:       { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-}, { sequelize, tableName: 'employee_experience', modelName: 'EmployeeExperience', timestamps: true });
+}, { sequelize, tableName: 'employee_experience', modelName: 'EmployeeExperience', timestamps: true,
+  indexes: [{ fields: ['employee_id'] }] });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 13. employee_education
-// ─────────────────────────────────────────────────────────────────────────────
+// `is_experienced` (Yes/No gate) moves to employee_personal-adjacent concept —
+// kept here as a per-employee flag rather than per-row, since it's a single
+// yes/no gate that controls whether the experience panel shows at all.
+export class EmployeeExperienceFlag extends Model {
+  public employee_id!:    number;
+  public is_experienced!: boolean;
+}
+EmployeeExperienceFlag.init({
+  employee_id:    { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
+  is_experienced: { type: DataTypes.BOOLEAN, defaultValue: false },
+}, { sequelize, tableName: 'employee_experience_flag', modelName: 'EmployeeExperienceFlag', timestamps: true });
+
 export class EmployeeEducation extends Model {
-  public employee_id!:       number;
-  public highest_education!: string | null;
-  public education_stream!:  string | null;
-  public education_mode!:    string | null;
-  public institute_name!:    string | null;
-  public passing_year!:      number | null;
-  public education_marks!:   string | null;
+  public id!:                 number;
+  public employee_id!:        number;
+  public highest_education!:  string | null;
+  public education_stream!:   string | null;
+  public education_mode!:     string | null;
+  public institute_name!:     string | null;
+  public education_marks!:    string | null;
+  public education_start_year!: number | null;   // NEW
+  public education_end_year!:   number | null;   // NEW (replaces old single passing_year)
+  public is_pursuing!:          boolean;         // NEW — "Currently pursuing" checkbox
 }
 EmployeeEducation.init({
-  employee_id:        { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-  highest_education:  { type: DataTypes.STRING(100), allowNull: true },
-  education_stream:   { type: DataTypes.STRING(100), allowNull: true },
-  education_mode:     { type: DataTypes.STRING(50), allowNull: true },
-  institute_name:     { type: DataTypes.STRING(300), allowNull: true },
-  passing_year:       { type: DataTypes.SMALLINT.UNSIGNED, allowNull: true },
-  education_marks:    { type: DataTypes.STRING(20), allowNull: true },
-}, { sequelize, tableName: 'employee_education', modelName: 'EmployeeEducation', timestamps: true });
+  id:                   { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  employee_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  highest_education:    { type: DataTypes.STRING(100), allowNull: true },
+  education_stream:     { type: DataTypes.STRING(100), allowNull: true },
+  education_mode:       { type: DataTypes.STRING(50), allowNull: true },
+  institute_name:       { type: DataTypes.STRING(300), allowNull: true },
+  education_marks:      { type: DataTypes.STRING(20), allowNull: true },
+  education_start_year: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: true },
+  education_end_year:   { type: DataTypes.SMALLINT.UNSIGNED, allowNull: true },
+  is_pursuing:          { type: DataTypes.BOOLEAN, defaultValue: false },
+}, { sequelize, tableName: 'employee_education', modelName: 'EmployeeEducation', timestamps: true,
+  indexes: [{ fields: ['employee_id'] }] });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 14. employee_onboarding_docs
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// STEP 7 (HR) · HR Joining Checklist
+// Added `remarks` (new free-text field confirmed in the UI). Booleans kept
+// as BOOLEAN per your decision — the Yes/No/Pending/Not Applicable dropdown
+// is a UI-layer concern, not a schema change.
+// ═════════════════════════════════════════════════════════════════════════════
 export class EmployeeOnboardingDocs extends Model {
   public employee_id!:            number;
   public offer_letter!:           boolean;
@@ -587,6 +738,7 @@ export class EmployeeOnboardingDocs extends Model {
   public asset_deduction_letter!: boolean;
   public account_opening_letter!: boolean;
   public nda!:                    boolean;
+  public remarks!:                string | null;
 }
 EmployeeOnboardingDocs.init({
   employee_id:              { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
@@ -597,10 +749,11 @@ EmployeeOnboardingDocs.init({
   asset_deduction_letter:   { type: DataTypes.BOOLEAN, defaultValue: false },
   account_opening_letter:   { type: DataTypes.BOOLEAN, defaultValue: false },
   nda:                      { type: DataTypes.BOOLEAN, defaultValue: false },
+  remarks:                  { type: DataTypes.TEXT, allowNull: true },
 }, { sequelize, tableName: 'employee_onboarding_docs', modelName: 'EmployeeOnboardingDocs', timestamps: true });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 15. employee_transfers  (up to 5 per employee)
+// Transfers (managed from the employee directory, not the wizard — unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 export class EmployeeTransfer extends Model {
   public id!:               number;
@@ -639,7 +792,9 @@ EmployeeTransfer.init({
   indexes: [{ fields: ['employee_id', 'transfer_order'] }] });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 16. employee_exit
+// Exit — conditionally shown in the HR Joining Checklist step once status is
+// On Notice / Relieved / Absconded / Inactive. Field names already matched
+// the UI's JS keys closely; no changes needed here.
 // ─────────────────────────────────────────────────────────────────────────────
 export class EmployeeExit extends Model {
   public employee_id!:           number;
@@ -669,12 +824,12 @@ EmployeeExit.init({
 }, { sequelize, tableName: 'employee_exit', modelName: 'EmployeeExit', timestamps: true });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 17. employee_drafts  (auto-save sessions)
+// Drafts (auto-save sessions) — unchanged
 // ─────────────────────────────────────────────────────────────────────────────
 export class EmployeeDraft extends Model {
   public id!:          number;
   public employee_id!: number | null;
-  public created_by!:  number;           // FK → employees.id of the HR saving
+  public created_by!:  number;
   public step!:        string;
   public form_data!:   object;
   public session_id!:  string;
@@ -690,4 +845,3 @@ EmployeeDraft.init({
   expires_at:  { type: DataTypes.DATE, allowNull: false },
 }, { sequelize, tableName: 'employee_drafts', modelName: 'EmployeeDraft', timestamps: true,
   indexes: [{ fields: ['created_by', 'session_id'] }, { fields: ['employee_id'] }] });
-

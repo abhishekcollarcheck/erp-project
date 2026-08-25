@@ -8,8 +8,9 @@
 import { Op, Transaction, WhereOptions } from 'sequelize';
 import {
   Employee, EmployeeCommitmentProbation, EmployeeSchemes, EmployeePersonal,
-  EmployeeFamily, EmployeeAddress, EmployeeEmergencyContact, EmployeeStatutory,
-  EmployeeBankDetail, EmployeeSalary, EmployeeAssetDeduction, EmployeeExperience,
+  EmployeeFamily, EmployeeFamilyMember, EmployeeAddress, EmployeeEmergencyContact, EmployeeStatutory,
+  EmployeeVaccination, EmployeeDocument,
+  EmployeeBankDetail, EmployeeSalary, EmployeeAssetDeduction, EmployeeExperience, EmployeeExperienceFlag,
   EmployeeEducation, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeExit, EmployeeDraft,
 } from '../../database/models/Employee';
 import type { EmployeeQueryParams } from './employee.types';
@@ -24,8 +25,10 @@ const DETAIL_INCLUDES: any[] = [
   { association: 'schemes' },
   { association: 'personal' },
   { association: 'family' },
+  { association: 'familyMembers' },
   { association: 'addresses', order: [['address_type', 'ASC']] },
-  { association: 'emergencyContacts' },
+  { association: 'emergencyContacts', order: [['is_primary', 'DESC']] },
+  { association: 'experienceFlag' },
   { association: 'experience' },
   { association: 'education' },
   { association: 'onboardingDocs' },
@@ -36,6 +39,8 @@ const DETAIL_INCLUDES: any[] = [
 
 const SENSITIVE_INCLUDES: any[] = [
   { association: 'statutory' },
+  { association: 'vaccinations' },
+  { association: 'documents' },
   { association: 'bankDetails' },
   { association: 'salaries' },
 ];
@@ -141,14 +146,6 @@ export class EmployeeRepository {
     const [r] = await EmployeeStatutory.upsert({ employee_id: employeeId, ...data }, { transaction: t });
     return r;
   }
-  async upsertExperience(employeeId: number, data: object, t: Transaction) {
-    const [r] = await EmployeeExperience.upsert({ employee_id: employeeId, ...data }, { transaction: t });
-    return r;
-  }
-  async upsertEducation(employeeId: number, data: object, t: Transaction) {
-    const [r] = await EmployeeEducation.upsert({ employee_id: employeeId, ...data }, { transaction: t });
-    return r;
-  }
   async upsertAssetDeduction(employeeId: number, data: object, t: Transaction) {
     const [r] = await EmployeeAssetDeduction.upsert({ employee_id: employeeId, ...data }, { transaction: t });
     return r;
@@ -169,11 +166,24 @@ export class EmployeeRepository {
     return EmployeeAddress.create({ employee_id: employeeId, address_type: type, ...data } as any, { transaction: t });
   }
 
-  // ─── Emergency: upsert single primary ────────────────────────────────────
-  async upsertEmergencyContact(employeeId: number, data: object, t: Transaction) {
-    const existing = await EmployeeEmergencyContact.findOne({ where: { employee_id: employeeId, is_primary: true } });
-    if (existing) return existing.update(data as any, { transaction: t });
-    return EmployeeEmergencyContact.create({ employee_id: employeeId, ...data } as any, { transaction: t });
+  // ─── Emergency contacts: full replace (primary + backups) ────────────────
+  async replaceEmergencyContacts(employeeId: number, contacts: object[], t: Transaction) {
+    await EmployeeEmergencyContact.destroy({ where: { employee_id: employeeId }, transaction: t });
+    if (!contacts.length) return [];
+    return EmployeeEmergencyContact.bulkCreate(
+      contacts.map((c, i) => ({ employee_id: employeeId, is_primary: i === 0, ...c })) as any,
+      { transaction: t }
+    );
+  }
+
+  // ─── Other family members: full replace ───────────────────────────────────
+  async replaceFamilyMembers(employeeId: number, members: object[], t: Transaction) {
+    await EmployeeFamilyMember.destroy({ where: { employee_id: employeeId }, transaction: t });
+    if (!members.length) return [];
+    return EmployeeFamilyMember.bulkCreate(
+      members.map(m => ({ employee_id: employeeId, ...m })) as any,
+      { transaction: t }
+    );
   }
 
   // ─── Bank: upsert by type ────────────────────────────────────────────────
@@ -188,6 +198,57 @@ export class EmployeeRepository {
     const existing = await EmployeeSalary.findOne({ where: { employee_id: employeeId, salary_type: salaryType } });
     if (existing) return existing.update(data as any, { transaction: t });
     return EmployeeSalary.create({ employee_id: employeeId, salary_type: salaryType, ...data } as any, { transaction: t });
+  }
+
+  // ─── Vaccinations: full replace ────────────────────────────────────────────
+  async replaceVaccinations(employeeId: number, vaccinations: object[], t: Transaction) {
+    await EmployeeVaccination.destroy({ where: { employee_id: employeeId }, transaction: t });
+    if (!vaccinations.length) return [];
+    return EmployeeVaccination.bulkCreate(
+      vaccinations.map(v => ({ employee_id: employeeId, ...v })) as any,
+      { transaction: t }
+    );
+  }
+
+  // ─── Additional documents: single add (used by the upload endpoint) ──────
+  async addDocument(employeeId: number, data: object) {
+    return EmployeeDocument.create({ employee_id: employeeId, ...data } as any);
+  }
+
+  // ─── Additional documents: full replace ────────────────────────────────────
+  async replaceDocuments(employeeId: number, documents: object[], t: Transaction) {
+    await EmployeeDocument.destroy({ where: { employee_id: employeeId }, transaction: t });
+    if (!documents.length) return [];
+    return EmployeeDocument.bulkCreate(
+      documents.map(d => ({ employee_id: employeeId, ...d })) as any,
+      { transaction: t }
+    );
+  }
+
+  // ─── Experience: full replace (one-to-many — "add earlier ones") ─────────
+  async replaceExperience(employeeId: number, experience: object[], t: Transaction) {
+    await EmployeeExperience.destroy({ where: { employee_id: employeeId }, transaction: t });
+    if (!experience.length) return [];
+    return EmployeeExperience.bulkCreate(
+      experience.map(e => ({ employee_id: employeeId, ...e })) as any,
+      { transaction: t }
+    );
+  }
+
+  // ─── Education: full replace (one-to-many — "add qualification") ─────────
+  async replaceEducation(employeeId: number, education: object[], t: Transaction) {
+    await EmployeeEducation.destroy({ where: { employee_id: employeeId }, transaction: t });
+    if (!education.length) return [];
+    return EmployeeEducation.bulkCreate(
+      education.map(ed => ({ employee_id: employeeId, ...ed })) as any,
+      { transaction: t }
+    );
+  }
+
+  // ─── "Has prior work experience?" yes/no gate ─────────────────────────────
+  async setExperienceFlag(employeeId: number, isExperienced: boolean, t: Transaction) {
+    const [r] = await EmployeeExperienceFlag.upsert({ employee_id: employeeId, is_experienced: isExperienced }, { transaction: t });
+    return r;
   }
 
   // ─── Transfers: full replace ───────────────────────────────────────────────
@@ -213,7 +274,7 @@ export class EmployeeRepository {
     });
   }
 
-  // Company-scoped email uniqueness check (different companies may share email)
+  // Globally unique across all companies (confirmed) — NOT company-scoped
   async findByEmail(email: string, excludeId?: number) {
     return Employee.findOne({
       where: {
@@ -224,7 +285,7 @@ export class EmployeeRepository {
     });
   }
 
-  // Company-scoped mobile uniqueness check (different companies may share mobile)
+  // Globally unique across all companies (confirmed) — NOT company-scoped
   async findByMobile(mobile: string, excludeId?: number) {
     return Employee.findOne({
       where: {
@@ -310,13 +371,17 @@ export class EmployeeRepository {
 
   // ─── Stats ────────────────────────────────────────────────────────────────
   async getSummary(companyId: number) {
-    const [active, left, retired, total] = await Promise.all([
+    const [active, left, retired, onNotice, relieved, absconded, inactive, total] = await Promise.all([
       Employee.count({ where: { company_id: companyId, status: 'Active' } }),
       Employee.count({ where: { company_id: companyId, status: 'Left' } }),
       Employee.count({ where: { company_id: companyId, status: 'Retired' } }),
+      Employee.count({ where: { company_id: companyId, status: 'On Notice' } }),
+      Employee.count({ where: { company_id: companyId, status: 'Relieved' } }),
+      Employee.count({ where: { company_id: companyId, status: 'Absconded' } }),
+      Employee.count({ where: { company_id: companyId, status: 'Inactive' } }),
       Employee.count({ where: { company_id: companyId } }),
     ]);
-    return { active, left, retired, total };
+    return { active, left, retired, onNotice, relieved, absconded, inactive, total };
   }
 }
 

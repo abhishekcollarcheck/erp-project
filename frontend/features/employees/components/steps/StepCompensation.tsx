@@ -1,16 +1,14 @@
 'use client';
 /**
- * StepSalary — implements spreadsheet salary calculator exactly.
+ * StepCompensation — implements spreadsheet salary calculator exactly.
  * Gross = Basic + HRA + Allowance1
- * AMDB  = user-entered (not auto from gross, per spreadsheet row 5 AMDB%=0.30 is just for display)
+ * AMDB  = user-entered
  * Total = Gross + AMDB
  */
 import { useWatch, useFormContext } from 'react-hook-form';
-import { useEffect } from 'react';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormCurrencyInput } from '../../../../components/form/FormCurrencyInput';
 import { FormToggle } from '../../../../components/form/FormToggle';
-import { SectionTitle } from '../../../../components/form/SectionTitle';
 import { useFieldPermissions } from '../../hooks/useEmployees';
 import { toOpts, SALARY_MODE, DEDUCTION_FROM, DEDUCTION_MONTHS } from '../../constants/employee.constants';
 import { FormSection } from '@/components/form/FormSection';
@@ -18,7 +16,6 @@ import { FormSection } from '@/components/form/FormSection';
 function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: string }) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => fp?.[n];
-  const { setValue } = useFormContext();
 
   const basic    = useWatch({ name: `${prefix}_basic` }) ?? 0;
   const hra      = useWatch({ name: `${prefix}_hra` }) ?? 0;
@@ -31,14 +28,13 @@ function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: 
 
   return (
     <div style={{ background: 'var(--surface2)', borderRadius: 'var(--r2)', padding: 16 }}>
-      <SectionTitle title={label} />
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{label}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-        <FormCurrencyInput name={`${prefix}_basic`}      label="Basic"      required fieldPerm={f('basic')} />
-        <FormCurrencyInput name={`${prefix}_hra`}        label="HRA"        required fieldPerm={f('hra')} />
-        <FormCurrencyInput name={`${prefix}_allowance1`} label="Allowance1" required fieldPerm={f('allowance1')} />
+        <FormCurrencyInput name={`${prefix}_basic`}      label="Basic"      fieldPerm={f('basic')} />
+        <FormCurrencyInput name={`${prefix}_hra`}        label="HRA"        fieldPerm={f('hra')} />
+        <FormCurrencyInput name={`${prefix}_allowance1`} label="Allowance1" fieldPerm={f('allowance1')} />
       </div>
 
-      {/* Auto-computed gross */}
       <div style={{ margin: '10px 0', padding: '8px 12px', background: 'var(--surface3)', borderRadius: 'var(--r)', display: 'flex', gap: 20, fontSize: 13 }}>
         <span style={{ color: 'var(--ink3)' }}>Gross Salary PM:</span>
         <strong style={{ color: 'var(--ink)' }}>{fmt(gross)}</strong>
@@ -46,7 +42,7 @@ function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: 
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <FormCurrencyInput name={`${prefix}_amdb`} label="AMDB PM" required hint="Additional Monthly Discretionary Bonus" fieldPerm={f('amdb')} />
+        <FormCurrencyInput name={`${prefix}_amdb`} label="AMDB PM" hint="Additional Monthly Discretionary Bonus" fieldPerm={f('amdb')} />
         <div className="form-field">
           <label className="field-label">Total Earning PM</label>
           <div style={{ padding: '8px 12px', background: 'var(--surface3)', borderRadius: 'var(--r)', fontSize: 16, fontWeight: 600, color: 'var(--blue)' }}>{fmt(total)}</div>
@@ -59,14 +55,13 @@ function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: 
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
-export function StepSalary(_: Props) {
+export function StepCompensation(_: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => fp?.[n];
   const assetDeduction = useWatch({ name: 'asset_deduction_applicable' });
   const security       = useWatch({ name: 'security_amount' }) ?? 0;
   const months         = useWatch({ name: 'deduction_months' }) ?? '';
 
-  // Auto-compute monthly deduction
   const monthCount = parseInt(months) || 0;
   const monthly    = monthCount > 0 ? Math.floor(Number(security) / monthCount) : 0;
   const lastInst   = monthly > 0 ? Number(security) - monthly * (monthCount - 1) : 0;
@@ -74,13 +69,14 @@ export function StepSalary(_: Props) {
   return (
     <FormSection fields={[f('salary_mode'), f('asset_deduction_applicable'), f('deduction_months'), f('deduction_from'), f('security_amount')]}>
     <div style={{ display: 'grid', gap: 20 }}>
-      <FormSelect name="salary_mode" label="Mode of Payment" required options={toOpts(SALARY_MODE)} fieldPerm={f('salary_mode')}  />
-      <SalaryBlock prefix="current" label="Current Salary Details" />
-      <SalaryBlock prefix="joining" label="Joining Salary Details" />
+      <FormSelect name="salary_mode" label="Mode of Payment" options={toOpts(SALARY_MODE)} placeholder="Select" fieldPerm={f('salary_mode')}  />
+      <SalaryBlock prefix="current" label="Current Salary" />
+      <SalaryBlock prefix="joining" label="Salary at Joining" />
 
       {/* Asset Deduction */}
       <div style={{ background: 'var(--surface2)', borderRadius: 'var(--r2)', padding: 16 }}>
-        <SectionTitle title="Asset Deduction" subtitle="Deduction for company assets issued to employee" fields={[f('asset_deduction_applicable'), f('deduction_months'), f('deduction_from'), f('security_amount')]} />
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Asset Deduction</div>
+        <div style={{ fontSize: 11, color: 'var(--ink4)', marginBottom: 8 }}>Deduction for company assets issued to employee</div>
         <FormToggle name="asset_deduction_applicable" label="Asset Deduction Applicable" fieldPerm={f('asset_deduction_applicable')} />
         {assetDeduction && (
           <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
@@ -105,6 +101,7 @@ export function StepSalary(_: Props) {
                 </div>
               </div>
             )}
+            <FormCurrencyInput name="final_monthly_deduction" label="Final Monthly Deduction (override)" hint="Optional — overrides the auto-calculated monthly figure if set" fieldPerm={f('final_monthly_deduction')} />
           </div>
         )}
       </div>

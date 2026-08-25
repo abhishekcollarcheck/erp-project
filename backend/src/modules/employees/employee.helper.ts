@@ -5,7 +5,7 @@
  * RD maturity (rows 85-87), asset deduction last installment (rows 213-215).
  */
 
-import { AMDB_PERCENTAGE, STEP_WEIGHTS, WIZARD_STEPS } from './employee.constants';
+import { AMDB_PERCENTAGE, HR_STEP_WEIGHTS, CANDIDATE_STEP_WEIGHTS, WIZARD_STEPS } from './employee.constants';
 import type { StepKey } from './employee.constants';
 import { Employee } from '../../database/models/Employee';
 import { Company } from '../../database/models/Company';
@@ -246,33 +246,58 @@ export async function generateReferenceCode(companyId: number): Promise<string> 
 
 // ─── Form completion percentage ───────────────────────────────────────────────
 
-export function computeCompletionPct(employee: any): number {
-  let score = 0;
-  const checks: Record<StepKey, () => boolean> = {
-    basic: () => !!(employee.first_name && employee.last_name && employee.employee_code && employee.employment_type),
-    employment: () => !!(employee.department_id && employee.designation_id && employee.working_city && employee.actual_doj),
-    reporting: () => !!(employee.l1_manager_id),
-    commitment: () => employee.commitmentProbation != null,
-    schemes: () => employee.schemes != null,
-    personal: () => !!(employee.personal?.date_of_birth && employee.personal?.gender && employee.personal?.blood_group),
-    address: () => !!(employee.addresses?.find((a: any) => a.address_type === 'present')),
-    family: () => !!(employee.family?.father_name && employee.family?.mother_name),
-    emergency: () => !!(employee.emergencyContacts?.[0]?.contact_name),
-    statutory: () => !!(employee.statutory?.aadhaar_number && employee.statutory?.pan_number),
-    bank: () => !!(employee.bankDetails?.find((b: any) => b.bank_type === 'personal')),
-    experience: () => employee.experience != null,
-    salary: () => !!(employee.salaries?.find((s: any) => s.salary_type === 'current')),
-    onboarding_docs: () => employee.onboardingDocs != null,
-    review: () => false,
+export interface CompletionBreakdown {
+  hrPct:        number;  // 0-100, HR's 7 steps
+  candidatePct: number;  // 0-100, Candidate's 5 steps
+  overallPct:   number;  // 0-100, combined — this is what gets stored in form_completion_pct
+  hrDone:       number;  // count of HR steps complete, e.g. for "HR 4/7"
+  hrTotal:      number;
+  candidateDone: number;
+  candidateTotal: number;
+}
+
+export function computeCompletionPct(employee: any): CompletionBreakdown {
+  const checks: Record<string, () => boolean> = {
+    // HR part
+    role_identity:          () => !!(employee.first_name && employee.last_name && employee.employment_type && employee.department_id && employee.designation_id),
+    location_attendance:    () => !!(employee.working_city && employee.working_site && employee.shift_id && employee.actual_doj),
+    managers_work_contact:  () => !!(employee.l1_manager_id),
+    commitment_probation:  () => employee.commitmentProbation != null,
+    statutory_schemes:     () => employee.schemes != null,
+    compensation:          () => !!(employee.salaries?.find((s: any) => s.salary_type === 'current')),
+    hr_joining_checklist:  () => employee.onboardingDocs != null,
+    // Candidate part
+    personal_profile:      () => !!(employee.personal?.date_of_birth && employee.personal?.gender && employee.personal?.blood_group),
+    address:                () => !!(employee.addresses?.find((a: any) => a.address_type === 'present')),
+    family_emergency:      () => !!(employee.family?.father_name && employee.family?.mother_name && employee.emergencyContacts?.[0]?.contact_name),
+    ids_bank:               () => !!(employee.statutory?.aadhaar_number && employee.bankDetails?.find((b: any) => b.bank_type === 'personal')),
+    experience_education:  () => !!(employee.education?.length > 0),
   };
 
-  for (const step of WIZARD_STEPS) {
-    if (step.key === 'review') continue;
-    const fn = checks[step.key as StepKey];
-    if (fn && fn()) score += STEP_WEIGHTS[step.key as StepKey];
+  const hrKeys        = Object.keys(HR_STEP_WEIGHTS);
+  const candidateKeys  = Object.keys(CANDIDATE_STEP_WEIGHTS);
+
+  let hrScore = 0, hrDone = 0;
+  for (const key of hrKeys) {
+    if (checks[key]?.()) { hrScore += HR_STEP_WEIGHTS[key]; hrDone++; }
   }
 
-  return Math.min(100, Math.round(score));
+  let candidateScore = 0, candidateDone = 0;
+  for (const key of candidateKeys) {
+    if (checks[key]?.()) { candidateScore += CANDIDATE_STEP_WEIGHTS[key]; candidateDone++; }
+  }
+
+  const hrPct        = Math.min(100, Math.round(hrScore));
+  const candidatePct = Math.min(100, Math.round(candidateScore));
+  // Overall = average of the two parts (both must reach 100 for overall to reach 100,
+  // which is what gates employee_code generation per the confirmed "all 12 steps" rule)
+  const overallPct   = Math.round((hrPct + candidatePct) / 2);
+
+  return {
+    hrPct, candidatePct, overallPct,
+    hrDone, hrTotal: hrKeys.length,
+    candidateDone, candidateTotal: candidateKeys.length,
+  };
 }
 
 // ─── Date format conversion: DD-MM-YYYY → YYYY-MM-DD ─────────────────────────

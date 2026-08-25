@@ -19,13 +19,13 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import { usePermission } from '../../../features/auth/hooks/useAuth';
 import { formatDate, getTenure, getInitials, statusVariant } from '../../../features/employees/utils/employee.utils';
 import { showToast } from '../../../utils/toast';
-import type { Employee, EmployeeStatus } from '../../../features/employees/types/employee.types';
+import type { Employee, EmployeeStatus, EmploymentType } from '../../../features/employees/types/employee.types';
 import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE } from '../../../features/employees/constants/employee.constants';
 import { BulkUploadModal } from '../../../features/employees/components/BulkUploadModal';
 import { PermissionGuard } from '@/utils/permissionGuard';
 
 type StatusFilter     = EmployeeStatus | '';
-type EmpTypeFilter    = 'Permanent' | 'Contractual' | '';
+type EmpTypeFilter    = EmploymentType | '';
 
 export default function EmployeesPage() {
   const router    = useRouter();
@@ -101,7 +101,7 @@ export default function EmployeesPage() {
               onClick={e => { e.stopPropagation(); router.push(`/employees/${row.id}`); }}>
               {row.first_name} {row.middle_name ? `${row.middle_name[0]}. ` : ''}{row.last_name}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>{row.employee_code}</div>
+            <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>{row.employee_code ?? 'Code pending'}</div>
           </div>
         </div>
       ),
@@ -132,7 +132,7 @@ export default function EmployeesPage() {
       render: row => row.l1Manager ? (
         <div>
           <div style={{ fontSize: 11 }}>{row.l1Manager.first_name} {row.l1Manager.last_name}</div>
-          <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>{row.l1Manager.employee_code}</div>
+          <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>{row.l1Manager.employee_code ?? 'Code pending'}</div>
         </div>
       ) : <span style={{ color: 'var(--ink4)', fontSize: 12 }}>—</span>,
     },
@@ -277,7 +277,7 @@ export default function EmployeesPage() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         title="Remove Employee"
-        subtitle={`Remove ${deleteTarget?.first_name} ${deleteTarget?.last_name} (${deleteTarget?.employee_code})?`}
+        subtitle={`Remove ${deleteTarget?.first_name} ${deleteTarget?.last_name} (${deleteTarget?.employee_code ?? 'code pending'})?`}
         footer={
           <>
             <button className="btn btn-sec" onClick={() => setDeleteTarget(null)}>Cancel</button>

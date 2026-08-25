@@ -29,6 +29,17 @@ export const employeeService = {
     const fd = new FormData(); fd.append('avatar', file);
     return apiClient.post(`/employees/${id}/avatar`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
+  uploadIdDocument:    (id: number, docType: 'aadhaar' | 'pan' | 'passport' | 'drivingLicense', file: File) => {
+    const fd = new FormData(); fd.append('file', file);
+    return apiClient.post(`/employees/${id}/documents/${docType}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  uploadExtraDocument: (id: number, docType: string, docTypeOther: string | undefined, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('doc_type', docType);
+    if (docTypeOther) fd.append('doc_type_other', docTypeOther);
+    return apiClient.post(`/employees/${id}/documents`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
 };
 
 // Search managers by name/code — returns list [{id, employee_code, first_name, last_name, official_email}]

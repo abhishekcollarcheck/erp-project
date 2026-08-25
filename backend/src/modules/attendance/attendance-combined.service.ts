@@ -101,7 +101,7 @@ export class AttendanceCombinedService {
         return { ...row, finalStatus: 'Holiday' as FinalAttendanceStatus, matchedRule: `HOLIDAY:${holidayName}`, lateMinutes: 0 };
       }
 
-      const weeklyOff = isWeeklyOff(row.date, employee.saturday_off);
+      const weeklyOff = isWeeklyOff(row.date, employee.weekly_off);
       if (weeklyOff.isOff) {
         return { ...row, finalStatus: 'Weekly Off' as FinalAttendanceStatus, matchedRule: weeklyOff.reason, lateMinutes: 0 };
       }

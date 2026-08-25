@@ -1,34 +1,36 @@
 'use client';
 
-// ─── Primitive enums from spreadsheet ────────────────────────────────────────
-export type EmployeeStatus      = 'Active' | 'Left' | 'Retired';
-export type EmploymentType      = 'Permanent' | 'Contractual';
-export type Gender              = 'Male' | 'Female' | 'Other' | 'Prefer not to say';
-export type BloodGroup          = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
-export type MaritalStatus       = 'Single' | 'Married' | 'Divorced' | 'Widowed' | 'Separated';
-export type HouseType           = 'Own' | 'Rent';
-export type PermAddressType     = 'Same as Present' | 'Other';
-export type MediclaimStatus     = 'Yes' | 'No' | 'Deactivate';
-export type SalaryMode          = 'Transfer' | 'Cheque';
+// ─── Primitive enums from spreadsheet + real product UI ──────────────────────
+export type EmployeeStatus      = 'Active' | 'Left' | 'Retired' | 'On Notice' | 'Relieved' | 'Absconded' | 'Inactive';
+export type EmploymentType      = 'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
+export type Gender              = 'Male' | 'Female';
+export type BloodGroup          = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Not Available';
+export type MaritalStatus       = 'Unmarried' | 'Married' | 'Divorced' | 'Widow' | 'Widower';
+export type HouseType           = 'Owned' | 'Rented' | 'Company Provided' | 'PG / Hostel' | 'Other';
+export type PermAddressType     = 'Same as Present' | 'Different' | 'Not Applicable';
+export type MediclaimStatus     = 'Yes' | 'No' | 'Not Applicable';
+export type SalaryMode          = 'Bank Transfer' | 'Cash' | 'Cheque';
 export type ConfirmationStatus  = 'Confirmed' | 'Failed' | 'Not Applicable';
 
 // ─── Core employee (list + card view) ────────────────────────────────────────
 export interface Employee {
   id:                     number;
-  employee_code:          string;
-  reference_code:         string | null;
+  employee_code:          string | null;   // null/pending until HR+Candidate parts both reach 100%
+  reference_code:         string | null;   // generated immediately at creation
   company_id:             number;
   first_name:             string;
   middle_name?:           string | null;
   last_name:              string;
   status:                 EmployeeStatus;
   employment_type:        EmploymentType;
-  email:                  string;
-  phone:                  string;
+  email:                  string;          // "Personal Email" — required
+  phone:                  string;          // "Personal Mobile Number" — required
+  official_email?:        string | null;   // "Work Email" — optional
+  official_mobile?:       string | null;   // "Work Mobile" — optional
   department_id?:         number;
   sub_department_id?:     number | null;
   designation_id?:        number;
-  sub_designation?:       string | null;
+  sub_designation_id?:    number | null;
   l1_manager_id?:         number | null;
   l2_manager_id?:         number | null;
   actual_doj?:            string | null;
@@ -38,9 +40,11 @@ export interface Employee {
   working_state_country?: string | null;
   pay_register_location?: string | null;
   shift_id?:              number | null;
-  saturday_off:           string | null;
+  weekly_off:              string | null;
   grace_minutes:          number | null;
-  form_completion_pct:    number;
+  form_completion_pct:    number;          // overall — average of hr_completion_pct/candidate_completion_pct
+  hr_completion_pct?:      number;
+  candidate_completion_pct?: number;
   avatar_url?:            string | null;
   // Auth fields (read-only in wizard)
   portal_access:          boolean;
@@ -53,24 +57,28 @@ export interface Employee {
   schemes?:               EmployeeSchemes | null;
   personal?:              EmployeePersonal | null;
   family?:                EmployeeFamily | null;
+  familyMembers?:         FamilyMember[];
   addresses?:             EmployeeAddress[];
   emergencyContacts?:     EmergencyContact[];
-  statutory?:             EmployeeStatutory | null;
-  bankDetails?:           EmployeeBankDetail[];
-  salaries?:              EmployeeSalary[];
+  statutory?:              EmployeeStatutory | null;
+  vaccinations?:           Vaccination[];
+  documents?:              EmployeeDocument[];
+  bankDetails?:            EmployeeBankDetail[];
+  salaries?:               EmployeeSalary[];
   assetDeduction?:        EmployeeAssetDeduction | null;
-  experience?:            EmployeeExperience | null;
-  education?:             EmployeeEducation | null;
-  onboardingDocs?:        OnboardingDocs | null;
-  transfers?:             EmployeeTransfer[];
-  exit?:                  EmployeeExit | null;
-  created_at:             string;
-  updated_at:             string;
+  experienceFlag?:        { is_experienced: boolean } | null;
+  experience?:             EmployeeExperience[];
+  education?:               EmployeeEducation[];
+  onboardingDocs?:         OnboardingDocs | null;
+  transfers?:              EmployeeTransfer[];
+  exit?:                   EmployeeExit | null;
+  created_at:              string;
+  updated_at:              string;
 }
 
 export interface ManagerRef {
   id:             number;
-  employee_code:  string;
+  employee_code:  string | null;
   first_name:     string;
   last_name:      string;
   email?: string | null;
@@ -99,6 +107,9 @@ export interface EmployeeSchemes {
   epfo_member_id?:      string | null;
   pf_contribution_pct?: number | null;
   pf_employer_from?:    string | null;
+  pf_employee_12?:      number | null;
+  eps_employer_833?:    number | null;
+  epf_eps_diff_367?:    number | null;
   esic_status:          boolean;
   esic_number?:         string | null;
   mediclaim_status:     MediclaimStatus;
@@ -116,9 +127,8 @@ export interface EmployeeSchemes {
   rd_status?:           string | null;
 }
 
+// personal_email/personal_mobile removed — those ARE employees.email/phone now.
 export interface EmployeePersonal {
-  personal_email?:  string | null;
-  personal_mobile?: string | null;
   date_of_birth?:   string | null;
   gender?:          Gender | null;
   shirt_size?:      string | null;
@@ -126,7 +136,7 @@ export interface EmployeePersonal {
   nationality?:     string | null;
   religion?:        string | null;
   blood_group?:     BloodGroup | null;
-  marital_status?:  MaritalStatus | null;
+  marital_status?:  MaritalStatus | null;   // shown on the Family & Emergency screen, still lives here
   marriage_date?:   string | null;
   spouse_name?:     string | null;
   spouse_dob?:      string | null;
@@ -138,16 +148,26 @@ export interface EmployeePersonal {
   child3_dob?:      string | null;
 }
 
+// father_status dropped, father_age_dob/mother_age_dob renamed to real dates,
+// mother_occupation is now free text (not a constrained enum).
 export interface EmployeeFamily {
   father_salutation?:  string | null;
   father_name?:        string | null;
-  father_age_dob?:     string | null;
+  father_dob?:         string | null;
   father_occupation?:  string | null;
-  father_status?:      string | null;
   mother_salutation?:  string | null;
   mother_name?:        string | null;
-  mother_age_dob?:     string | null;
+  mother_dob?:         string | null;
   mother_occupation?:  string | null;
+}
+
+// NEW — repeatable "Other Family Members"
+export interface FamilyMember {
+  id:            number;
+  name:          string;
+  relationship?: string | null;
+  dob?:          string | null;
+  occupation?:   string | null;
 }
 
 export interface EmployeeAddress {
@@ -164,27 +184,61 @@ export interface EmployeeAddress {
   is_same_as_present:  boolean;
 }
 
+// Added email; supports multiple contacts via is_primary
 export interface EmergencyContact {
   id:             number;
   contact_name:   string;
   contact_number: string;
+  email?:         string | null;
   relationship:   string;
   is_primary:     boolean;
 }
 
+// Substantially expanded — name-as-on-document, DOB, issue date, place of
+// issue, and scan URL added per ID type.
 export interface EmployeeStatutory {
-  passport_number?:        string | null; // may be masked
-  passport_expiry?:        string | null;
-  yellow_fever:            boolean;
-  yellow_fever_date?:      string | null;
-  driving_license_number?: string | null;
-  driving_license_expiry?: string | null;
-  aadhaar_number?:         string | null; // will be masked
-  aadhaar_address?:        string | null;
-  pan_number?:             string | null; // will be masked
-  pan_full_name?:          string | null;
-  pan_dob?:                string | null;
-  pan_parent_spouse_name?: string | null;
+  aadhaar_number?:            string | null; // will be masked
+  aadhaar_name?:               string | null;
+  aadhaar_dob?:                string | null;
+  aadhaar_address?:            string | null;
+  aadhaar_scan_url?:           string | null;
+  pan_number?:                 string | null; // will be masked
+  pan_full_name?:              string | null;
+  pan_dob?:                    string | null;
+  pan_parent_spouse_name?:     string | null;
+  pan_scan_url?:                string | null;
+  passport_number?:            string | null;
+  passport_full_name?:         string | null;
+  passport_nationality?:       string | null;
+  passport_issue_date?:        string | null;
+  passport_expiry?:            string | null;
+  passport_place_of_issue?:    string | null;
+  passport_scan_url?:          string | null;
+  driving_license_number?:     string | null;
+  driving_license_name?:       string | null;
+  driving_license_issue_date?: string | null;
+  driving_license_expiry?:     string | null;
+  driving_license_authority?:  string | null;
+  driving_license_scan_url?:   string | null;
+  // Legacy single flag — superseded by the Vaccination[] list below
+  yellow_fever?:               boolean;
+  yellow_fever_date?:          string | null;
+}
+
+// NEW — repeatable vaccinations list
+export interface Vaccination {
+  id:            number;
+  vaccine_name:  string;
+  date?:         string | null;
+  notes?:        string | null;
+}
+
+// NEW — repeatable "additional documents" list
+export interface EmployeeDocument {
+  id:              number;
+  doc_type:        string;
+  doc_type_other?: string | null;
+  file_url:        string;
 }
 
 export interface EmployeeBankDetail {
@@ -215,11 +269,13 @@ export interface EmployeeAssetDeduction {
   deduction_months?:          string | null;
   deduction_from?:            string | null;
   monthly_deduction?:         number | null;
+  final_monthly_deduction?:   number | null;
   last_installment?:          number | null;
 }
 
+// Now one-to-many — repeatable "add earlier ones if needed"
 export interface EmployeeExperience {
-  is_experienced:           boolean;
+  id:                        number;
   last_company_name?:       string | null;
   last_designation?:        string | null;
   last_working_day?:        string | null;
@@ -229,13 +285,18 @@ export interface EmployeeExperience {
   last_inhand_salary?:      number | null;
 }
 
+// Now one-to-many — repeatable "+ Add qualification". passing_year replaced
+// with start/end year + is_pursuing.
 export interface EmployeeEducation {
-  highest_education?: string | null;
-  education_stream?:  string | null;
-  education_mode?:    string | null;
-  institute_name?:    string | null;
-  passing_year?:      number | null;
-  education_marks?:   string | null;
+  id:                     number;
+  highest_education?:    string | null;
+  education_stream?:     string | null;
+  education_mode?:       string | null;
+  institute_name?:       string | null;
+  education_marks?:      string | null;
+  education_start_year?: number | null;
+  education_end_year?:   number | null;
+  is_pursuing?:           boolean;
 }
 
 export interface OnboardingDocs {
@@ -246,6 +307,7 @@ export interface OnboardingDocs {
   asset_deduction_letter:   boolean;
   account_opening_letter:   boolean;
   nda:                      boolean;
+  remarks?:                 string | null;
 }
 
 export interface EmployeeTransfer {
@@ -278,15 +340,19 @@ export interface EmployeeExit {
   verification_remarks?:   string | null;
 }
 
+// Extended to all 7 statuses
 export interface EmployeeSummary {
-  total:   number;
-  active:  number;
-  left:    number;
-  retired: number;
+  total:      number;
+  active:     number;
+  left:       number;
+  retired:    number;
+  onNotice:   number;
+  relieved:   number;
+  absconded:  number;
+  inactive:   number;
 }
 
 export interface BulkUploadResult {
   total: number; success: number; failed: number;
   errors: { row: number; name: string; reason: string }[]; inserted: number[];
 }
-

@@ -4,7 +4,6 @@ import { useWatch, useFormContext } from 'react-hook-form';
 import { FormToggle }      from '../../../../components/form/FormToggle';
 import { FormSelect }      from '../../../../components/form/FormSelect';
 import { FormDatePicker }  from '../../../../components/form/FormDatePicker';
-import { SectionTitle }    from '../../../../components/form/SectionTitle';
 import {
   toOpts,
   COMMITMENT_TERM,
@@ -24,26 +23,23 @@ function addMonths(dateStr: string, termStr: string): string | null {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return null;
   d.setMonth(d.getMonth() + months);
-  // Return YYYY-MM-DD — matches <input type="date"> format
   return d.toISOString().split('T')[0];
 }
 
-export function StepCommitment(_: Props) {
+export function StepCommitmentProbation(_: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
 
   const { setValue } = useFormContext();
 
-  // ── Source fields ────────────────────────────────────────────────────────────
   const commitment          = useWatch({ name: 'commitment' });
   const commitment_term     = useWatch({ name: 'commitment_term' });
   const commitment_entered_on = useWatch({ name: 'commitment_entered_on' });
 
   const on_probation   = useWatch({ name: 'on_probation' });
   const probation_period = useWatch({ name: 'probation_period' });
-  const actual_doj     = useWatch({ name: 'actual_doj' }); // set in StepReporting
+  const actual_doj     = useWatch({ name: 'actual_doj' }); // set in Location & Attendance step
 
-  // ── Auto-compute commitment_end_date ──────────────────────────────────────────
   useEffect(() => {
     if (!commitment) {
       setValue('commitment_end_date', null, { shouldDirty: false });
@@ -53,7 +49,6 @@ export function StepCommitment(_: Props) {
     setValue('commitment_end_date', result ?? null, { shouldDirty: false });
   }, [commitment, commitment_entered_on, commitment_term, setValue]);
 
-  // ── Auto-compute probation_end_date ───────────────────────────────────────────
   useEffect(() => {
     if (!on_probation) {
       setValue('probation_end_date', null, { shouldDirty: false });
@@ -67,8 +62,7 @@ export function StepCommitment(_: Props) {
     <FormSection fields={[f('commitment'), f('commitment_term'), f('commitment_entered_on'), f('commitment_end_date'), f('on_probation'), f('probation_period'), f('probation_end_date'), f('probation_extended_period'), f('confirmation_status'), f('confirmed_on')]}>
     <div style={{ display: 'grid', gap: 16 }}>
 
-      {/* ── Commitment Bond ────────────────────────────────────────────────── */}
-      <SectionTitle title="Commitment Bond" fields={[f('commitment')]} />
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Commitment / Bond</div>
       <FormToggle name="commitment" label="Has Commitment Bond" showValue fieldPerm={f('commitment')} />
 
       {commitment && (
@@ -86,7 +80,6 @@ export function StepCommitment(_: Props) {
             disableFuture
             fieldPerm={f('commitment_entered_on')}
           />
-          {/* Read-only computed field — registered in RHF via FormDatePicker */}
           <FormDatePicker
             name="commitment_end_date"
             label="Commitment End Date"
@@ -97,8 +90,7 @@ export function StepCommitment(_: Props) {
         </div>
       )}
 
-      {/* ── Probation ─────────────────────────────────────────────────────── */}
-      <SectionTitle title="Probation Details" fields={[f('on_probation')]} />
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Probation</div>
       <FormToggle name="on_probation" label="On Probation" showValue fieldPerm={f('on_probation')} />
 
       {on_probation && (
@@ -110,12 +102,11 @@ export function StepCommitment(_: Props) {
             placeholder="Select period"
             fieldPerm={f('probation_period')}
           />
-          {/* Read-only computed field — registered in RHF via FormDatePicker */}
           <FormDatePicker
             name="probation_end_date"
             label="Probation End Date"
             disabled
-            hint={actual_doj ? 'Auto-calculated: DOJ + period' : 'Set Actual DOJ in Reporting step first'}
+            hint={actual_doj ? 'Auto-calculated: DOJ + period' : 'Set Date of Joining in Location & Attendance step first'}
             fieldPerm={f('probation_end_date')}
           />
           <FormSelect
@@ -128,12 +119,7 @@ export function StepCommitment(_: Props) {
         </div>
       )}
 
-      {/* ── Confirmation ──────────────────────────────────────────────────── */}
-      <SectionTitle
-        title="Confirmation"
-        subtitle="Fill after probation period ends"
-        fields={[f('confirmation_status')]}
-      />
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Confirmation — fill after probation period ends</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <FormSelect
           name="confirmation_status"

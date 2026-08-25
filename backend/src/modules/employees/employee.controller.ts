@@ -9,15 +9,16 @@ import { AppError } from "../../middleware/errorHandler.middleware";
 import fs from "fs";
 import path from "path";
 const MAX_ROWS = 5000;
-const REQUIRED_HEADERS = ['employee_code'];
-// ─── Multer (bulk upload only — in-memory) ────────────────────────────────────
-const uploadMem = multer({
+const REQUIRED_HEADERS = ['first_name', 'last_name', 'email', 'phone', 'department_id', 'designation_id'];
+
+// ─── Multer (IDs & Bank document uploads — in-memory) ─────────────────────────
+export const uploadDoc = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ext = file.originalname.split(".").pop()?.toLowerCase();
-    if (["XLSX", "xls", "csv"].includes(ext || "")) cb(null, true);
-    else cb(new AppError("Only Excel/CSV files allowed", 400));
+    if (["pdf", "jpg", "jpeg", "png"].includes(ext || "")) cb(null, true);
+    else cb(new AppError("Only PDF, JPG, or PNG files allowed", 400));
   },
 }).single("file");
 
@@ -69,13 +70,7 @@ export const employeeController = {
         statusCode: 201,
       });
     } catch (error: any) {
-      console.error("UPDATE STEP ERROR");
-      console.error("BODY:", req.body);
-      console.error("NAME:", error.name);
-      console.error("MESSAGE:", error.message);
-      console.error("PARENT:", error.parent);
-      console.error("ORIGINAL:", error.original);
-
+      console.error("CREATE EMPLOYEE ERROR:", error.name, "-", error.message);
       throw error;
     }
   },
@@ -94,13 +89,7 @@ export const employeeController = {
       );
       sendResponse(res, { data: emp, message: `${step} saved` });
     } catch (error: any) {
-      console.error("UPDATE STEP ERROR");
-      console.error("BODY:", req.body);
-      console.error("NAME:", error.name);
-      console.error("MESSAGE:", error.message);
-      console.error("PARENT:", error.parent);
-      console.error("ORIGINAL:", error.original);
-
+      console.error("UPDATE STEP ERROR:", error.name, "-", error.message);
       throw error;
     }
   },
@@ -182,6 +171,37 @@ export const employeeController = {
       req.user!.employeeId,
     );
     sendResponse(res, { data: null, message: "Draft discarded" });
+  },
+
+  // ─── IDs & Bank: upload a scan for Aadhaar/PAN/Passport/Driving Licence ────
+  async uploadIdDocument(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
+      const docType = req.params.docType as 'aadhaar' | 'pan' | 'passport' | 'drivingLicense';
+      const dir = path.join(process.cwd(), 'uploads', 'employee-docs', String(req.params.id));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const filename = `${docType}-${Date.now()}${path.extname(req.file.originalname)}`;
+      fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+      const fileUrl = `/uploads/employee-docs/${req.params.id}/${filename}`;
+      await employeeService.uploadIdDocument(Number(req.params.id), req.user!.companyId, docType, fileUrl, req.user!.employeeId);
+      sendResponse(res, { data: { file_url: fileUrl }, message: 'Document uploaded' });
+    } catch (e) { next(e); }
+  },
+
+  // ─── IDs & Bank: "Additional documents" repeatable list ──────────────────
+  async uploadExtraDocument(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
+      const { doc_type, doc_type_other } = req.body;
+      if (!doc_type) { sendError(res, 'doc_type is required', 400); return; }
+      const dir = path.join(process.cwd(), 'uploads', 'employee-docs', String(req.params.id));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const filename = `extra-${Date.now()}${path.extname(req.file.originalname)}`;
+      fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+      const fileUrl = `/uploads/employee-docs/${req.params.id}/${filename}`;
+      await employeeService.addExtraDocument(Number(req.params.id), req.user!.companyId, doc_type, doc_type_other || null, fileUrl, req.user!.employeeId);
+      sendResponse(res, { data: { file_url: fileUrl }, message: 'Document uploaded' });
+    } catch (e) { next(e); }
   },
 
   bulkUpload: async function (

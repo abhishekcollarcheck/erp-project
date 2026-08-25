@@ -1,5 +1,5 @@
 import { Request, Response, Router, NextFunction } from 'express';
-import {employeeController} from "./employee.controller"
+import {employeeController, uploadDoc} from "./employee.controller"
 import { authenticate, resolveCompanyContext } from '../auth/auth.middleware';
 import { asyncHandler } from '../../middleware/errorHandler.middleware';
 import {getManagedEmployees} from "./employee.controller";
@@ -99,4 +99,17 @@ employeeRoutes.patch('/:id/step/:step',
       .catch(next);
   },
   asyncHandler(employeeController.updateStep),
+);
+
+// IDs & Bank — document uploads (Aadhaar/PAN/Passport/Driving Licence scans,
+// and the "Additional documents" repeatable list)
+employeeRoutes.post('/:id/documents/:docType',
+  idValidation,
+  uploadDoc,
+  employeeController.uploadIdDocument,
+);
+employeeRoutes.post('/:id/documents',
+  idValidation,
+  uploadDoc,
+  employeeController.uploadExtraDocument,
 );

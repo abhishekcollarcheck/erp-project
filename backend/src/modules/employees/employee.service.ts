@@ -11,10 +11,10 @@ import {
 import { FieldPermissionV2, DynamicField } from '../../database/models/FormBuilder';
 import { UserGroup } from '../../database/models/PermissionGroups';
 import type {
-  EmployeeQueryParams, BasicInfoDto, EmploymentDto, ReportingDto,
+  EmployeeQueryParams, RoleIdentityDto, LocationAttendanceDto, ManagersWorkContactDto,
   CommitmentProbationDto, SchemesDto, PersonalDto, AddressDto,
-  FamilyDto, EmergencyContactDto, StatutoryDto, BankDto,
-  ExperienceEducationDto, SalaryDto, OnboardingDocsDto,
+  FamilyDto, FamilyMemberDto, EmergencyContactDto, StatutoryDto, BankDto,
+  VaccinationDto, DocumentDto, ExperienceEducationDto, SalaryDto, OnboardingDocsDto,
   FieldPermissionMap, BulkUploadRow, BulkUploadResult,
 } from './employee.types';
 import type { StepKey } from './employee.constants';
@@ -116,16 +116,11 @@ export class EmployeeService {
     return json;
   }
 
-  async create(dto: BasicInfoDto, actorId: number, ipAddress?: string) {
-    const empCode = await generateEmployeeCode(dto.company_id);
-    let useCode = empCode;
-    const dupCode = await repo.findByCode(useCode);
-    if (dupCode) throw new AppError(`Employee code "${useCode}" is already in use`, 409);
-
+  async create(dto: RoleIdentityDto, actorId: number, ipAddress?: string) {
     if (dto.email) {
       const dupEmail = await repo.findByEmail(dto.email);
       if (dupEmail) throw new AppError(
-        `Email "${dto.email}" is already registered to ${dupEmail.first_name} ${dupEmail.last_name} (${dupEmail.employee_code}) in this company`,
+        `Email "${dto.email}" is already registered to ${dupEmail.first_name} ${dupEmail.last_name} (${dupEmail.employee_code ?? 'code pending'}) — employee_code and email are globally unique across all companies`,
         409,
       );
     }
@@ -133,7 +128,7 @@ export class EmployeeService {
     if (dto.phone) {
       const dupMobile = await repo.findByMobile(dto.phone);
       if (dupMobile) throw new AppError(
-        `Phone "${dto.phone}" is already registered to ${dupMobile.first_name} ${dupMobile.last_name} (${dupMobile.employee_code}) in this company`,
+        `Phone "${dto.phone}" is already registered to ${dupMobile.first_name} ${dupMobile.last_name} (${dupMobile.employee_code ?? 'code pending'}) — employee_code and phone are globally unique across all companies`,
         409,
       );
     }
@@ -142,29 +137,29 @@ export class EmployeeService {
       const refCode = await generateReferenceCode(dto.company_id);
       const emp = await repo.create({
         company_id:      dto.company_id,
-        employee_code:   useCode,
+        employee_code:   null,   // generated automatically once HR + Candidate parts both reach 100%
         reference_code:  refCode,
         status:          dto.status || 'Active',
         first_name:      dto.first_name.trim(),
         middle_name:     dto.middle_name?.trim() || null,
         last_name:       dto.last_name.trim(),
         employment_type: dto.employment_type || 'Permanent',
-        department_id:   dto.department_id || null,
+        department_id:   dto.department_id,
         sub_department_id: dto.sub_department_id || null,
-        designation_id:  dto.designation_id || null,
-        sub_designation: dto.sub_designation || null,
-        email:  dto.email?.toLowerCase().trim() || null,
-        phone: dto.phone ? normalizePhone(dto.phone) : null,
+        designation_id:  dto.designation_id,
+        sub_designation_id: dto.sub_designation_id || null,
+        email:  dto.email.toLowerCase().trim(),
+        phone:  normalizePhone(dto.phone),
         // Auth defaults
         portal_access:   true,        // enabled on creation — employee can log in immediately
         is_super_admin:  false,
         otp_attempts:    0,
         must_change_password: false,
-        form_completion_pct: 15,
+        form_completion_pct: 0,       // recalculated on the first step save
         created_by:      actorId,
       }, t);
 
-      await logActivity({ companyId: dto.company_id, employeeId: actorId, action: 'EMPLOYEE_CREATED', module: 'employees', entityId: emp.id, newValues: { employee_code: emp.employee_code, name: emp.fullName }, ipAddress });
+      await logActivity({ companyId: dto.company_id, employeeId: actorId, action: 'EMPLOYEE_CREATED', module: 'employees', entityId: emp.id, newValues: { reference_code: emp.reference_code, name: emp.fullName }, ipAddress });
       return emp;
     });
   }
@@ -176,12 +171,20 @@ export class EmployeeService {
     return sequelize.transaction(async (t) => {
       await this.routeStep(id, companyId, step, dto, actorId, t);
 
-      // Recalculate completion
+      // Recalculate HR/Candidate/overall completion
       const fresh = await repo.findById(id, companyId, true);
-      const pct   = computeCompletionPct(fresh?.toJSON());
-      await repo.updateCompletionPct(id, pct, t);
+      const breakdown = computeCompletionPct(fresh?.toJSON());
+      await repo.updateCompletionPct(id, breakdown.overallPct, t);
 
-      await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_STEP_SAVED', module: 'employees', entityId: id, newValues: { step }, ipAddress });
+      // Generate employee_code the instant overall completion reaches 100%,
+      // if it hasn't already been assigned. This is the one place this fires.
+      if (breakdown.overallPct === 100 && !fresh?.employee_code) {
+        const newCode = await generateEmployeeCode(companyId);
+        await repo.update(id, companyId, { employee_code: newCode }, t);
+        await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_CODE_GENERATED', module: 'employees', entityId: id, newValues: { employee_code: newCode }, ipAddress });
+      }
+
+      await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_STEP_SAVED', module: 'employees', entityId: id, newValues: { step, hrPct: breakdown.hrPct, candidatePct: breakdown.candidatePct }, ipAddress });
       return repo.findById(id, companyId, false);
     });
   }
@@ -189,45 +192,41 @@ export class EmployeeService {
   private async routeStep(id: number, companyId: number, step: StepKey, dto: any, actorId: number, t: Transaction) {
     switch (step) {
 
-      case 'basic': {
-        const d = dto as BasicInfoDto;
-        if (d.employee_code) {
-          const dup = await repo.findByCode(d.employee_code);
-          if (dup) throw new AppError('Employee code already in use', 409);
-        }
+      case 'role_identity': {
+        const d = dto as RoleIdentityDto;
         await repo.update(id, companyId, {
           first_name:     d.first_name?.trim(),
           middle_name:    d.middle_name?.trim() || null,
           last_name:      d.last_name?.trim(),
           status:         d.status,
           employment_type: d.employment_type,
-          department_id:  d.department_id || null,
+          department_id:  d.department_id,
           sub_department_id: d.sub_department_id || null,
-          designation_id: d.designation_id || null,
-          sub_designation: d.sub_designation || null,
-          ...(d.employee_code ? { employee_code: d.employee_code } : {}),
+          designation_id: d.designation_id,
+          sub_designation_id: d.sub_designation_id || null,
           updated_by:     actorId,
         }, t);
         break;
       }
 
-      case 'employment': {
-        const d = dto as EmploymentDto;
+      case 'location_attendance': {
+        const d = dto as LocationAttendanceDto;
         await repo.update(id, companyId, {
-          working_site:          d.working_site,
-          working_city:          d.working_city,
-          working_state_country: d.working_state_country,
-          pay_register_location: d.pay_register_location,
-          saturday_off:          d.saturday_off ?? false,
-          shift_id:              d.shift_id || null,
-          grace_minutes:         d.grace_minutes || 0,
-          updated_by:            actorId,
+          working_state_country: d.working_state_country ?? null,
+          working_city:           d.working_city ?? null,
+          working_site:            d.working_site ?? null,
+          pay_register_location:   d.pay_register_location ?? null,
+          actual_doj:              d.actual_doj ? parseDdMmYyyy(d.actual_doj) : null,
+          weekly_off:              d.weekly_off ?? null,
+          shift_id:                d.shift_id || null,
+          grace_minutes:           d.grace_minutes ?? null,
+          updated_by:              actorId,
         }, t);
         break;
       }
 
-      case 'reporting': {
-        const d = dto as ReportingDto;
+      case 'managers_work_contact': {
+        const d = dto as ManagersWorkContactDto;
         // l1_manager_id and l2_manager_id are employee_id integers
         const l1Id = d.l1_manager_id ? Number(d.l1_manager_id) : null;
         const l2Id = d.l2_manager_id ? Number(d.l2_manager_id) : null;
@@ -238,20 +237,17 @@ export class EmployeeService {
           if (mgr.id === id) throw new AppError('Employee cannot be their own manager', 400);
         }
 
-        const actualDoj  = d.actual_doj ? parseDdMmYyyy(d.actual_doj) : null;
-        const currentDoj = d.current_doj ? parseDdMmYyyy(d.current_doj) : actualDoj;
-
         await repo.update(id, companyId, {
           l1_manager_id:   l1Id,
           l2_manager_id:   l2Id,
-          actual_doj:      actualDoj,
-          current_doj:     currentDoj,
+          official_email:  d.official_email?.toLowerCase().trim() || null,
+          official_mobile: d.official_mobile ? normalizePhone(d.official_mobile) : null,
           updated_by:      actorId,
         }, t);
         break;
       }
 
-      case 'commitment': {
+      case 'commitment_probation': {
         const d = dto as CommitmentProbationDto;
         const emp = await repo.findById(id, companyId);
 
@@ -284,7 +280,7 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
         break;
       }
 
-      case 'schemes': {
+      case 'statutory_schemes': {
         const d = dto as SchemesDto;
         let rdMaturityDate = null, rdMaturityAmount = 0;
         if (d.rd_scheme && d.rd_opening_date && d.rd_term) {
@@ -301,7 +297,7 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
         break;
       }
 
-      case 'personal': {
+      case 'personal_profile': {
         await repo.upsertPersonal(id, dto as PersonalDto, t);
         break;
       }
@@ -324,71 +320,100 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
         break;
       }
 
-      case 'family': { await repo.upsertFamily(id, dto as FamilyDto, t); break; }
-      case 'emergency': { await repo.upsertEmergencyContact(id, dto as EmergencyContactDto, t); break; }
+      case 'family_emergency': {
+        const d = dto as FamilyDto & { family_members?: FamilyMemberDto[]; emergency_contacts?: EmergencyContactDto[] };
 
-      case 'statutory': {
-        const d = dto as StatutoryDto;
-        await repo.upsertStatutory(id, {
-          passport_number:        d.passport_number,
-          passport_expiry:        d.passport_expiry ? parseDdMmYyyy(d.passport_expiry) : null,
-          yellow_fever:           d.yellow_fever,
-          yellow_fever_date:      d.yellow_fever_date ? parseDdMmYyyy(d.yellow_fever_date) : null,
-          driving_license_number: d.driving_license_number,
-          driving_license_expiry: d.driving_license_expiry ? parseDdMmYyyy(d.driving_license_expiry) : null,
-          aadhaar_number:         d.aadhaar_number,
-          aadhaar_address:        d.aadhaar_address,
-          pan_number:             d.pan_number?.toUpperCase(),
-          pan_full_name:          d.pan_full_name,
-          pan_dob:                d.pan_dob ? parseDdMmYyyy(d.pan_dob) : null,
-          pan_parent_spouse_name: d.pan_parent_spouse_name,
-        }, t);
-        break;
-      }
+        // marital_status is shown on this screen in the UI but still belongs
+        // to employee_personal (avoids duplicating the column across tables).
+        if (d.marital_status) {
+          await repo.upsertPersonal(id, { marital_status: d.marital_status } as any, t);
+        }
 
-      case 'bank': {
-        const d = dto as BankDto;
-        await repo.upsertBank(id, 'personal', {
-          bank_name:      d.personal_bank_name,
-          account_number: d.personal_bank_account,
-          ifsc_code:      d.personal_ifsc?.toUpperCase(),
-          branch_name:    d.personal_bank_branch,
-        }, t);
-        if (d.official_bank_name || d.official_bank_account) {
-          await repo.upsertBank(id, 'official', {
-            bank_name:      d.official_bank_name || null,
-            account_number: d.official_bank_account || null,
-            ifsc_code:      d.official_ifsc?.toUpperCase() || null,
-            branch_name:    d.official_bank_branch || null,
-          }, t);
+        await repo.upsertFamily(id, {
+          father_salutation: d.father_salutation, father_name: d.father_name,
+          father_dob: d.father_dob || null, father_occupation: d.father_occupation || null,
+          mother_salutation: d.mother_salutation, mother_name: d.mother_name,
+          mother_dob: d.mother_dob || null, mother_occupation: d.mother_occupation || null,
+        } as any, t);
+
+        if (d.family_members) {
+          await repo.replaceFamilyMembers(id, d.family_members, t);
+        }
+        if (d.emergency_contacts) {
+          await repo.replaceEmergencyContacts(id, d.emergency_contacts, t);
         }
         break;
       }
 
-      case 'experience': {
-        const d = dto as ExperienceEducationDto;
-        await repo.upsertExperience(id, {
-          is_experienced:          d.is_experienced,
-          last_company_name:       d.last_company_name || null,
-          last_designation:        d.last_designation || null,
-          last_working_day:        d.last_working_day ? parseDdMmYyyy(d.last_working_day) : null,
-          exp_contact_name:        d.exp_contact_name || null,
-          exp_contact_number:      d.exp_contact_number || null,
-          exp_contact_designation: d.exp_contact_designation || null,
-          last_inhand_salary:      d.last_inhand_salary || null,
+      case 'ids_bank': {
+        const d = dto as StatutoryDto & BankDto & { vaccinations?: VaccinationDto[]; documents?: DocumentDto[] };
+
+        await repo.upsertStatutory(id, {
+          aadhaar_number:  d.aadhaar_number,
+          aadhaar_name:    d.aadhaar_name,
+          aadhaar_dob:     d.aadhaar_dob ? parseDdMmYyyy(d.aadhaar_dob) : null,
+          aadhaar_address: d.aadhaar_address,
+          pan_number:              d.pan_number?.toUpperCase() || null,
+          pan_full_name:           d.pan_full_name || null,
+          pan_dob:                 d.pan_dob ? parseDdMmYyyy(d.pan_dob) : null,
+          pan_parent_spouse_name:  d.pan_parent_spouse_name || null,
+          passport_number:         d.passport_number || null,
+          passport_full_name:      d.passport_full_name || null,
+          passport_nationality:    d.passport_nationality || null,
+          passport_issue_date:     d.passport_issue_date ? parseDdMmYyyy(d.passport_issue_date) : null,
+          passport_expiry:         d.passport_expiry ? parseDdMmYyyy(d.passport_expiry) : null,
+          passport_place_of_issue: d.passport_place_of_issue || null,
+          driving_license_number:    d.driving_license_number || null,
+          driving_license_name:      d.driving_license_name || null,
+          driving_license_issue_date: d.driving_license_issue_date ? parseDdMmYyyy(d.driving_license_issue_date) : null,
+          driving_license_expiry:    d.driving_license_expiry ? parseDdMmYyyy(d.driving_license_expiry) : null,
+          driving_license_authority: d.driving_license_authority || null,
         }, t);
-        await repo.upsertEducation(id, {
-          highest_education: d.highest_education,
-          education_stream:  d.education_stream || null,
-          education_mode:    d.education_mode || null,
-          institute_name:    d.institute_name || null,
-          passing_year:      d.passing_year || null,
-          education_marks:   d.education_marks || null,
+
+        await repo.upsertBank(id, 'personal', {
+          bank_name:      d.personal_bank_name,
+          account_number: d.personal_bank_account,
+          ifsc_code:      d.personal_ifsc?.toUpperCase(),
+          branch_name:    d.personal_bank_branch || null,
         }, t);
+
+        if (d.vaccinations) await repo.replaceVaccinations(id, d.vaccinations, t);
+        if (d.documents)    await repo.replaceDocuments(id, d.documents, t);
         break;
       }
 
-      case 'salary': {
+      case 'experience_education': {
+        const d = dto as ExperienceEducationDto;
+        await repo.setExperienceFlag(id, d.is_experienced, t);
+
+        if (d.experience) {
+          await repo.replaceExperience(id, d.experience.map(e => ({
+            last_company_name:       e.last_company_name || null,
+            last_designation:        e.last_designation || null,
+            last_working_day:        e.last_working_day ? parseDdMmYyyy(e.last_working_day) : null,
+            exp_contact_name:        e.exp_contact_name || null,
+            exp_contact_number:      e.exp_contact_number || null,
+            exp_contact_designation: e.exp_contact_designation || null,
+            last_inhand_salary:      e.last_inhand_salary || null,
+          })), t);
+        }
+
+        if (d.education) {
+          await repo.replaceEducation(id, d.education.map(ed => ({
+            highest_education:    ed.highest_education,
+            education_stream:     ed.education_stream || null,
+            education_mode:       ed.education_mode || null,
+            institute_name:       ed.institute_name || null,
+            education_marks:      ed.education_marks || null,
+            education_start_year: ed.education_start_year || null,
+            education_end_year:   ed.education_end_year || null,
+            is_pursuing:          ed.is_pursuing ?? false,
+          })), t);
+        }
+        break;
+      }
+
+      case 'compensation': {
         const d = dto as SalaryDto;
         const cur = computeSalary(d.current_basic, d.current_hra, d.current_allowance1, d.current_amdb);
         await repo.upsertSalary(id, 'current', { salary_mode: d.salary_mode, ...cur, effective_from: new Date() }, t);
@@ -404,12 +429,13 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
           deduction_months:  d.deduction_months || null,
           deduction_from:    d.deduction_from || null,
           monthly_deduction: monthlyDeduction || null,
+          final_monthly_deduction: d.final_monthly_deduction || null,
           last_installment:  lastInstallment || null,
         }, t);
         break;
       }
 
-      case 'onboarding_docs': {
+      case 'hr_joining_checklist': {
         await repo.upsertOnboardingDocs(id, dto as OnboardingDocsDto, t);
         // Enable portal access once onboarding docs are confirmed
         const docs = dto as OnboardingDocsDto;
@@ -451,7 +477,7 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
   }
 
   async getNextCode(companyId: number) {
-    return { code: await generateEmployeeCode(companyId), ref: await generateReferenceCode(companyId) };
+    return { ref: await generateReferenceCode(companyId) };
   }
 
   // Search managers by ID or name (returns list for async dropdown)
@@ -518,6 +544,29 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
   return result;
 }
 
+
+  // ─── IDs & Bank: document uploads ──────────────────────────────────────────
+  async uploadIdDocument(id: number, companyId: number, docType: 'aadhaar' | 'pan' | 'passport' | 'drivingLicense', fileUrl: string, actorId: number) {
+    const emp = await repo.findById(id, companyId);
+    if (!emp) throw new AppError('Employee not found', 404);
+    const column: Record<string, string> = {
+      aadhaar: 'aadhaar_scan_url', pan: 'pan_scan_url',
+      passport: 'passport_scan_url', drivingLicense: 'driving_license_scan_url',
+    };
+    if (!column[docType]) throw new AppError('Invalid document type', 400);
+    return sequelize.transaction(async (t) => {
+      await repo.upsertStatutory(id, { [column[docType]]: fileUrl } as any, t);
+      await logActivity({ companyId, employeeId: actorId, action: 'ID_DOCUMENT_UPLOADED', module: 'employees', entityId: id, newValues: { docType } });
+    });
+  }
+
+  async addExtraDocument(id: number, companyId: number, docType: string, docTypeOther: string | null, fileUrl: string, actorId: number) {
+    const emp = await repo.findById(id, companyId);
+    if (!emp) throw new AppError('Employee not found', 404);
+    const doc = await repo.addDocument(id, { doc_type: docType, doc_type_other: docTypeOther, file_url: fileUrl });
+    await logActivity({ companyId, employeeId: actorId, action: 'DOCUMENT_UPLOADED', module: 'employees', entityId: id, newValues: { docType } });
+    return doc;
+  }
 
   async getSummary(companyId: number) { return repo.getSummary(companyId); }
 
@@ -682,14 +731,13 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
             department_id: departmentId,
             designation_id: designationId,
             // Optional fields
-            employee_code: row.employee_code ? getString(row.employee_code) : undefined,
             date_of_birth: row.date_of_birth ? getString(row.date_of_birth) : undefined,
             gender: row.gender ? getString(row.gender) : undefined,
             date_of_joining: row.date_of_joining ? getString(row.date_of_joining) : undefined,
             salary: row.salary ? getNumber(row.salary) : undefined,
             working_site: row.working_site ? getString(row.working_site) : undefined,
             sub_department_id: row.sub_department_id ? getNumber(row.sub_department_id) : undefined,
-            sub_designation: row.sub_designation ? getString(row.sub_designation) : undefined,
+            sub_designation_id: row.sub_designation_id ? getNumber(row.sub_designation_id) : undefined,
             employment_type: (row.employment_type as any) || 'Permanent',
             status: row.status ? getString(row.status) : 'Active',
           } as any,

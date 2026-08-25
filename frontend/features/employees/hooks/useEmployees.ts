@@ -67,7 +67,7 @@ export function useNextCode() {
     queryKey: EMP_KEYS.nextCode,
     queryFn: () => employeeService.nextCode(),
     staleTime: 0,
-    select: (res: any) => res.data as { code: string; ref: string },
+    select: (res: any) => res.data as { ref: string },
   });
 }
 
@@ -90,7 +90,7 @@ export function useManagerById(managerId: number | null | undefined) {
     queryFn: () => employeeService.managerById(managerId!),
     enabled: !!managerId && managerId > 0,
     staleTime: 0,
-    select: (res: any) => res.data as { id: number; employee_code: string; first_name: string; last_name: string; },
+    select: (res: any) => res.data as { id: number; employee_code: string | null; first_name: string; last_name: string; },
   });
 }
 
@@ -157,6 +157,27 @@ export function useBulkUpload() {
       qc.invalidateQueries({ queryKey: EMP_KEYS.lists() });
       showToast(`${res.data?.success || 0} employees imported`);
     },
+    onError: (err: any) => showToast(err?.message || 'Upload failed'),
+  });
+}
+
+// ─── IDs & Bank: document uploads ──────────────────────────────────────────────
+export function useUploadIdDocument(employeeId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ docType, file }: { docType: 'aadhaar' | 'pan' | 'passport' | 'drivingLicense'; file: File }) =>
+      employeeService.uploadIdDocument(employeeId, docType, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: EMP_KEYS.detail(employeeId) }),
+    onError: (err: any) => showToast(err?.message || 'Upload failed'),
+  });
+}
+
+export function useUploadExtraDocument(employeeId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ docType, docTypeOther, file }: { docType: string; docTypeOther?: string; file: File }) =>
+      employeeService.uploadExtraDocument(employeeId, docType, docTypeOther, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: EMP_KEYS.detail(employeeId) }),
     onError: (err: any) => showToast(err?.message || 'Upload failed'),
   });
 }

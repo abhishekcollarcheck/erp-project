@@ -90,7 +90,7 @@ export class Company
 
 Company.init({
   id:                    { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  name:                  { type: DataTypes.STRING(200), allowNull: false },
+  name:                  { type: DataTypes.STRING(200), allowNull: false},
   slug:                  { type: DataTypes.STRING(100), allowNull: true},
   code:                  { type: DataTypes.STRING(20),  allowNull: true},
   logo_url:              { type: DataTypes.STRING(500), allowNull: true },
