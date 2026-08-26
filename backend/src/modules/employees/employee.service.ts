@@ -3,7 +3,7 @@ import { AppError } from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 import { employeeRepository as repo } from './employee.repo';
 import {
-  generateEmployeeCode, generateReferenceCode,
+  generateEmployeeCode,
   computeSalary, computeWorkingDuration, computeCommitmentEndDate,
   computeProbationEndDate, computeRdMaturity, computeAssetDeduction,
   computeCompletionPct, parseDdMmYyyy,
@@ -18,6 +18,7 @@ import type {
   FieldPermissionMap, BulkUploadRow, BulkUploadResult,
 } from './employee.types';
 import type { StepKey } from './employee.constants';
+import { WIZARD_STEPS } from './employee.constants';
 import { SENSITIVE_FIELDS } from './employee.constants';
 import { Transaction } from 'sequelize';
 import { normalizePhone } from '../../utils/normalizeNumber';
@@ -134,12 +135,11 @@ export class EmployeeService {
     }
 
     return sequelize.transaction(async (t) => {
-      const refCode = await generateReferenceCode(dto.company_id);
       const emp = await repo.create({
         company_id:      dto.company_id,
         employee_code:   null,   // generated automatically once HR + Candidate parts both reach 100%
-        reference_code:  refCode,
         status:          dto.status || 'Active',
+        record_status:   'Draft',   // flips to 'Final' at 100% completion, same trigger as employee_code generation
         first_name:      dto.first_name.trim(),
         middle_name:     dto.middle_name?.trim() || null,
         last_name:       dto.last_name.trim(),
@@ -159,7 +159,7 @@ export class EmployeeService {
         created_by:      actorId,
       }, t);
 
-      await logActivity({ companyId: dto.company_id, employeeId: actorId, action: 'EMPLOYEE_CREATED', module: 'employees', entityId: emp.id, newValues: { reference_code: emp.reference_code, name: emp.fullName }, ipAddress });
+      await logActivity({ companyId: dto.company_id, employeeId: actorId, action: 'EMPLOYEE_CREATED', module: 'employees', entityId: emp.id, newValues: { name: emp.fullName }, ipAddress });
       return emp;
     });
   }
@@ -178,9 +178,10 @@ export class EmployeeService {
 
       // Generate employee_code the instant overall completion reaches 100%,
       // if it hasn't already been assigned. This is the one place this fires.
+      // record_status flips from Draft to Final at the same moment.
       if (breakdown.overallPct === 100 && !fresh?.employee_code) {
         const newCode = await generateEmployeeCode(companyId);
-        await repo.update(id, companyId, { employee_code: newCode }, t);
+        await repo.update(id, companyId, { employee_code: newCode, record_status: 'Final' }, t);
         await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_CODE_GENERATED', module: 'employees', entityId: id, newValues: { employee_code: newCode }, ipAddress });
       }
 
@@ -476,10 +477,6 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
     await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_DELETED', module: 'employees', entityId: id });
   }
 
-  async getNextCode(companyId: number) {
-    return { ref: await generateReferenceCode(companyId) };
-  }
-
   // Search managers by ID or name (returns list for async dropdown)
   async searchManagers(query: string, companyId: number, excludeId?: number) {
     return repo.searchManagers(query, companyId, excludeId);
@@ -491,8 +488,80 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
     return mgr;
   }
 
-  async saveDraft(data: { employeeId?: number | null; actorId: number; step: string; formData: object; sessionId: string }) {
-    return repo.upsertDraft({ employeeId: data.employeeId, createdBy: data.actorId, step: data.step, formData: data.formData, sessionId: data.sessionId });
+  async saveDraft(data: { employeeId?: number | null; companyId: number; actorId: number; step: string; formData: any; sessionId: string }) {
+    const { employeeId, companyId, actorId, step, formData, sessionId } = data;
+    
+    await repo.upsertDraft({ employeeId, createdBy: actorId, step, formData, sessionId });
+
+    const firstName = String(formData.first_name || '').trim();
+    const phone = String(formData.phone || '').trim();
+    if (!firstName || !phone) {
+      return { employeeId: employeeId ?? null, persisted: false };
+    }
+
+    return sequelize.transaction(async (t) => {
+      let id = employeeId;
+
+      if (!id) {
+        const emp = await repo.create({
+          company_id: companyId,
+          first_name: firstName,
+          middle_name: formData.middle_name || null,
+          last_name: formData.last_name?.trim() || '',
+          status: formData.status || 'Active',
+          record_status: 'Draft',
+          employment_type: formData.employment_type || 'Permanent',
+          department_id: formData.department_id ? Number(formData.department_id) : null,
+          sub_department_id: formData.sub_department_id ? Number(formData.sub_department_id) : null,
+          designation_id: formData.designation_id ? Number(formData.designation_id) : null,
+          sub_designation_id: formData.sub_designation_id ? Number(formData.sub_designation_id) : null,
+          email: formData.email?.toLowerCase().trim() || null,
+          phone: normalizePhone(phone),
+          employee_code: null,
+          portal_access: true,
+          is_super_admin: false,
+          otp_attempts: 0,
+          must_change_password: false,
+          form_completion_pct: 0,
+          created_by: actorId,
+        }, t);
+        id = emp.id;
+        await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_DRAFT_CREATED', module: 'employees', newValues: { name: emp.fullName } });
+      } else {
+        // Employee already exists — lenient partial update of whichever
+        // role_identity-type fields are present, no required-field checks.
+        const roleFields = ['first_name', 'middle_name', 'last_name', 'status', 'employment_type', 'department_id', 'sub_department_id', 'designation_id', 'sub_designation_id', 'email', 'phone'];
+        const partial: any = {};
+        for (const k of roleFields) {
+          if (formData[k] !== undefined) partial[k] = k === 'phone' ? normalizePhone(String(formData[k])) : formData[k];
+        }
+        if (Object.keys(partial).length) await repo.update(id, companyId, partial, t);
+      }
+
+      // Route whatever step-specific fields are present into the real child
+      // table too — reuses routeStep()'s upsert logic, just without the
+      // strict validators that normally gate PATCH /:id/step/:step. A draft
+      // save should never hard-fail just because a step's data is partial.
+      if (step && step !== 'role_identity' && WIZARD_STEPS.some(s => s.key === step)) {
+        try {
+          await this.routeStep(id!, companyId, step as StepKey, formData, actorId, t);
+        } catch {
+          // swallow — see comment above
+        }
+      }
+
+      const fresh = await repo.findById(id!, companyId, true);
+      const breakdown = computeCompletionPct(fresh?.toJSON());
+      await repo.updateCompletionPct(id!, breakdown.overallPct, t);
+
+      if (breakdown.overallPct === 100 && !fresh?.employee_code) {
+        const newCode = await generateEmployeeCode(companyId);
+        await repo.update(id!, companyId, { employee_code: newCode, record_status: 'Final' }, t);
+        await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_CODE_GENERATED', module: 'employees', entityId: id!, newValues: { employee_code: newCode } });
+      }
+
+      return { employeeId: id, persisted: true };
+    });
   }
 
   async getDraft(sessionId: string, actorId: number) { return repo.getDraft(sessionId, actorId); }
@@ -544,6 +613,16 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
   return result;
 }
 
+
+  // ─── Role & Identity: profile photo upload ─────────────────────────────────
+  async uploadProfilePhoto(id: number, companyId: number, avatarUrl: string, actorId: number) {
+    const emp = await repo.findById(id, companyId);
+    if (!emp) throw new AppError('Employee not found', 404);
+    return sequelize.transaction(async (t) => {
+      await repo.update(id, companyId, { avatar_url: avatarUrl, updated_by: actorId }, t);
+      await logActivity({ companyId, employeeId: actorId, action: 'PROFILE_PHOTO_UPLOADED', module: 'employees', entityId: id, newValues: { avatar_url: avatarUrl } });
+    });
+  }
 
   // ─── IDs & Bank: document uploads ──────────────────────────────────────────
   async uploadIdDocument(id: number, companyId: number, docType: 'aadhaar' | 'pan' | 'passport' | 'drivingLicense', fileUrl: string, actorId: number) {

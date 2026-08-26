@@ -47,6 +47,9 @@ const SENSITIVE_INCLUDES: any[] = [
 
 const LIST_INCLUDES: any[] = [
   { association: 'l1Manager', attributes: MGR_ATTRS },
+  { association: 'company', attributes: ['id', 'name'] },
+  { association: 'department', attributes: ['id', ['department_name', 'name']] },
+  { association: 'designation', attributes: ['id', ['designation_name', 'name']] },
 ];
 
 // Columns to always exclude from API responses
@@ -371,7 +374,7 @@ export class EmployeeRepository {
 
   // ─── Stats ────────────────────────────────────────────────────────────────
   async getSummary(companyId: number) {
-    const [active, left, retired, onNotice, relieved, absconded, inactive, total] = await Promise.all([
+    const [active, left, retired, onNotice, relieved, absconded, inactive, draft, total] = await Promise.all([
       Employee.count({ where: { company_id: companyId, status: 'Active' } }),
       Employee.count({ where: { company_id: companyId, status: 'Left' } }),
       Employee.count({ where: { company_id: companyId, status: 'Retired' } }),
@@ -379,9 +382,10 @@ export class EmployeeRepository {
       Employee.count({ where: { company_id: companyId, status: 'Relieved' } }),
       Employee.count({ where: { company_id: companyId, status: 'Absconded' } }),
       Employee.count({ where: { company_id: companyId, status: 'Inactive' } }),
+      Employee.count({ where: { company_id: companyId, record_status: 'Draft' } }),
       Employee.count({ where: { company_id: companyId } }),
     ]);
-    return { active, left, retired, onNotice, relieved, absconded, inactive, total };
+    return { active, left, retired, onNotice, relieved, absconded, inactive, draft, total };
   }
 }
 

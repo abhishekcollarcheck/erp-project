@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 
 import { fullEmployeeSchema, STEP_SCHEMA_MAP, type FullEmployeeForm, type StepSchemaKey } from '../validations/employee.schema';
 import { WIZARD_STEPS } from '../constants/employee.constants';
-import { useCreateEmployee, useUpdateStep, useSaveDraft, useNextCode } from '../hooks/useEmployees';
+import { useCreateEmployee, useUpdateStep, useSaveDraft } from '../hooks/useEmployees';
+import { employeeService } from '../../../services/api/employee.service';
+import { showToast } from '../../../utils/toast';
 import { usePermission } from '../../auth/hooks/usePermission';
 
 import { StepRoleIdentity }        from './steps/StepRoleIdentity';
@@ -45,6 +47,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
 
   const sidRef        = useRef(getOrCreateSid());
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const pendingAvatarRef = useRef<File | null>(null); // profile photo picked before the employee exists yet (create mode, step 1)
 
   const [currentIdx,   setCurrentIdx]   = useState(0);
   const [savedId,      setSavedId]      = useState<number | null>(employee?.id ?? null);
@@ -65,7 +68,6 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   const hrDone        = useMemo(() => [...completedSet].filter(i => visibleSteps[i]?.part === 'hr').length, [completedSet, visibleSteps]);
   const candidateDone = useMemo(() => [...completedSet].filter(i => visibleSteps[i]?.part === 'candidate').length, [completedSet, visibleSteps]);
 
-  const { data: nextCodeData }  = useNextCode();   // now only returns { ref } — no employee_code preview
   const createMutation  = useCreateEmployee();
   const updateMutation  = useUpdateStep(savedId ?? 0);
   const draftMutation   = useSaveDraft();
@@ -75,7 +77,6 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     resolver: zodResolver(fullEmployeeSchema),
     mode: 'onTouched',
     defaultValues: {
-      reference_code: '',
       status: 'Active', employment_type: 'Permanent', weekly_off: '',
       perm_address_type: 'Same as Present', commitment: false, on_probation: false,
       pf_status: false, esic_status: false, mediclaim_status: 'No', rd_scheme: false,
@@ -83,6 +84,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       offer_letter: false, address_verification: false, service_agreement: false,
       indemnity_bond: false, asset_deduction_letter: false, account_opening_letter: false, nda: false,
       company_id:        undefined as number | undefined,
+      avatar_url:        null as string | null,
       email:             '',
       phone:             '',
       official_email:    '',
@@ -120,9 +122,10 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       last_name: employee.last_name, status: employee.status as any,
       employment_type: employee.employment_type,
       company_id:        employee.company_id,
+      avatar_url:        employee.avatar_url ?? null,
       email:             employee.email ?? '',      // "Personal Email"
       phone:             employee.phone ?? '',       // "Personal Mobile Number"
-      reference_code:    employee.reference_code ?? '',
+      employee_code:     employee.employee_code ?? null,
       department_id:     employee.department_id ?? undefined,
       sub_department_id: employee.sub_department_id ?? undefined,
       designation_id:    employee.designation_id ?? undefined,
@@ -274,7 +277,13 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     if (!step) return;
     setDraftSaving(true);
     draftMutation.mutate({ employee_id: savedId, step: step.key, form_data: methods.getValues(), session_id: sidRef.current },
-      { onSettled: () => { setDraftSaving(false); setDraftSavedAt(new Date()); } });
+      {
+        onSuccess: (res: any) => {
+          const newId = res?.data?.employeeId;
+          if (newId && !savedId) setSavedId(newId); // draft silently created the employee — pick up the id
+        },
+        onSettled: () => { setDraftSaving(false); setDraftSavedAt(new Date()); },
+      });
   }, [step, savedId, methods, draftMutation]);
 
   // Per-step validation
@@ -344,7 +353,6 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     if (mode === 'create' && currentIdx === 0 && !savedId) {
       const v = methods.getValues();
       const res: any = await createMutation.mutateAsync({
-        reference_code: v.reference_code || undefined,
         first_name: v.first_name?.trim(), middle_name: v.middle_name?.trim() || null, last_name: v.last_name?.trim(),
         status: v.status, employment_type: v.employment_type,
         department_id: v.department_id ? Number(v.department_id) : undefined,
@@ -356,7 +364,18 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         company_id: v.company_id ? Number(v.company_id) : undefined,
       } as Partial<Employee>);
       // employee_code is never sent — it's generated automatically once HR + Candidate parts both reach 100%
-      setSavedId(res.data?.id ?? res.id);
+      const newId = res.data?.id ?? res.id;
+      setSavedId(newId);
+
+      if (pendingAvatarRef.current) {
+        try {
+          await employeeService.uploadAvatar(newId, pendingAvatarRef.current);
+        } catch (e) {
+          // Non-fatal — employee creation already succeeded. The photo can
+          // still be added later from Step 1 in edit mode.
+        }
+        pendingAvatarRef.current = null;
+      }
     } else if (savedId && step.key !== 'review') {
       await updateMutation.mutateAsync({ step: step.key as StepSchemaKey, data: buildPayload(step.key) });
     }
@@ -376,11 +395,25 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
 
   const overallPct = Math.round((completedSet.size / visibleSteps.length) * 100);
 
+  const handlePhotoSelected = async (file: File) => {
+    if (savedId) {
+      try {
+        const res: any = await employeeService.uploadAvatar(savedId, file);
+        methods.setValue('avatar_url', res.data?.avatar_url ?? URL.createObjectURL(file), { shouldDirty: false });
+      } catch {
+        showToast('Photo upload failed — please try again');
+      }
+    } else {
+      pendingAvatarRef.current = file;
+      methods.setValue('avatar_url', URL.createObjectURL(file), { shouldDirty: false }); // local preview only, not sent to the server
+    }
+  };
+
   function renderStep() {
     if (!step) return null;
     const p = { isEdit: mode === 'edit', employeeId: savedId };
     switch (step.key) {
-      case 'role_identity':          return <StepRoleIdentity {...p} />;
+      case 'role_identity':          return <StepRoleIdentity {...p} avatarUrl={methods.watch('avatar_url')} onPhotoSelected={handlePhotoSelected} />;
       case 'location_attendance':    return <StepLocationAttendance {...p} />;
       case 'managers_work_contact':  return <StepManagersWorkContact {...p} />;
       case 'commitment_probation':   return <StepCommitmentProbation {...p} />;

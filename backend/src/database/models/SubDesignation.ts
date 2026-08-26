@@ -70,6 +70,10 @@ SubDesignation.init(
     deletedAt: 'deleted_at',
     indexes: [
       {
+        // name is intentionally globally unique across ALL companies, not
+        // per-company scoped — confirmed decision, same pattern as
+        // employees.employee_code/email/phone. No company_id column exists
+        // here by design. Do not treat the absence of company_id as a bug.
         unique: true,
         fields: ['name']
       }

@@ -16,20 +16,20 @@ export type ConfirmationStatus  = 'Confirmed' | 'Failed' | 'Not Applicable';
 export interface Employee {
   id:                     number;
   employee_code:          string | null;   // null/pending until HR+Candidate parts both reach 100%
-  reference_code:         string | null;   // generated immediately at creation
-  company_id:             number;
+  company_id:             number | null;
   first_name:             string;
   middle_name?:           string | null;
   last_name:              string;
   status:                 EmployeeStatus;
+  record_status:          'Draft' | 'Final';
   employment_type:        EmploymentType;
   email:                  string;          // "Personal Email" — required
   phone:                  string;          // "Personal Mobile Number" — required
   official_email?:        string | null;   // "Work Email" — optional
   official_mobile?:       string | null;   // "Work Mobile" — optional
-  department_id?:         number;
+  department_id?:         number | null;
   sub_department_id?:     number | null;
-  designation_id?:        number;
+  designation_id?:        number | null;
   sub_designation_id?:    number | null;
   l1_manager_id?:         number | null;
   l2_manager_id?:         number | null;
@@ -52,6 +52,9 @@ export interface Employee {
   last_login_at?:         string | null;
   // Associations (from includes)
   l1Manager?:             ManagerRef | null;
+  company?:               { id: number; name: string } | null;
+  department?:            { id: number; name: string } | null;
+  designation?:           { id: number; name: string } | null;
   l2Manager?:             ManagerRef | null;
   commitmentProbation?:   CommitmentProbation | null;
   schemes?:               EmployeeSchemes | null;
@@ -340,7 +343,7 @@ export interface EmployeeExit {
   verification_remarks?:   string | null;
 }
 
-// Extended to all 7 statuses
+// Extended to all 7 statuses + draft (employee_code still pending)
 export interface EmployeeSummary {
   total:      number;
   active:     number;
@@ -350,6 +353,7 @@ export interface EmployeeSummary {
   relieved:   number;
   absconded:  number;
   inactive:   number;
+  draft:      number;
 }
 
 export interface BulkUploadResult {

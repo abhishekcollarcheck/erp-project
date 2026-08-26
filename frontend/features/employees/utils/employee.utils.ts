@@ -51,11 +51,12 @@ export function getFullName(emp: Pick<Employee, 'first_name' | 'middle_name' | '
   return [emp.first_name, emp.middle_name, emp.last_name].filter(Boolean).join(' ');
 }
 
-/** Status → chip variant */
-export function statusVariant(status: EmployeeStatus): 'green' | 'amber' | 'red' | 'gray' {
+/** Status → chip variant. Accepts 'Draft' too, matching displayStatus() output. */
+export function statusVariant(status: EmployeeStatus | 'Draft'): 'green' | 'amber' | 'red' | 'gray' {
   switch (status) {
     case 'Active':     return 'green';
     case 'On Notice':  return 'amber';
+    case 'Draft':      return 'amber';
     case 'Left':       return 'red';
     case 'Relieved':   return 'red';
     case 'Absconded':  return 'red';
@@ -63,6 +64,14 @@ export function statusVariant(status: EmployeeStatus): 'green' | 'amber' | 'red'
     case 'Inactive':   return 'gray';
     default:           return 'gray';
   }
+}
+
+/** What the UI should actually show for status — 'Draft' overrides the real
+ * employment status whenever record_status is still 'Draft', matching the
+ * reference implementation's empDisplayStatus() exactly. */
+export function displayStatus(emp: Pick<Employee, 'status' | 'record_status'>): EmployeeStatus | 'Draft' {
+  if (emp.record_status === 'Draft') return 'Draft';
+  return emp.status || 'Active';
 }
 
 /** Onboarding % complete from onboardingDocs */

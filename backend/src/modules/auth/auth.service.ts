@@ -175,7 +175,13 @@ export async function loadPermissions(
 
 async function buildPayload(employee: Employee, activeCompanyId?: number) {
 
-  const companyId = activeCompanyId || employee.company_id;
+  const companyId = activeCompanyId ?? employee.company_id;
+  if (companyId === null) {
+    // company_id can legitimately be null now (SET NULL when a Company is
+    // deleted). Every permission/role lookup below requires a real company,
+    // so an employee with no company cannot be issued a session.
+    throw new AppError("No company assigned to this account. Contact HR.", 403);
+  }
   const { permissions, isSuperAdmin } = await loadPermissions(
     employee.id,
     companyId,

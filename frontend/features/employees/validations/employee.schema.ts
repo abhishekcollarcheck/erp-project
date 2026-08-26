@@ -27,6 +27,7 @@ const reqInt  = (msg: string) => z.union([
 // email/phone ARE "Personal Email"/"Personal Mobile Number" — required here.
 export const roleIdentitySchema = z.object({
   company_id:        z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
+  avatar_url:        optStr,
   first_name:        reqStr('First name is required').max(100),
   middle_name:       optStr,
   last_name:         reqStr('Last name is required').max(100),
@@ -38,7 +39,6 @@ export const roleIdentitySchema = z.object({
   sub_designation_id: optInt,
   email:             z.string({ required_error: 'Personal email is required' }).email('Valid email is required').toLowerCase().trim(),
   phone:             reqStr('Personal mobile number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
-  reference_code:    optStr,   // display-only, auto-generated
 });
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
@@ -335,6 +335,7 @@ export const STEP_SCHEMA_MAP = {
 export const fullEmployeeSchema = z.object({
   // ── Role & Identity ──────────────────────────────────────────────────────
   company_id:        z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
+  avatar_url:        optStr,
   first_name:        reqStr('First name is required').max(100),
   middle_name:       optStr,
   last_name:         reqStr('Last name is required').max(100),
@@ -346,7 +347,6 @@ export const fullEmployeeSchema = z.object({
   sub_designation_id: optInt,
   email:             z.string({ required_error: 'Personal email is required' }).email('Valid email is required').toLowerCase().trim(),
   phone:             reqStr('Personal mobile number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
-  reference_code:    optStr,
 
   // ── Location & Attendance ────────────────────────────────────────────────
   working_state_country: optStr,

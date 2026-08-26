@@ -9,7 +9,6 @@ import { AMDB_PERCENTAGE, HR_STEP_WEIGHTS, CANDIDATE_STEP_WEIGHTS, WIZARD_STEPS 
 import type { StepKey } from './employee.constants';
 import { Employee } from '../../database/models/Employee';
 import { Company } from '../../database/models/Company';
-import { Op } from 'sequelize';
 
 // ─── Salary computations (spreadsheet salary calculator) ─────────────────────
 
@@ -230,19 +229,6 @@ export async function generateEmployeeCode(
   );
 }
 
-
-export async function generateReferenceCode(companyId: number): Promise<string> {
-  const last = await Employee.findOne({
-    where: { company_id: companyId, reference_code: { [Op.ne]: null } },
-    order: [['id', 'DESC']],
-    attributes: ['reference_code'],
-    paranoid: false,
-  });
-  if (!last?.reference_code) return 'REF-0001';
-  const match = last.reference_code.match(/(\d+)$/);
-  const num = match ? parseInt(match[1], 10) + 1 : 1;
-  return `REF-${String(num).padStart(4, '0')}`;
-}
 
 // ─── Form completion percentage ───────────────────────────────────────────────
 

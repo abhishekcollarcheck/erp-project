@@ -34,7 +34,7 @@ Department.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     department_name: { type: DataTypes.STRING(200), allowNull: false },
-    department_code: { type: DataTypes.STRING(20), allowNull: true },
+    department_code: { type: DataTypes.STRING(20), allowNull: true }, // free-text label, not a unique identifier — intentionally unconstrained
     head_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
     created_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
@@ -46,8 +46,16 @@ Department.init(
     tableName: 'departments',
     modelName: 'Department',
     paranoid: true,
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
     indexes: [
       {
+        // department_name is intentionally globally unique across ALL companies,
+        // not per-company scoped — confirmed decision, same pattern as
+        // employees.employee_code/email/phone. No company_id column exists here
+        // by design. Do not treat the absence of company_id as a bug.
         unique: true,
         fields: ['department_name']
       },

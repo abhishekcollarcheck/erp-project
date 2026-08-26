@@ -1,6 +1,10 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
 
+// NOTE: Shift is intentionally a global, shared catalog — not company-scoped.
+// No company_id column by design; every company draws from the same set of
+// shifts. Confirmed decision, same pattern as employees.employee_code/email/phone
+// and the Department/Designation/SubDepartment/SubDesignation tables.
 export type ShiftCategory = 'STANDARD' | 'NAT';
 
 interface ShiftAttributes {
@@ -44,6 +48,9 @@ Shift.init(
     sequelize,
     tableName: 'shift',
     modelName: 'Shift',
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [{ fields: ['category'] }, { fields: ['is_active'] }],
   },
 );

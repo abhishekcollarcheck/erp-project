@@ -8,7 +8,11 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeders/seeder.ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "migrate": "sequelize-cli db:migrate",
+    "migrate:status": "sequelize-cli db:migrate:status",
+    "migrate:undo": "sequelize-cli db:migrate:undo",
+    "migrate:undo:all": "sequelize-cli db:migrate:undo:all"
   },
   "_moduleAliases": {
     "@": "dist"

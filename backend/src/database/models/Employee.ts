@@ -1,30 +1,24 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
 
-// ═════════════════════════════════════════════════════════════════════════════
-// STEP 1 (HR) · Role & Identity  +  STEP 2 (HR) · Location & Attendance
-// +  STEP 3 (HR) · Managers & Work Contact  — all on the `employees` table
-// ═════════════════════════════════════════════════════════════════════════════
 interface EmployeeAttrs {
   id:                     number;
   avatar_url?:            string | null;
-  employee_code:          string;   // generated automatically once HR+Candidate parts both reach 100%
-  reference_code:         string | null;   // generated immediately at creation
+  employee_code:          string | null; 
   status:                 'Active' | 'Left' | 'Retired' | 'On Notice' | 'Relieved' | 'Absconded' | 'Inactive';
+  record_status:          'Draft' | 'Final';   // separate from employment status — tracks whether onboarding is still in progress
   first_name:             string;
   middle_name?:           string | null;
   last_name:              string;
-  company_id:             number;
+  company_id:             number | null;
   employment_type:        'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
-  department_id:          number;
+  department_id:          number | null;
   sub_department_id:      number | null;
-  designation_id:         number;
-  sub_designations:     number | null;
-  // Step 1 · Portal invite contact (personal email/mobile — required)
+  designation_id:         number | null;
+  sub_designation_id:     number | null;
   email:                  string;   // = "Personal Email" in the UI
   phone:                  string;   // = "Personal Mobile Number" in the UI
 
-  // Step 2 · Location & Attendance
   working_state_country:  string | null;   // single combined field, e.g. "Delhi, India"
   working_city:            string | null;
   working_site:            string | null;
@@ -32,7 +26,7 @@ interface EmployeeAttrs {
   actual_doj:              Date | null;    // "Date of Joining" (required once this step is filled)
   current_doj:             Date | null;
   weekly_off:               string | null;  // renamed from saturday_off to match UI label exactly
-  shift_id:                 number;
+  shift_id:                 number | null;
   grace_minutes:            number;  // stored as minutes even though UI shows "15 minutes"/"1 hour" labels
 
   // Step 3 · Managers & Work Contact
@@ -63,8 +57,9 @@ interface EmployeeAttrs {
 }
 
 type EmployeeCreation = Optional<EmployeeAttrs,
-  'id' | 'avatar_url' | 'employee_code' | 'reference_code' | 'middle_name'
-  | 'sub_department_id' | 'sub_designations'
+  'id' | 'avatar_url' | 'employee_code' | 'middle_name' | 'record_status'
+  | 'company_id' | 'department_id' | 'designation_id'
+  | 'sub_department_id' | 'sub_designation_id'
   | 'working_state_country' | 'working_city' | 'working_site' | 'pay_register_location'
   | 'actual_doj' | 'current_doj' | 'weekly_off' | 'shift_id' | 'grace_minutes'
   | 'l1_manager_id' | 'l2_manager_id' | 'official_email' | 'official_mobile'
@@ -77,18 +72,18 @@ type EmployeeCreation = Optional<EmployeeAttrs,
 export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements EmployeeAttrs {
   public id!:                    number;
   public avatar_url!:            string | null;
-  public employee_code!:         string;
-  public reference_code!:        string | null;
+  public employee_code!:         string | null;
   public status!:                'Active' | 'Left' | 'Retired' | 'On Notice' | 'Relieved' | 'Absconded' | 'Inactive';
+  public record_status!:         'Draft' | 'Final';
   public first_name!:            string;
   public middle_name!:           string | null;
   public last_name!:             string;
-  public company_id!:            number;
+  public company_id!:            number | null;
   public employment_type!:       'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
-  public department_id!:         number;
+  public department_id!:         number | null;
   public sub_department_id!:     number | null;
-  public designation_id!:        number;
-  public sub_designations!:    number | null;
+  public designation_id!:        number | null;
+  public sub_designation_id!:  number | null;
   public email!:                 string;
   public phone!:                 string;
 
@@ -99,7 +94,7 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
   public actual_doj!:            Date | null;
   public current_doj!:           Date | null;
   public weekly_off!:            string | null;
-  public shift_id!:              number;
+  public shift_id!:              number | null;
   public grace_minutes!:         number;
 
   public l1_manager_id!:         number | null;
@@ -158,18 +153,18 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
 Employee.init({
   id:                     { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   avatar_url:             { type: DataTypes.STRING(500), allowNull: true },
-  employee_code:          { type: DataTypes.STRING(30), allowNull: false },
-  reference_code:         { type: DataTypes.STRING(50), allowNull: true },
+  employee_code:          { type: DataTypes.STRING(30), allowNull: true },
   status:                 { type: DataTypes.ENUM('Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive'), defaultValue: 'Active' },
+  record_status:          { type: DataTypes.ENUM('Draft', 'Final'), defaultValue: 'Draft', allowNull: false },
   first_name:             { type: DataTypes.STRING(100), allowNull: false },
   middle_name:            { type: DataTypes.STRING(100), allowNull: true },
   last_name:              { type: DataTypes.STRING(100), allowNull: false },
-  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'companies', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
   employment_type:        { type: DataTypes.ENUM('Permanent', 'Contract', 'Intern', 'Consultant', 'Probation'), defaultValue: 'Permanent' },
-  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  sub_designations:       { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'sub_designations', key: 'id'},onUpdate: 'CASCADE',onDelete: 'SET NULL'},
+  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'sub_departments', key: 'id'},onUpdate: 'CASCADE',onDelete: 'SET NULL'},
+  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'designations', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+  sub_designation_id:     { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'sub_designations', key: 'id'},onUpdate: 'CASCADE',onDelete: 'SET NULL'},
   email:                  { type: DataTypes.STRING(255), allowNull: false },
   phone:                  { type: DataTypes.STRING(20), allowNull: false },
 
@@ -180,7 +175,7 @@ Employee.init({
   actual_doj:              { type: DataTypes.DATEONLY, allowNull: true },
   current_doj:             { type: DataTypes.DATEONLY, allowNull: true },
   weekly_off:               { type: DataTypes.STRING(200), allowNull: true },
-  shift_id:                 { type: DataTypes.BIGINT.UNSIGNED, allowNull: false, references: { model: 'shifts', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+  shift_id:                 { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'shift', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
   grace_minutes:            { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
 
   l1_manager_id:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'employees', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
@@ -208,8 +203,7 @@ Employee.init({
   sequelize, tableName: 'employees', modelName: 'Employee',
   paranoid: true, timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at', deletedAt: 'deleted_at',
   indexes: [
-    { unique: true, fields: ['employee_code'], where: { deleted_at: null } },   // globally unique
-    { unique: true, fields: ['reference_code'], where: { deleted_at: null } }, // globally unique
+    { unique: true, fields: ['employee_code'], where: { deleted_at: null } },
     { fields: ['company_id', 'status'] },
     { fields: ['department_id'] },
     { fields: ['l1_manager_id'] },

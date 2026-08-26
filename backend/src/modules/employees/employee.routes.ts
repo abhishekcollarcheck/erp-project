@@ -1,5 +1,5 @@
 import { Request, Response, Router, NextFunction } from 'express';
-import {employeeController, uploadDoc} from "./employee.controller"
+import {employeeController, uploadDoc, uploadAvatar} from "./employee.controller"
 import { authenticate, resolveCompanyContext } from '../auth/auth.middleware';
 import { asyncHandler } from '../../middleware/errorHandler.middleware';
 import {getManagedEmployees} from "./employee.controller";
@@ -48,7 +48,6 @@ employeeRoutes.use(resolveCompanyContext)
 
 // Static routes — ALL must be declared before /:id to avoid param collision
 employeeRoutes.get('/summary',              asyncHandler(employeeController.summary));
-employeeRoutes.get('/next-code',            asyncHandler(employeeController.nextCode));
 employeeRoutes.get('/field-permissions',    asyncHandler(employeeController.fieldPermissions));
 // employeeRoutes.get('/template',             employeeController.downloadTemplate);
 
@@ -99,6 +98,13 @@ employeeRoutes.patch('/:id/step/:step',
       .catch(next);
   },
   asyncHandler(employeeController.updateStep),
+);
+
+// Role & Identity — profile photo upload
+employeeRoutes.post('/:id/avatar',
+  idValidation,
+  uploadAvatar,
+  employeeController.uploadProfilePhoto,
 );
 
 // IDs & Bank — document uploads (Aadhaar/PAN/Passport/Driving Licence scans,

@@ -5,7 +5,7 @@
  */
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch } from '../../../store';
 import { setPageTitle } from '../../../store/slices/uiSlice';
@@ -17,10 +17,10 @@ import { Modal } from '../../../components/ui/Modal';
 import { useEmployees, useEmployeeSummary, useDeleteEmployee } from '../../../features/employees/hooks/useEmployees';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { usePermission } from '../../../features/auth/hooks/useAuth';
-import { formatDate, getTenure, getInitials, statusVariant } from '../../../features/employees/utils/employee.utils';
+import { formatDate, getTenure, getInitials, statusVariant, displayStatus } from '../../../features/employees/utils/employee.utils';
 import { showToast } from '../../../utils/toast';
 import type { Employee, EmployeeStatus, EmploymentType } from '../../../features/employees/types/employee.types';
-import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE } from '../../../features/employees/constants/employee.constants';
+import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE, DEPARTMENT_OPTIONS } from '../../../features/employees/constants/employee.constants';
 import { BulkUploadModal } from '../../../features/employees/components/BulkUploadModal';
 import { PermissionGuard } from '@/utils/permissionGuard';
 
@@ -37,6 +37,7 @@ export default function EmployeesPage() {
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
   const [typeFilter,   setTypeFilter]   = useState<EmpTypeFilter>('');
+  const [deptFilter,   setDeptFilter]   = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
 
@@ -49,10 +50,17 @@ export default function EmployeesPage() {
     search: debouncedSearch || undefined,
     status: statusFilter    || undefined,
     employment_type: typeFilter || undefined,
+    department_id: deptFilter || undefined,
   });
 
   const { data: summary }  = useEmployeeSummary();
   const deleteMutation     = useDeleteEmployee();
+
+  // Draft employees — those still missing an employee_code (not yet at 100%
+  // completion). "Draft" is a UI-level status derived from this, not a real
+  // value of the `status` enum.
+  const isDraft = (row: Employee) => row.record_status === 'Draft';
+  const draftCount = useMemo(() => summary?.draft ?? (data?.rows ?? []).filter(isDraft).length, [summary, data]);
 
   // ── Page title ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -101,68 +109,50 @@ export default function EmployeesPage() {
               onClick={e => { e.stopPropagation(); router.push(`/employees/${row.id}`); }}>
               {row.first_name} {row.middle_name ? `${row.middle_name[0]}. ` : ''}{row.last_name}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>{row.employee_code ?? 'Code pending'}</div>
+            <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>
+              {row.employee_code ?? (isDraft(row) ? 'No code yet' : '—')}
+            </div>
           </div>
         </div>
       ),
     },
     {
-      key: 'contact',
-      header: 'Contact',
+      key: 'company',
+      header: 'Company',
+      render: row => <span style={{ fontSize: 11, color: 'var(--ink2)' }}>{row.company?.name ?? '—'}</span>,
+    },
+    {
+      key: 'department',
+      header: 'Department',
       render: row => (
         <div>
-          <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{row.email || '—'}</div>
-          <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{row.phone || '—'}</div>
+          <div style={{ fontSize: 11 }}>{row.department?.name ?? '—'}</div>
         </div>
       ),
     },
     {
-      key: 'work',
-      header: 'Work',
-      render: row => (
-        <div>
-          <div style={{ fontSize: 11 }}>{row.working_city || '—'}</div>
-          <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{row.working_site || '—'}</div>
-        </div>
-      ),
+      key: 'designation',
+      header: 'Designation',
+      render: row => <span style={{ fontSize: 11 }}>{row.designation?.name ?? '—'}</span>,
     },
     {
-      key: 'manager',
-      header: 'Manager (L1)',
-      render: row => row.l1Manager ? (
-        <div>
-          <div style={{ fontSize: 11 }}>{row.l1Manager.first_name} {row.l1Manager.last_name}</div>
-          <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>{row.l1Manager.employee_code ?? 'Code pending'}</div>
-        </div>
-      ) : <span style={{ color: 'var(--ink4)', fontSize: 12 }}>—</span>,
-    },
-    {
-      key: 'type',
-      header: 'Type',
-      render: row => <Chip variant="blue">{row.employment_type}</Chip>,
+      key: 'location',
+      header: 'Location',
+      render: row => <span style={{ fontSize: 11, color: 'var(--ink4)' }}>{row.working_site || '—'}</span>,
     },
     {
       key: 'status',
       header: 'Status',
-      render: row => <Chip variant={statusVariant(row.status)}>{row.status}</Chip>,
+      render: row => <Chip variant={statusVariant(displayStatus(row))}>{displayStatus(row)}</Chip>,
     },
     {
       key: 'doj',
       header: 'Joined',
       render: row => (
         <div>
-          <div style={{ fontSize: 11 }}>{formatDate(row.actual_doj)}</div>
+          <div style={{ fontSize: 11 }}>{row.actual_doj ? formatDate(row.actual_doj) : '—'}</div>
           {row.actual_doj && <div style={{ fontSize: 10, color: 'var(--ink4)' }}>{getTenure(row.actual_doj)}</div>}
         </div>
-      ),
-    },
-    {
-      key: 'portal',
-      header: 'Portal',
-      render: row => (
-        <span style={{ fontSize: 11, color: row.portal_access ? 'var(--green)' : 'var(--ink4)' }}>
-          {row.portal_access ? '✓ Active' : '✗ Off'}
-        </span>
       ),
     },
     {
@@ -176,7 +166,11 @@ export default function EmployeesPage() {
       render: row => (
         <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
           <Chip variant="blue" onClick={() => router.push(`/employees/${row.id}`)}>View</Chip>
-          {canEdit('employees') && <Chip variant="gray" onClick={() => router.push(`/employees/${row.id}/edit`)}>Edit</Chip>}
+          {canEdit('employees') && (
+            isDraft(row)
+              ? <Chip variant="amber" onClick={() => router.push(`/employees/${row.id}/edit`)}>Continue</Chip>
+              : <Chip variant="gray" onClick={() => router.push(`/employees/${row.id}/edit`)}>Edit</Chip>
+          )}
           {canDelete('employees') && <Chip variant="red" onClick={() => setDeleteTarget(row)}>Remove</Chip>}
         </div>
       ),
@@ -193,6 +187,13 @@ export default function EmployeesPage() {
         </span>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select className="filter-select" value={deptFilter}
+          onChange={e => { setDeptFilter(e.target.value); setPage(1); }}
+          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
+          <option value="">All Departments</option>
+          {DEPARTMENT_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+        </select>
+
         <select className="filter-select" value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
           style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
@@ -209,7 +210,7 @@ export default function EmployeesPage() {
 
         <div className="search-bar">
           <span style={{ color: 'var(--ink4)' }}>⌕</span>
-          <input type="text" placeholder="Search name, email, code…"
+          <input type="text" placeholder="Name, code, email…"
             value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
         </div>
       </div>
@@ -232,13 +233,15 @@ export default function EmployeesPage() {
         <div className="ph">
           <div>
             <h1>Employee Directory</h1>
-            <p>All employees · Multi-company · Role-based access control</p>
+            <p>
+              {summary?.total ?? data?.meta?.total ?? '…'} people
+              {draftCount > 0 ? ` · ${draftCount} draft` : ''}
+            </p>
           </div>
           <div className="ph-r">
-            {/* <button className="btn btn-sec btn-sm" disabled>↓ Export</button> */}
               {canDownload('employees') && (
                 <button className="btn btn-sec btn-sm" onClick={() => setBulkOpen(true)}>↑ Bulk Import</button>
-              )}            
+              )}
             {canCreate('employees') && (
               <button className="btn btn-pri btn-sm" onClick={() => router.push('/employees/new')}>
                 + Add Employee
@@ -249,10 +252,10 @@ export default function EmployeesPage() {
 
         {/* Stats */}
         <div className="g4 mb14">
-          <StatCard label="Total Employees" value={summary?.total ?? '…'} color="var(--blue)" />
-          <StatCard label="Active"           value={summary?.active ?? '…'}  color="var(--green)" />
-          <StatCard label="Left / Alumni"    value={summary?.left ?? '…'}    color="var(--red)" />
-          <StatCard label="Retired"          value={summary?.retired ?? '…'} color="var(--ink4)" />
+          <StatCard label="Total"     value={summary?.total ?? '…'}    color="var(--blue)" />
+          <StatCard label="Active"    value={summary?.active ?? '…'}   color="var(--green)" />
+          <StatCard label="On Notice" value={summary?.onNotice ?? '…'} color="var(--amber)" />
+          <StatCard label="Draft"     value={summary?.draft ?? '…'}    color="var(--ink4)" />
         </div>
 
         {/* Table */}

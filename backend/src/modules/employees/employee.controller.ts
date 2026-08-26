@@ -22,6 +22,17 @@ export const uploadDoc = multer({
   },
 }).single("file");
 
+// ─── Multer (Profile photo upload — in-memory) ────────────────────────────────
+export const uploadAvatar = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.split(".").pop()?.toLowerCase();
+    if (["jpg", "jpeg", "png", "webp"].includes(ext || "")) cb(null, true);
+    else cb(new AppError("Only JPG, PNG, or WebP files allowed", 400));
+  },
+}).single("avatar");
+
 // ─── Validation error extractor ───────────────────────────────────────────────
 function checkErrors(req: Request, res: Response): boolean {
   const errs = validationResult(req);
@@ -43,6 +54,7 @@ export const employeeController = {
       req.user!.companyId,
       req.user!.isSuperAdmin,
     );
+    console.log("result", result)
     sendPaginated(res, result.rows, result.meta);
   },
 
@@ -104,11 +116,6 @@ export const employeeController = {
     sendResponse(res, { data: null, message: "Employee removed" });
   },
 
-  async nextCode(req: Request, res: Response) {
-    const codes = await employeeService.getNextCode(req.user!.companyId);
-    sendResponse(res, { data: codes });
-  },
-
   async managersSearch(req: Request, res: Response) {
     const { q, exclude } = req.query;
     if (!q || String(q).trim().length < 2) {
@@ -149,6 +156,7 @@ export const employeeController = {
   async saveDraft(req: Request, res: Response) {
     const draft = await employeeService.saveDraft({
       employeeId: req.body.employee_id ?? null,
+      companyId: req.user!.companyId,
       actorId: req.user!.employeeId,
       step: req.body.step,
       formData: req.body.form_data,
@@ -171,6 +179,20 @@ export const employeeController = {
       req.user!.employeeId,
     );
     sendResponse(res, { data: null, message: "Draft discarded" });
+  },
+
+  // ─── Role & Identity: profile photo upload ────────────────────────────────
+  async uploadProfilePhoto(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
+      const dir = path.join(process.cwd(), 'uploads', 'employee-avatars', String(req.params.id));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const filename = `avatar-${Date.now()}${path.extname(req.file.originalname)}`;
+      fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+      const avatarUrl = `/uploads/employee-avatars/${req.params.id}/${filename}`;
+      await employeeService.uploadProfilePhoto(Number(req.params.id), req.user!.companyId, avatarUrl, req.user!.employeeId);
+      sendResponse(res, { data: { avatar_url: avatarUrl }, message: 'Profile photo uploaded' });
+    } catch (e) { next(e); }
   },
 
   // ─── IDs & Bank: upload a scan for Aadhaar/PAN/Passport/Driving Licence ────

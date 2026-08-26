@@ -65,12 +65,21 @@ export class AttendanceCombinedService {
   ): Promise<CombinedAttendanceRow[]> {
     const employee = await Employee.findOne({
       where: { id: employeeId },
-      attributes: ['employee_code', 'first_name', 'last_name', 'shift_id', 'grace_minutes', 'saturday_off'],
+      attributes: ['employee_code', 'first_name', 'last_name', 'shift_id', 'grace_minutes', 'weekly_off'],
     });
     if (!employee) throw new AppError('Employee not found', 404);
+    if (!employee.employee_code) {
+      // employee_code is only assigned once the HR + Candidate onboarding
+      // parts both reach 100% completion. Biometric/Trakola attendance
+      // records are keyed by employee_code, so there's nothing to look up
+      // yet — surface this clearly rather than querying with an ambiguous
+      // undefined value.
+      throw new AppError('Employee has not been assigned an employee code yet — attendance is unavailable until onboarding is complete', 409);
+    }
+    const employeeCode = employee.employee_code;
 
     const [bioRows, trakRows, holidayMap, regRows] = await Promise.all([
-      attendanceMSSQLService.getAttendanceByDate(startDate, endDate, employee.employee_code),
+      attendanceMSSQLService.getAttendanceByDate(startDate, endDate, employeeCode),
       // FIX: Trakola is a third-party dependency outside our control — a
       // failure/outage on their end should degrade gracefully (fall back to
       // Biometric-only data for the affected days), not 502 the entire
@@ -78,7 +87,7 @@ export class AttendanceCombinedService {
       // Promise.all rejects the whole batch the moment any one promise
       // rejects, so a single Trakola error was taking Biometric data down
       // with it even though Biometric had nothing wrong.
-      trakolaService.getNormalizedAttendance(startDate, endDate, employee.employee_code).catch((e: any) => {
+      trakolaService.getNormalizedAttendance(startDate, endDate, employeeCode).catch((e: any) => {
         console.error(
           `[attendance-combined] Trakola fetch failed for employee ${employeeId} (${startDate} to ${endDate}) — ` +
           `continuing with Biometric-only data. Error: ${e.message}`,

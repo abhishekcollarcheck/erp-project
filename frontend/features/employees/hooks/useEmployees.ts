@@ -19,7 +19,6 @@ export const EMP_KEYS = {
   list:          (p: object) => [...EMP_KEYS.lists(), p] as const,
   detail:        (id: number) => [...EMP_KEYS.all, id] as const,
   summary:       ['employees', 'summary'] as const,
-  nextCode:      ['employees', 'next-code'] as const,
   fieldPerms:    ['employees', 'field-permissions'] as const,
   draft:         (sid: string) => ['employees', 'draft', sid] as const,
 };
@@ -58,16 +57,6 @@ export function useEmployeeSummary() {
     queryFn: () => employeeService.summary(),
     staleTime: 0,
     select: (res: any) => res.data,
-  });
-}
-
-// ─── Next auto code ───────────────────────────────────────────────────────────
-export function useNextCode() {
-  return useQuery({
-    queryKey: EMP_KEYS.nextCode,
-    queryFn: () => employeeService.nextCode(),
-    staleTime: 0,
-    select: (res: any) => res.data as { ref: string },
   });
 }
 
@@ -158,6 +147,16 @@ export function useBulkUpload() {
       showToast(`${res.data?.success || 0} employees imported`);
     },
     onError: (err: any) => showToast(err?.message || 'Upload failed'),
+  });
+}
+
+// ─── Role & Identity: profile photo upload ─────────────────────────────────
+export function useUploadAvatar(employeeId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => employeeService.uploadAvatar(employeeId, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: EMP_KEYS.detail(employeeId) }),
+    onError: (err: any) => showToast(err?.message || 'Photo upload failed'),
   });
 }
 

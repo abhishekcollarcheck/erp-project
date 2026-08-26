@@ -345,14 +345,15 @@ export type StepUpdateDto =
 export interface EmployeeFullResponse {
   id:                  number;
   employee_code:       string | null;   // null/pending until HR+Candidate both reach 100%
-  reference_code:      string | null;
+  avatar_url?:         string | null;
   status:              EmployeeStatus;
+  record_status:       'Draft' | 'Final';
   first_name:          string;
   middle_name?:        string | null;
   last_name:           string;
   full_name:           string;
   employment_type:     EmploymentType;
-  email:               string;
+  email:               string | null;
   phone:                string;
   official_email?:      string | null;
   official_mobile?:     string | null;

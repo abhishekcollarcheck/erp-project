@@ -24,7 +24,7 @@ export default function EditEmployeePage() {
   useEffect(() => {
     if (employee) {
       dispatch(setPageTitle({
-        title: `Edit — ${employee.first_name} ${employee.last_name}`,
+        title: `${employee.record_status === 'Draft' ? 'Continue Draft' : 'Edit'} — ${employee.first_name} ${employee.last_name}`,
         breadcrumb: 'Employee Directory',
       }));
     }
@@ -67,8 +67,8 @@ export default function EditEmployeePage() {
           <div>
             <div style={{ fontSize: 12, color: 'var(--ink4)', marginBottom: 4, cursor: 'pointer' }}
               onClick={() => router.push(`/employees/${params.id}`)}>← {employee.first_name} {employee.last_name}</div>
-            <h1>Edit Employee</h1>
-            <p>Update profile — {employee.employee_code} · Changes save per step</p>
+            <h1>{employee.record_status === 'Draft' ? 'Continue Draft' : 'Edit Employee'}</h1>
+            <p>{employee.record_status === 'Draft' ? 'Finish onboarding' : 'Update profile'} — {employee.employee_code ?? 'No code yet'} · Changes save per step</p>
           </div>
         </div>
 

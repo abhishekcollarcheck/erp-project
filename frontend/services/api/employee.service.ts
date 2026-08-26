@@ -14,7 +14,6 @@ export const employeeService = {
                                              apiClient.patch(`/employees/${id}/step/${step}`, data),
   delete:              (id: number)        => apiClient.delete(`/employees/${id}`),
   summary:             ()                  => apiClient.get('/employees/summary'),
-  nextCode:            ()                  => apiClient.get('/employees/next-code'),
   fieldPermissions:    (module: string = 'employees') => apiClient.get('/employees/field-permissions', { params: { module } }),
   managerById:         (id: number)        => apiClient.get(`/employees/managers/${id}`),
   saveDraft:           (data: object)      => apiClient.post('/employees/draft', data),
