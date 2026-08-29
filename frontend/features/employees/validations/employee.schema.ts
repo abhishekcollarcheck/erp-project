@@ -24,10 +24,13 @@ const reqInt  = (msg: string) => z.union([
 
 // ─── Step 1 (HR): Role & Identity ─────────────────────────────────────────────
 // employee_code removed — system-generated only, never client-supplied.
+// reference_code is display-only (traces back to a Candidate record) — not
+// user-entered on this screen, so it's optional/nullable, never required.
 // email/phone ARE "Personal Email"/"Personal Mobile Number" — required here.
 export const roleIdentitySchema = z.object({
   company_id:        z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
   avatar_url:        optStr,
+  reference_code:    optStr,
   first_name:        reqStr('First name is required').max(100),
   middle_name:       optStr,
   last_name:         reqStr('Last name is required').max(100),
@@ -43,13 +46,18 @@ export const roleIdentitySchema = z.object({
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
 // Only Date of Joining carries a * in the UI.
+// working_state_country/working_city/working_site/pay_register_location now
+// store dropdown IDs (INTEGER), not names. shift_category added (Shift vs
+// Duration discriminator); shift_start/shift_end/shift_duration removed —
+// they no longer exist on the schema.
 export const locationAttendanceSchema = z.object({
-  working_state_country: optStr,
-  working_city:            optStr,
-  working_site:            optStr,
-  pay_register_location:   optStr,
+  working_state_country: optInt,
+  working_city:            optInt,
+  working_site:            optInt,
+  pay_register_location:   optInt,
   actual_doj:              reqStr('Date of Joining is required'),
   weekly_off:              optStr,
+  shift_category:          z.enum(['Shift', 'Duration']).optional().nullable(),
   shift_id:                optInt,
   grace_minutes:           z.number({ coerce: true }).int().min(0).max(120).optional().nullable(),
 });
@@ -82,7 +90,8 @@ export const commitmentProbationSchema = z.object({
 });
 
 // ─── Step 5 (HR): Statutory Schemes ────────────────────────────────────────────
-// Nothing carries a * in the UI. Added the 3 PF breakdown fields.
+// Nothing carries a * in the UI. PF breakdown + ESI percentage fields all
+// confirmed against emp-fields.js's field registry.
 export const statutorySchemesSchema = z.object({
   pf_status:             yesNo,
   uan_number:            z.string().regex(/^\d{12}$/, 'UAN must be 12 digits').optional().or(z.literal('')).nullable(),
@@ -94,6 +103,8 @@ export const statutorySchemesSchema = z.object({
   epf_eps_diff_367:      optNum,
   esic_status:           yesNo,
   esic_number:           optStr,
+  esi_employee_pct:      optNum,
+  esi_employer_pct:      optNum,
   mediclaim_status:      z.enum(['Yes', 'No', 'Not Applicable']).optional().nullable(),
   mediclaim_number:      optStr,
   mediclaim_amount:      optNum,
@@ -111,7 +122,11 @@ export const statutorySchemesSchema = z.object({
 });
 
 // ─── Step 6 (HR): Compensation ────────────────────────────────────────────────
-// Nothing carries a * in the UI.
+// Nothing carries a * in the UI. deduction_months is now a plain number (was
+// a "12 Months"-style dropdown label); deduction_from is now a date — "the
+// date deductions start from" — it does NOT mean Salary/AMDB (that was a
+// misunderstanding on the original schema, fixed to match the real UI which
+// shows a date input for this field).
 export const compensationSchema = z.object({
   salary_mode:                z.enum(['Bank Transfer', 'Cash', 'Cheque']).optional().nullable(),
   current_basic:               optNum,
@@ -124,8 +139,8 @@ export const compensationSchema = z.object({
   joining_amdb:                 optNum,
   asset_deduction_applicable:  yesNo,
   security_amount:              optNum,
-  deduction_months:             z.string().optional().nullable(),
-  deduction_from:                z.enum(['Salary', 'AMDB', 'N/A']).optional().nullable(),
+  deduction_months:             z.number({ coerce: true }).int().min(0).optional().nullable(),
+  deduction_from:                optDate,
   monthly_deduction:             optNum,
   final_monthly_deduction:       optNum,
 });
@@ -146,6 +161,9 @@ export const hrJoiningChecklistSchema = z.object({
 // ─── Step 8 (Candidate): Personal Profile ─────────────────────────────────────
 // Nothing carries a * in the UI. personal_email/personal_mobile removed —
 // those are now employees.email/phone (validated on Role & Identity instead).
+// marital_status/marriage_date/spouse/children moved to Family & Emergency
+// (Step 10) — they're all shown on that screen in the UI, matching the
+// backend's routeStep('family_emergency') which reads them there.
 export const personalProfileSchema = z.object({
   date_of_birth:    optDate,
   gender:           z.enum(['Male', 'Female']).optional().nullable(),
@@ -154,18 +172,9 @@ export const personalProfileSchema = z.object({
   nationality:      optStr,
   religion:         optStr,
   blood_group:      z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Not Available']).optional().nullable(),
-  marriage_date:    optDate,
-  spouse_name:      optStr,
-  spouse_dob:       optDate,
-  child1_name:      optStr,
-  child1_dob:       optDate,
-  child2_name:      optStr,
-  child2_dob:       optDate,
-  child3_name:      optStr,
-  child3_dob:       optDate,
 });
 
-// ─── Step 8 (Candidate): Address ──────────────────────────────────────────────
+// ─── Step 9 (Candidate): Address ──────────────────────────────────────────────
 // Nothing carries a * in the UI.
 export const addressSchema = z.object({
   present_house_type:  z.enum(['Owned', 'Rented', 'Company Provided', 'PG / Hostel', 'Other']).optional().nullable(),
@@ -187,30 +196,46 @@ export const addressSchema = z.object({
   perm_pincode:        z.string().regex(/^\d{4,10}$/).optional().or(z.literal('')).nullable(),
 });
 
-// ─── Step 9 (Candidate): Family & Emergency ───────────────────────────────────
-// Merged step. Nothing carries a * in the UI. father_age_dob/mother_age_dob
-// renamed to father_dob/mother_dob (real dates now). father_status dropped.
-// mother_occupation is free text now, not a constrained enum. marital_status
-// lives on this screen in the UI (still writes to employee_personal).
+// ─── Step 10 (Candidate): Family & Emergency ───────────────────────────────────
+// Merged step. Nothing carries a * in the UI. father_status dropped,
+// mother_occupation is free text now. marital_status + spouse + children now
+// live here (moved from Personal Profile — matches the backend exactly).
+// family_members gets salutation + relationship_other (confirmed missing);
+// emergency_contacts gets relationship_other (confirmed missing).
 const familyMemberSchema = z.object({
-  id:            z.number().optional(),
-  name:          reqStr('Name is required').max(200),
-  relationship:  optStr,
-  dob:           optDate,
-  occupation:    optStr,
+  id:                  z.number().optional(),
+  name:                reqStr('Name is required').max(200),
+  relationship:        optStr,
+  relationship_other:  optStr,
+  salutation:          optStr,
+  dob:                 optDate,
+  occupation:          optStr,
 });
 
 const emergencyContactSchema = z.object({
-  id:              z.number().optional(),
-  contact_name:    reqStr('Contact name is required').max(200),
-  contact_number:  reqStr('Contact number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
-  email:           z.string().email().optional().or(z.literal('')).nullable(),
-  relationship:    optStr,
-  is_primary:      z.boolean().optional(),
+  id:                  z.number().optional(),
+  contact_name:        reqStr('Contact name is required').max(200),
+  contact_number:      reqStr('Contact number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
+  email:               z.string().email().optional().or(z.literal('')).nullable(),
+  relationship:        optStr,
+  relationship_other:  optStr,
+  is_primary:          z.boolean().optional(),
 });
 
 export const familyEmergencySchema = z.object({
   marital_status:      z.enum(['Unmarried', 'Married', 'Divorced', 'Widow', 'Widower']).optional().nullable(),
+  marriage_date:       optDate,
+  spouse_name:         optStr,
+  spouse_dob:          optDate,
+  child1_name:         optStr,
+  child1_gender:       z.enum(['Male', 'Female']).optional().nullable(),
+  child1_dob:          optDate,
+  child2_name:         optStr,
+  child2_gender:       z.enum(['Male', 'Female']).optional().nullable(),
+  child2_dob:          optDate,
+  child3_name:         optStr,
+  child3_gender:       z.enum(['Male', 'Female']).optional().nullable(),
+  child3_dob:          optDate,
   father_salutation:   z.enum(['Mr.', 'Dr.', 'Late']).optional().nullable(),
   father_name:         optStr,
   father_dob:          optDate,
@@ -223,7 +248,7 @@ export const familyEmergencySchema = z.object({
   emergency_contacts:  z.array(emergencyContactSchema).optional().default([]),
 });
 
-// ─── Step 10 (Candidate): IDs & Bank ──────────────────────────────────────────
+// ─── Step 11 (Candidate): IDs & Bank ──────────────────────────────────────────
 // Merged step. Aadhaar (4 fields) + personal bank (3 of 4 fields) are the
 // ONLY required fields in this entire wizard outside Role & Identity and
 // Date of Joining — matches the UI's "0/2 required · Aadhaar & bank".
@@ -280,7 +305,7 @@ export const idsBankSchema = z.object({
   personal_bank_branch:    optStr,
 });
 
-// ─── Step 11 (Candidate): Experience & Education ──────────────────────────────
+// ─── Step 12 (Candidate): Experience & Education ──────────────────────────────
 // Nothing carries a * in the UI. Both now arrays (repeatable). passing_year
 // replaced with education_start_year/education_end_year + is_pursuing.
 const experienceEntrySchema = z.object({
@@ -336,6 +361,7 @@ export const fullEmployeeSchema = z.object({
   // ── Role & Identity ──────────────────────────────────────────────────────
   company_id:        z.number({ required_error: 'Company is required', coerce: true }).int().positive('Company is required'),
   avatar_url:        optStr,
+  reference_code:    optStr,
   first_name:        reqStr('First name is required').max(100),
   middle_name:       optStr,
   last_name:         reqStr('Last name is required').max(100),
@@ -349,12 +375,13 @@ export const fullEmployeeSchema = z.object({
   phone:             reqStr('Personal mobile number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
 
   // ── Location & Attendance ────────────────────────────────────────────────
-  working_state_country: optStr,
-  working_city:            optStr,
-  working_site:            optStr,
-  pay_register_location:   optStr,
+  working_state_country: optInt,
+  working_city:            optInt,
+  working_site:            optInt,
+  pay_register_location:   optInt,
   actual_doj:              reqStr('Date of Joining is required'),
   weekly_off:              optStr,
+  shift_category:          z.enum(['Shift', 'Duration']).optional().nullable(),
   shift_id:                optInt,
   grace_minutes:           z.number({ coerce: true }).int().min(0).max(120).optional().nullable(),
 
@@ -387,6 +414,8 @@ export const fullEmployeeSchema = z.object({
   epf_eps_diff_367:    optNum,
   esic_status:         yesNo,
   esic_number:         optStr,
+  esi_employee_pct:    optNum,
+  esi_employer_pct:    optNum,
   mediclaim_status:    z.enum(['Yes', 'No', 'Not Applicable']).optional().nullable(),
   mediclaim_number:    optStr,
   mediclaim_amount:    optNum,
@@ -413,8 +442,8 @@ export const fullEmployeeSchema = z.object({
   joining_amdb:                 optNum,
   asset_deduction_applicable:  yesNo,
   security_amount:              optNum,
-  deduction_months:             z.string().optional().nullable(),
-  deduction_from:                z.enum(['Salary', 'AMDB', 'N/A']).optional().nullable(),
+  deduction_months:             z.number({ coerce: true }).int().min(0).optional().nullable(),
+  deduction_from:                optDate,
   monthly_deduction:             optNum,
   final_monthly_deduction:       optNum,
 
@@ -436,15 +465,6 @@ export const fullEmployeeSchema = z.object({
   nationality:      optStr,
   religion:         optStr,
   blood_group:      z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Not Available']).optional().nullable(),
-  marriage_date:    optDate,
-  spouse_name:      optStr,
-  spouse_dob:       optDate,
-  child1_name:      optStr,
-  child1_dob:       optDate,
-  child2_name:      optStr,
-  child2_dob:       optDate,
-  child3_name:      optStr,
-  child3_dob:       optDate,
 
   // ── Address ───────────────────────────────────────────────────────────────
   present_house_type: z.enum(['Owned', 'Rented', 'Company Provided', 'PG / Hostel', 'Other']).optional().nullable(),
@@ -465,8 +485,20 @@ export const fullEmployeeSchema = z.object({
   perm_country:       optStr,
   perm_pincode:       z.string().regex(/^\d{4,10}$/).optional().or(z.literal('')).nullable(),
 
-  // ── Family & Emergency ───────────────────────────────────────────────────
+  // ── Family & Emergency (marital_status/spouse/children moved here) ───────
   marital_status:      z.enum(['Unmarried', 'Married', 'Divorced', 'Widow', 'Widower']).optional().nullable(),
+  marriage_date:       optDate,
+  spouse_name:         optStr,
+  spouse_dob:          optDate,
+  child1_name:         optStr,
+  child1_gender:       z.enum(['Male', 'Female']).optional().nullable(),
+  child1_dob:          optDate,
+  child2_name:         optStr,
+  child2_gender:       z.enum(['Male', 'Female']).optional().nullable(),
+  child2_dob:          optDate,
+  child3_name:         optStr,
+  child3_gender:       z.enum(['Male', 'Female']).optional().nullable(),
+  child3_dob:          optDate,
   father_salutation:   z.enum(['Mr.', 'Dr.', 'Late']).optional().nullable(),
   father_name:         optStr,
   father_dob:          optDate,

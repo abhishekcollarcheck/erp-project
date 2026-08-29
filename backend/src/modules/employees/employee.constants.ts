@@ -71,7 +71,9 @@ export type SalaryMode = typeof SALARY_MODE[number];
 export const DEDUCTION_FROM = ['Salary', 'AMDB', 'N/A'] as const;
 export type DeductionFrom = typeof DEDUCTION_FROM[number];
 
-// H211 — Asset deduction months
+// H211 — DEPRECATED: Asset deduction's deduction_months is now a plain
+// INTEGER on the schema (was this "12 Months"-style dropdown label). Left
+// exported in case other files still reference the type.
 export const DEDUCTION_MONTHS = [
   '3 Months', '6 Months', '9 Months', '12 Months', '15 Months',
   '18 Months', '21 Months', '24 Months', '27 Months', '30 Months',
@@ -91,6 +93,11 @@ export type MaritalStatus = typeof MARITAL_STATUS[number];
 
 // AMDB % from salary calculator (Row 5, cell K5 = 0.3)
 export const AMDB_PERCENTAGE = 0.30;
+
+// Location & Attendance — whether this employee is tracked against a fixed
+// shift (via shift_id) or a plain duration requirement.
+export const SHIFT_CATEGORY = ['Shift', 'Duration'] as const;
+export type ShiftCategory = typeof SHIFT_CATEGORY[number];
 
 // Wizard steps — 3 parts: HR (7 steps) → Candidate self-service (5 steps) → Finalize (1 step)
 export const WIZARD_STEPS = [

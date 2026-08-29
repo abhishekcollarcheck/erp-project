@@ -56,9 +56,6 @@ export default function EmployeesPage() {
   const { data: summary }  = useEmployeeSummary();
   const deleteMutation     = useDeleteEmployee();
 
-  // Draft employees — those still missing an employee_code (not yet at 100%
-  // completion). "Draft" is a UI-level status derived from this, not a real
-  // value of the `status` enum.
   const isDraft = (row: Employee) => row.record_status === 'Draft';
   const draftCount = useMemo(() => summary?.draft ?? (data?.rows ?? []).filter(isDraft).length, [summary, data]);
 

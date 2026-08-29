@@ -2,7 +2,7 @@ import { sequelize } from '../../config/database';
 
 // ─── Core ─────────────────────────────────────────────────────────────────────
 import { Employee }    from './Employee';
-import { Company, CompanySetting, CompanyModule, DEFAULT_MODULES }     from './Company';
+import { Company }     from './Company';
 import { Department }  from './Department';
 import { Designation } from './Designation';
 
@@ -45,21 +45,21 @@ import {
   Asset, AssetCategory, AssetAssignment,
   AssetRequest, AssetMaintenance,
 }                                                        from './AssetModels';
+
+import { AttendanceRegularization } from './AttendanceRegularization';
+
 import { CompanyManager } from './CompanyManager';
 import { EmployeePermission } from './EmployeePermission';
-import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary } from './Employee';
-import { AttendanceRegularization } from './Associations';
-import { Shift } from './Shift';
-import { SubDepartment } from './Associations';
-import { SubDesignation } from './Associations';
-
+import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, EmployeeLocationAttendance, EmployeeManagersWorkContact, EmployeeFamilyMember, EmployeeExperienceFlag, EmployeeVaccination, EmployeeDocument } from './Employee';
+import { SubDepartment } from './Subdepartment';
+import { SubDesignation } from './SubDesignation';
 // IMPORTANT
 import './Associations';
 
 export {
   sequelize,
 
-   // Auth / Identity
+  // Auth / Identity
   Employee, OtpRequest, EmployeeRole,
   RoleTemplate, RoleTemplatePermission,
 
@@ -82,7 +82,11 @@ export {
   FieldPermissionV2, RoleAssignment,
   UserModulePermission, UserFieldPermission,
   PermissionGroup, GroupPermission, UserGroup,
-  Asset, AssetCategory, AssetAssignment, AssetRequest, AssetMaintenance,
-  CompanyManager,   EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, CompanySetting,
-  CompanyModule, DEFAULT_MODULES, AttendanceRegularization, Shift, SubDepartment, SubDesignation
+  Asset, AssetCategory, AssetAssignment, AssetRequest, AssetMaintenance, CompanyManager,
+  EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, 
+  EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, 
+  EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, 
+  EmployeeLocationAttendance, EmployeeManagersWorkContact, EmployeeFamilyMember, EmployeeExperienceFlag,
+  EmployeeVaccination, EmployeeDocument,
+  AttendanceRegularization, SubDepartment, SubDesignation
 };

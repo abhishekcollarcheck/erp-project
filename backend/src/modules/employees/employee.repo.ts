@@ -1,13 +1,30 @@
 /**
- * employees.repository.ts — CORRECTED
+ * employees.repository.ts
  *
- * KEY CHANGE: Manager lookup uses employee_id (integer) not employee_code.
- * All FK references are integers throughout.
+ * Employee is the root/main table again — company_id, first_name, middle_name,
+ * last_name, employment_type, department_id, sub_department_id, designation_id,
+ * sub_designation_id, email, phone all live here directly (the earlier
+ * EmployeeRoleIdentity split was reverted — that data is used by nearly every
+ * query in the system, unlike the genuinely-optional step tables).
+ * EmployeeLocationAttendance (Step 2) and EmployeeManagersWorkContact (Step 3)
+ * remain separate child tables.
+ *
+ * NOTE: this file assumes the associations file (not shared with me) defines:
+ *   Employee.belongsTo(Company, { foreignKey: 'company_id', as: 'company' })
+ *   Employee.belongsTo(Department, { foreignKey: 'department_id', as: 'department' })
+ *   Employee.belongsTo(Designation, { foreignKey: 'designation_id', as: 'designation' })
+ *   Employee.hasOne(EmployeeLocationAttendance, { foreignKey: 'employee_id', as: 'locationAttendance' })
+ *   Employee.hasOne(EmployeeManagersWorkContact, { foreignKey: 'employee_id', as: 'managersWorkContact' })
+ *   EmployeeManagersWorkContact.belongsTo(Employee, { foreignKey: 'l1_manager_id', as: 'l1Manager' })
+ *   EmployeeManagersWorkContact.belongsTo(Employee, { foreignKey: 'l2_manager_id', as: 'l2Manager' })
+ * If those don't exist yet under these exact names, this file's includes will
+ * throw "association not found" — flag that file and I'll fix both together.
  */
 
 import { Op, Transaction, WhereOptions } from 'sequelize';
 import {
-  Employee, EmployeeCommitmentProbation, EmployeeSchemes, EmployeePersonal,
+  Employee, EmployeeLocationAttendance, EmployeeManagersWorkContact,
+  EmployeeCommitmentProbation, EmployeeSchemes, EmployeePersonal,
   EmployeeFamily, EmployeeFamilyMember, EmployeeAddress, EmployeeEmergencyContact, EmployeeStatutory,
   EmployeeVaccination, EmployeeDocument,
   EmployeeBankDetail, EmployeeSalary, EmployeeAssetDeduction, EmployeeExperience, EmployeeExperienceFlag,
@@ -16,11 +33,17 @@ import {
 import type { EmployeeQueryParams } from './employee.types';
 
 // ─── Includes ────────────────────────────────────────────────────────────────
-const MGR_ATTRS = ['id', 'employee_code', 'first_name', 'last_name',];
+const MGR_ATTRS = ['id', 'employee_code', 'first_name', 'last_name'];
 
 const DETAIL_INCLUDES: any[] = [
-  { association: 'l1Manager', attributes: MGR_ATTRS },
-  { association: 'l2Manager', attributes: MGR_ATTRS },
+  { association: 'locationAttendance' },
+  {
+    association: 'managersWorkContact',
+    include: [
+      { association: 'l1Manager', attributes: MGR_ATTRS },
+      { association: 'l2Manager', attributes: MGR_ATTRS },
+    ],
+  },
   { association: 'commitmentProbation' },
   { association: 'schemes' },
   { association: 'personal' },
@@ -46,13 +69,16 @@ const SENSITIVE_INCLUDES: any[] = [
 ];
 
 const LIST_INCLUDES: any[] = [
-  { association: 'l1Manager', attributes: MGR_ATTRS },
   { association: 'company', attributes: ['id', 'name'] },
   { association: 'department', attributes: ['id', ['department_name', 'name']] },
   { association: 'designation', attributes: ['id', ['designation_name', 'name']] },
+  {
+    association: 'managersWorkContact',
+    include: [{ association: 'l1Manager', attributes: MGR_ATTRS }],
+  },
+  { association: 'locationAttendance' },
 ];
 
-// Columns to always exclude from API responses
 const ALWAYS_EXCLUDE = [
   'otp_hash', 'otp_expires', 'otp_attempts', 'otp_locked_until',
   'refresh_token', 'refresh_expires', 'must_change_password',
@@ -60,47 +86,53 @@ const ALWAYS_EXCLUDE = [
 
 export class EmployeeRepository {
 
-  // ─── List ──────────────────────────────────────────────────────────────────
   async findAll(params: EmployeeQueryParams, companyId: number) {
     const page   = Math.max(1, Number(params.page) || 1);
     const limit  = Math.min(100, Number(params.limit) || 20);
     const offset = (page - 1) * limit;
 
-    const where: WhereOptions = { company_id: companyId };
-    if (params.status)          (where as any).status          = params.status;
-    if (params.employment_type) (where as any).employment_type = params.employment_type;
-    if (params.department_id)   (where as any).department_id   = Number(params.department_id);
-    if (params.designation_id)  (where as any).designation_id  = Number(params.designation_id);
+    const where: any = { company_id: companyId };
+    if (params.status)          where.status          = params.status;
+    if (params.employment_type) where.employment_type = params.employment_type;
+    if (params.department_id)   where.department_id   = Number(params.department_id);
+    if (params.designation_id)  where.designation_id  = Number(params.designation_id);
 
     if (params.search) {
       const s = `%${params.search.trim()}%`;
-      (where as any)[Op.or] = [
+      where[Op.or] = [
         { first_name:    { [Op.like]: s } },
         { last_name:     { [Op.like]: s } },
         { middle_name:   { [Op.like]: s } },
         { employee_code: { [Op.like]: s } },
-        { email:{ [Op.like]: s } },
-        { working_city:  { [Op.like]: s } },
+        { email:         { [Op.like]: s } },
       ];
     }
 
-    const VALID_SORT = ['created_at', 'first_name', 'last_name', 'employee_code', 'actual_doj'];
-    const sort  = VALID_SORT.includes(String(params.sort)) ? String(params.sort) : 'created_at';
+    const VALID_SORT = ['created_at', 'first_name', 'last_name', 'employee_code'];
+    const requestedSort = String(params.sort || 'created_at');
     const order = params.order === 'ASC' ? 'ASC' : 'DESC';
+
+    let orderClause: any[];
+    if (requestedSort === 'actual_doj') {
+      orderClause = [[{ model: EmployeeLocationAttendance, as: 'locationAttendance' }, 'actual_doj', order]];
+    } else if (VALID_SORT.includes(requestedSort)) {
+      orderClause = [[requestedSort, order]];
+    } else {
+      orderClause = [['created_at', 'DESC']];
+    }
 
     const { count, rows } = await Employee.findAndCountAll({
       where,
       include: LIST_INCLUDES,
       attributes: { exclude: ALWAYS_EXCLUDE },
       limit, offset,
-      order: [[sort, order]],
+      order: orderClause,
       distinct: true,
     });
 
     return { rows, meta: { page, limit, total: count, totalPages: Math.ceil(count / limit) } };
   }
 
-  // ─── By ID ──────────────────────────────────────────────────────────────────
   async findById(id: number, companyId: number, includeSensitive = false): Promise<Employee | null> {
     return Employee.findOne({
       where: { id, company_id: companyId },
@@ -109,17 +141,14 @@ export class EmployeeRepository {
     });
   }
 
-  // ─── Create ─────────────────────────────────────────────────────────────────
   async create(data: object, t: Transaction): Promise<Employee> {
     return Employee.create(data as any, { transaction: t });
   }
 
-  // ─── Update employees row ──────────────────────────────────────────────────
   async update(id: number, companyId: number, data: object, t: Transaction) {
     return Employee.update(data as any, { where: { id, company_id: companyId }, transaction: t });
   }
 
-  // ─── Soft delete ─────────────────────────────────────────────────────────────
   async softDelete(id: number, companyId: number, deletedBy: number): Promise<Employee | null> {
     const emp = await Employee.findOne({ where: { id, company_id: companyId } });
     if (!emp) return null;
@@ -128,7 +157,15 @@ export class EmployeeRepository {
     return emp;
   }
 
-  // ─── Upsert child tables ──────────────────────────────────────────────────
+  async upsertLocationAttendance(employeeId: number, data: object, t: Transaction) {
+    const [r] = await EmployeeLocationAttendance.upsert({ employee_id: employeeId, ...data }, { transaction: t });
+    return r;
+  }
+  async upsertManagersWorkContact(employeeId: number, data: object, t: Transaction) {
+    const [r] = await EmployeeManagersWorkContact.upsert({ employee_id: employeeId, ...data }, { transaction: t });
+    return r;
+  }
+
   async upsertCommitmentProbation(employeeId: number, data: object, t: Transaction) {
     const [r] = await EmployeeCommitmentProbation.upsert({ employee_id: employeeId, ...data }, { transaction: t });
     return r;
@@ -162,14 +199,12 @@ export class EmployeeRepository {
     return r;
   }
 
-  // ─── Address: upsert by type ───────────────────────────────────────────────
   async upsertAddress(employeeId: number, type: 'present' | 'permanent', data: object, t: Transaction) {
     const existing = await EmployeeAddress.findOne({ where: { employee_id: employeeId, address_type: type } });
     if (existing) return existing.update(data as any, { transaction: t });
     return EmployeeAddress.create({ employee_id: employeeId, address_type: type, ...data } as any, { transaction: t });
   }
 
-  // ─── Emergency contacts: full replace (primary + backups) ────────────────
   async replaceEmergencyContacts(employeeId: number, contacts: object[], t: Transaction) {
     await EmployeeEmergencyContact.destroy({ where: { employee_id: employeeId }, transaction: t });
     if (!contacts.length) return [];
@@ -179,7 +214,6 @@ export class EmployeeRepository {
     );
   }
 
-  // ─── Other family members: full replace ───────────────────────────────────
   async replaceFamilyMembers(employeeId: number, members: object[], t: Transaction) {
     await EmployeeFamilyMember.destroy({ where: { employee_id: employeeId }, transaction: t });
     if (!members.length) return [];
@@ -189,21 +223,18 @@ export class EmployeeRepository {
     );
   }
 
-  // ─── Bank: upsert by type ────────────────────────────────────────────────
   async upsertBank(employeeId: number, bankType: 'personal' | 'official', data: object, t: Transaction) {
     const existing = await EmployeeBankDetail.findOne({ where: { employee_id: employeeId, bank_type: bankType } });
     if (existing) return existing.update(data as any, { transaction: t });
     return EmployeeBankDetail.create({ employee_id: employeeId, bank_type: bankType, ...data } as any, { transaction: t });
   }
 
-  // ─── Salary: upsert by type ───────────────────────────────────────────────
   async upsertSalary(employeeId: number, salaryType: 'current' | 'joining', data: object, t: Transaction) {
     const existing = await EmployeeSalary.findOne({ where: { employee_id: employeeId, salary_type: salaryType } });
     if (existing) return existing.update(data as any, { transaction: t });
     return EmployeeSalary.create({ employee_id: employeeId, salary_type: salaryType, ...data } as any, { transaction: t });
   }
 
-  // ─── Vaccinations: full replace ────────────────────────────────────────────
   async replaceVaccinations(employeeId: number, vaccinations: object[], t: Transaction) {
     await EmployeeVaccination.destroy({ where: { employee_id: employeeId }, transaction: t });
     if (!vaccinations.length) return [];
@@ -213,12 +244,10 @@ export class EmployeeRepository {
     );
   }
 
-  // ─── Additional documents: single add (used by the upload endpoint) ──────
   async addDocument(employeeId: number, data: object) {
     return EmployeeDocument.create({ employee_id: employeeId, ...data } as any);
   }
 
-  // ─── Additional documents: full replace ────────────────────────────────────
   async replaceDocuments(employeeId: number, documents: object[], t: Transaction) {
     await EmployeeDocument.destroy({ where: { employee_id: employeeId }, transaction: t });
     if (!documents.length) return [];
@@ -228,7 +257,6 @@ export class EmployeeRepository {
     );
   }
 
-  // ─── Experience: full replace (one-to-many — "add earlier ones") ─────────
   async replaceExperience(employeeId: number, experience: object[], t: Transaction) {
     await EmployeeExperience.destroy({ where: { employee_id: employeeId }, transaction: t });
     if (!experience.length) return [];
@@ -238,7 +266,6 @@ export class EmployeeRepository {
     );
   }
 
-  // ─── Education: full replace (one-to-many — "add qualification") ─────────
   async replaceEducation(employeeId: number, education: object[], t: Transaction) {
     await EmployeeEducation.destroy({ where: { employee_id: employeeId }, transaction: t });
     if (!education.length) return [];
@@ -248,13 +275,11 @@ export class EmployeeRepository {
     );
   }
 
-  // ─── "Has prior work experience?" yes/no gate ─────────────────────────────
   async setExperienceFlag(employeeId: number, isExperienced: boolean, t: Transaction) {
     const [r] = await EmployeeExperienceFlag.upsert({ employee_id: employeeId, is_experienced: isExperienced }, { transaction: t });
     return r;
   }
 
-  // ─── Transfers: full replace ───────────────────────────────────────────────
   async replaceTransfers(employeeId: number, transfers: object[], t: Transaction) {
     await EmployeeTransfer.destroy({ where: { employee_id: employeeId }, transaction: t });
     if (!transfers.length) return [];
@@ -264,20 +289,16 @@ export class EmployeeRepository {
     );
   }
 
-  // ─── Completion % ─────────────────────────────────────────────────────────
   async updateCompletionPct(id: number, pct: number, t: Transaction) {
     return Employee.update({ form_completion_pct: pct }, { where: { id }, transaction: t });
   }
 
-  // ─── Lookups ────────────────────────────────────────────────────────────────
-
   async findByCode(code: string, excludeId?: number) {
     return Employee.findOne({
-      where: {employee_code: code, ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}) },
+      where: { employee_code: code, ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}) },
     });
   }
 
-  // Globally unique across all companies (confirmed) — NOT company-scoped
   async findByEmail(email: string, excludeId?: number) {
     return Employee.findOne({
       where: {
@@ -288,7 +309,6 @@ export class EmployeeRepository {
     });
   }
 
-  // Globally unique across all companies (confirmed) — NOT company-scoped
   async findByMobile(mobile: string, excludeId?: number) {
     return Employee.findOne({
       where: {
@@ -299,7 +319,6 @@ export class EmployeeRepository {
     });
   }
 
-  // Find manager by employee_id (integer) — used in reporting step
   async findManagerById(managerId: number, companyId: number) {
     return Employee.findOne({
       where: { id: managerId, company_id: companyId, status: 'Active', portal_access: true },
@@ -307,7 +326,6 @@ export class EmployeeRepository {
     });
   }
 
-  // Search managers by name or code (for async dropdown)
   async searchManagers(query: string, companyId: number, excludeId?: number) {
     const s = `%${query}%`;
     return Employee.findAll({
@@ -326,7 +344,6 @@ export class EmployeeRepository {
     });
   }
 
-  // ─── Draft ────────────────────────────────────────────────────────────────
   async upsertDraft(data: { employeeId?: number | null; createdBy: number; step: string; formData: object; sessionId: string }) {
     const [draft] = await EmployeeDraft.upsert({
       employee_id: data.employeeId ?? null,
@@ -349,7 +366,6 @@ export class EmployeeRepository {
     return EmployeeDraft.destroy({ where: { session_id: sessionId, created_by: createdBy } });
   }
 
-  // ─── Auth helpers (used by auth service) ─────────────────────────────────
   async findForLogin(emailOrMobile: string, companyId: number) {
     const isPhone = /^\+?[0-9]{7,15}$/.test(emailOrMobile.replace(/\s/g, ''));
     return Employee.findOne({
@@ -372,7 +388,6 @@ export class EmployeeRepository {
     return Employee.update(data as any, { where: { id } });
   }
 
-  // ─── Stats ────────────────────────────────────────────────────────────────
   async getSummary(companyId: number) {
     const [active, left, retired, onNotice, relieved, absconded, inactive, draft, total] = await Promise.all([
       Employee.count({ where: { company_id: companyId, status: 'Active' } }),

@@ -65,7 +65,8 @@ export class AttendanceCombinedService {
   ): Promise<CombinedAttendanceRow[]> {
     const employee = await Employee.findOne({
       where: { id: employeeId },
-      attributes: ['employee_code', 'first_name', 'last_name', 'shift_id', 'grace_minutes', 'weekly_off'],
+      attributes: ['employee_code', 'first_name', 'last_name'],
+      include: [{ association: 'locationAttendance', attributes: ['shift_id', 'grace_minutes', 'weekly_off'] }],
     });
     if (!employee) throw new AppError('Employee not found', 404);
     if (!employee.employee_code) {
@@ -77,6 +78,12 @@ export class AttendanceCombinedService {
       throw new AppError('Employee has not been assigned an employee code yet — attendance is unavailable until onboarding is complete', 409);
     }
     const employeeCode = employee.employee_code;
+    // shift_id/grace_minutes/weekly_off now live on EmployeeLocationAttendance,
+    // not directly on Employee — read through the include above.
+    const locationAttendance = (employee as any).locationAttendance;
+    const shiftId = locationAttendance?.shift_id ?? null;
+    const graceMinutes = locationAttendance?.grace_minutes ?? null;
+    const weeklyOff = locationAttendance?.weekly_off ?? null;
 
     const [bioRows, trakRows, holidayMap, regRows] = await Promise.all([
       attendanceMSSQLService.getAttendanceByDate(startDate, endDate, employeeCode),
@@ -110,9 +117,9 @@ export class AttendanceCombinedService {
         return { ...row, finalStatus: 'Holiday' as FinalAttendanceStatus, matchedRule: `HOLIDAY:${holidayName}`, lateMinutes: 0 };
       }
 
-      const weeklyOff = isWeeklyOff(row.date, employee.weekly_off);
-      if (weeklyOff.isOff) {
-        return { ...row, finalStatus: 'Weekly Off' as FinalAttendanceStatus, matchedRule: weeklyOff.reason, lateMinutes: 0 };
+      const weeklyOffResult = isWeeklyOff(row.date, weeklyOff);
+      if (weeklyOffResult.isOff) {
+        return { ...row, finalStatus: 'Weekly Off' as FinalAttendanceStatus, matchedRule: weeklyOffResult.reason, lateMinutes: 0 };
       }
 
       return row; // untouched — still needs shift-rule evaluation below
@@ -121,11 +128,11 @@ export class AttendanceCombinedService {
     // No shift assigned → can't evaluate punch-based rules for the
     // remaining working days. Holiday/Weekly Off rows above are already
     // finalized regardless; only the working-day rows are left unevaluated.
-    if (!employee.shift_id) {
+    if (!shiftId) {
       return withDayTypeOverrides;
     }
 
-    const shift = await Shift.findByPk(employee.shift_id);
+    const shift = await Shift.findByPk(shiftId);
     if (!shift) {
       // Data integrity issue — employee points at a shift_id that doesn't
       // exist. Same treatment: don't guess, surface it as unevaluated.
@@ -141,7 +148,7 @@ export class AttendanceCombinedService {
       // applied during the merge. This IS the "recalculate on approval"
       // behavior: there's no separate cached status to go stale, because
       // the status is always derived fresh from current punch data.
-      const result = evaluateAttendanceStatus(row, shift, employee.grace_minutes);
+      const result = evaluateAttendanceStatus(row, shift, graceMinutes);
       return {
         ...row,
         finalStatus: result.status,

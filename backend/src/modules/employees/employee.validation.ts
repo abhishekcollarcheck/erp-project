@@ -1,11 +1,8 @@
 /**
  * employees.validation.ts
  * express-validator chains for every wizard step.
- * Required/optional now matches the actual UI exactly: only fields carrying
- * a visible `*` in the HTML are required. Confirmed against every one of the
- * 13 step screens — almost nothing outside Role & Identity, Date of Joining,
- * and Aadhaar+Bank (in IDs & Bank) is actually mandatory in the real product,
- * despite the old spreadsheet-derived DTOs marking much more as "MANDATORY".
+ * Required/optional matches the actual UI exactly: only fields carrying
+ * a visible `*` in the HTML are required.
  */
 
 import { body, query, param, ValidationChain } from 'express-validator';
@@ -13,7 +10,7 @@ import {
   EMPLOYEE_STATUS, EMPLOYMENT_TYPE, COMMITMENT_TERM, CONFIRMATION_STATUS,
   PF_EMPLOYER_FROM, MEDICLAIM_STATUS, RD_TERM, HOUSE_TYPE, PERM_ADDRESS_TYPE,
   FATHER_SALUTATION, MOTHER_SALUTATION, SALARY_MODE, DEDUCTION_FROM,
-  DEDUCTION_MONTHS, GENDER, BLOOD_GROUP, MARITAL_STATUS, YES_NO,
+  DEDUCTION_MONTHS, GENDER, BLOOD_GROUP, MARITAL_STATUS, YES_NO, SHIFT_CATEGORY,
 } from './employee.constants';
 
 const opt = (c: ValidationChain) => c.optional({ nullable: true, checkFalsy: false });
@@ -54,13 +51,18 @@ export const roleIdentityValidation: ValidationChain[] = [
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
 // Only Date of Joining carries a * in the UI — everything else here is optional.
+// working_state_country/working_city/working_site/pay_register_location now
+// store dropdown IDs (INTEGER), not names — validated as integers, not strings.
+// shift_category added (Shift/Duration discriminator); shift_start/shift_end/
+// shift_duration removed (no longer exist on the schema).
 export const locationAttendanceValidation: ValidationChain[] = [
-  opt(body('working_state_country').trim().isLength({ max: 150 })),
-  opt(body('working_city').trim().isLength({ max: 100 })),
-  opt(body('working_site').trim().isLength({ max: 200 })),
-  opt(body('pay_register_location').trim().isLength({ max: 100 })),
+  opt(body('working_state_country').isInt({ min: 1 })),
+  opt(body('working_city').isInt({ min: 1 })),
+  opt(body('working_site').isInt({ min: 1 })),
+  opt(body('pay_register_location').isInt({ min: 1 })),
   body('actual_doj').notEmpty().withMessage('Date of Joining is required'),
   opt(body('weekly_off').trim().isLength({ max: 200 })),
+  opt(body('shift_category').isIn(SHIFT_CATEGORY)),
   opt(body('shift_id').isInt({ min: 1 })),
   opt(body('grace_minutes').isInt({ min: 0, max: 120 })),
 ];
@@ -90,7 +92,8 @@ export const commitmentProbationValidation: ValidationChain[] = [
 ];
 
 // ─── Step 5 (HR): Statutory Schemes ────────────────────────────────────────────
-// Nothing carries a * in the UI.
+// Nothing carries a * in the UI. esi_employee_pct/esi_employer_pct confirmed
+// missing, now added.
 export const statutorySchemesValidation: ValidationChain[] = [
   opt(body('pf_status').isBoolean()),
   opt(body('uan_number').trim().matches(/^\d{12}$/).withMessage('UAN must be 12 digits')),
@@ -102,6 +105,8 @@ export const statutorySchemesValidation: ValidationChain[] = [
   opt(body('epf_eps_diff_367').isFloat({ min: 0 })),
   opt(body('esic_status').isBoolean()),
   opt(body('esic_number').trim().isLength({ max: 30 })),
+  opt(body('esi_employee_pct').isFloat({ min: 0, max: 100 })),
+  opt(body('esi_employer_pct').isFloat({ min: 0, max: 100 })),
   opt(body('mediclaim_status').isIn(MEDICLAIM_STATUS)),
   opt(body('mediclaim_number').trim().isLength({ max: 50 })),
   opt(body('mediclaim_amount').isFloat({ min: 0 })),
@@ -115,7 +120,9 @@ export const statutorySchemesValidation: ValidationChain[] = [
 ];
 
 // ─── Step 6 (HR): Compensation ────────────────────────────────────────────────
-// Nothing carries a * in the UI.
+// Nothing carries a * in the UI. deduction_months is now a plain number (was
+// a "12 Months"-style dropdown label); deduction_from is now a date — "the
+// date deductions start from" — not a Salary/AMDB choice like it used to.
 export const compensationValidation: ValidationChain[] = [
   opt(body('salary_mode').isIn(SALARY_MODE)),
   opt(body('current_basic').isFloat({ min: 0 })),
@@ -128,8 +135,8 @@ export const compensationValidation: ValidationChain[] = [
   opt(body('joining_amdb').isFloat({ min: 0 })),
   opt(body('asset_deduction_applicable').isBoolean()),
   opt(body('security_amount').isFloat({ min: 0 })),
-  opt(body('deduction_months').isIn(DEDUCTION_MONTHS)),
-  opt(body('deduction_from').isIn(DEDUCTION_FROM)),
+  opt(body('deduction_months').isInt({ min: 0 })),
+  optDate('deduction_from'),
   opt(body('monthly_deduction').isFloat({ min: 0 })),
   opt(body('final_monthly_deduction').isFloat({ min: 0 })),
 ];
@@ -150,6 +157,8 @@ export const hrJoiningChecklistValidation: ValidationChain[] = [
 // ─── Step 8 (Candidate): Personal Profile ─────────────────────────────────────
 // Nothing carries a * in the UI. personal_email/personal_mobile removed —
 // those are now employees.email/phone, validated on Role & Identity instead.
+// marital_status/marriage_date/spouse/children moved to Family & Emergency
+// (Step 10) — they're all shown on that screen in the UI.
 export const personalProfileValidation: ValidationChain[] = [
   optDate('date_of_birth'),
   opt(body('gender').isIn(GENDER)),
@@ -158,18 +167,9 @@ export const personalProfileValidation: ValidationChain[] = [
   opt(body('nationality').trim().isLength({ max: 100 })),
   opt(body('religion').trim().isLength({ max: 100 })),
   opt(body('blood_group').isIn(BLOOD_GROUP)),
-  opt(body('marriage_date').isISO8601()),
-  opt(body('spouse_name').trim().isLength({ max: 200 })),
-  optDate('spouse_dob'),
-  opt(body('child1_name').trim().isLength({ max: 200 })),
-  optDate('child1_dob'),
-  opt(body('child2_name').trim().isLength({ max: 200 })),
-  optDate('child2_dob'),
-  opt(body('child3_name').trim().isLength({ max: 200 })),
-  optDate('child3_dob'),
 ];
 
-// ─── Step 8 (Candidate): Address ──────────────────────────────────────────────
+// ─── Step 9 (Candidate): Address ──────────────────────────────────────────────
 // Nothing carries a * in the UI.
 export const addressValidation: ValidationChain[] = [
   opt(body('present_house_type').isIn(HOUSE_TYPE)),
@@ -191,13 +191,27 @@ export const addressValidation: ValidationChain[] = [
   opt(body('perm_pincode').matches(/^\d{4,10}$/)),
 ];
 
-// ─── Step 9 (Candidate): Family & Emergency ───────────────────────────────────
-// Merged step (family + emergency + the new repeatable lists). Nothing
-// carries a * in the UI. father_age_dob/mother_age_dob renamed to
-// father_dob/mother_dob (real dates now, not free text). father_status
-// dropped, mother_occupation is free text now (not a constrained enum).
+// ─── Step 10 (Candidate): Family & Emergency ───────────────────────────────────
+// Merged step (family + emergency + the new repeatable lists), now also
+// carrying marital_status + spouse + children (moved here from Personal
+// Profile — they're all shown on this screen in the UI). Nothing carries a *
+// in the UI. father_status dropped, mother_occupation is free text now.
+// family_members gets salutation + relationship_other (confirmed missing);
+// emergency_contacts gets relationship_other (confirmed missing).
 export const familyEmergencyValidation: ValidationChain[] = [
   opt(body('marital_status').isIn(MARITAL_STATUS)),
+  optDate('marriage_date'),
+  opt(body('spouse_name').trim().isLength({ max: 200 })),
+  optDate('spouse_dob'),
+  opt(body('child1_name').trim().isLength({ max: 200 })),
+  opt(body('child1_gender').isIn(GENDER)),
+  optDate('child1_dob'),
+  opt(body('child2_name').trim().isLength({ max: 200 })),
+  opt(body('child2_gender').isIn(GENDER)),
+  optDate('child2_dob'),
+  opt(body('child3_name').trim().isLength({ max: 200 })),
+  opt(body('child3_gender').isIn(GENDER)),
+  optDate('child3_dob'),
   opt(body('father_salutation').isIn(FATHER_SALUTATION)),
   opt(body('father_name').trim().isLength({ max: 200 })),
   optDate('father_dob'),
@@ -209,15 +223,18 @@ export const familyEmergencyValidation: ValidationChain[] = [
   opt(body('family_members').isArray()),
   opt(body('family_members.*.name').trim().isLength({ max: 200 })),
   opt(body('family_members.*.relationship').trim().isLength({ max: 100 })),
+  opt(body('family_members.*.relationship_other').trim().isLength({ max: 100 })),
+  opt(body('family_members.*.salutation').trim().isLength({ max: 10 })),
   opt(body('family_members.*.dob').isISO8601()),
   opt(body('emergency_contacts').isArray()),
   opt(body('emergency_contacts.*.contact_name').trim().isLength({ max: 200 })),
   opt(body('emergency_contacts.*.contact_number').matches(/^[+\d\s\-()]{7,20}$/)),
   opt(body('emergency_contacts.*.email').isEmail()),
   opt(body('emergency_contacts.*.relationship').trim().isLength({ max: 100 })),
+  opt(body('emergency_contacts.*.relationship_other').trim().isLength({ max: 100 })),
 ];
 
-// ─── Step 10 (Candidate): IDs & Bank ──────────────────────────────────────────
+// ─── Step 11 (Candidate): IDs & Bank ──────────────────────────────────────────
 // Merged step (statutory + bank + vaccinations + documents). Aadhaar (4
 // fields) and personal bank (3 of 4 fields) are the ONLY required fields in
 // this entire wizard outside of Role & Identity and Date of Joining —
@@ -268,9 +285,8 @@ export const idsBankValidation: ValidationChain[] = [
   opt(body('personal_bank_branch').trim().isLength({ max: 200 })),
 ];
 
-// ─── Step 11 (Candidate): Experience & Education ──────────────────────────────
-// Nothing carries a * in the UI. Both now arrays (repeatable). passing_year
-// replaced with education_start_year/education_end_year + is_pursuing.
+// ─── Step 12 (Candidate): Experience & Education ──────────────────────────────
+// Nothing carries a * in the UI. Both now arrays (repeatable).
 export const experienceEducationValidation: ValidationChain[] = [
   opt(body('is_experienced').isBoolean()),
   opt(body('experience').isArray()),

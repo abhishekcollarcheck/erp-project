@@ -16,6 +16,7 @@ export type ConfirmationStatus  = 'Confirmed' | 'Failed' | 'Not Applicable';
 export interface Employee {
   id:                     number;
   employee_code:          string | null;   // null/pending until HR+Candidate parts both reach 100%
+  reference_code:         string | null;   // tracking-only — traces this employee back to the Candidate record it was created from
   company_id:             number | null;
   first_name:             string;
   middle_name?:           string | null;
@@ -35,10 +36,11 @@ export interface Employee {
   l2_manager_id?:         number | null;
   actual_doj?:            string | null;
   current_doj?:           string | null;
-  working_site?:          string | null;
-  working_city?:          string | null;
-  working_state_country?: string | null;
-  pay_register_location?: string | null;
+  working_site?:          number | null;
+  working_city?:          number | null;
+  working_state_country?: number | null;
+  pay_register_location?: number | null;
+  shift_category?:        'Shift' | 'Duration' | null;
   shift_id?:              number | null;
   weekly_off:              string | null;
   grace_minutes:          number | null;
@@ -115,6 +117,8 @@ export interface EmployeeSchemes {
   epf_eps_diff_367?:    number | null;
   esic_status:          boolean;
   esic_number?:         string | null;
+  esi_employee_pct?:    number | null;
+  esi_employer_pct?:    number | null;
   mediclaim_status:     MediclaimStatus;
   mediclaim_number?:    string | null;
   mediclaim_amount?:    number | null;
@@ -144,10 +148,13 @@ export interface EmployeePersonal {
   spouse_name?:     string | null;
   spouse_dob?:      string | null;
   child1_name?:     string | null;
+  child1_gender?:   Gender | null;
   child1_dob?:      string | null;
   child2_name?:     string | null;
+  child2_gender?:   Gender | null;
   child2_dob?:      string | null;
   child3_name?:     string | null;
+  child3_gender?:   Gender | null;
   child3_dob?:      string | null;
 }
 
@@ -166,11 +173,13 @@ export interface EmployeeFamily {
 
 // NEW — repeatable "Other Family Members"
 export interface FamilyMember {
-  id:            number;
-  name:          string;
-  relationship?: string | null;
-  dob?:          string | null;
-  occupation?:   string | null;
+  id:                  number;
+  name:                string;
+  relationship?:       string | null;
+  relationship_other?: string | null;
+  salutation?:         string | null;
+  dob?:                string | null;
+  occupation?:         string | null;
 }
 
 export interface EmployeeAddress {
@@ -184,17 +193,18 @@ export interface EmployeeAddress {
   state?:              string | null;
   country?:            string | null;
   pincode?:            string | null;
-  is_same_as_present:  boolean;
+  perm_address_type?:  PermAddressType | null;
 }
 
 // Added email; supports multiple contacts via is_primary
 export interface EmergencyContact {
-  id:             number;
-  contact_name:   string;
-  contact_number: string;
-  email?:         string | null;
-  relationship:   string;
-  is_primary:     boolean;
+  id:                  number;
+  contact_name:        string;
+  contact_number:      string;
+  email?:              string | null;
+  relationship:        string;
+  relationship_other?: string | null;
+  is_primary:          boolean;
 }
 
 // Substantially expanded — name-as-on-document, DOB, issue date, place of
@@ -269,8 +279,8 @@ export interface EmployeeSalary {
 export interface EmployeeAssetDeduction {
   asset_deduction_applicable: boolean;
   security_amount?:           number | null;
-  deduction_months?:          string | null;
-  deduction_from?:            string | null;
+  deduction_months?:          number | null;
+  deduction_from?:            string | null;   // date string — "the date deductions start from", NOT a Salary/AMDB choice
   monthly_deduction?:         number | null;
   final_monthly_deduction?:   number | null;
   last_installment?:          number | null;

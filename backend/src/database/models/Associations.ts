@@ -48,7 +48,7 @@ import { AttendanceRegularization } from './AttendanceRegularization';
 
 import { CompanyManager } from './CompanyManager';
 import { EmployeePermission } from './EmployeePermission';
-import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary } from './Employee';
+import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, EmployeeLocationAttendance, EmployeeManagersWorkContact, EmployeeFamilyMember, EmployeeExperienceFlag, EmployeeVaccination, EmployeeDocument } from './Employee';
 import { SubDepartment } from './Subdepartment';
 import { SubDesignation } from './SubDesignation';
 
@@ -92,22 +92,33 @@ Employee.hasOne(EmployeeCommitmentProbation, { foreignKey: 'employee_id', as: 'c
 Employee.hasOne(EmployeeSchemes,             { foreignKey: 'employee_id', as: 'schemes'            });
 Employee.hasOne(EmployeePersonal,            { foreignKey: 'employee_id', as: 'personal'           });
 Employee.hasOne(EmployeeFamily,              { foreignKey: 'employee_id', as: 'family'             });
+Employee.hasMany(EmployeeFamilyMember,       { foreignKey: 'employee_id', as: 'familyMembers'      });
 Employee.hasMany(EmployeeAddress,            { foreignKey: 'employee_id', as: 'addresses'          });
 Employee.hasMany(EmployeeEmergencyContact,   { foreignKey: 'employee_id', as: 'emergencyContacts'  });
 Employee.hasOne(EmployeeStatutory,           { foreignKey: 'employee_id', as: 'statutory'          });
+Employee.hasMany(EmployeeVaccination,        { foreignKey: 'employee_id', as: 'vaccinations'       });
+Employee.hasMany(EmployeeDocument,           { foreignKey: 'employee_id', as: 'documents'          });
 Employee.hasMany(EmployeeBankDetail,         { foreignKey: 'employee_id', as: 'bankDetails'        });
 Employee.hasMany(EmployeeSalary,             { foreignKey: 'employee_id', as: 'salaries'           });
 Employee.hasOne(EmployeeAssetDeduction,      { foreignKey: 'employee_id', as: 'assetDeduction'     });
-Employee.hasOne(EmployeeExperience,          { foreignKey: 'employee_id', as: 'experience'         });
-Employee.hasOne(EmployeeEducation,           { foreignKey: 'employee_id', as: 'education'          });
+Employee.hasMany(EmployeeExperience,         { foreignKey: 'employee_id', as: 'experience'         });
+Employee.hasOne(EmployeeExperienceFlag,      { foreignKey: 'employee_id', as: 'experienceFlag'     });
+Employee.hasMany(EmployeeEducation,          { foreignKey: 'employee_id', as: 'education'          });
 Employee.hasOne(EmployeeOnboardingDocs,      { foreignKey: 'employee_id', as: 'onboardingDocs'     });
 Employee.hasMany(EmployeeTransfer,           { foreignKey: 'employee_id', as: 'transfers'          });
 Employee.hasOne(EmployeeExit,                { foreignKey: 'employee_id', as: 'exit'               });
 
-// Self-referential manager associations (by employee_id FK, not code)
-Employee.belongsTo(Employee, { foreignKey: 'l1_manager_id', as: 'l1Manager' });
-Employee.belongsTo(Employee, { foreignKey: 'l2_manager_id', as: 'l2Manager' });
-Employee.hasMany(Employee,   { foreignKey: 'l1_manager_id', as: 'directReports' });
+// ─── Steps 2 & 3 — separate 1:1 child tables (Role Identity was merged back
+// onto the root Employee table; these two stayed split) ──────────────────────
+Employee.hasOne(EmployeeLocationAttendance,  { foreignKey: 'employee_id', as: 'locationAttendance' });
+Employee.hasOne(EmployeeManagersWorkContact, { foreignKey: 'employee_id', as: 'managersWorkContact'});
+
+// l1_manager_id/l2_manager_id live on EmployeeManagersWorkContact now, not on
+// the root Employee table — so these belong there, not as a self-referential
+// association on Employee.
+EmployeeManagersWorkContact.belongsTo(Employee, { foreignKey: 'l1_manager_id', as: 'l1Manager' });
+EmployeeManagersWorkContact.belongsTo(Employee, { foreignKey: 'l2_manager_id', as: 'l2Manager' });
+Employee.hasMany(EmployeeManagersWorkContact, { foreignKey: 'l1_manager_id', as: 'directReportsContact' });
 
 // ─── Company ──────────────────────────────────────────────────────────────────
 Employee.belongsTo(Company,  { foreignKey: 'company_id', as: 'company'   });
@@ -299,5 +310,7 @@ export {
   EmployeePermission, EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, 
   EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, 
   EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, 
+  EmployeeLocationAttendance, EmployeeManagersWorkContact, EmployeeFamilyMember, EmployeeExperienceFlag,
+  EmployeeVaccination, EmployeeDocument,
   AttendanceRegularization, SubDepartment, SubDesignation
 };

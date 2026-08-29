@@ -1,7 +1,12 @@
 /**
  * employees.types.ts
  * All DTOs and interfaces derived from the UNG Master Data Form spreadsheet.
- * 204 fields mapped across 15 normalized tables.
+ * Employee is the root/main table again — Role & Identity (Step 1) lives
+ * directly on it, since that data is used by nearly every query in the
+ * system, unlike the genuinely-optional step tables. Location & Attendance
+ * (Step 2) and Managers & Work Contact (Step 3) remain separate child tables;
+ * the API layer (employee.service.ts's flattenEmployee()) merges just those
+ * two back to a flat shape, which is what EmployeeFullResponse below describes.
  */
 
 import type {
@@ -27,6 +32,10 @@ export interface EmployeeQueryParams {
 }
 
 // ─── Step 1 (HR): Role & Identity ─────────────────────────────────────────────
+// This DTO represents the STRICT/complete shape (used by create() and the
+// role_identity step's validators) — these fields stay required here even
+// though the underlying DB columns are nullable (to support lenient drafts
+// via saveDraft(), which builds its own partial payload separately).
 export interface RoleIdentityDto {
   company_id:       number;
   first_name:       string;
@@ -43,13 +52,19 @@ export interface RoleIdentityDto {
 }
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
+// working_state_country/working_city/working_site/pay_register_location now
+// store dropdown IDs (INTEGER), not names — the master-data tables for these
+// don't exist yet, so no FK constraint yet either (per the confirmed decision).
+// shift_start/shift_end/shift_duration removed; shift_category added as the
+// Shift-vs-Duration discriminator.
 export interface LocationAttendanceDto {
-  working_state_country?:   string | null;
-  working_city?:             string | null;
-  working_site?:             string | null;
-  pay_register_location?:    string | null;
+  working_state_country?:   number | null;
+  working_city?:             number | null;
+  working_site?:             number | null;
+  pay_register_location?:    number | null;
   actual_doj:                string;         // "Date of Joining" — required
   weekly_off?:                string | null;
+  shift_category?:           'Shift' | 'Duration' | null;
   shift_id?:                  number | null;
   grace_minutes?:             number | null;
 }
@@ -64,20 +79,20 @@ export interface ManagersWorkContactDto {
 
 // ─── Step 4: Commitment & Probation ──────────────────────────────────────────
 export interface CommitmentProbationDto {
-  commitment:                  boolean;           
+  commitment:                  boolean;
   commitment_term?:            CommitmentTerm;
-  commitment_entered_on?:      string | null;  
-  on_probation:                boolean;           
+  commitment_entered_on?:      string | null;
+  on_probation:                boolean;
   probation_period?:           string | null;
   probation_extended_period?:  string | null;
-  confirmation_status?:        ConfirmationStatus; 
+  confirmation_status?:        ConfirmationStatus;
   confirmed_on?:               string | null;
 }
 
 // ─── Step 5 (HR): Statutory Schemes ────────────────────────────────────────────
 export interface SchemesDto {
   // PF
-  pf_status:              boolean;               
+  pf_status:              boolean;
   uan_number?:            string | null;
   epfo_member_id?:        string | null;
   pf_contribution_pct?:   number | null;
@@ -85,15 +100,17 @@ export interface SchemesDto {
   pf_employee_12?:        number | null;
   eps_employer_833?:      number | null;
   epf_eps_diff_367?:      number | null;
-  // ESIC
-  esic_status:            boolean;               
+  // ESIC — esi_employee_pct/esi_employer_pct confirmed missing before, now added
+  esic_status:            boolean;
   esic_number?:           string | null;
+  esi_employee_pct?:      number | null;
+  esi_employer_pct?:      number | null;
   // Mediclaim
-  mediclaim_status:       MediclaimStatus;       
+  mediclaim_status:       MediclaimStatus;
   mediclaim_number?:      string | null;
   mediclaim_amount?:      number | null;
   // RD
-  rd_scheme:              boolean;               
+  rd_scheme:              boolean;
   rd_term?:               RdTerm;
   rd_opening_date?:       string | null;
   rd_account_number?:     string | null;
@@ -104,28 +121,18 @@ export interface SchemesDto {
 
 // ─── Step 8 (Candidate): Personal Profile ─────────────────────────────────────
 export interface PersonalDto {
-  date_of_birth:    string;          
-  gender:           Gender;           
-  shirt_size:       string;           
-  tshirt_size:      string;           
-  nationality:      string;           
-  religion:         string;           
-  blood_group:      BloodGroup;       
-  marital_status:   MaritalStatus;    
-  marriage_date?:   string | null;
-  spouse_name?:     string | null;
-  spouse_dob?:      string | null;
-  child1_name?:     string | null;
-  child1_dob?:      string | null;
-  child2_name?:     string | null;
-  child2_dob?:      string | null;
-  child3_name?:     string | null;
-  child3_dob?:      string | null;
+  date_of_birth:    string;
+  gender:           Gender;
+  shirt_size:       string;
+  tshirt_size:      string;
+  nationality:      string;
+  religion:         string;
+  blood_group:      BloodGroup;
 }
 
-// ─── Step 7: Address ─────────────────────────────────────────────────────────
+// ─── Step 9: Address ─────────────────────────────────────────────────────────
 export interface AddressDto {
-  // Present (all MANDATORY)
+  // Present
   present_house_type:   HouseType;
   present_house_no:     string;
   present_area?:        string | null;
@@ -134,8 +141,10 @@ export interface AddressDto {
   present_state:        string;
   present_country:      string;
   present_pincode:      string;
-  // Permanent
-  perm_address_type:    PermAddressType;  
+  // Permanent — perm_address_type is now a single source of truth (was
+  // is_same_as_present, a boolean, which couldn't represent 'Not Applicable'
+  // as distinct from 'Different')
+  perm_address_type:    PermAddressType;
   perm_house_type?:     HouseType;
   perm_house_no?:       string | null;
   perm_area?:           string | null;
@@ -146,38 +155,58 @@ export interface AddressDto {
   perm_pincode?:        string | null;
 }
 
-// ─── Step 9 (Candidate): Family & Emergency ───────────────────────────────────
+// ─── Step 10 (Candidate): Family & Emergency ───────────────────────────────────
+// marital_status + spouse + children now handled here (previously lived on
+// PersonalDto) — they're all shown on this screen in the UI, matching
+// employee.service.ts's routeStep('family_emergency') which reads them here.
 export interface FamilyDto {
   marital_status:      MaritalStatus;
-  father_salutation:   FatherSalutation;        
-  father_name:         string;                  
+  marriage_date?:      string | null;
+  spouse_name?:        string | null;
+  spouse_dob?:         string | null;
+  child1_name?:        string | null;
+  child1_gender?:      Gender | null;
+  child1_dob?:         string | null;
+  child2_name?:        string | null;
+  child2_gender?:      Gender | null;
+  child2_dob?:         string | null;
+  child3_name?:        string | null;
+  child3_gender?:      Gender | null;
+  child3_dob?:         string | null;
+  father_salutation:   FatherSalutation;
+  father_name:         string;
   father_dob?:         string | null;
   father_occupation?:  string | null;
-  mother_salutation:   MotherSalutation;        
-  mother_name:         string;                  
+  mother_salutation:   MotherSalutation;
+  mother_name:         string;
   mother_dob?:         string | null;
   mother_occupation?:  string | null;
 }
 
-// NEW — repeatable "Other Family Members" (brother, sister, other relatives)
+// Repeatable "Other Family Members" (brother, sister, other relatives).
+// salutation + relationship_other confirmed missing, now added.
 export interface FamilyMemberDto {
-  id?:            number;
-  name:           string;
-  relationship?:  string | null;
-  dob?:           string | null;
-  occupation?:    string | null;
+  id?:                 number;
+  name:                string;
+  relationship?:       string | null;
+  relationship_other?: string | null;
+  salutation?:         string | null;
+  dob?:                string | null;
+  occupation?:         string | null;
 }
 
-// ─── Step 9 (Candidate): Emergency Contact ────────────────────────────────────
+// ─── Step 10 (Candidate): Emergency Contact ────────────────────────────────────
+// relationship_other confirmed missing, now added.
 export interface EmergencyContactDto {
-  contact_name:    string;           
-  contact_number:  string;
-  email?:          string | null;
-  relationship:    string;
-  is_primary?:     boolean;
+  contact_name:        string;
+  contact_number:      string;
+  email?:              string | null;
+  relationship:        string;
+  relationship_other?: string | null;
+  is_primary?:         boolean;
 }
 
-// ─── Step 10 (Candidate): IDs & Bank ──────────────────────────────────────────
+// ─── Step 11 (Candidate): IDs & Bank ──────────────────────────────────────────
 export interface StatutoryDto {
   // Aadhaar (required)
   aadhaar_number:            string;
@@ -208,7 +237,6 @@ export interface StatutoryDto {
   driving_license_scan_url?:  string | null;
 }
 
-// NEW — repeatable vaccinations list
 export interface VaccinationDto {
   id?:            number;
   vaccine_name:   string;
@@ -216,7 +244,6 @@ export interface VaccinationDto {
   notes?:         string | null;
 }
 
-// NEW — repeatable "additional documents" list
 export interface DocumentDto {
   id?:             number;
   doc_type:        string;
@@ -225,14 +252,13 @@ export interface DocumentDto {
 }
 
 export interface BankDto {
-  // Personal bank (required — the "Needed" pill in the UI)
   personal_bank_name:     string;
   personal_bank_account:  string;
   personal_ifsc:          string;
   personal_bank_branch?:  string | null;
 }
 
-// ─── Step 11 (Candidate): Experience & Education ─────────────────────────────
+// ─── Step 12 (Candidate): Experience & Education ─────────────────────────────
 export interface ExperienceDto {
   id?:                       number;
   last_company_name?:       string | null;
@@ -246,7 +272,7 @@ export interface ExperienceDto {
 
 export interface EducationDto {
   id?:                    number;
-  highest_education:      string;       
+  highest_education:      string;
   education_stream?:      string | null;
   education_mode?:        string | null;
   institute_name?:        string | null;
@@ -263,42 +289,44 @@ export interface ExperienceEducationDto {
 }
 
 // ─── Step 6 (HR): Compensation ────────────────────────────────────────────────
+// deduction_months is now a plain number (was a "12 Months"-style string
+// dropdown label); deduction_from is now a date string — "the date deductions
+// start from" — it does NOT mean Salary/AMDB anymore (that was a
+// misunderstanding on the original schema; fixed to match the real UI which
+// shows a date input for this field).
 export interface SalaryDto {
-  salary_mode:          SalaryMode;    
-  // Current salary
+  salary_mode:          SalaryMode;
   current_basic:        number;
   current_hra:          number;
   current_allowance1:   number;
   current_amdb:         number;
-  // Salary at joining
   joining_basic:        number;
   joining_hra:          number;
   joining_allowance1:   number;
   joining_amdb:         number;
-  // Asset deduction
-  asset_deduction_applicable: boolean; 
+  asset_deduction_applicable: boolean;
   security_amount?:     number | null;
-  deduction_months?:    DeductionMonths;
-  deduction_from?:      DeductionFrom;
+  deduction_months?:    number | null;
+  deduction_from?:      string | null;    // date string, not DeductionFrom enum
   monthly_deduction?:   number | null;
   final_monthly_deduction?: number | null;
 }
 
 // ─── Step 7 (HR): HR Joining Checklist ────────────────────────────────────────
 export interface OnboardingDocsDto {
-  offer_letter:               boolean; 
-  address_verification:       boolean; 
-  service_agreement:          boolean; 
-  indemnity_bond:             boolean; 
-  asset_deduction_letter:     boolean; 
-  account_opening_letter:     boolean; 
-  nda:                        boolean; 
+  offer_letter:               boolean;
+  address_verification:       boolean;
+  service_agreement:          boolean;
+  indemnity_bond:             boolean;
+  asset_deduction_letter:     boolean;
+  account_opening_letter:     boolean;
+  nda:                        boolean;
   remarks?:                   string | null;
 }
 
 // ─── Transfer Record (optional, up to 5) ─────────────────────────────────────
 export interface TransferDto {
-  transfer_order:    number;    // 1-5
+  transfer_order:    number;
   transferred_on?:   string | null;
   new_company?:      string | null;
   new_joining_date?: string | null;
@@ -342,29 +370,62 @@ export type StepUpdateDto =
   | ExitDto;
 
 // ─── Full employee response ───────────────────────────────────────────────────
+// Matches the flat shape produced by employee.service.ts's flattenEmployee() —
+// Steps 2 & 3's fields are merged back to the top level from their child tables
+// (EmployeeLocationAttendance, EmployeeManagersWorkContact) so this response
+// contract stays flat despite that part of the table split. Role & Identity
+// (Step 1) lives directly on the root Employee table again — no merging needed.
 export interface EmployeeFullResponse {
   id:                  number;
   employee_code:       string | null;   // null/pending until HR+Candidate both reach 100%
+  reference_code:      string | null;   // tracking-only, traces back to the source Candidate record
   avatar_url?:         string | null;
   status:              EmployeeStatus;
   record_status:       'Draft' | 'Final';
+
+  // ── Step 1 · Role & Identity (directly on the root Employee table) ───────
   first_name:          string;
   middle_name?:        string | null;
   last_name:           string;
   full_name:           string;
+  company_id?:         number | null;
   employment_type:     EmploymentType;
+  department_id?:      number | null;
+  sub_department_id?:  number | null;
+  designation_id?:     number | null;
+  sub_designation_id?: number | null;
   email:               string | null;
   phone:                string;
+
+  // ── Step 2 · Location & Attendance (from EmployeeLocationAttendance) ────
+  working_state_country?: number | null;   // dropdown ID now, not a name
+  working_city?:           number | null;
+  working_site?:           number | null;
+  pay_register_location?:  number | null;
+  actual_doj?:             string | null;
+  current_doj?:            string | null;
+  weekly_off?:             string | null;
+  shift_category?:        'Shift' | 'Duration' | null;
+  shift_id?:               number | null;
+  grace_minutes?:          number | null;
+
+  // ── Step 3 · Managers & Work Contact (from EmployeeManagersWorkContact) ─
+  l1_manager_id?:      number | null;
+  l2_manager_id?:      number | null;
   official_email?:      string | null;
   official_mobile?:     string | null;
+
   form_completion_pct: number;          // overall (average of hr/candidate)
-  hr_completion_pct:    number;
-  candidate_completion_pct: number;
-  department?:         { id: number; name: string };
-  designation?:        { id: number; name: string };
-  company?:            { id: number; name: string };
-  l1_manager?:         { id: number; first_name: string; last_name: string; };
-  shift?:              { id: number; name: string; start_time: string; end_time: string };
+  hr_completion_pct?:    number;
+  candidate_completion_pct?: number;
+
+  // ── Resolved lookups ──────────────────────────────────────────────────────
+  department?:         { id: number; name: string } | null;
+  designation?:        { id: number; name: string } | null;
+  company?:            { id: number; name: string } | null;
+  l1Manager?:          { id: number; employee_code: string | null; first_name: string; last_name: string } | null;
+  l2Manager?:          { id: number; employee_code: string | null; first_name: string; last_name: string } | null;
+
   commitment_probation?: CommitmentProbationDto;
   schemes?:            SchemesDto;
   salary?:             Partial<SalaryDto>;     // may be masked

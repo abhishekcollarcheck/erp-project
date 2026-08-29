@@ -44,7 +44,6 @@ async function loadFieldPerms(groupIds: number[], companyId: number): Promise<Fi
   });
 
   const map: FieldPermissionMap = {};
-  // Group by field_key, then OR across all matching groups (most-permissive)
   const byFieldKey = new Map<string, typeof perms>();
   for (const p of perms) {
     const key = (p as any).field?.field_key;
@@ -67,10 +66,6 @@ async function loadFieldPerms(groupIds: number[], companyId: number): Promise<Fi
   return map;
 }
 
-// export function clearFpCache(roleId?: number) {
-//   roleId ? fpCache.delete(roleId) : fpCache.clear();
-// }
-
 // is_super_admin bypasses masking entirely
 function applyMasking<T extends Record<string, unknown>>(
   data: T,
@@ -91,6 +86,27 @@ function applyMasking<T extends Record<string, unknown>>(
   return result;
 }
 
+// ─── Flatten the 2 remaining split-out step tables back onto the top level ───
+// Employee is the root table again (Role Identity merged back in — that data
+// is used by nearly every query in the system, unlike the genuinely-optional
+// step tables). EmployeeLocationAttendance (Step 2) and
+// EmployeeManagersWorkContact (Step 3) remain separate child tables and still
+// need flattening for API/frontend consistency.
+export function flattenEmployee(json: any): any {
+  if (!json) return json;
+  const { locationAttendance, managersWorkContact, ...rest } = json;
+  return {
+    ...rest,
+    ...(locationAttendance || {}),
+    ...(managersWorkContact || {}),
+    l1Manager: managersWorkContact?.l1Manager ?? null,
+    l2Manager: managersWorkContact?.l2Manager ?? null,
+    company: rest.company ?? null,
+    department: rest.department ?? null,
+    designation: rest.designation ?? null,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export class EmployeeService {
 
@@ -99,7 +115,7 @@ export class EmployeeService {
     const perms  = isSuperAdmin ? {} : '';
     return {
       ...result,
-      rows: result.rows.map(e => applyMasking(e.toJSON() as any, perms, isSuperAdmin)),
+      rows: result.rows.map(e => applyMasking(flattenEmployee(e.toJSON()), perms as any, isSuperAdmin)),
     };
   }
 
@@ -109,11 +125,10 @@ export class EmployeeService {
     if (!emp) throw new AppError('Employee not found', 404);
 
     const perms = isSuperAdmin ? {} : '';
-    const json  = emp.toJSON() as any;
-    // Apply masking to sensitive sub-objects
-    if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms, isSuperAdmin);
-    if (json.salaries)    json.salaries     = json.salaries.map((s: any) => applyMasking(s, perms, isSuperAdmin));
-    if (json.bankDetails) json.bankDetails  = json.bankDetails.map((b: any) => applyMasking(b, perms, isSuperAdmin));
+    const json  = flattenEmployee(emp.toJSON() as any);
+    if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms as any, isSuperAdmin);
+    if (json.salaries)    json.salaries     = json.salaries.map((s: any) => applyMasking(s, perms as any, isSuperAdmin));
+    if (json.bankDetails) json.bankDetails  = json.bankDetails.map((b: any) => applyMasking(b, perms as any, isSuperAdmin));
     return json;
   }
 
@@ -121,7 +136,7 @@ export class EmployeeService {
     if (dto.email) {
       const dupEmail = await repo.findByEmail(dto.email);
       if (dupEmail) throw new AppError(
-        `Email "${dto.email}" is already registered to ${dupEmail.first_name} ${dupEmail.last_name} (${dupEmail.employee_code ?? 'code pending'}) — employee_code and email are globally unique across all companies`,
+        `Email "${dto.email}" is already registered to ${(dupEmail as any).first_name} ${(dupEmail as any).last_name} (${(dupEmail as any).employee_code ?? 'code pending'}) — employee_code and email are globally unique across all companies`,
         409,
       );
     }
@@ -129,7 +144,7 @@ export class EmployeeService {
     if (dto.phone) {
       const dupMobile = await repo.findByMobile(dto.phone);
       if (dupMobile) throw new AppError(
-        `Phone "${dto.phone}" is already registered to ${dupMobile.first_name} ${dupMobile.last_name} (${dupMobile.employee_code ?? 'code pending'}) — employee_code and phone are globally unique across all companies`,
+        `Phone "${dto.phone}" is already registered to ${(dupMobile as any).first_name} ${(dupMobile as any).last_name} (${(dupMobile as any).employee_code ?? 'code pending'}) — employee_code and phone are globally unique across all companies`,
         409,
       );
     }
@@ -150,7 +165,6 @@ export class EmployeeService {
         sub_designation_id: dto.sub_designation_id || null,
         email:  dto.email.toLowerCase().trim(),
         phone:  normalizePhone(dto.phone),
-        // Auth defaults
         portal_access:   true,        // enabled on creation — employee can log in immediately
         is_super_admin:  false,
         otp_attempts:    0,
@@ -159,8 +173,8 @@ export class EmployeeService {
         created_by:      actorId,
       }, t);
 
-      await logActivity({ companyId: dto.company_id, employeeId: actorId, action: 'EMPLOYEE_CREATED', module: 'employees', entityId: emp.id, newValues: { name: emp.fullName }, ipAddress });
-      return emp;
+      await logActivity({ companyId: dto.company_id, employeeId: actorId, action: 'EMPLOYEE_CREATED', module: 'employees', entityId: emp.id, newValues: { name: `${dto.first_name} ${dto.last_name}` }, ipAddress });
+      return repo.findById(emp.id, dto.company_id, false);
     });
   }
 
@@ -171,14 +185,10 @@ export class EmployeeService {
     return sequelize.transaction(async (t) => {
       await this.routeStep(id, companyId, step, dto, actorId, t);
 
-      // Recalculate HR/Candidate/overall completion
       const fresh = await repo.findById(id, companyId, true);
-      const breakdown = computeCompletionPct(fresh?.toJSON());
+      const breakdown = computeCompletionPct(flattenEmployee(fresh?.toJSON()));
       await repo.updateCompletionPct(id, breakdown.overallPct, t);
 
-      // Generate employee_code the instant overall completion reaches 100%,
-      // if it hasn't already been assigned. This is the one place this fires.
-      // record_status flips from Draft to Final at the same moment.
       if (breakdown.overallPct === 100 && !fresh?.employee_code) {
         const newCode = await generateEmployeeCode(companyId);
         await repo.update(id, companyId, { employee_code: newCode, record_status: 'Final' }, t);
@@ -186,7 +196,7 @@ export class EmployeeService {
       }
 
       await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_STEP_SAVED', module: 'employees', entityId: id, newValues: { step, hrPct: breakdown.hrPct, candidatePct: breakdown.candidatePct }, ipAddress });
-      return repo.findById(id, companyId, false);
+      return flattenEmployee((await repo.findById(id, companyId, false))?.toJSON());
     });
   }
 
@@ -212,23 +222,22 @@ export class EmployeeService {
 
       case 'location_attendance': {
         const d = dto as LocationAttendanceDto;
-        await repo.update(id, companyId, {
-          working_state_country: d.working_state_country ?? null,
-          working_city:           d.working_city ?? null,
-          working_site:            d.working_site ?? null,
-          pay_register_location:   d.pay_register_location ?? null,
+        await repo.upsertLocationAttendance(id, {
+          working_state_country: d.working_state_country != null ? Number(d.working_state_country) : null,
+          working_city:           d.working_city != null ? Number(d.working_city) : null,
+          working_site:            d.working_site != null ? Number(d.working_site) : null,
+          pay_register_location:   d.pay_register_location != null ? Number(d.pay_register_location) : null,
           actual_doj:              d.actual_doj ? parseDdMmYyyy(d.actual_doj) : null,
           weekly_off:              d.weekly_off ?? null,
+          shift_category:          (d as any).shift_category ?? null,
           shift_id:                d.shift_id || null,
           grace_minutes:           d.grace_minutes ?? null,
-          updated_by:              actorId,
         }, t);
         break;
       }
 
       case 'managers_work_contact': {
         const d = dto as ManagersWorkContactDto;
-        // l1_manager_id and l2_manager_id are employee_id integers
         const l1Id = d.l1_manager_id ? Number(d.l1_manager_id) : null;
         const l2Id = d.l2_manager_id ? Number(d.l2_manager_id) : null;
 
@@ -238,19 +247,18 @@ export class EmployeeService {
           if (mgr.id === id) throw new AppError('Employee cannot be their own manager', 400);
         }
 
-        await repo.update(id, companyId, {
+        await repo.upsertManagersWorkContact(id, {
           l1_manager_id:   l1Id,
           l2_manager_id:   l2Id,
           official_email:  d.official_email?.toLowerCase().trim() || null,
           official_mobile: d.official_mobile ? normalizePhone(d.official_mobile) : null,
-          updated_by:      actorId,
         }, t);
         break;
       }
 
       case 'commitment_probation': {
         const d = dto as CommitmentProbationDto;
-        const emp = await repo.findById(id, companyId);
+        const emp = flattenEmployee((await repo.findById(id, companyId))?.toJSON());
 
         const commitEndDate = (d.commitment && d.commitment_term && d.commitment_entered_on)
           ? computeCommitmentEndDate(d.commitment_entered_on, d.commitment_term)
@@ -259,9 +267,9 @@ export class EmployeeService {
           ? (new Date() < commitEndDate ? 'Active' : 'Completed')
           : 'N/A';
 
-const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_doj)
-  ? computeProbationEndDate(String(emp.actual_doj), d.probation_period)
-  : null;
+        const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_doj)
+          ? computeProbationEndDate(String(emp.actual_doj), d.probation_period)
+          : null;
 
         await repo.upsertCommitmentProbation(id, {
           commitment:               d.commitment,
@@ -310,9 +318,10 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
           area: d.present_area || null, district: d.present_district,
           city: d.present_city, state: d.present_state,
           country: d.present_country, pincode: d.present_pincode,
+          perm_address_type: d.perm_address_type || null,
         }, t);
         await repo.upsertAddress(id, 'permanent', {
-          is_same_as_present: d.perm_address_type === 'Same as Present',
+          perm_address_type: d.perm_address_type || null,
           house_type: d.perm_house_type || null, house_no: d.perm_house_no || null,
           area: d.perm_area || null, district: d.perm_district || null,
           city: d.perm_city || null, state: d.perm_state || null,
@@ -324,11 +333,17 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
       case 'family_emergency': {
         const d = dto as FamilyDto & { family_members?: FamilyMemberDto[]; emergency_contacts?: EmergencyContactDto[] };
 
-        // marital_status is shown on this screen in the UI but still belongs
-        // to employee_personal (avoids duplicating the column across tables).
-        if (d.marital_status) {
-          await repo.upsertPersonal(id, { marital_status: d.marital_status } as any, t);
+        const personalFields: any = {};
+        if (d.marital_status !== undefined) personalFields.marital_status = d.marital_status;
+        if ((d as any).marriage_date !== undefined) personalFields.marriage_date = (d as any).marriage_date || null;
+        if ((d as any).spouse_name !== undefined) personalFields.spouse_name = (d as any).spouse_name || null;
+        if ((d as any).spouse_dob !== undefined) personalFields.spouse_dob = (d as any).spouse_dob || null;
+        for (const n of [1, 2, 3]) {
+          if ((d as any)[`child${n}_name`] !== undefined) personalFields[`child${n}_name`] = (d as any)[`child${n}_name`] || null;
+          if ((d as any)[`child${n}_gender`] !== undefined) personalFields[`child${n}_gender`] = (d as any)[`child${n}_gender`] || null;
+          if ((d as any)[`child${n}_dob`] !== undefined) personalFields[`child${n}_dob`] = (d as any)[`child${n}_dob`] || null;
         }
+        if (Object.keys(personalFields).length) await repo.upsertPersonal(id, personalFields, t);
 
         await repo.upsertFamily(id, {
           father_salutation: d.father_salutation, father_name: d.father_name,
@@ -338,10 +353,23 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
         } as any, t);
 
         if (d.family_members) {
-          await repo.replaceFamilyMembers(id, d.family_members, t);
+          await repo.replaceFamilyMembers(id, d.family_members.map((m: any) => ({
+            name: m.name,
+            relationship: m.relationship || null,
+            relationship_other: m.relationship_other || null,
+            salutation: m.salutation || null,
+            dob: m.dob || null,
+            occupation: m.occupation || null,
+          })), t);
         }
         if (d.emergency_contacts) {
-          await repo.replaceEmergencyContacts(id, d.emergency_contacts, t);
+          await repo.replaceEmergencyContacts(id, d.emergency_contacts.map((c: any) => ({
+            contact_name: c.contact_name,
+            contact_number: c.contact_number,
+            email: c.email || null,
+            relationship: c.relationship,
+            relationship_other: c.relationship_other || null,
+          })), t);
         }
         break;
       }
@@ -421,14 +449,15 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
         const joi = computeSalary(d.joining_basic, d.joining_hra, d.joining_allowance1, d.joining_amdb);
         await repo.upsertSalary(id, 'joining', { salary_mode: d.salary_mode, ...joi }, t);
 
-        const { monthlyDeduction, lastInstallment } = (d.asset_deduction_applicable && d.security_amount)
-          ? computeAssetDeduction(d.security_amount, d.deduction_months || 'N/A', d.monthly_deduction || undefined)
+        const deductionMonthsNum = d.deduction_months ? Number(d.deduction_months) : 0;
+        const { monthlyDeduction, lastInstallment } = (d.asset_deduction_applicable && d.security_amount && deductionMonthsNum > 0)
+          ? computeAssetDeduction(d.security_amount, String(deductionMonthsNum), d.monthly_deduction || undefined)
           : { monthlyDeduction: 0, lastInstallment: 0 };
         await repo.upsertAssetDeduction(id, {
           asset_deduction_applicable: d.asset_deduction_applicable,
           security_amount:   d.security_amount || null,
-          deduction_months:  d.deduction_months || null,
-          deduction_from:    d.deduction_from || null,
+          deduction_months:  deductionMonthsNum || null,
+          deduction_from:    (d as any).deduction_from ? parseDdMmYyyy((d as any).deduction_from) : null,
           monthly_deduction: monthlyDeduction || null,
           final_monthly_deduction: d.final_monthly_deduction || null,
           last_installment:  lastInstallment || null,
@@ -438,7 +467,6 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
 
       case 'hr_joining_checklist': {
         await repo.upsertOnboardingDocs(id, dto as OnboardingDocsDto, t);
-        // Enable portal access once onboarding docs are confirmed
         const docs = dto as OnboardingDocsDto;
         const allDone = docs.offer_letter && docs.address_verification && docs.service_agreement;
         if (allDone) {
@@ -458,39 +486,37 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
     }
   }
 
-  // ─── Portal access management ─────────────────────────────────────────────
   async setPortalAccess(id: number, companyId: number, enabled: boolean, actorId: number) {
     const emp = await repo.findById(id, companyId);
     if (!emp) throw new AppError('Employee not found', 404);
     await repo.updateAuthFields(id, {
       portal_access: enabled,
-      // Reset OTP state when disabling
       ...(enabled ? {} : { otp_hash: null, otp_expires: null, otp_attempts: 0, otp_locked_until: null, refresh_token: null }),
     });
     await logActivity({ companyId, employeeId: actorId, action: enabled ? 'PORTAL_ENABLED' : 'PORTAL_DISABLED', module: 'employees', entityId: id });
   }
 
-  // ─── Misc ──────────────────────────────────────────────────────────────────
   async delete(id: number, companyId: number, actorId: number) {
     const emp = await repo.softDelete(id, companyId, actorId);
     if (!emp) throw new AppError('Employee not found', 404);
     await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_DELETED', module: 'employees', entityId: id });
   }
 
-  // Search managers by ID or name (returns list for async dropdown)
   async searchManagers(query: string, companyId: number, excludeId?: number) {
-    return repo.searchManagers(query, companyId, excludeId);
+    const rows = await repo.searchManagers(query, companyId, excludeId);
+    return rows.map(r => flattenEmployee(r.toJSON()));
   }
 
   async getManagerById(managerId: number, companyId: number) {
     const mgr = await repo.findManagerById(managerId, companyId);
     if (!mgr) throw new AppError('Manager not found', 404);
-    return mgr;
+    return flattenEmployee(mgr.toJSON());
   }
 
   async saveDraft(data: { employeeId?: number | null; companyId: number; actorId: number; step: string; formData: any; sessionId: string }) {
+    console.log("data", data)
     const { employeeId, companyId, actorId, step, formData, sessionId } = data;
-    
+
     await repo.upsertDraft({ employeeId, createdBy: actorId, step, formData, sessionId });
 
     const firstName = String(formData.first_name || '').trim();
@@ -502,22 +528,26 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
     return sequelize.transaction(async (t) => {
       let id = employeeId;
 
+      const roleIdentityFields = {
+        company_id: formData.company_id ? Number(formData.company_id) : companyId,
+        first_name: firstName,
+        middle_name: formData.middle_name || null,
+        last_name: formData.last_name?.trim() || '',
+        employment_type: formData.employment_type || 'Permanent',
+        department_id: formData.department_id ? Number(formData.department_id) : null,
+        sub_department_id: formData.sub_department_id ? Number(formData.sub_department_id) : null,
+        designation_id: formData.designation_id ? Number(formData.designation_id) : null,
+        sub_designation_id: formData.sub_designation_id ? Number(formData.sub_designation_id) : null,
+        email: formData.email?.toLowerCase().trim() || null,
+        phone: normalizePhone(phone),
+      };
+
       if (!id) {
         const emp = await repo.create({
-          company_id: companyId,
-          first_name: firstName,
-          middle_name: formData.middle_name || null,
-          last_name: formData.last_name?.trim() || '',
+          ...roleIdentityFields,
+          employee_code: null,
           status: formData.status || 'Active',
           record_status: 'Draft',
-          employment_type: formData.employment_type || 'Permanent',
-          department_id: formData.department_id ? Number(formData.department_id) : null,
-          sub_department_id: formData.sub_department_id ? Number(formData.sub_department_id) : null,
-          designation_id: formData.designation_id ? Number(formData.designation_id) : null,
-          sub_designation_id: formData.sub_designation_id ? Number(formData.sub_designation_id) : null,
-          email: formData.email?.toLowerCase().trim() || null,
-          phone: normalizePhone(phone),
-          employee_code: null,
           portal_access: true,
           is_super_admin: false,
           otp_attempts: 0,
@@ -526,32 +556,26 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
           created_by: actorId,
         }, t);
         id = emp.id;
-        await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_DRAFT_CREATED', module: 'employees', newValues: { name: emp.fullName } });
+        await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_DRAFT_CREATED', module: 'employees', entityId: id, newValues: { name: `${firstName} ${roleIdentityFields.last_name}` } });
       } else {
-        // Employee already exists — lenient partial update of whichever
-        // role_identity-type fields are present, no required-field checks.
-        const roleFields = ['first_name', 'middle_name', 'last_name', 'status', 'employment_type', 'department_id', 'sub_department_id', 'designation_id', 'sub_designation_id', 'email', 'phone'];
         const partial: any = {};
-        for (const k of roleFields) {
-          if (formData[k] !== undefined) partial[k] = k === 'phone' ? normalizePhone(String(formData[k])) : formData[k];
+        for (const [k, v] of Object.entries(roleIdentityFields)) {
+          if (formData[k] !== undefined) partial[k] = v;
         }
+        if (formData.status !== undefined) partial.status = formData.status;
         if (Object.keys(partial).length) await repo.update(id, companyId, partial, t);
       }
 
-      // Route whatever step-specific fields are present into the real child
-      // table too — reuses routeStep()'s upsert logic, just without the
-      // strict validators that normally gate PATCH /:id/step/:step. A draft
-      // save should never hard-fail just because a step's data is partial.
       if (step && step !== 'role_identity' && WIZARD_STEPS.some(s => s.key === step)) {
         try {
           await this.routeStep(id!, companyId, step as StepKey, formData, actorId, t);
         } catch {
-          // swallow — see comment above
+          // swallow — a draft save should never hard-fail on partial step data
         }
       }
 
       const fresh = await repo.findById(id!, companyId, true);
-      const breakdown = computeCompletionPct(fresh?.toJSON());
+      const breakdown = computeCompletionPct(flattenEmployee(fresh?.toJSON()));
       await repo.updateCompletionPct(id!, breakdown.overallPct, t);
 
       if (breakdown.overallPct === 100 && !fresh?.employee_code) {
@@ -567,54 +591,46 @@ const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_do
   async getDraft(sessionId: string, actorId: number) { return repo.getDraft(sessionId, actorId); }
   async discardDraft(sessionId: string, actorId: number) { return repo.deleteDraft(sessionId, actorId); }
 
-
-// moduleKey defaults to 'employees' so the Employee wizard's own existing
-// calls (no module passed) keep working exactly as before. Any OTHER form
-// (Department, Designation, etc.) reusing this same endpoint must pass its
-// own module key — previously this was hardcoded to 'employees' everywhere.
-async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
-  const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } }); 
-  const byCompany: Record<number, number[]> = {};
-  for (const m of memberships) {
-    (byCompany[m.company_id] ??= []).push(m.group_id);
-  }
-
-  const DENY_ALL_FIELDS: FieldPermissionMap = {};
-
-  const result: Record<number, FieldPermissionMap> = {};
-  for (const [companyIdStr, groupIds] of Object.entries(byCompany)) {
-    const companyId = +companyIdStr;
-
-    const moduleSlugs = await fbSvc.resolveModuleSlugs(employeeId, companyId, groupIds);
-    if (!moduleSlugs.has(`${moduleKey}:view`)) {
-      result[companyId] = DENY_ALL_FIELDS;
-      continue;
+  async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
+    const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } });
+    const byCompany: Record<number, number[]> = {};
+    for (const m of memberships) {
+      (byCompany[m.company_id] ??= []).push(m.group_id);
     }
 
-    const groupPerms = await loadFieldPerms(groupIds, companyId);
+    const DENY_ALL_FIELDS: FieldPermissionMap = {};
 
-    // ── Layer employee-specific field overrides on top — override wins ──
-    const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, moduleKey);
-    const merged: FieldPermissionMap = { ...groupPerms };
+    const result: Record<number, FieldPermissionMap> = {};
+    for (const [companyIdStr, groupIds] of Object.entries(byCompany)) {
+      const companyId = +companyIdStr;
 
-    for (const [fieldName, permMap] of Object.entries(fieldOverrides)) {
-      const base = merged[fieldName] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-      merged[fieldName] = {
-        can_view: permMap.view !== undefined ? permMap.view : base.can_view,
-        can_edit: permMap.edit !== undefined ? permMap.edit : base.can_edit,
-        can_copy: permMap.copy !== undefined ? permMap.copy : base.can_copy,
-        can_download: permMap.download !== undefined ? permMap.download : base.can_download,
-        is_masked: permMap.mask !== undefined ? permMap.mask : base.is_masked,
-      };
+      const moduleSlugs = await fbSvc.resolveModuleSlugs(employeeId, companyId, groupIds);
+      if (!moduleSlugs.has(`${moduleKey}:view`)) {
+        result[companyId] = DENY_ALL_FIELDS;
+        continue;
+      }
+
+      const groupPerms = await loadFieldPerms(groupIds, companyId);
+
+      const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, moduleKey);
+      const merged: FieldPermissionMap = { ...groupPerms };
+
+      for (const [fieldName, permMap] of Object.entries(fieldOverrides)) {
+        const base = merged[fieldName] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+        merged[fieldName] = {
+          can_view: permMap.view !== undefined ? permMap.view : base.can_view,
+          can_edit: permMap.edit !== undefined ? permMap.edit : base.can_edit,
+          can_copy: permMap.copy !== undefined ? permMap.copy : base.can_copy,
+          can_download: permMap.download !== undefined ? permMap.download : base.can_download,
+          is_masked: permMap.mask !== undefined ? permMap.mask : base.is_masked,
+        };
+      }
+
+      result[companyId] = merged;
     }
-
-    result[companyId] = merged;
+    return result;
   }
-  return result;
-}
 
-
-  // ─── Role & Identity: profile photo upload ─────────────────────────────────
   async uploadProfilePhoto(id: number, companyId: number, avatarUrl: string, actorId: number) {
     const emp = await repo.findById(id, companyId);
     if (!emp) throw new AppError('Employee not found', 404);
@@ -624,7 +640,6 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
     });
   }
 
-  // ─── IDs & Bank: document uploads ──────────────────────────────────────────
   async uploadIdDocument(id: number, companyId: number, docType: 'aadhaar' | 'pan' | 'passport' | 'drivingLicense', fileUrl: string, actorId: number) {
     const emp = await repo.findById(id, companyId);
     if (!emp) throw new AppError('Employee not found', 404);
@@ -649,77 +664,29 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
 
   async getSummary(companyId: number) { return repo.getSummary(companyId); }
 
-  // ✅ FIXED bulkUpload METHOD - Handles all required fields
   async bulkUpload(rows: BulkUploadRow[], companyId: number, actorId: number): Promise<BulkUploadResult> {
-    const result: BulkUploadResult = {
-      total: rows.length,
-      success: 0,
-      failed: 0,
-      errors: [],
-      created: [],
-    };
+    const result: BulkUploadResult = { total: rows.length, success: 0, failed: 0, errors: [], created: [] };
 
-    // ✅ Map for converting labels to IDs
     const departmentMap: Record<string, number> = {
-      'Commercial': 1,
-      'Accounts': 2,
-      'Automation': 3,
-      'HR': 4,
-      'Graphics': 5,
-      'Admin': 6,
-      'Project': 7,
-      'Service': 8,
-      'IT': 9,
-      'Estimation': 10,
-      'Management': 11,
-      'Purchase': 12,
-      'Tender': 13,
-      'Sales': 14,
-      'Technical': 15,
-      'Legal': 16,
-      'Regulatory Affairs': 17,
-      'Store': 18,
-      'Ortho': 19,
-      'Maintenance': 20,
-      'Design': 21,
-      'Quality': 22,
-      'Credit Control': 23,
-      'International Marketing': 24,
-      'Field': 25,
-      'Projects': 26,
-      'Facility Management (Operations)': 27,
-      'PTS and Project': 28,
-      'CSSD': 29,
-      'Quality Control': 30,
-      'Marketing': 31,
-      'Operations': 32,
+      'Commercial': 1, 'Accounts': 2, 'Automation': 3, 'HR': 4, 'Graphics': 5,
+      'Admin': 6, 'Project': 7, 'Service': 8, 'IT': 9, 'Estimation': 10,
+      'Management': 11, 'Purchase': 12, 'Tender': 13, 'Sales': 14, 'Technical': 15,
+      'Legal': 16, 'Regulatory Affairs': 17, 'Store': 18, 'Ortho': 19, 'Maintenance': 20,
+      'Design': 21, 'Quality': 22, 'Credit Control': 23, 'International Marketing': 24,
+      'Field': 25, 'Projects': 26, 'Facility Management (Operations)': 27, 'PTS and Project': 28,
+      'CSSD': 29, 'Quality Control': 30, 'Marketing': 31, 'Operations': 32,
     };
 
     const designationMap: Record<string, number> = {
-      'Accountant': 1,
-      'Manager': 2,
-      'Senior Manager': 3,
-      'Executive': 4,
-      'Engineer': 5,
-      'Developer': 6,
-      'Coordinator': 7,
-      'Supervisor': 8,
+      'Accountant': 1, 'Manager': 2, 'Senior Manager': 3, 'Executive': 4,
+      'Engineer': 5, 'Developer': 6, 'Coordinator': 7, 'Supervisor': 8,
     };
 
     const companyMapBulk: Record<string, number> = {
-      'Narula Exports': 1,
-      'Med Freshe': 4,
-      'Greenvac Solutions': 2,
-      'Collarcheck': 3,
+      'Narula Exports': 1, 'Med Freshe': 4, 'Greenvac Solutions': 2, 'Collarcheck': 3,
     };
 
-    // ✅ Helper function to safely convert to string
-    const getString = (value: any): string => {
-      if (!value) return '';
-      return String(value).trim();
-    };
-
-    // ✅ Helper function to safely convert to number
+    const getString = (value: any): string => !value ? '' : String(value).trim();
     const getNumber = (value: any): number | undefined => {
       if (!value) return undefined;
       const num = Number(value);
@@ -729,62 +696,42 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        // ✅ Validate Required Fields
         const firstName = getString(row.first_name);
-        if (!firstName) {
-          throw new Error('first_name is required');
-        }
+        if (!firstName) throw new Error('first_name is required');
 
         const lastName = getString(row.last_name);
-        if (!lastName) {
-          throw new Error('last_name is required');
-        }
+        if (!lastName) throw new Error('last_name is required');
 
         const email = getString(row.email);
-        if (!email) {
-          throw new Error('email is required');
-        }
+        if (!email) throw new Error('email is required');
 
         const phone = getString(row.phone);
-        if (!phone) {
-          throw new Error('phone is required');
-        }
+        if (!phone) throw new Error('phone is required');
 
         const departmentStr = getString(row.department_id);
-        if (!departmentStr) {
-          throw new Error('department_id is required');
-        }
+        if (!departmentStr) throw new Error('department_id is required');
 
         const designationStr = getString(row.designation_id);
-        if (!designationStr) {
-          throw new Error('designation_id is required');
-        }
+        if (!designationStr) throw new Error('designation_id is required');
 
-        // ✅ Convert department label to ID
         let departmentId: number;
         const deptNum = getNumber(departmentStr);
         if (deptNum) {
           departmentId = deptNum;
         } else {
           departmentId = departmentMap[departmentStr];
-          if (!departmentId) {
-            throw new Error(`Invalid department: ${departmentStr}`);
-          }
+          if (!departmentId) throw new Error(`Invalid department: ${departmentStr}`);
         }
 
-        // ✅ Convert designation label to ID
         let designationId: number;
         const designNum = getNumber(designationStr);
         if (designNum) {
           designationId = designNum;
         } else {
           designationId = designationMap[designationStr];
-          if (!designationId) {
-            throw new Error(`Invalid designation: ${designationStr}`);
-          }
+          if (!designationId) throw new Error(`Invalid designation: ${designationStr}`);
         }
 
-        // ✅ Convert company label to ID if provided
         let finalCompanyId = companyId;
         if (row.company_id) {
           const companyStr = getString(row.company_id);
@@ -793,14 +740,11 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
             finalCompanyId = compNum;
           } else {
             const mappedCompanyId = companyMapBulk[companyStr];
-            if (mappedCompanyId) {
-              finalCompanyId = mappedCompanyId;
-            }
+            if (mappedCompanyId) finalCompanyId = mappedCompanyId;
           }
         }
 
-        // ✅ Create Employee with ALL required fields
-        const emp = await this.create(
+        const emp: any = await this.create(
           {
             company_id: finalCompanyId,
             first_name: firstName,
@@ -809,12 +753,6 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
             phone: phone,
             department_id: departmentId,
             designation_id: designationId,
-            // Optional fields
-            date_of_birth: row.date_of_birth ? getString(row.date_of_birth) : undefined,
-            gender: row.gender ? getString(row.gender) : undefined,
-            date_of_joining: row.date_of_joining ? getString(row.date_of_joining) : undefined,
-            salary: row.salary ? getNumber(row.salary) : undefined,
-            working_site: row.working_site ? getString(row.working_site) : undefined,
             sub_department_id: row.sub_department_id ? getNumber(row.sub_department_id) : undefined,
             sub_designation_id: row.sub_designation_id ? getNumber(row.sub_designation_id) : undefined,
             employment_type: (row.employment_type as any) || 'Permanent',
@@ -837,11 +775,6 @@ async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
 
     return result;
   }
-
-// private async hasSensitiveAccess(employeeId: number, companyId: number): Promise<boolean> {
-//   const perms = await this.getFieldPermissions(employeeId, companyId);
-//   return SENSITIVE_FIELDS.some(f => perms[f]?.can_view !== false);
-// }
 }
 
 export const employeeService = new EmployeeService();

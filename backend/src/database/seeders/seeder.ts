@@ -150,7 +150,6 @@ export async function seedDatabase(): Promise<void> {
         department_id: deptMap.get('HR')!,
         designation_id: desigMap.get('Asst. General Manager')!, // or whichever designation you want
         employment_type: 'Permanent',
-        grace_minutes: 15,
         status: 'Active',
         portal_access: true, is_super_admin: true,
       },
@@ -176,7 +175,6 @@ export async function seedDatabase(): Promise<void> {
         department_id: deptMap.get('HR')!,
         designation_id: desigMap.get('Asst. General Manager')!, // or whichever designation you want
         employment_type: 'Permanent',
-        grace_minutes: 15,
         status: 'Active',
         portal_access: true, is_super_admin: false,
       },

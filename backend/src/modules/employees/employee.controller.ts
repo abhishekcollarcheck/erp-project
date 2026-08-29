@@ -162,6 +162,7 @@ export const employeeController = {
       formData: req.body.form_data,
       sessionId: req.body.session_id,
     });
+    console.log("draft", draft)
     sendResponse(res, { data: draft, message: "Draft saved" });
   },
 

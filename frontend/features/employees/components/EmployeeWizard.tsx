@@ -132,11 +132,12 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       sub_designation_id: employee.sub_designation_id ?? undefined,
 
       // ── Location & Attendance ────────────────────────────────────────────
-      working_site: employee.working_site ?? '', working_city: employee.working_city ?? '',
-      working_state_country: employee.working_state_country ?? '',
-      pay_register_location: employee.pay_register_location ?? '',
+      working_site: employee.working_site ?? undefined, working_city: employee.working_city ?? undefined,
+      working_state_country: employee.working_state_country ?? undefined,
+      pay_register_location: employee.pay_register_location ?? undefined,
       actual_doj: employee.actual_doj ?? '',
-      weekly_off: employee.weekly_off ?? '', shift_id: employee.shift_id ?? undefined,
+      weekly_off: employee.weekly_off ?? '', shift_category: (employee as any).shift_category ?? undefined,
+      shift_id: employee.shift_id ?? undefined,
       grace_minutes: employee.grace_minutes ?? undefined,
 
       // ── Managers & Work Contact ──────────────────────────────────────────
@@ -176,18 +177,13 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       shirt_size: p.shirt_size ?? '', tshirt_size: p.tshirt_size ?? '',
       nationality: p.nationality ?? '', religion: p.religion ?? '',
       blood_group: p.blood_group ?? undefined,
-      marriage_date: p.marriage_date ?? '', spouse_name: p.spouse_name ?? '',
-      spouse_dob: p.spouse_dob ?? '',
-      child1_name: p.child1_name ?? '', child1_dob: p.child1_dob ?? '',
-      child2_name: p.child2_name ?? '', child2_dob: p.child2_dob ?? '',
-      child3_name: p.child3_name ?? '', child3_dob: p.child3_dob ?? '',
 
       // ── Address ───────────────────────────────────────────────────────────
       present_house_type: pAddr.house_type ?? undefined, present_house_no: pAddr.house_no ?? '',
       present_area: pAddr.area ?? '', present_district: pAddr.district ?? '',
       present_city: pAddr.city ?? '', present_state: pAddr.state ?? '',
       present_country: pAddr.country ?? 'India', present_pincode: pAddr.pincode ?? '',
-      perm_address_type: xAddr.is_same_as_present ? 'Same as Present' : (xAddr.house_no ? 'Different' : 'Not Applicable'),
+      perm_address_type: (xAddr as any).perm_address_type ?? (xAddr.house_no ? 'Different' : 'Not Applicable'),
       perm_house_type: xAddr.house_type ?? undefined,
       perm_house_no: xAddr.house_no ?? '',
       perm_area: xAddr.area ?? '',
@@ -196,8 +192,13 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       perm_state: xAddr.state ?? '', perm_country: xAddr.country ?? '',
       perm_pincode: xAddr.pincode ?? '',
 
-      // ── Family & Emergency (marital_status moved here from Personal) ─────
+      // ── Family & Emergency (marital_status + spouse + children moved here from Personal Profile) ─────
       marital_status: p.marital_status ?? undefined,
+      marriage_date: p.marriage_date ?? '', spouse_name: p.spouse_name ?? '',
+      spouse_dob: p.spouse_dob ?? '',
+      child1_name: p.child1_name ?? '', child1_gender: (p as any).child1_gender ?? undefined, child1_dob: p.child1_dob ?? '',
+      child2_name: p.child2_name ?? '', child2_gender: (p as any).child2_gender ?? undefined, child2_dob: p.child2_dob ?? '',
+      child3_name: p.child3_name ?? '', child3_gender: (p as any).child3_gender ?? undefined, child3_dob: p.child3_dob ?? '',
       father_salutation: (fam.father_salutation as any) ?? undefined, father_name: fam.father_name ?? '',
       father_dob: fam.father_dob ?? '', father_occupation: fam.father_occupation ?? '',
       mother_salutation: (fam.mother_salutation as any) ?? undefined, mother_name: fam.mother_name ?? '',
@@ -311,7 +312,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         return { first_name: v.first_name?.trim(), middle_name: c(v.middle_name), last_name: v.last_name?.trim(), status: v.status, employment_type: v.employment_type, department_id: n(v.department_id), sub_department_id: n(v.sub_department_id), designation_id: n(v.designation_id), sub_designation_id: n(v.sub_designation_id), email: v.email?.toLowerCase().trim() ?? null, phone: v.phone?.trim() ?? null };
 
       case 'location_attendance':
-        return { working_state_country: c(v.working_state_country), working_city: c(v.working_city), working_site: c(v.working_site), pay_register_location: c(v.pay_register_location), actual_doj: c(v.actual_doj), weekly_off: c(v.weekly_off), shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) };
+        return { working_state_country: n(v.working_state_country), working_city: n(v.working_city), working_site: n(v.working_site), pay_register_location: n(v.pay_register_location), actual_doj: c(v.actual_doj), weekly_off: c(v.weekly_off), shift_category: c((v as any).shift_category), shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) };
 
       case 'managers_work_contact':
         return { l1_manager_id: n(v.l1_manager_id), l2_manager_id: n(v.l2_manager_id), official_email: v.official_email?.toLowerCase().trim() || null, official_mobile: v.official_mobile?.trim() || null };
@@ -320,22 +321,22 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         return { commitment: v.commitment ?? false, commitment_term: c(v.commitment_term), commitment_entered_on: c(v.commitment_entered_on), on_probation: v.on_probation ?? false, probation_period: c(v.probation_period), probation_extended_period: c(v.probation_extended_period), confirmation_status: c(v.confirmation_status), confirmed_on: c(v.confirmed_on) };
 
       case 'statutory_schemes':
-        return { pf_status: v.pf_status ?? false, uan_number: c(v.uan_number), epfo_member_id: c(v.epfo_member_id), pf_contribution_pct: n(v.pf_contribution_pct), pf_employer_from: c(v.pf_employer_from), pf_employee_12: n(v.pf_employee_12), eps_employer_833: n(v.eps_employer_833), epf_eps_diff_367: n(v.epf_eps_diff_367), esic_status: v.esic_status ?? false, esic_number: c(v.esic_number), mediclaim_status: v.mediclaim_status ?? 'No', mediclaim_number: c(v.mediclaim_number), mediclaim_amount: n(v.mediclaim_amount), rd_scheme: v.rd_scheme ?? false, rd_term: c(v.rd_term), rd_opening_date: c(v.rd_opening_date), rd_account_number: c(v.rd_account_number), rd_deduction_from: c(v.rd_deduction_from), rd_amount_employee: n(v.rd_amount_employee), rd_amount_employer: n(v.rd_amount_employer), rd_maturity_date: c(v.rd_maturity_date), rd_maturity_amount: n(v.rd_maturity_amount), rd_status: c(v.rd_status) };
+        return { pf_status: v.pf_status ?? false, uan_number: c(v.uan_number), epfo_member_id: c(v.epfo_member_id), pf_contribution_pct: n(v.pf_contribution_pct), pf_employer_from: c(v.pf_employer_from), pf_employee_12: n(v.pf_employee_12), eps_employer_833: n(v.eps_employer_833), epf_eps_diff_367: n(v.epf_eps_diff_367), esic_status: v.esic_status ?? false, esic_number: c(v.esic_number), esi_employee_pct: n((v as any).esi_employee_pct), esi_employer_pct: n((v as any).esi_employer_pct), mediclaim_status: v.mediclaim_status ?? 'No', mediclaim_number: c(v.mediclaim_number), mediclaim_amount: n(v.mediclaim_amount), rd_scheme: v.rd_scheme ?? false, rd_term: c(v.rd_term), rd_opening_date: c(v.rd_opening_date), rd_account_number: c(v.rd_account_number), rd_deduction_from: c(v.rd_deduction_from), rd_amount_employee: n(v.rd_amount_employee), rd_amount_employer: n(v.rd_amount_employer), rd_maturity_date: c(v.rd_maturity_date), rd_maturity_amount: n(v.rd_maturity_amount), rd_status: c(v.rd_status) };
 
       case 'compensation':
-        return { salary_mode: v.salary_mode, current_basic: n(v.current_basic), current_hra: n(v.current_hra), current_allowance1: n(v.current_allowance1), current_amdb: n(v.current_amdb), joining_basic: n(v.joining_basic), joining_hra: n(v.joining_hra), joining_allowance1: n(v.joining_allowance1), joining_amdb: n(v.joining_amdb), asset_deduction_applicable: v.asset_deduction_applicable ?? false, security_amount: n(v.security_amount), deduction_months: c(v.deduction_months), deduction_from: c(v.deduction_from), monthly_deduction: n(v.monthly_deduction), final_monthly_deduction: n(v.final_monthly_deduction) };
+        return { salary_mode: v.salary_mode, current_basic: n(v.current_basic), current_hra: n(v.current_hra), current_allowance1: n(v.current_allowance1), current_amdb: n(v.current_amdb), joining_basic: n(v.joining_basic), joining_hra: n(v.joining_hra), joining_allowance1: n(v.joining_allowance1), joining_amdb: n(v.joining_amdb), asset_deduction_applicable: v.asset_deduction_applicable ?? false, security_amount: n(v.security_amount), deduction_months: n(v.deduction_months), deduction_from: c(v.deduction_from), monthly_deduction: n(v.monthly_deduction), final_monthly_deduction: n(v.final_monthly_deduction) };
 
       case 'hr_joining_checklist':
         return { offer_letter: v.offer_letter ?? false, address_verification: v.address_verification ?? false, service_agreement: v.service_agreement ?? false, indemnity_bond: v.indemnity_bond ?? false, asset_deduction_letter: v.asset_deduction_letter ?? false, account_opening_letter: v.account_opening_letter ?? false, nda: v.nda ?? false, remarks: c(v.remarks) };
 
       case 'personal_profile':
-        return { date_of_birth: c(v.date_of_birth), gender: c(v.gender), shirt_size: c(v.shirt_size), tshirt_size: c(v.tshirt_size), nationality: c(v.nationality), religion: c(v.religion), blood_group: c(v.blood_group), marriage_date: c(v.marriage_date), spouse_name: c(v.spouse_name), spouse_dob: c(v.spouse_dob), child1_name: c(v.child1_name), child1_dob: c(v.child1_dob), child2_name: c(v.child2_name), child2_dob: c(v.child2_dob), child3_name: c(v.child3_name), child3_dob: c(v.child3_dob) };
+        return { date_of_birth: c(v.date_of_birth), gender: c(v.gender), shirt_size: c(v.shirt_size), tshirt_size: c(v.tshirt_size), nationality: c(v.nationality), religion: c(v.religion), blood_group: c(v.blood_group) };
 
       case 'address':
         return { present_house_type: c(v.present_house_type), present_house_no: c(v.present_house_no), present_area: c(v.present_area), present_district: c(v.present_district), present_city: c(v.present_city), present_state: c(v.present_state), present_country: c(v.present_country), present_pincode: c(v.present_pincode), perm_address_type: c(v.perm_address_type), perm_house_type: c(v.perm_house_type), perm_house_no: c(v.perm_house_no), perm_area: c(v.perm_area), perm_district: c(v.perm_district), perm_city: c(v.perm_city), perm_state: c(v.perm_state), perm_country: c(v.perm_country), perm_pincode: c(v.perm_pincode) };
 
       case 'family_emergency':
-        return { marital_status: c(v.marital_status), father_salutation: c(v.father_salutation), father_name: c(v.father_name), father_dob: c(v.father_dob), father_occupation: c(v.father_occupation), mother_salutation: c(v.mother_salutation), mother_name: c(v.mother_name), mother_dob: c(v.mother_dob), mother_occupation: c(v.mother_occupation), family_members: v.family_members ?? [], emergency_contacts: v.emergency_contacts ?? [] };
+        return { marital_status: c(v.marital_status), marriage_date: c((v as any).marriage_date), spouse_name: c((v as any).spouse_name), spouse_dob: c((v as any).spouse_dob), child1_name: c((v as any).child1_name), child1_gender: c((v as any).child1_gender), child1_dob: c((v as any).child1_dob), child2_name: c((v as any).child2_name), child2_gender: c((v as any).child2_gender), child2_dob: c((v as any).child2_dob), child3_name: c((v as any).child3_name), child3_gender: c((v as any).child3_gender), child3_dob: c((v as any).child3_dob), father_salutation: c(v.father_salutation), father_name: c(v.father_name), father_dob: c(v.father_dob), father_occupation: c(v.father_occupation), mother_salutation: c(v.mother_salutation), mother_name: c(v.mother_name), mother_dob: c(v.mother_dob), mother_occupation: c(v.mother_occupation), family_members: v.family_members ?? [], emergency_contacts: v.emergency_contacts ?? [] };
 
       case 'ids_bank':
         return { aadhaar_number: c(v.aadhaar_number), aadhaar_name: c(v.aadhaar_name), aadhaar_dob: c(v.aadhaar_dob), aadhaar_address: c(v.aadhaar_address), pan_number: v.pan_number?.toUpperCase() || null, pan_full_name: c(v.pan_full_name), pan_dob: c(v.pan_dob), pan_parent_spouse_name: c(v.pan_parent_spouse_name), passport_number: c(v.passport_number), passport_full_name: c(v.passport_full_name), passport_nationality: c(v.passport_nationality), passport_issue_date: c(v.passport_issue_date), passport_expiry: c(v.passport_expiry), passport_place_of_issue: c(v.passport_place_of_issue), driving_license_number: c(v.driving_license_number), driving_license_name: c(v.driving_license_name), driving_license_issue_date: c(v.driving_license_issue_date), driving_license_expiry: c(v.driving_license_expiry), driving_license_authority: c(v.driving_license_authority), vaccinations: v.vaccinations ?? [], documents: v.documents ?? [], personal_bank_name: c(v.personal_bank_name), personal_bank_account: c(v.personal_bank_account), personal_ifsc: v.personal_ifsc?.toUpperCase() || null, personal_bank_branch: c(v.personal_bank_branch) };
