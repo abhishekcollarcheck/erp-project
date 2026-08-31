@@ -1,26 +1,3 @@
-/**
- * employees.repository.ts
- *
- * Employee is the root/main table again — company_id, first_name, middle_name,
- * last_name, employment_type, department_id, sub_department_id, designation_id,
- * sub_designation_id, email, phone all live here directly (the earlier
- * EmployeeRoleIdentity split was reverted — that data is used by nearly every
- * query in the system, unlike the genuinely-optional step tables).
- * EmployeeLocationAttendance (Step 2) and EmployeeManagersWorkContact (Step 3)
- * remain separate child tables.
- *
- * NOTE: this file assumes the associations file (not shared with me) defines:
- *   Employee.belongsTo(Company, { foreignKey: 'company_id', as: 'company' })
- *   Employee.belongsTo(Department, { foreignKey: 'department_id', as: 'department' })
- *   Employee.belongsTo(Designation, { foreignKey: 'designation_id', as: 'designation' })
- *   Employee.hasOne(EmployeeLocationAttendance, { foreignKey: 'employee_id', as: 'locationAttendance' })
- *   Employee.hasOne(EmployeeManagersWorkContact, { foreignKey: 'employee_id', as: 'managersWorkContact' })
- *   EmployeeManagersWorkContact.belongsTo(Employee, { foreignKey: 'l1_manager_id', as: 'l1Manager' })
- *   EmployeeManagersWorkContact.belongsTo(Employee, { foreignKey: 'l2_manager_id', as: 'l2Manager' })
- * If those don't exist yet under these exact names, this file's includes will
- * throw "association not found" — flag that file and I'll fix both together.
- */
-
 import { Op, Transaction, WhereOptions } from 'sequelize';
 import {
   Employee, EmployeeLocationAttendance, EmployeeManagersWorkContact,
@@ -133,11 +110,12 @@ export class EmployeeRepository {
     return { rows, meta: { page, limit, total: count, totalPages: Math.ceil(count / limit) } };
   }
 
-  async findById(id: number, companyId: number, includeSensitive = false): Promise<Employee | null> {
+  async findById(id: number, companyId: number, includeSensitive = false, t?: Transaction): Promise<Employee | null> {
     return Employee.findOne({
       where: { id, company_id: companyId },
       include: includeSensitive ? [...DETAIL_INCLUDES, ...SENSITIVE_INCLUDES] : DETAIL_INCLUDES,
       attributes: { exclude: ALWAYS_EXCLUDE },
+      transaction: t,
     });
   }
 
@@ -344,16 +322,35 @@ export class EmployeeRepository {
     });
   }
 
+  // NOTE: EmployeeDraft has no unique index besides its PK, so a plain
+  // Model.upsert() (with no `id` supplied) can never match an existing row —
+  // it would INSERT a fresh employee_drafts row on every autosave tick
+  // instead of updating the current session/step's draft. We match manually
+  // on (session_id, step), which is the natural key for "this wizard
+  // session's draft data for this step", and carry employee_id forward once
+  // it becomes known (draft starts with employee_id = null, then gets linked
+  // once the employee row is created).
   async upsertDraft(data: { employeeId?: number | null; createdBy: number; step: string; formData: object; sessionId: string }) {
-    const [draft] = await EmployeeDraft.upsert({
+    const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const existing = await EmployeeDraft.findOne({
+      where: { session_id: data.sessionId, step: data.step },
+    });
+    if (existing) {
+      await existing.update({
+        employee_id: data.employeeId ?? existing.get('employee_id') ?? null,
+        form_data:   data.formData,
+        expires_at,
+      });
+      return existing;
+    }
+    return EmployeeDraft.create({
       employee_id: data.employeeId ?? null,
       created_by:  data.createdBy,
       step:        data.step,
       form_data:   data.formData,
       session_id:  data.sessionId,
-      expires_at:  new Date(Date.now() + 24 * 60 * 60 * 1000),
-    });
-    return draft;
+      expires_at,
+    } as any);
   }
 
   async getDraft(sessionId: string, createdBy: number) {

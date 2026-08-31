@@ -181,6 +181,20 @@ export async function generateEmployeeCode(
     throw new Error(`Company not found (${companyId})`);
   }
 
+  // NOTE: Number(null) === 0 (not NaN), so checking Number.isNaN() AFTER
+  // coercion never catches a genuinely-unconfigured range — it would let
+  // startCode/endCode both silently become 0 and hand out employee_code
+  // '0' to the very first employee onboarded for this company. Check for
+  // null/undefined on the raw DB values first.
+  if (
+    company.employee_code_start === null || company.employee_code_start === undefined ||
+    company.employee_code_end === null || company.employee_code_end === undefined
+  ) {
+    throw new Error(
+      `Employee code range not configured for company ${companyId}`
+    );
+  }
+
   const startCode = Number(company.employee_code_start);
   const endCode = Number(company.employee_code_end);
 

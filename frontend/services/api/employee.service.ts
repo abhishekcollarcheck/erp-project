@@ -19,6 +19,11 @@ export const employeeService = {
   saveDraft:           (data: object)      => apiClient.post('/employees/draft', data),
   getDraft:            (sid: string)       => apiClient.get(`/employees/draft/${sid}`),
   discardDraft:        (sid: string)       => apiClient.delete(`/employees/draft/${sid}`),
+  // NOTE: the backend route this calls (GET /employees/template) is
+  // commented out in employee.routes.ts, so this would 404 if ever called.
+  // BulkUploadModal.tsx generates its template client-side via ExcelJS and
+  // never calls this — left here only if a server-generated template is
+  // reintroduced later; uncomment the backend route first, or remove this.
   downloadTemplate:    ()                  => apiClient.get('/employees/template', { responseType: 'blob' }),
   bulkUpload:          (file: File)        => {
     const fd = new FormData(); fd.append('file', file);

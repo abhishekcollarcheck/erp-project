@@ -23,6 +23,9 @@ import { SENSITIVE_FIELDS } from './employee.constants';
 import { Transaction } from 'sequelize';
 import { normalizePhone } from '../../utils/normalizeNumber';
 import { getEmployeeFieldOverrides } from '../permission-groups/permissionGroupOverrides';
+import { Company } from '../../database/models/Company';
+import { Department } from '../../database/models/Department';
+import { Designation } from '../../database/models/Designation';
 import { FormBuilderService } from '../form-builder/formBuilder.service';
 
 const fbSvc = new FormBuilderService();
@@ -186,6 +189,7 @@ export class EmployeeService {
       await this.routeStep(id, companyId, step, dto, actorId, t);
 
       const fresh = await repo.findById(id, companyId, true);
+      
       const breakdown = computeCompletionPct(flattenEmployee(fresh?.toJSON()));
       await repo.updateCompletionPct(id, breakdown.overallPct, t);
 
@@ -228,6 +232,7 @@ export class EmployeeService {
           working_site:            d.working_site != null ? Number(d.working_site) : null,
           pay_register_location:   d.pay_register_location != null ? Number(d.pay_register_location) : null,
           actual_doj:              d.actual_doj ? parseDdMmYyyy(d.actual_doj) : null,
+          current_doj:             d.current_doj ? parseDdMmYyyy(d.current_doj) : null,
           weekly_off:              d.weekly_off ?? null,
           shift_category:          (d as any).shift_category ?? null,
           shift_id:                d.shift_id || null,
@@ -397,6 +402,8 @@ export class EmployeeService {
           driving_license_issue_date: d.driving_license_issue_date ? parseDdMmYyyy(d.driving_license_issue_date) : null,
           driving_license_expiry:    d.driving_license_expiry ? parseDdMmYyyy(d.driving_license_expiry) : null,
           driving_license_authority: d.driving_license_authority || null,
+          yellow_fever:              d.yellow_fever ?? false,
+          yellow_fever_date:         d.yellow_fever_date ? parseDdMmYyyy(d.yellow_fever_date) : null,
         }, t);
 
         await repo.upsertBank(id, 'personal', {
@@ -457,7 +464,9 @@ export class EmployeeService {
           asset_deduction_applicable: d.asset_deduction_applicable,
           security_amount:   d.security_amount || null,
           deduction_months:  deductionMonthsNum || null,
-          deduction_from:    (d as any).deduction_from ? parseDdMmYyyy((d as any).deduction_from) : null,
+          // deduction_from is the Salary/AMDB/N/A enum — see the type comment
+          // on SalaryDto. NOT a date; do not parseDdMmYyyy() it.
+          deduction_from:    d.deduction_from || null,
           monthly_deduction: monthlyDeduction || null,
           final_monthly_deduction: d.final_monthly_deduction || null,
           last_installment:  lastInstallment || null,
@@ -521,7 +530,12 @@ export class EmployeeService {
 
     const firstName = String(formData.first_name || '').trim();
     const phone = String(formData.phone || '').trim();
-    if (!firstName || !phone) {
+    const email = String(formData.email || '').trim();
+
+    if (!employeeId && (!firstName || !phone || !email)) {
+      return { employeeId: null, persisted: false };
+    }
+    if (!firstName) {
       return { employeeId: employeeId ?? null, persisted: false };
     }
 
@@ -538,10 +552,11 @@ export class EmployeeService {
         sub_department_id: formData.sub_department_id ? Number(formData.sub_department_id) : null,
         designation_id: formData.designation_id ? Number(formData.designation_id) : null,
         sub_designation_id: formData.sub_designation_id ? Number(formData.sub_designation_id) : null,
-        email: formData.email?.toLowerCase().trim() || null,
-        phone: normalizePhone(phone),
+        email: email || null,
+        phone: phone ? normalizePhone(phone) : null,
       };
 
+      console.log("roleIdentityFields", roleIdentityFields)
       if (!id) {
         const emp = await repo.create({
           ...roleIdentityFields,
@@ -556,11 +571,15 @@ export class EmployeeService {
           created_by: actorId,
         }, t);
         id = emp.id;
+        console.log("emp-created", emp)
         await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_DRAFT_CREATED', module: 'employees', entityId: id, newValues: { name: `${firstName} ${roleIdentityFields.last_name}` } });
       } else {
         const partial: any = {};
+        const NEVER_CLEAR = new Set(['email', 'phone']);
         for (const [k, v] of Object.entries(roleIdentityFields)) {
-          if (formData[k] !== undefined) partial[k] = v;
+          if (formData[k] === undefined) continue;
+          if (NEVER_CLEAR.has(k) && (v === null || v === '')) continue;
+          partial[k] = v;
         }
         if (formData.status !== undefined) partial.status = formData.status;
         if (Object.keys(partial).length) await repo.update(id, companyId, partial, t);
@@ -574,8 +593,15 @@ export class EmployeeService {
         }
       }
 
-      const fresh = await repo.findById(id!, companyId, true);
-      const breakdown = computeCompletionPct(flattenEmployee(fresh?.toJSON()));
+      const fresh = await repo.findById(id!, companyId, true, t);
+      if (!fresh) {
+        // Should not happen — `id` was either just created in this same
+        // transaction or was passed in as an existing employeeId — but
+        // guard anyway so a stale/bad id fails gracefully instead of
+        // crashing computeCompletionPct() on `undefined.first_name`.
+        throw new AppError('Employee not found while finalizing draft save', 404);
+      }
+      const breakdown = computeCompletionPct(flattenEmployee(fresh.toJSON()));
       await repo.updateCompletionPct(id!, breakdown.overallPct, t);
 
       if (breakdown.overallPct === 100 && !fresh?.employee_code) {
@@ -667,23 +693,35 @@ export class EmployeeService {
   async bulkUpload(rows: BulkUploadRow[], companyId: number, actorId: number): Promise<BulkUploadResult> {
     const result: BulkUploadResult = { total: rows.length, success: 0, failed: 0, errors: [], created: [] };
 
-    const departmentMap: Record<string, number> = {
-      'Commercial': 1, 'Accounts': 2, 'Automation': 3, 'HR': 4, 'Graphics': 5,
-      'Admin': 6, 'Project': 7, 'Service': 8, 'IT': 9, 'Estimation': 10,
-      'Management': 11, 'Purchase': 12, 'Tender': 13, 'Sales': 14, 'Technical': 15,
-      'Legal': 16, 'Regulatory Affairs': 17, 'Store': 18, 'Ortho': 19, 'Maintenance': 20,
-      'Design': 21, 'Quality': 22, 'Credit Control': 23, 'International Marketing': 24,
-      'Field': 25, 'Projects': 26, 'Facility Management (Operations)': 27, 'PTS and Project': 28,
-      'CSSD': 29, 'Quality Control': 30, 'Marketing': 31, 'Operations': 32,
-    };
+    // Resolved by name against the real tables, not a hardcoded stand-in
+    // list — a hardcoded map goes stale the moment a department/designation/
+    // company is added, renamed, or reordered, and previously didn't even
+    // match what seeder.ts actually creates. Cached per-upload since the
+    // same names repeat across rows.
+    const departmentCache = new Map<string, number | null>();
+    const designationCache = new Map<string, number | null>();
+    const companyCache = new Map<string, number | null>();
 
-    const designationMap: Record<string, number> = {
-      'Accountant': 1, 'Manager': 2, 'Senior Manager': 3, 'Executive': 4,
-      'Engineer': 5, 'Developer': 6, 'Coordinator': 7, 'Supervisor': 8,
+    const resolveDepartmentId = async (name: string): Promise<number | null> => {
+      if (departmentCache.has(name)) return departmentCache.get(name)!;
+      const dept = await Department.findOne({ where: { department_name: name } });
+      const id = dept ? dept.get('id') as number : null;
+      departmentCache.set(name, id);
+      return id;
     };
-
-    const companyMapBulk: Record<string, number> = {
-      'Narula Exports': 1, 'Med Freshe': 4, 'Greenvac Solutions': 2, 'Collarcheck': 3,
+    const resolveDesignationId = async (name: string): Promise<number | null> => {
+      if (designationCache.has(name)) return designationCache.get(name)!;
+      const desig = await Designation.findOne({ where: { designation_name: name } });
+      const id = desig ? desig.get('id') as number : null;
+      designationCache.set(name, id);
+      return id;
+    };
+    const resolveCompanyId = async (name: string): Promise<number | null> => {
+      if (companyCache.has(name)) return companyCache.get(name)!;
+      const comp = await Company.findOne({ where: { name } });
+      const id = comp ? comp.get('id') as number : null;
+      companyCache.set(name, id);
+      return id;
     };
 
     const getString = (value: any): string => !value ? '' : String(value).trim();
@@ -708,19 +746,23 @@ export class EmployeeService {
         const phone = getString(row.phone);
         if (!phone) throw new Error('phone is required');
 
-        const departmentStr = getString(row.department_id);
-        if (!departmentStr) throw new Error('department_id is required');
+        // Template columns are "department"/"designation"/"company" (name
+        // strings), not "*_id" — matches BulkUploadModal.tsx's actual
+        // generated headers.
+        const departmentStr = getString(row.department);
+        if (!departmentStr) throw new Error('department is required');
 
-        const designationStr = getString(row.designation_id);
-        if (!designationStr) throw new Error('designation_id is required');
+        const designationStr = getString(row.designation);
+        if (!designationStr) throw new Error('designation is required');
 
         let departmentId: number;
         const deptNum = getNumber(departmentStr);
         if (deptNum) {
           departmentId = deptNum;
         } else {
-          departmentId = departmentMap[departmentStr];
-          if (!departmentId) throw new Error(`Invalid department: ${departmentStr}`);
+          const resolved = await resolveDepartmentId(departmentStr);
+          if (!resolved) throw new Error(`Invalid department: ${departmentStr}`);
+          departmentId = resolved;
         }
 
         let designationId: number;
@@ -728,19 +770,21 @@ export class EmployeeService {
         if (designNum) {
           designationId = designNum;
         } else {
-          designationId = designationMap[designationStr];
-          if (!designationId) throw new Error(`Invalid designation: ${designationStr}`);
+          const resolved = await resolveDesignationId(designationStr);
+          if (!resolved) throw new Error(`Invalid designation: ${designationStr}`);
+          designationId = resolved;
         }
 
         let finalCompanyId = companyId;
-        if (row.company_id) {
-          const companyStr = getString(row.company_id);
+        if (row.company) {
+          const companyStr = getString(row.company);
           const compNum = getNumber(companyStr);
           if (compNum) {
             finalCompanyId = compNum;
           } else {
-            const mappedCompanyId = companyMapBulk[companyStr];
-            if (mappedCompanyId) finalCompanyId = mappedCompanyId;
+            const resolved = await resolveCompanyId(companyStr);
+            if (!resolved) throw new Error(`Invalid company: ${companyStr}`);
+            finalCompanyId = resolved;
           }
         }
 

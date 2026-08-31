@@ -56,6 +56,7 @@ export const locationAttendanceSchema = z.object({
   working_site:            optInt,
   pay_register_location:   optInt,
   actual_doj:              reqStr('Date of Joining is required'),
+  current_doj:             optDate,
   weekly_off:              optStr,
   shift_category:          z.enum(['Shift', 'Duration']).optional().nullable(),
   shift_id:                optInt,
@@ -123,10 +124,11 @@ export const statutorySchemesSchema = z.object({
 
 // ─── Step 6 (HR): Compensation ────────────────────────────────────────────────
 // Nothing carries a * in the UI. deduction_months is now a plain number (was
-// a "12 Months"-style dropdown label); deduction_from is now a date — "the
-// date deductions start from" — it does NOT mean Salary/AMDB (that was a
-// misunderstanding on the original schema, fixed to match the real UI which
-// shows a date input for this field).
+// a "12 Months"-style dropdown label). deduction_from IS the Salary/AMDB/N/A
+// enum — confirmed against the source spreadsheet's actual Excel data
+// validation on cell B213 (list "Salary,AMDB,N/A"), matching DEDUCTION_FROM
+// in employee.constants.ts and what StepCompensation.tsx's FormSelect already
+// sends. A prior edit here mistakenly retyped this as a date; reverted.
 export const compensationSchema = z.object({
   salary_mode:                z.enum(['Bank Transfer', 'Cash', 'Cheque']).optional().nullable(),
   current_basic:               optNum,
@@ -140,7 +142,7 @@ export const compensationSchema = z.object({
   asset_deduction_applicable:  yesNo,
   security_amount:              optNum,
   deduction_months:             z.number({ coerce: true }).int().min(0).optional().nullable(),
-  deduction_from:                optDate,
+  deduction_from:                z.enum(['Salary', 'AMDB', 'N/A']).optional().nullable(),
   monthly_deduction:             optNum,
   final_monthly_deduction:       optNum,
 });
@@ -200,8 +202,8 @@ export const addressSchema = z.object({
 // Merged step. Nothing carries a * in the UI. father_status dropped,
 // mother_occupation is free text now. marital_status + spouse + children now
 // live here (moved from Personal Profile — matches the backend exactly).
-// family_members gets salutation + relationship_other (confirmed missing);
-// emergency_contacts gets relationship_other (confirmed missing).
+// family_members and emergency_contacts are repeatable lists — emergency
+// contacts' first entry is the primary.
 const familyMemberSchema = z.object({
   id:                  z.number().optional(),
   name:                reqStr('Name is required').max(200),
@@ -288,6 +290,9 @@ export const idsBankSchema = z.object({
   passport_expiry:            optDate,
   passport_place_of_issue:    optStr,
   passport_scan_url:          optStr,
+  // Travel Document Details, sheet row 123 — Yellow Fever Injection status
+  yellow_fever:                yesNo,
+  yellow_fever_date:           optDate,
   // Driving licence — optional
   driving_license_number:      optStr,
   driving_license_name:        optStr,
@@ -380,6 +385,7 @@ export const fullEmployeeSchema = z.object({
   working_site:            optInt,
   pay_register_location:   optInt,
   actual_doj:              reqStr('Date of Joining is required'),
+  current_doj:             optDate,
   weekly_off:              optStr,
   shift_category:          z.enum(['Shift', 'Duration']).optional().nullable(),
   shift_id:                optInt,
@@ -443,7 +449,7 @@ export const fullEmployeeSchema = z.object({
   asset_deduction_applicable:  yesNo,
   security_amount:              optNum,
   deduction_months:             z.number({ coerce: true }).int().min(0).optional().nullable(),
-  deduction_from:                optDate,
+  deduction_from:                z.enum(['Salary', 'AMDB', 'N/A']).optional().nullable(),
   monthly_deduction:             optNum,
   final_monthly_deduction:       optNum,
 
@@ -528,6 +534,8 @@ export const fullEmployeeSchema = z.object({
   passport_expiry:            optDate,
   passport_place_of_issue:    optStr,
   passport_scan_url:          optStr,
+  yellow_fever:                yesNo,
+  yellow_fever_date:           optDate,
   driving_license_number:      optStr,
   driving_license_name:        optStr,
   driving_license_issue_date:  optDate,

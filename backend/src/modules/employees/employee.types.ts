@@ -63,6 +63,7 @@ export interface LocationAttendanceDto {
   working_site?:             number | null;
   pay_register_location?:    number | null;
   actual_doj:                string;         // "Date of Joining" — required
+  current_doj?:               string | null; // "Current (DOJ)" — distinct from Actual DOJ on the sheet
   weekly_off?:                string | null;
   shift_category?:           'Shift' | 'Duration' | null;
   shift_id?:                  number | null;
@@ -132,27 +133,26 @@ export interface PersonalDto {
 
 // ─── Step 9: Address ─────────────────────────────────────────────────────────
 export interface AddressDto {
-  // Present
-  present_house_type:   HouseType;
-  present_house_no:     string;
-  present_area?:        string | null;
-  present_district:     string;
-  present_city:         string;
-  present_state:        string;
-  present_country:      string;
-  present_pincode:      string;
-  // Permanent — perm_address_type is now a single source of truth (was
-  // is_same_as_present, a boolean, which couldn't represent 'Not Applicable'
-  // as distinct from 'Different')
-  perm_address_type:    PermAddressType;
-  perm_house_type?:     HouseType;
-  perm_house_no?:       string | null;
-  perm_area?:           string | null;
-  perm_district?:       string | null;
-  perm_city?:           string | null;
-  perm_state?:          string | null;
-  perm_country?:        string | null;
-  perm_pincode?:        string | null;
+  // Present Address
+  present_house_type: HouseType | null;
+  present_house_no: string | null;
+  present_area: string | null;
+  present_district: string | null;
+  present_city: string | null;
+  present_state: string | null;
+  present_country: string | null;
+  present_pincode: string | null;
+
+  // Permanent Address
+  perm_address_type: PermAddressType | null;
+  perm_house_type: HouseType | null;
+  perm_house_no: string | null;
+  perm_area: string | null;
+  perm_district: string | null;
+  perm_city: string | null;
+  perm_state: string | null;
+  perm_country: string | null;
+  perm_pincode: string | null;
 }
 
 // ─── Step 10 (Candidate): Family & Emergency ───────────────────────────────────
@@ -184,7 +184,6 @@ export interface FamilyDto {
 }
 
 // Repeatable "Other Family Members" (brother, sister, other relatives).
-// salutation + relationship_other confirmed missing, now added.
 export interface FamilyMemberDto {
   id?:                 number;
   name:                string;
@@ -196,7 +195,7 @@ export interface FamilyMemberDto {
 }
 
 // ─── Step 10 (Candidate): Emergency Contact ────────────────────────────────────
-// relationship_other confirmed missing, now added.
+// Repeatable list — first entry is the primary contact.
 export interface EmergencyContactDto {
   contact_name:        string;
   contact_number:      string;
@@ -235,6 +234,11 @@ export interface StatutoryDto {
   driving_license_expiry?:    string | null;
   driving_license_authority?: string | null;
   driving_license_scan_url?:  string | null;
+  // Travel Document Details, sheet row 123 — DB columns already existed
+  // (yellow_fever / yellow_fever_date) but were never wired through this
+  // DTO, buildPayload, or routeStep.
+  yellow_fever?:               boolean;
+  yellow_fever_date?:          string | null;
 }
 
 export interface VaccinationDto {
@@ -290,10 +294,12 @@ export interface ExperienceEducationDto {
 
 // ─── Step 6 (HR): Compensation ────────────────────────────────────────────────
 // deduction_months is now a plain number (was a "12 Months"-style string
-// dropdown label); deduction_from is now a date string — "the date deductions
-// start from" — it does NOT mean Salary/AMDB anymore (that was a
-// misunderstanding on the original schema; fixed to match the real UI which
-// shows a date input for this field).
+// dropdown label). deduction_from IS the Salary/AMDB/N/A enum — confirmed
+// against the source spreadsheet's actual Excel data validation on cell
+// B213 (list "Salary,AMDB,N/A"), which matches DEDUCTION_FROM in
+// employee_constants.ts and what StepCompensation.tsx's FormSelect already
+// sends. A prior edit here incorrectly retyped this as a date string; that
+// was the bug — reverted back to the enum to match the real UI and sheet.
 export interface SalaryDto {
   salary_mode:          SalaryMode;
   current_basic:        number;
@@ -307,7 +313,7 @@ export interface SalaryDto {
   asset_deduction_applicable: boolean;
   security_amount?:     number | null;
   deduction_months?:    number | null;
-  deduction_from?:      string | null;    // date string, not DeductionFrom enum
+  deduction_from?:      DeductionFrom | null;
   monthly_deduction?:   number | null;
   final_monthly_deduction?: number | null;
 }
@@ -433,8 +439,8 @@ export interface EmployeeFullResponse {
   personal?:           PersonalDto;
   addresses?:          AddressDto[];
   family?:             FamilyDto;
-  family_members?:     FamilyMemberDto[];
   emergency_contacts?: EmergencyContactDto[];
+  family_members?:     FamilyMemberDto[];
   statutory?:          Partial<StatutoryDto>;  // may be masked
   vaccinations?:       VaccinationDto[];
   documents?:          DocumentDto[];

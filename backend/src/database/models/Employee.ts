@@ -333,7 +333,12 @@ export class EmployeeAssetDeduction extends Model {
   public asset_deduction_applicable!:  boolean;
   public security_amount!:             number | null;
   public deduction_months!:            number | null;
-  public deduction_from!:              Date | null;
+  // Confirmed against the live spreadsheet's actual Excel data validation
+  // on cell B213: list "Salary,AMDB,N/A" — this is the DEDUCTION_FROM enum,
+  // matching employee_constants.ts. A prior change mistakenly retyped this
+  // as a date ("the date deductions start from"); that was the bug, not
+  // the original design. Reverted to match the source-of-truth sheet.
+  public deduction_from!:              'Salary' | 'AMDB' | 'N/A' | null;
   public monthly_deduction!:           number | null;
   public final_monthly_deduction!:     number | null;
   public last_installment!:            number | null;
@@ -343,7 +348,7 @@ EmployeeAssetDeduction.init({
   asset_deduction_applicable:  { type: DataTypes.BOOLEAN, defaultValue: false },
   security_amount:             { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   deduction_months:            { type: DataTypes.SMALLINT.UNSIGNED, allowNull: true },
-  deduction_from:              { type: DataTypes.DATEONLY, allowNull: true },
+  deduction_from:              { type: DataTypes.ENUM('Salary', 'AMDB', 'N/A'), allowNull: true },
   monthly_deduction:           { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   final_monthly_deduction:     { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   last_installment:            { type: DataTypes.DECIMAL(12, 2), allowNull: true },
@@ -420,35 +425,123 @@ EmployeePersonal.init({
 }, { sequelize, tableName: 'employee_personal', modelName: 'EmployeePersonal', timestamps: true });
 
 export class EmployeeAddress extends Model {
-  public id!:                 number;
-  public employee_id!:        number;
-  public address_type!:       'present' | 'permanent';
-  public house_type!:         'Owned' | 'Rented' | 'Company Provided' | 'PG / Hostel' | 'Other' | null;
-  public house_no!:           string | null;
-  public area!:               string | null;
-  public district!:           string | null;
-  public city!:               string | null;
-  public state!:              string | null;
-  public country!:            string | null;
-  public pincode!:            string | null;
-  public perm_address_type!:  'Same as Present' | 'Different' | 'Not Applicable' | null;
-}
-EmployeeAddress.init({
-  id:                 { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  employee_id:        { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  address_type:       { type: DataTypes.ENUM('present', 'permanent'), allowNull: false },
-  house_type:         { type: DataTypes.ENUM('Owned', 'Rented', 'Company Provided', 'PG / Hostel', 'Other'), allowNull: true },
-  house_no:           { type: DataTypes.STRING(50), allowNull: true },
-  area:               { type: DataTypes.STRING(300), allowNull: true },
-  district:           { type: DataTypes.STRING(100), allowNull: true },
-  city:               { type: DataTypes.STRING(100), allowNull: true },
-  state:              { type: DataTypes.STRING(100), allowNull: true },
-  country:            { type: DataTypes.STRING(100), defaultValue: 'India' },
-  pincode:            { type: DataTypes.STRING(10), allowNull: true },
-  perm_address_type: { type: DataTypes.ENUM('Same as Present', 'Different', 'Not Applicable'), allowNull: true },
-}, { sequelize, tableName: 'employee_addresses', modelName: 'EmployeeAddress', timestamps: true,
-  indexes: [{ unique: true, fields: ['employee_id', 'address_type'] }] });
+  public id!: number;
+  public employee_id!: number;
 
+  public address_type!: 'present' | 'permanent';
+
+  public house_type!:
+    | 'Owned'
+    | 'Rented'
+    | 'Company Provided'
+    | 'PG / Hostel'
+    | 'Other'
+    | null;
+
+  public house_no!: string | null;
+  public area!: string | null;
+  public district!: string | null;
+  public city!: string | null;
+  public state!: string | null;
+  public country!: string | null;
+  public pincode!: string | null;
+
+  // Only relevant for permanent address
+  public perm_address_type!:
+    | 'Same as Present'
+    | 'Different'
+    | 'Not Applicable'
+    | null;
+}
+
+EmployeeAddress.init(
+  {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+
+    employee_id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+    },
+
+    address_type: {
+      type: DataTypes.ENUM('present', 'permanent'),
+      allowNull: false,
+    },
+
+    house_type: {
+      type: DataTypes.ENUM(
+        'Owned',
+        'Rented',
+        'Company Provided',
+        'PG / Hostel',
+        'Other'
+      ),
+      allowNull: true,
+    },
+
+    house_no: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+
+    area: {
+      type: DataTypes.STRING(300),
+      allowNull: true,
+    },
+
+    district: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+
+    city: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+
+    state: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+
+    country: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      defaultValue: 'India',
+    },
+
+    pincode: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+    },
+
+    perm_address_type: {
+      type: DataTypes.ENUM(
+        'Same as Present',
+        'Different',
+        'Not Applicable'
+      ),
+      allowNull: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'employee_addresses',
+    modelName: 'EmployeeAddress',
+    timestamps: true,
+
+    indexes: [
+      {
+        unique: true,
+        fields: ['employee_id', 'address_type'],
+      },
+    ],
+  }
+);
 export class EmployeeFamily extends Model {
   public employee_id!:       number;
   public father_salutation!: string | null;

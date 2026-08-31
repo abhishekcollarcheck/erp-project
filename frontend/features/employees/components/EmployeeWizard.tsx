@@ -80,7 +80,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       status: 'Active', employment_type: 'Permanent', weekly_off: '',
       perm_address_type: 'Same as Present', commitment: false, on_probation: false,
       pf_status: false, esic_status: false, mediclaim_status: 'No', rd_scheme: false,
-      is_experienced: false, asset_deduction_applicable: false,
+      is_experienced: false, asset_deduction_applicable: false, yellow_fever: false,
       offer_letter: false, address_verification: false, service_agreement: false,
       indemnity_bond: false, asset_deduction_letter: false, account_opening_letter: false, nda: false,
       company_id:        undefined as number | undefined,
@@ -135,8 +135,9 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       working_site: employee.working_site ?? undefined, working_city: employee.working_city ?? undefined,
       working_state_country: employee.working_state_country ?? undefined,
       pay_register_location: employee.pay_register_location ?? undefined,
-      actual_doj: employee.actual_doj ?? '',
-      weekly_off: employee.weekly_off ?? '', shift_category: (employee as any).shift_category ?? undefined,
+      actual_doj: employee.actual_doj ?? '', current_doj: (employee as any).current_doj ?? '',
+      weekly_off: employee.weekly_off ?? '',
+      shift_category: (employee as any).shift_category ?? undefined,
       shift_id: employee.shift_id ?? undefined,
       grace_minutes: employee.grace_minutes ?? undefined,
 
@@ -219,6 +220,8 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       passport_issue_date: st.passport_issue_date ?? '', passport_expiry: st.passport_expiry ?? '',
       passport_place_of_issue: st.passport_place_of_issue ?? '',
       passport_scan_url: st.passport_scan_url ?? '',
+      yellow_fever: (st as any).yellow_fever ?? false,
+      yellow_fever_date: (st as any).yellow_fever_date ?? '',
       driving_license_number: st.driving_license_number ?? '',
       driving_license_name: st.driving_license_name ?? '',
       driving_license_issue_date: st.driving_license_issue_date ?? '',
@@ -265,14 +268,14 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   }, [isDirty]);
 
   // Auto-save
-  useEffect(() => {
-    const sub = methods.watch(() => {
-      setIsDirty(true);
-      clearTimeout(autoSaveTimer.current);
-      autoSaveTimer.current = setTimeout(() => triggerAutoSave(), 3000);
-    });
-    return () => { sub.unsubscribe(); clearTimeout(autoSaveTimer.current); };
-  }, [methods, savedId]); // eslint-disable-line
+  // useEffect(() => {
+  //   const sub = methods.watch(() => {
+  //     setIsDirty(true);
+  //     clearTimeout(autoSaveTimer.current);
+  //     autoSaveTimer.current = setTimeout(() => triggerAutoSave(), 3000);
+  //   });
+  //   return () => { sub.unsubscribe(); clearTimeout(autoSaveTimer.current); };
+  // }, [methods, savedId]); // eslint-disable-line
 
   const triggerAutoSave = useCallback(() => {
     if (!step) return;
@@ -312,7 +315,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         return { first_name: v.first_name?.trim(), middle_name: c(v.middle_name), last_name: v.last_name?.trim(), status: v.status, employment_type: v.employment_type, department_id: n(v.department_id), sub_department_id: n(v.sub_department_id), designation_id: n(v.designation_id), sub_designation_id: n(v.sub_designation_id), email: v.email?.toLowerCase().trim() ?? null, phone: v.phone?.trim() ?? null };
 
       case 'location_attendance':
-        return { working_state_country: n(v.working_state_country), working_city: n(v.working_city), working_site: n(v.working_site), pay_register_location: n(v.pay_register_location), actual_doj: c(v.actual_doj), weekly_off: c(v.weekly_off), shift_category: c((v as any).shift_category), shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) };
+        return { working_state_country: n(v.working_state_country), working_city: n(v.working_city), working_site: n(v.working_site), pay_register_location: n(v.pay_register_location), actual_doj: c(v.actual_doj), current_doj: c((v as any).current_doj), weekly_off: c(v.weekly_off), shift_category: c((v as any).shift_category), shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) };
 
       case 'managers_work_contact':
         return { l1_manager_id: n(v.l1_manager_id), l2_manager_id: n(v.l2_manager_id), official_email: v.official_email?.toLowerCase().trim() || null, official_mobile: v.official_mobile?.trim() || null };
@@ -339,7 +342,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         return { marital_status: c(v.marital_status), marriage_date: c((v as any).marriage_date), spouse_name: c((v as any).spouse_name), spouse_dob: c((v as any).spouse_dob), child1_name: c((v as any).child1_name), child1_gender: c((v as any).child1_gender), child1_dob: c((v as any).child1_dob), child2_name: c((v as any).child2_name), child2_gender: c((v as any).child2_gender), child2_dob: c((v as any).child2_dob), child3_name: c((v as any).child3_name), child3_gender: c((v as any).child3_gender), child3_dob: c((v as any).child3_dob), father_salutation: c(v.father_salutation), father_name: c(v.father_name), father_dob: c(v.father_dob), father_occupation: c(v.father_occupation), mother_salutation: c(v.mother_salutation), mother_name: c(v.mother_name), mother_dob: c(v.mother_dob), mother_occupation: c(v.mother_occupation), family_members: v.family_members ?? [], emergency_contacts: v.emergency_contacts ?? [] };
 
       case 'ids_bank':
-        return { aadhaar_number: c(v.aadhaar_number), aadhaar_name: c(v.aadhaar_name), aadhaar_dob: c(v.aadhaar_dob), aadhaar_address: c(v.aadhaar_address), pan_number: v.pan_number?.toUpperCase() || null, pan_full_name: c(v.pan_full_name), pan_dob: c(v.pan_dob), pan_parent_spouse_name: c(v.pan_parent_spouse_name), passport_number: c(v.passport_number), passport_full_name: c(v.passport_full_name), passport_nationality: c(v.passport_nationality), passport_issue_date: c(v.passport_issue_date), passport_expiry: c(v.passport_expiry), passport_place_of_issue: c(v.passport_place_of_issue), driving_license_number: c(v.driving_license_number), driving_license_name: c(v.driving_license_name), driving_license_issue_date: c(v.driving_license_issue_date), driving_license_expiry: c(v.driving_license_expiry), driving_license_authority: c(v.driving_license_authority), vaccinations: v.vaccinations ?? [], documents: v.documents ?? [], personal_bank_name: c(v.personal_bank_name), personal_bank_account: c(v.personal_bank_account), personal_ifsc: v.personal_ifsc?.toUpperCase() || null, personal_bank_branch: c(v.personal_bank_branch) };
+        return { aadhaar_number: c(v.aadhaar_number), aadhaar_name: c(v.aadhaar_name), aadhaar_dob: c(v.aadhaar_dob), aadhaar_address: c(v.aadhaar_address), pan_number: v.pan_number?.toUpperCase() || null, pan_full_name: c(v.pan_full_name), pan_dob: c(v.pan_dob), pan_parent_spouse_name: c(v.pan_parent_spouse_name), passport_number: c(v.passport_number), passport_full_name: c(v.passport_full_name), passport_nationality: c(v.passport_nationality), passport_issue_date: c(v.passport_issue_date), passport_expiry: c(v.passport_expiry), passport_place_of_issue: c(v.passport_place_of_issue), yellow_fever: (v as any).yellow_fever ?? false, yellow_fever_date: c((v as any).yellow_fever_date), driving_license_number: c(v.driving_license_number), driving_license_name: c(v.driving_license_name), driving_license_issue_date: c(v.driving_license_issue_date), driving_license_expiry: c(v.driving_license_expiry), driving_license_authority: c(v.driving_license_authority), vaccinations: v.vaccinations ?? [], documents: v.documents ?? [], personal_bank_name: c(v.personal_bank_name), personal_bank_account: c(v.personal_bank_account), personal_ifsc: v.personal_ifsc?.toUpperCase() || null, personal_bank_branch: c(v.personal_bank_branch) };
 
       case 'experience_education':
         return { is_experienced: v.is_experienced ?? false, experience: v.experience ?? [], education: v.education ?? [] };
@@ -494,7 +497,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
             <button type="button" className="btn btn-sec" disabled={isFirst || isSaving} onClick={() => setCurrentIdx(p => p - 1)}>← Back</button>
             <div style={{ display: 'flex', gap: 8 }}>
-              {isDirty && <button type="button" className="btn btn-sec btn-sm" onClick={triggerAutoSave} disabled={draftSaving} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>}
+              <button type="button" className="btn btn-sec btn-sm" onClick={triggerAutoSave} disabled={draftSaving || !isDirty} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>
               {!isLast
                 ? <button type="button" className="btn btn-pri" onClick={handleNext} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save & Continue →'}</button>
                 : <button type="button" className="btn btn-pri" onClick={handleSubmit} disabled={isSaving || !savedId} style={{ background: 'var(--green)', minWidth: 155 }}>{isSaving ? 'Submitting…' : mode === 'edit' ? '✓ Update Employee' : '✓ Create Employee'}</button>}

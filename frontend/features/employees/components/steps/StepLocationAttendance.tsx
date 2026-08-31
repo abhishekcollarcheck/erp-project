@@ -15,7 +15,7 @@ export function StepLocationAttendance({ }: Props) {
   const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
 
   return (
-    <FormSection fields={[f('working_state_country'), f('working_city'), f('working_site'), f('pay_register_location'), f('actual_doj'), f('weekly_off'), f('shift_id'), f('grace_minutes')]}>
+    <FormSection fields={[f('working_state_country'), f('working_city'), f('working_site'), f('pay_register_location'), f('actual_doj'), f('current_doj'), f('weekly_off'), f('shift_id'), f('grace_minutes')]}>
       <div style={{ display: 'grid', gap: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)', marginTop: -4 }}>Work Location</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -52,7 +52,10 @@ export function StepLocationAttendance({ }: Props) {
         </div>
 
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Joining</div>
-        <FormDatePicker name="actual_doj" label="Date of Joining" required max={new Date().toISOString().split('T')[0]} fieldPerm={f('actual_doj')} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <FormDatePicker name="actual_doj" label="Date of Joining" required max={new Date().toISOString().split('T')[0]} fieldPerm={f('actual_doj')} />
+          <FormDatePicker name="current_doj" label="Current Date of Joining" hint="Only if different from Actual DOJ — e.g. after a break in service" max={new Date().toISOString().split('T')[0]} fieldPerm={f('current_doj')} />
+        </div>
 
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Shift &amp; Weekly Off</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>

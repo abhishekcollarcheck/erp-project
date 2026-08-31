@@ -183,17 +183,29 @@ export interface FamilyMember {
 }
 
 export interface EmployeeAddress {
-  id:                  number;
-  address_type:        'present' | 'permanent';
-  house_type?:         HouseType | null;
-  house_no?:           string | null;
-  area?:               string | null;
-  district?:           string | null;
-  city?:               string | null;
-  state?:              string | null;
-  country?:            string | null;
-  pincode?:            string | null;
-  perm_address_type?:  PermAddressType | null;
+  id: number;
+  employee_id: number;
+
+  address_type: 'present' | 'permanent';
+
+  house_type:
+    | 'Owned'
+    | 'Rented'
+    | 'Company Provided'
+    | 'PG / Hostel'
+    | 'Other'
+    | null;
+
+  house_no: string | null;
+  area: string | null;
+  district: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  pincode: string | null;
+
+  // Applicable to permanent address
+  perm_address_type: PermAddressType | null;
 }
 
 // Added email; supports multiple contacts via is_primary
@@ -280,7 +292,9 @@ export interface EmployeeAssetDeduction {
   asset_deduction_applicable: boolean;
   security_amount?:           number | null;
   deduction_months?:          number | null;
-  deduction_from?:            string | null;   // date string — "the date deductions start from", NOT a Salary/AMDB choice
+  // Salary/AMDB/N/A enum — confirmed against the source spreadsheet's actual
+  // Excel data validation on cell B213. NOT a date.
+  deduction_from?:            'Salary' | 'AMDB' | 'N/A' | null;
   monthly_deduction?:         number | null;
   final_monthly_deduction?:   number | null;
   last_installment?:          number | null;
@@ -368,5 +382,8 @@ export interface EmployeeSummary {
 
 export interface BulkUploadResult {
   total: number; success: number; failed: number;
-  errors: { row: number; name: string; reason: string }[]; inserted: number[];
+  errors: { row: number; name: string; reason: string }[];
+  // Matches the backend's actual field name — was "inserted" here, but the
+  // backend's bulkUpload() result object has always been `created: number[]`.
+  created: number[];
 }

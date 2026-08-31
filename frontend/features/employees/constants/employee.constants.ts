@@ -50,7 +50,7 @@ export const COMMITMENT_TERM      = ['36 Months', '60 Months', 'N/A'] as const;
 export const CONFIRMATION_STATUS  = ['Confirmed', 'Failed', 'Not Applicable'] as const;
 export const PF_EMPLOYER_FROM     = ['Employee', 'Employer', 'N/A'] as const;
 export const MEDICLAIM_STATUS     = ['Yes', 'No', 'Not Applicable'] as const;
-export const PROBATION_PERIOD     = ['1 Month', '2 Months', '3 Months', '6 Months', '12 Months', 'N/A'] as const;
+export const PROBATION_PERIOD     = ['3 Months', '4 Months', '6 Months', '9 Months', '12 Months', 'Not Applicable'] as const;
 export const RD_TERM              = ['6 Months', '12 Months', '18 Months', '24 Months', '30 Months', '36 Months', 'N/A'] as const;
 export const HOUSE_TYPE           = ['Owned', 'Rented', 'Company Provided', 'PG / Hostel', 'Other'] as const;
 export const PERM_ADDRESS_TYPE    = ['Same as Present', 'Different', 'Not Applicable'] as const;
@@ -438,6 +438,21 @@ export const BANK_NAME_OPTIONS = [
   { value: 'Yes Bank', label: 'Yes Bank' },
   { value: 'IndusInd Bank', label: 'IndusInd Bank' },
   { value: 'Not Available', label: 'Not Available' },
+] as const;
+
+export const VACCINE_OPTIONS = [
+  { value: 'COVID-19 (Dose 1)',        label: 'COVID-19 (Dose 1)' },
+  { value: 'COVID-19 (Dose 2)',        label: 'COVID-19 (Dose 2)' },
+  { value: 'COVID-19 Booster',         label: 'COVID-19 Booster' },
+  { value: 'Yellow Fever',             label: 'Yellow Fever' },
+  { value: 'Hepatitis B',              label: 'Hepatitis B' },
+  { value: 'Typhoid',                  label: 'Typhoid' },
+  { value: 'Tetanus / Tdap',           label: 'Tetanus / Tdap' },
+  { value: 'MMR',                      label: 'MMR' },
+  { value: 'Influenza',                label: 'Influenza' },
+  { value: 'Polio',                    label: 'Polio' },
+  { value: 'Varicella (Chickenpox)',   label: 'Varicella (Chickenpox)' },
+  { value: 'Other',                    label: 'Other' },
 ] as const;
 
 export const DOC_TYPE_OPTIONS = [

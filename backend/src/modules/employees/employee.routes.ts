@@ -70,7 +70,7 @@ employeeRoutes.get('/',
   asyncHandler(employeeController.getAll),
 );
 
-employeeRoutes.get('/managed', getManagedEmployees);
+employeeRoutes.get('/managed', asyncHandler(getManagedEmployees));
 
 employeeRoutes.post('/',
   asyncHandler(employeeController.create),

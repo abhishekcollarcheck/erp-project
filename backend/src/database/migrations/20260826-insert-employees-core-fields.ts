@@ -147,6 +147,12 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'text',     label: 'Mother Occupation',            field_key: 'mother_occupation',           section: 'Family' },
 
   // ── Other Family Members — repeatable (EmployeeFamilyMember) ─────
+  // "family_members" is the whole-block key StepFamilyEmergency.tsx
+  // actually checks (fieldPerm={f('family_members')} on every field in the
+  // repeater) — the granular family_member_* rows below are seeded too but
+  // nothing currently reads them; without this row the section is DENY_ALL
+  // by default and renders as nothing for every user.
+  { field_type: 'text',     label: 'Other Family Members (Section)', field_key: 'family_members',               section: 'Other Family Members' },
   { field_type: 'text',     label: 'Name',                         field_key: 'family_member_name',          section: 'Other Family Members' },
   { field_type: 'text',     label: 'Relationship',                 field_key: 'family_member_relationship',  section: 'Other Family Members' },
   { field_type: 'date',     label: 'Date of Birth',                field_key: 'family_member_dob',           section: 'Other Family Members' },
@@ -154,18 +160,31 @@ const FIELDS: FieldSeed[] = [
 
   // ── Address (EmployeeAddress) — single shared field set, ─────────
   // distinguished by address_type, NOT duplicated present_*/perm_* keys
-  { field_type: 'select',   label: 'Address Type',                 field_key: 'address_type',                section: 'Address' },
-  { field_type: 'select',   label: 'House Type',                   field_key: 'house_type',                  section: 'Address' },
-  { field_type: 'text',     label: 'House No',                     field_key: 'house_no',                    section: 'Address' },
-  { field_type: 'text',     label: 'Area',                         field_key: 'area',                        section: 'Address' },
-  { field_type: 'text',     label: 'District',                     field_key: 'district',                    section: 'Address' },
-  { field_type: 'text',     label: 'City',                         field_key: 'address_city',                section: 'Address' },
-  { field_type: 'text',     label: 'State',                        field_key: 'state',                       section: 'Address' },
-  { field_type: 'text',     label: 'Country',                      field_key: 'address_country',             section: 'Address' },
-  { field_type: 'text',     label: 'Pincode',                      field_key: 'pincode',                     section: 'Address' },
-  { field_type: 'checkbox', label: 'Same as Present Address',      field_key: 'is_same_as_present',          section: 'Address' },
+  { field_type: 'select', label: 'House Type',   field_key: 'present_house_type',   section: 'Address', },
+  { field_type: 'text',   label: 'House No',   field_key: 'present_house_no',   section: 'Address', },
+  { field_type: 'text',   label: 'Area',   field_key: 'present_area',   section: 'Address', },
+  { field_type: 'text',   label: 'District',   field_key: 'present_district',   section: 'Address', },
+  { field_type: 'select',   label: 'City',   field_key: 'present_city',   section: 'Address', },
+  { field_type: 'select',   label: 'State',   field_key: 'present_state',   section: 'Address', },
+  { field_type: 'select',   label: 'Country',   field_key: 'present_country',   section: 'Address', },
+  { field_type: 'text',   label: 'Pincode',   field_key: 'present_pincode',   section: 'Address', },
+
+  // Permanent Address
+  { field_type: 'select',   label: 'Address Type',   field_key: 'perm_address_type',   section: 'Address',},
+  { field_type: 'select',   label: 'House Type',   field_key: 'perm_house_type',   section: 'Address', },
+  { field_type: 'text',   label: 'House No',   field_key: 'perm_house_no',   section: 'Address', },
+  { field_type: 'text',   label: 'Area',   field_key: 'perm_area',   section: 'Address', },
+  { field_type: 'text',   label: 'District',   field_key: 'perm_district',   section: 'Address', },
+  { field_type: 'text',   label: 'City',   field_key: 'perm_city',   section: 'Address', },
+  { field_type: 'text',   label: 'State',   field_key: 'perm_state',   section: 'Address', },
+  { field_type: 'text',   label: 'Country',   field_key: 'perm_country',   section: 'Address', },
+  { field_type: 'text',   label: 'Pincode',   field_key: 'perm_pincode',   section: 'Address', },
+  { field_type: 'checkbox',   label: 'Same as Present Address',   field_key: 'is_same_as_present',   section: 'Address', },
 
   // ── Emergency Contact (EmployeeEmergencyContact) ──────────────────
+  // "emergency_contacts" is the whole-block key StepFamilyEmergency.tsx
+  // actually checks — same missing-key pattern as family_members above.
+  { field_type: 'text',     label: 'Emergency Contacts (Section)', field_key: 'emergency_contacts',          section: 'Emergency Contacts' },
   { field_type: 'text',     label: 'Contact Name',                 field_key: 'emergency_contact_name',      section: 'Emergency Contacts' },
   { field_type: 'text',     label: 'Contact Number',                field_key: 'emergency_contact_number',   section: 'Emergency Contacts' },
   { field_type: 'text',     label: 'Email',                         field_key: 'emergency_contact_email',    section: 'Emergency Contacts' },
@@ -200,14 +219,27 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'date',     label: 'Yellow Fever Date',             field_key: 'yellow_fever_date',           section: 'Statutory' },
 
   // ── Vaccinations — repeatable (EmployeeVaccination) ───────────────
+  // "vaccinations" is the whole-block key StepIdsBank.tsx actually checks.
+  { field_type: 'text',     label: 'Vaccinations (Section)',        field_key: 'vaccinations',                section: 'Vaccinations' },
   { field_type: 'text',     label: 'Vaccine Name',                  field_key: 'vaccine_name',                section: 'Vaccinations' },
   { field_type: 'date',     label: 'Date',                          field_key: 'vaccination_date',            section: 'Vaccinations' },
   { field_type: 'text',     label: 'Notes',                         field_key: 'vaccination_notes',           section: 'Vaccinations' },
 
   // ── Additional Documents — repeatable (EmployeeDocument) ──────────
+  // "documents" is the whole-block key StepIdsBank.tsx actually checks.
+  { field_type: 'text',     label: 'Additional Documents (Section)', field_key: 'documents',                   section: 'Additional Documents' },
   { field_type: 'select',   label: 'Document Type',                 field_key: 'doc_type',                    section: 'Additional Documents' },
   { field_type: 'text',     label: 'Document Type (Other)',         field_key: 'doc_type_other',              section: 'Additional Documents' },
   { field_type: 'text',     label: 'File',                          field_key: 'doc_file_url',                section: 'Additional Documents' },
+
+  // ── Personal Bank Details (EmployeeBankDetail, bank_type='personal') ──
+  // StepIdsBank.tsx uses personal_bank_* keys — distinct from the generic
+  // bank_* keys below, which cover a different/official bank-details
+  // consumer. Without these, the whole Personal Bank card is invisible.
+  { field_type: 'select',   label: 'Personal Bank Name',            field_key: 'personal_bank_name',          section: 'Personal Bank Details' },
+  { field_type: 'text',     label: 'Personal Bank Account Number',  field_key: 'personal_bank_account',       section: 'Personal Bank Details' },
+  { field_type: 'text',     label: 'Personal IFSC Code',            field_key: 'personal_ifsc',               section: 'Personal Bank Details' },
+  { field_type: 'text',     label: 'Personal Bank Branch',          field_key: 'personal_bank_branch',        section: 'Personal Bank Details' },
 
   // ── Bank Details (EmployeeBankDetail) ─────────────────────────────
   { field_type: 'select',   label: 'Bank Account Type',             field_key: 'bank_type',                   section: 'Bank Details' },
@@ -237,6 +269,9 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'number',   label: 'Last Installment',              field_key: 'last_installment',            section: 'Asset Deduction' },
 
   // ── Experience (EmployeeExperience + EmployeeExperienceFlag) ─────
+  // "experience" is the whole-block key StepExperienceEducation.tsx
+  // actually checks (every repeated-role field shares this one fieldPerm).
+  { field_type: 'text',     label: 'Work Experience (Section)',     field_key: 'experience',                  section: 'Experience' },
   { field_type: 'checkbox', label: 'Is Experienced',                field_key: 'is_experienced',              section: 'Experience' },
   { field_type: 'text',     label: 'Last Company Name',             field_key: 'last_company_name',           section: 'Experience' },
   { field_type: 'text',     label: 'Last Designation',              field_key: 'last_designation',            section: 'Experience' },
@@ -247,6 +282,9 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'number',   label: 'Last In-hand Salary',           field_key: 'last_inhand_salary',          section: 'Experience' },
 
   // ── Education (EmployeeEducation) ─────────────────────────────────
+  // "education" is the whole-block key StepExperienceEducation.tsx
+  // actually checks.
+  { field_type: 'text',     label: 'Education (Section)',           field_key: 'education',                   section: 'Education' },
   { field_type: 'text',     label: 'Highest Education',             field_key: 'highest_education',           section: 'Education' },
   { field_type: 'text',     label: 'Education Stream',              field_key: 'education_stream',            section: 'Education' },
   { field_type: 'select',   label: 'Education Mode',                field_key: 'education_mode',              section: 'Education' },

@@ -120,10 +120,24 @@ export function useUpdateStep(employeeId: number) {
 }
 
 // ─── Save draft ───────────────────────────────────────────────────────────────
+// IMPORTANT: a draft save can silently create/update the underlying employees
+// row (see backend saveDraft — first_name + phone present ⇒ persisted:true).
+// Without invalidating the list/summary/detail queries here, a Draft employee
+// created via autosave never appears in the Employee List until an unrelated
+// full remount happens to refetch it. This is the fix for that bug.
 export function useSaveDraft() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: { employee_id?: number | null; step: string; form_data: object; session_id: string }) =>
       employeeService.saveDraft(payload),
+    onSuccess: (res: any, variables) => {
+      const employeeId: number | undefined = res?.data?.employeeId;
+      if (res?.data?.persisted) {
+        qc.invalidateQueries({ queryKey: EMP_KEYS.lists() });
+        qc.invalidateQueries({ queryKey: EMP_KEYS.summary });
+        if (employeeId) qc.invalidateQueries({ queryKey: EMP_KEYS.detail(employeeId) });
+      }
+    },
   });
 }
 

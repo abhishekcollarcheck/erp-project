@@ -172,32 +172,129 @@ export const personalProfileValidation: ValidationChain[] = [
 // ─── Step 9 (Candidate): Address ──────────────────────────────────────────────
 // Nothing carries a * in the UI.
 export const addressValidation: ValidationChain[] = [
-  opt(body('present_house_type').isIn(HOUSE_TYPE)),
-  opt(body('present_house_no').trim().isLength({ max: 50 })),
-  opt(body('present_area').trim().isLength({ max: 300 })),
-  opt(body('present_district').trim().isLength({ max: 100 })),
-  opt(body('present_city').trim().isLength({ max: 100 })),
-  opt(body('present_state').trim().isLength({ max: 100 })),
-  opt(body('present_country').trim().isLength({ max: 100 })),
-  opt(body('present_pincode').matches(/^\d{4,10}$/)),
-  opt(body('perm_address_type').isIn(PERM_ADDRESS_TYPE)),
-  opt(body('perm_house_type').isIn(HOUSE_TYPE)),
-  opt(body('perm_house_no').trim().isLength({ max: 50 })),
-  opt(body('perm_area').trim().isLength({ max: 300 })),
-  opt(body('perm_district').trim().isLength({ max: 100 })),
-  opt(body('perm_city').trim().isLength({ max: 100 })),
-  opt(body('perm_state').trim().isLength({ max: 100 })),
-  opt(body('perm_country').trim().isLength({ max: 100 })),
-  opt(body('perm_pincode').matches(/^\d{4,10}$/)),
+  // Present Address
+  opt(
+    body('present_house_type')
+      .isIn(HOUSE_TYPE)
+      .withMessage('Invalid present house type')
+  ),
+
+  opt(
+    body('present_house_no')
+      .trim()
+      .isLength({ max: 50 })
+      .withMessage('Present house number cannot exceed 50 characters')
+  ),
+
+  opt(
+    body('present_area')
+      .trim()
+      .isLength({ max: 300 })
+      .withMessage('Present area cannot exceed 300 characters')
+  ),
+
+  opt(
+    body('present_district')
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('Present district cannot exceed 100 characters')
+  ),
+
+  opt(
+    body('present_city')
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('Present city cannot exceed 100 characters')
+  ),
+
+  opt(
+    body('present_state')
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('Present state cannot exceed 100 characters')
+  ),
+
+  opt(
+    body('present_country')
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('Present country cannot exceed 100 characters')
+  ),
+
+  opt(
+    body('present_pincode')
+      .matches(/^\d{4,10}$/)
+      .withMessage('Present pincode must contain 4-10 digits')
+  ),
+
+  // Permanent Address
+  opt(
+    body('perm_address_type')
+      .isIn(PERM_ADDRESS_TYPE)
+      .withMessage('Invalid permanent address type')
+  ),
+
+  opt(
+    body('perm_house_type')
+      .isIn(HOUSE_TYPE)
+      .withMessage('Invalid permanent house type')
+  ),
+
+  opt(
+    body('perm_house_no')
+      .trim()
+      .isLength({ max: 50 })
+      .withMessage('Permanent house number cannot exceed 50 characters')
+  ),
+
+  opt(
+    body('perm_area')
+      .trim()
+      .isLength({ max: 300 })
+      .withMessage('Permanent area cannot exceed 300 characters')
+  ),
+
+  opt(
+    body('perm_district')
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('Permanent district cannot exceed 100 characters')
+  ),
+
+  opt(
+    body('perm_city')
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('Permanent city cannot exceed 100 characters')
+  ),
+
+  opt(
+    body('perm_state')
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('Permanent state cannot exceed 100 characters')
+  ),
+
+  opt(
+    body('perm_country')
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('Permanent country cannot exceed 100 characters')
+  ),
+
+  opt(
+    body('perm_pincode')
+      .matches(/^\d{4,10}$/)
+      .withMessage('Permanent pincode must contain 4-10 digits')
+  ),
 ];
 
 // ─── Step 10 (Candidate): Family & Emergency ───────────────────────────────────
-// Merged step (family + emergency + the new repeatable lists), now also
-// carrying marital_status + spouse + children (moved here from Personal
-// Profile — they're all shown on this screen in the UI). Nothing carries a *
-// in the UI. father_status dropped, mother_occupation is free text now.
-// family_members gets salutation + relationship_other (confirmed missing);
-// emergency_contacts gets relationship_other (confirmed missing).
+// Merged step, also carrying marital_status + spouse + children (moved here
+// from Personal Profile — they're all shown on this screen in the UI).
+// Nothing carries a * in the UI. father_status dropped, mother_occupation is
+// free text now. Emergency contact is a single static entry, no repeatable
+// list, no email field.
 export const familyEmergencyValidation: ValidationChain[] = [
   opt(body('marital_status').isIn(MARITAL_STATUS)),
   optDate('marriage_date'),

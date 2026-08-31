@@ -19,6 +19,11 @@ export const YES_NO = ['Yes', 'No'] as const;
 export const COMMITMENT_TERM = ['36 Months', '60 Months', 'N/A'] as const;
 export type CommitmentTerm = typeof COMMITMENT_TERM[number];
 
+// Master Data Form, cells E56/E58 — validated against Working Sheet col N.
+// Was imported by StepCommitmentProbation.tsx but never exported here.
+export const PROBATION_PERIOD = ['3 Months', '4 Months', '6 Months', '9 Months', '12 Months', 'Not Applicable'] as const;
+export type ProbationPeriod = typeof PROBATION_PERIOD[number];
+
 // B60
 export const CONFIRMATION_STATUS = ['Confirmed', 'Failed', 'Not Applicable'] as const;
 export type ConfirmationStatus = typeof CONFIRMATION_STATUS[number];
