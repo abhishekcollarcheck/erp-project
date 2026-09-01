@@ -32,10 +32,6 @@ export interface EmployeeQueryParams {
 }
 
 // ─── Step 1 (HR): Role & Identity ─────────────────────────────────────────────
-// This DTO represents the STRICT/complete shape (used by create() and the
-// role_identity step's validators) — these fields stay required here even
-// though the underlying DB columns are nullable (to support lenient drafts
-// via saveDraft(), which builds its own partial payload separately).
 export interface RoleIdentityDto {
   company_id:       number;
   first_name:       string;
@@ -43,31 +39,26 @@ export interface RoleIdentityDto {
   last_name:        string;
   status:           EmployeeStatus;
   employment_type:  EmploymentType;
-  email:            string;   // "Personal Email" — required
-  phone:            string;   // "Personal Mobile Number" — required
+  email:            string | null;  
+  phone:            string; 
   department_id:    number;
-  sub_department_id?: number | null;
+  sub_department_id?: number;
   designation_id:   number;
-  sub_designation_id?: number | null;
+  sub_designation_id?: number;
 }
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
-// working_state_country/working_city/working_site/pay_register_location now
-// store dropdown IDs (INTEGER), not names — the master-data tables for these
-// don't exist yet, so no FK constraint yet either (per the confirmed decision).
-// shift_start/shift_end/shift_duration removed; shift_category added as the
-// Shift-vs-Duration discriminator.
 export interface LocationAttendanceDto {
-  working_state_country?:   number | null;
-  working_city?:             number | null;
-  working_site?:             number | null;
-  pay_register_location?:    number | null;
-  actual_doj:                string;         // "Date of Joining" — required
-  current_doj?:               string | null; // "Current (DOJ)" — distinct from Actual DOJ on the sheet
-  weekly_off?:                string | null;
-  shift_category?:           'Shift' | 'Duration' | null;
-  shift_id?:                  number | null;
-  grace_minutes?:             number | null;
+  working_state_country:    number;
+  working_city:             number;
+  working_site:             number;
+  pay_register_location:    number;
+  actual_doj:               string;
+  current_doj?:             string | null;
+  weekly_off:               number;
+  shift_category?:          'Shift' | 'Duration';
+  shift_id:                 number;
+  grace_minutes:            number;
 }
 
 // ─── Step 3 (HR): Managers & Work Contact ─────────────────────────────────────
@@ -80,14 +71,18 @@ export interface ManagersWorkContactDto {
 
 // ─── Step 4: Commitment & Probation ──────────────────────────────────────────
 export interface CommitmentProbationDto {
-  commitment:                  boolean;
-  commitment_term?:            CommitmentTerm;
-  commitment_entered_on?:      string | null;
-  on_probation:                boolean;
-  probation_period?:           string | null;
-  probation_extended_period?:  string | null;
-  confirmation_status?:        ConfirmationStatus;
-  confirmed_on?:               string | null;
+  commitment: boolean;
+  commitment_term?: CommitmentTerm | null;
+  commitment_entered_on?: string | null;
+  commitment_end_date?: string | null;
+
+  on_probation: boolean;
+  probation_period?: string | null;
+  probation_end_date?: string | null;
+  probation_extended_period?: string | null;
+
+  confirmation_status?: ConfirmationStatus | null;
+  confirmed_on?: string | null;
 }
 
 // ─── Step 5 (HR): Statutory Schemes ────────────────────────────────────────────

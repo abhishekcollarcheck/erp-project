@@ -1,9 +1,5 @@
-// Helper: convert constant arrays to Select options
 export const toOpts = (arr: readonly string[]) => arr.map(v => ({ value: v, label: v }));
-
-// ─── Wizard steps — 3 parts: HR (7) → Candidate self-service (5) → Finalize (1)
 export const WIZARD_STEPS = [
-  // ── Part 1 · HR ────────────────────────────────────────────────────────────
   { key: 'role_identity',        label: 'Role & Identity',         icon: 'user',         part: 'hr',        required: true, sensitive: false },
   { key: 'location_attendance',  label: 'Location & Attendance',   icon: 'briefcase',    part: 'hr',        required: true, sensitive: false },
   { key: 'managers_work_contact',label: 'Managers & Work Contact', icon: 'users',        part: 'hr',        required: true, sensitive: false },
@@ -11,20 +7,17 @@ export const WIZARD_STEPS = [
   { key: 'statutory_schemes',    label: 'Statutory Schemes',       icon: 'shield',       part: 'hr',        required: true, sensitive: false },
   { key: 'compensation',         label: 'Compensation',            icon: 'indian-rupee', part: 'hr',        required: true, sensitive: true  },
   { key: 'hr_joining_checklist', label: 'HR Joining Checklist',    icon: 'check-square', part: 'hr',        required: true, sensitive: false },
-  // ── Part 2 · Candidate (self-service portal) ──────────────────────────────
   { key: 'personal_profile',     label: 'Personal Profile',        icon: 'heart',        part: 'candidate', required: true, sensitive: false },
   { key: 'address',              label: 'Address',                 icon: 'map-pin',      part: 'candidate', required: true, sensitive: false },
   { key: 'family_emergency',     label: 'Family & Emergency',      icon: 'users',        part: 'candidate', required: true, sensitive: false },
   { key: 'ids_bank',             label: 'IDs & Bank',              icon: 'credit-card',  part: 'candidate', required: true, sensitive: true  },
   { key: 'experience_education', label: 'Experience & Education',  icon: 'book',         part: 'candidate', required: true, sensitive: false },
-  // ── Finalize ───────────────────────────────────────────────────────────────
   { key: 'review',               label: 'Review & Submit',         icon: 'check-circle', part: 'review',    required: true, sensitive: false },
 ] as const;
 
 export type StepKey = typeof WIZARD_STEPS[number]['key'];
 export type WizardPart = typeof WIZARD_STEPS[number]['part'];
 
-// Step completion weights — two independent pools, each summing to 100
 export const HR_STEP_WEIGHTS: Record<string, number> = {
   role_identity:         25,
   location_attendance:   20,
@@ -56,8 +49,6 @@ export const HOUSE_TYPE           = ['Owned', 'Rented', 'Company Provided', 'PG 
 export const PERM_ADDRESS_TYPE    = ['Same as Present', 'Different', 'Not Applicable'] as const;
 export const FATHER_SALUTATION    = ['Mr.', 'Dr.', 'Late'] as const;
 export const MOTHER_SALUTATION    = ['Mrs.', 'Ms.', 'Dr.', 'Late'] as const;
-// DEPRECATED — father_status column dropped; mother_occupation is now free text.
-// Left exported in case other files still reference these types.
 export const PARENT_STATUS        = ['Working', 'Retired', 'Not Applicable'] as const;
 export const MOTHER_STATUS        = ['Working', 'Retired', 'Not Applicable', 'House Wife'] as const;
 export const SALARY_MODE          = ['Bank Transfer', 'Cash', 'Cheque'] as const;
@@ -68,17 +59,9 @@ export const BLOOD_GROUP          = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+',
 export const MARITAL_STATUS       = ['Unmarried', 'Married', 'Divorced', 'Widow', 'Widower'] as const;
 export const AMDB_PERCENTAGE      = 0.30;
 
-// Location & Attendance — whether this employee is tracked against a fixed
-// shift (via shift_id) or a plain duration requirement.
 export const SHIFT_CATEGORY = ['Shift', 'Duration'] as const;
 export type ShiftCategory = typeof SHIFT_CATEGORY[number];
 
-// ─── Static lookup lists (UNG CollarCheck master data) ───────────────────────
-// working_site/working_city/working_state_country/pay_register_location are
-// now stored as INTEGER dropdown IDs on the backend (was names/strings) — no
-// FK constraint yet since the Master Data tables don't exist. Values below
-// are sequential placeholder IDs matching list position; once real Master
-// Data tables exist, replace with the actual IDs.
 export const DEPARTMENT_OPTIONS = [
   { value: 1,  label: 'Commercial' },
   { value: 2,  label: 'Accounts' },
@@ -216,7 +199,7 @@ export const DESIGNATION_OPTIONS = [
 // (previously free text). Replace with API-driven options once the
 // sub_designations table exists and is populated.
 export const SUB_DESIGNATION_OPTIONS = [
-  { value: '', label: 'Not Applicable' },
+  { value: '1', label: 'Not Applicable' },
 ] as const;
 
 export const WORKING_SITE_OPTIONS = [
@@ -337,16 +320,17 @@ export const REGISTRATION_LOCATION_OPTIONS = [
   { value: 13, label: 'Jharkhand' },
 ] as const;
 
-// Weekly off presets — weekly_off is a free-text lookup column, values match
-// the real product UI exactly (replaces the old, differently-shaped
-// SATURDAY_OFF_OPTIONS list which didn't match what's actually shown).
+// Weekly-off presets — stored as a numeric code (0-5) until a dedicated
+// weekly_off_policies master table exists. Codes are arbitrary IDs, not a
+// day-of-week index; actual off-day calculation happens later off this code.
+// Do not reassign existing codes without a data migration.
 export const WEEKLY_OFF_OPTIONS = [
-  { value: 'All Sundays', label: 'All Sundays' },
-  { value: 'Sunday + 4th Saturday', label: 'Sunday + 4th Saturday' },
-  { value: 'Sunday + 2nd & 4th Saturday', label: 'Sunday + 2nd & 4th Saturday' },
-  { value: '2nd & 4th Sunday', label: '2nd & 4th Sunday' },
-  { value: 'All Saturdays & Sundays', label: 'All Saturdays & Sundays' },
-  { value: 'No Weekly Off', label: 'No Weekly Off' },
+  { value: 1, label: 'All Sundays' },
+  { value: 2, label: 'Sunday + 4th Saturday' },
+  { value: 3, label: 'Sunday + 2nd & 4th Saturday' },
+  { value: 4, label: '2nd & 4th Sunday' },
+  { value: 5, label: 'All Saturdays & Sundays' },
+  { value: 6, label: 'No Weekly Off' },
 ] as const;
 
 // Grace minutes presets — stored as a number, shown as friendly labels

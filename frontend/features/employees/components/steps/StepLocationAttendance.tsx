@@ -15,7 +15,7 @@ export function StepLocationAttendance({ }: Props) {
   const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
 
   return (
-    <FormSection fields={[f('working_state_country'), f('working_city'), f('working_site'), f('pay_register_location'), f('actual_doj'), f('current_doj'), f('weekly_off'), f('shift_id'), f('grace_minutes')]}>
+    <FormSection fields={[f('working_state_country'), f('working_city'), f('working_site'), f('pay_register_location'), f('actual_doj'), f('weekly_off'), f('shift_category'), f('shift_id'), f('grace_minutes')]}>
       <div style={{ display: 'grid', gap: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)', marginTop: -4 }}>Work Location</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -23,6 +23,7 @@ export function StepLocationAttendance({ }: Props) {
             name="working_state_country"
             label="State / Country"
             placeholder='Select'
+            required
             options={[...WORKING_STATE_COUNTRY_OPTIONS]}
             fieldPerm={f('working_state_country')}
           />
@@ -30,6 +31,7 @@ export function StepLocationAttendance({ }: Props) {
             name="working_city"
             label="City"
             placeholder='Select'
+            required
             options={[...WORKING_CITY_OPTIONS]}
             fieldPerm={f('working_city')}
           />
@@ -39,6 +41,7 @@ export function StepLocationAttendance({ }: Props) {
             name="working_site"
             label="Working Site"
             placeholder='Select'
+            required
             options={[...WORKING_SITE_OPTIONS]}
             fieldPerm={f('working_site')}
           />
@@ -46,39 +49,53 @@ export function StepLocationAttendance({ }: Props) {
             name="pay_register_location"
             label="Pay Register Location"
             placeholder='Select'
+            required
             options={[...REGISTRATION_LOCATION_OPTIONS]}
             fieldPerm={f('pay_register_location')}
           />
         </div>
 
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Joining</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <FormDatePicker name="actual_doj" label="Date of Joining" required max={new Date().toISOString().split('T')[0]} fieldPerm={f('actual_doj')} />
-          <FormDatePicker name="current_doj" label="Current Date of Joining" hint="Only if different from Actual DOJ — e.g. after a break in service" max={new Date().toISOString().split('T')[0]} fieldPerm={f('current_doj')} />
-        </div>
+        <FormDatePicker name="actual_doj" label="Date of Joining" required max={new Date().toISOString().split('T')[0]} fieldPerm={f('actual_doj')} />
 
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Shift &amp; Weekly Off</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
           <FormSelect
             name="weekly_off"
             label="Weekly Off"
             placeholder='Select'
+            required
             options={[...WEEKLY_OFF_OPTIONS]}
-            hint="Pick a weekly-off preset (sites can set a default)"
             fieldPerm={f('weekly_off')}
+          />
+          {/* shift_category is now required — no more silent 'Shift' default.
+              TODO: 'Duration' mode still has no dedicated UI yet (start/end time
+              or duration-hours inputs). Confirm spec for Duration mode before
+              users can actually pick it meaningfully. */}
+          <FormSelect
+            name="shift_category"
+            label="Shift Category"
+            placeholder='Select'
+            required
+            options={[
+              { value: 'Shift', label: 'Shift' },
+              { value: 'Duration', label: 'Duration' },
+            ]}
+            fieldPerm={f('shift_category')}
           />
           <FormSelect
             name="shift_id"
             label="Working Shift"
             placeholder={shiftsLoading ? 'Loading shifts…' : 'Select'}
+            required
             options={shiftOptions}
-            hint="Times fill automatically from the selected shift"
             fieldPerm={f('shift_id')}
           />
           <FormSelect
             name="grace_minutes"
             label="Grace Minutes"
             placeholder='Select'
+            required
             options={[...GRACE_MINUTES_OPTIONS]}
             fieldPerm={f('grace_minutes')}
           />

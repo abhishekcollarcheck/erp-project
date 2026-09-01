@@ -47,7 +47,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
 
   const sidRef        = useRef(getOrCreateSid());
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
-  const pendingAvatarRef = useRef<File | null>(null); // profile photo picked before the employee exists yet (create mode, step 1)
+  const pendingAvatarRef = useRef<File | null>(null);
 
   const [currentIdx,   setCurrentIdx]   = useState(0);
   const [savedId,      setSavedId]      = useState<number | null>(employee?.id ?? null);
@@ -153,7 +153,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       on_probation: cp.on_probation ?? false, probation_period: cp.probation_period ?? '',
       probation_end_date: cp.probation_end_date ?? null,
       probation_extended_period: cp.probation_extended_period ?? '',
-      confirmation_status: (cp.confirmation_status as any) ?? undefined, confirmed_on: cp.confirmed_on ?? '',
+      confirmation_status: (cp.confirmation_status as any) ?? null, confirmed_on: cp.confirmed_on ?? '',
 
       // ── Statutory Schemes ────────────────────────────────────────────────
       pf_status: sch.pf_status ?? false, uan_number: sch.uan_number ?? '',
@@ -277,7 +277,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   //   return () => { sub.unsubscribe(); clearTimeout(autoSaveTimer.current); };
   // }, [methods, savedId]); // eslint-disable-line
 
-  const triggerAutoSave = useCallback(() => {
+  const triggerAutoSave = useCallback((manual = false) => {
     if (!step) return;
     setDraftSaving(true);
     draftMutation.mutate({ employee_id: savedId, step: step.key, form_data: methods.getValues(), session_id: sidRef.current },
@@ -285,6 +285,9 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         onSuccess: (res: any) => {
           const newId = res?.data?.employeeId;
           if (newId && !savedId) setSavedId(newId); // draft silently created the employee — pick up the id
+          if (manual && !res?.data?.persisted && res?.data?.reason) {
+            showToast(res.data.reason);
+          }
         },
         onSettled: () => { setDraftSaving(false); setDraftSavedAt(new Date()); },
       });
@@ -312,7 +315,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     const n = (x: any) => (x === '' || x === undefined || x === null) ? null : Number(x);
     switch (key) {
       case 'role_identity':
-        return { first_name: v.first_name?.trim(), middle_name: c(v.middle_name), last_name: v.last_name?.trim(), status: v.status, employment_type: v.employment_type, department_id: n(v.department_id), sub_department_id: n(v.sub_department_id), designation_id: n(v.designation_id), sub_designation_id: n(v.sub_designation_id), email: v.email?.toLowerCase().trim() ?? null, phone: v.phone?.trim() ?? null };
+        return { company_id: n(v.company_id), first_name: v.first_name?.trim(), middle_name: c(v.middle_name), last_name: v.last_name?.trim(), status: v.status, employment_type: v.employment_type, department_id: n(v.department_id), sub_department_id: n(v.sub_department_id), designation_id: n(v.designation_id), sub_designation_id: n(v.sub_designation_id), email: v.email?.toLowerCase().trim() ?? null, phone: v.phone?.trim() ?? null };
 
       case 'location_attendance':
         return { working_state_country: n(v.working_state_country), working_city: n(v.working_city), working_site: n(v.working_site), pay_register_location: n(v.pay_register_location), actual_doj: c(v.actual_doj), current_doj: c((v as any).current_doj), weekly_off: c(v.weekly_off), shift_category: c((v as any).shift_category), shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) };
@@ -381,6 +384,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         pendingAvatarRef.current = null;
       }
     } else if (savedId && step.key !== 'review') {
+      console.log('Updating employee with payload:', buildPayload(step.key));
       await updateMutation.mutateAsync({ step: step.key as StepSchemaKey, data: buildPayload(step.key) });
     }
     setCompletedSet(prev => new Set([...prev, currentIdx]));
@@ -497,7 +501,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
             <button type="button" className="btn btn-sec" disabled={isFirst || isSaving} onClick={() => setCurrentIdx(p => p - 1)}>← Back</button>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="btn btn-sec btn-sm" onClick={triggerAutoSave} disabled={draftSaving || !isDirty} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>
+              <button type="button" className="btn btn-sec btn-sm" onClick={() => triggerAutoSave(true)} disabled={draftSaving || !isDirty} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>
               {!isLast
                 ? <button type="button" className="btn btn-pri" onClick={handleNext} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save & Continue →'}</button>
                 : <button type="button" className="btn btn-pri" onClick={handleSubmit} disabled={isSaving || !savedId} style={{ background: 'var(--green)', minWidth: 155 }}>{isSaving ? 'Submitting…' : mode === 'edit' ? '✓ Update Employee' : '✓ Create Employee'}</button>}

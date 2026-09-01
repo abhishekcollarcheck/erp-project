@@ -31,8 +31,7 @@ interface Props {
   placeholder?: string;
   hint?:        string;
   fieldPerm?:   FieldPerm;
-  clearable?:   boolean;  // show ✕ when a value is selected (default false when required, true otherwise)
-  /** Suppress the right-click menu when copying is blocked. Default: true. */
+  clearable?:   boolean;  
   blockContextMenu?: boolean;
   onChange?:    (value: string) => void;
   /** Fired on a blocked copy/cut/drag attempt. Useful for audit logging. */
@@ -118,7 +117,6 @@ export function FormSelect({
         const errorId   = `${name}-error`;
         const noticeId  = `${name}-copy-notice`;
         const selected  = flat.find(o => String(o.value) === String(field.value ?? '')) ?? null;
-
         return (
           <div className={['form-field fg', error ? 'err' : '', required ? 'req' : ''].filter(Boolean).join(' ')}>
             <label htmlFor={`${name}-input`} className="field-label">
@@ -173,7 +171,7 @@ export function FormSelect({
                 Copying is disabled for this field.
               </p>
             )}
-            {error           && <p id={errorId} className="err" role="alert">{error}</p>}
+            {error && <p id={errorId} className="err" role="alert">{error}</p>}
           </div>
         );
       }}

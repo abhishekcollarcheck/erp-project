@@ -523,7 +523,6 @@ export class EmployeeService {
   }
 
   async saveDraft(data: { employeeId?: number | null; companyId: number; actorId: number; step: string; formData: any; sessionId: string }) {
-    console.log("data", data)
     const { employeeId, companyId, actorId, step, formData, sessionId } = data;
 
     await repo.upsertDraft({ employeeId, createdBy: actorId, step, formData, sessionId });
@@ -533,7 +532,17 @@ export class EmployeeService {
     const email = String(formData.email || '').trim();
 
     if (!employeeId && (!firstName || !phone || !email)) {
-      return { employeeId: null, persisted: false };
+      const missing: string[] = [];
+      if (!firstName) missing.push('First Name');
+      if (!phone) missing.push('Personal Mobile Number');
+      if (!email) missing.push('Personal Email');
+      // employees.email / employees.phone are NOT NULL — a brand-new draft
+      // can't be persisted to the employees table until all three are
+      // filled. The draft data is still saved to employee_drafts above
+      // regardless, so nothing typed is lost — this row just isn't visible
+      // in the Employee List yet. Told the caller *why*, not just that it
+      // didn't happen, so this doesn't look like a silent failure.
+      return { employeeId: null, persisted: false, reason: `Fill in ${missing.join(', ')} to save this as a draft employee` };
     }
     if (!firstName) {
       return { employeeId: employeeId ?? null, persisted: false };
@@ -556,7 +565,6 @@ export class EmployeeService {
         phone: phone ? normalizePhone(phone) : null,
       };
 
-      console.log("roleIdentityFields", roleIdentityFields)
       if (!id) {
         const emp = await repo.create({
           ...roleIdentityFields,
@@ -571,7 +579,6 @@ export class EmployeeService {
           created_by: actorId,
         }, t);
         id = emp.id;
-        console.log("emp-created", emp)
         await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_DRAFT_CREATED', module: 'employees', entityId: id, newValues: { name: `${firstName} ${roleIdentityFields.last_name}` } });
       } else {
         const partial: any = {};

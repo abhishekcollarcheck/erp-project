@@ -156,7 +156,7 @@ export function FormInput({
               data-nocopy={noCopy || undefined}
               value={displayValue ?? field.value ?? ''}
               className={[
-                'form-input capitalize',
+                'form-input',
                 isReadOnly ? 'readonly' : '',
                 isMasked ? 'masked' : '',
                 noCopy ? 'nocopy' : '',

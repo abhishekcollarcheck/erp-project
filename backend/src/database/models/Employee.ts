@@ -11,13 +11,13 @@ interface EmployeeAttrs {
   first_name:             string;
   middle_name?:           string | null;
   last_name:              string;
-  company_id:             number | null;
+  company_id:             number;
   employment_type:        'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
-  department_id:          number | null;
-  sub_department_id:      number | null;
-  designation_id:         number | null;
-  sub_designation_id:     number | null;
-  email:                  string;
+  department_id:          number;
+  sub_department_id:      number;
+  designation_id:         number;
+  sub_designation_id:     number;
+  email:                  string | null;
   phone:                  string;
   form_completion_pct:    number;
 
@@ -37,7 +37,7 @@ interface EmployeeAttrs {
   deleted_by?:            number | null;
   created_at?:            Date;
   updated_at?:            Date;
-  deleted_at?:             Date | null;
+  deleted_at?:            Date | null;
 }
 
 type EmployeeCreation = Optional<EmployeeAttrs,
@@ -60,13 +60,13 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
   public first_name!:            string;
   public middle_name!:           string | null;
   public last_name!:             string;
-  public company_id!:            number | null;
+  public company_id!:            number;
   public employment_type!:       'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
-  public department_id!:         number | null;
-  public sub_department_id!:     number | null;
-  public designation_id!:        number | null;
-  public sub_designation_id!:    number | null;
-  public email!:                 string;
+  public department_id!:         number;
+  public sub_department_id!:     number;
+  public designation_id!:        number;
+  public sub_designation_id!:    number;
+  public email!:                 string | null;
   public phone!:                 string;
   public form_completion_pct!:   number;
   public portal_access!:         boolean;
@@ -126,13 +126,13 @@ Employee.init({
   first_name:             { type: DataTypes.STRING(100), allowNull: false },
   middle_name:            { type: DataTypes.STRING(100), allowNull: true },
   last_name:              { type: DataTypes.STRING(100), allowNull: false },
-  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'companies', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
+  company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'companies', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
   employment_type:        { type: DataTypes.ENUM('Permanent', 'Contract', 'Intern', 'Consultant', 'Probation'), defaultValue: 'Permanent' },
-  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
-  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'sub_departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
-  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'designations', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
-  sub_designation_id:     { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'sub_designations', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
-  email:                  { type: DataTypes.STRING(255), allowNull: false },
+  department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'sub_departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+  designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'designations', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+  sub_designation_id:     { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'sub_designations', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+  email:                  { type: DataTypes.STRING(255), allowNull: true },
   phone:                  { type: DataTypes.STRING(20), allowNull: false },
   form_completion_pct:    { type: DataTypes.TINYINT.UNSIGNED, defaultValue: 0 },
   portal_access:          { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -165,29 +165,29 @@ Employee.init({
 
 export class EmployeeLocationAttendance extends Model {
   public employee_id!:           number;
-  public working_state_country!: number | null;
-  public working_city!:          number | null;
-  public working_site!:          number | null;
-  public pay_register_location!: number | null;
-  public actual_doj!:            Date | null;
+  public working_state_country!: number;
+  public working_city!:          number;
+  public working_site!:          number;
+  public pay_register_location!: number;
+  public actual_doj!:            Date;
   public current_doj!:           Date | null;
-  public weekly_off!:            string | null;
-  public shift_category!:        'Shift' | 'Duration' | null;
-  public shift_id!:              number | null;
+  public weekly_off!:            number;
+  public shift_category!:        'Shift' | 'Duration';
+  public shift_id!:              number;
   public grace_minutes!:         number;
 }
 EmployeeLocationAttendance.init({
   employee_id:            { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, references: { model: 'employees', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE' },
-  working_state_country:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  working_city:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  working_site:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  pay_register_location:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  actual_doj:             { type: DataTypes.DATEONLY, allowNull: true },
+  working_state_country:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  working_city:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  working_site:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  pay_register_location:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  actual_doj:             { type: DataTypes.DATEONLY, allowNull: false },
   current_doj:            { type: DataTypes.DATEONLY, allowNull: true },
-  weekly_off:             { type: DataTypes.STRING(200), allowNull: true },
-  shift_category:         { type: DataTypes.ENUM('Shift', 'Duration'), allowNull: true },
-  shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'shift', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL' },
-  grace_minutes:          { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false },
+  weekly_off:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  shift_category:         { type: DataTypes.ENUM('Shift', 'Duration'), allowNull: false },
+  shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'shift', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+  grace_minutes:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
 }, { sequelize, tableName: 'employee_location_attendance', modelName: 'EmployeeLocationAttendance', timestamps: true });
 
 export class EmployeeManagersWorkContact extends Model {
@@ -211,16 +211,13 @@ EmployeeManagersWorkContact.init({
 export class EmployeeCommitmentProbation extends Model {
   public employee_id!:               number;
   public commitment!:                boolean;
-  public commitment_term!:           string | null;
+  public commitment_term!:           number | null;
   public commitment_entered_on!:     Date | null;
   public commitment_end_date!:       Date | null;
-  public commitment_status!:         string | null;
   public on_probation!:              boolean;
   public probation_period!:          string | null;
   public probation_end_date!:        Date | null;
-  public probation_status!:          string | null;
   public probation_extended_period!: string | null;
-  public probation_final_status!:    string | null;
   public confirmation_status!:       'Confirmed' | 'Failed' | 'Not Applicable' | null;
   public confirmed_on!:              Date | null;
 }
@@ -230,13 +227,10 @@ EmployeeCommitmentProbation.init({
   commitment_term:           { type: DataTypes.ENUM('36 Months', '60 Months', 'N/A'), allowNull: true },
   commitment_entered_on:     { type: DataTypes.DATEONLY, allowNull: true },
   commitment_end_date:       { type: DataTypes.DATEONLY, allowNull: true },
-  commitment_status:         { type: DataTypes.STRING(50), allowNull: true },
   on_probation:              { type: DataTypes.BOOLEAN, defaultValue: true },
   probation_period:          { type: DataTypes.STRING(30), allowNull: true },
   probation_end_date:        { type: DataTypes.DATEONLY, allowNull: true },
-  probation_status:          { type: DataTypes.STRING(50), allowNull: true },
   probation_extended_period: { type: DataTypes.STRING(50), allowNull: true },
-  probation_final_status:    { type: DataTypes.STRING(50), allowNull: true },
   confirmation_status:       { type: DataTypes.ENUM('Confirmed', 'Failed', 'Not Applicable'), allowNull: true },
   confirmed_on:              { type: DataTypes.DATEONLY, allowNull: true },
 }, { sequelize, tableName: 'employee_commitment_probation', modelName: 'EmployeeCommitmentProbation', timestamps: true });

@@ -267,7 +267,7 @@ export default function EmployeesPage() {
           total={data?.meta?.total}
           limit={20}
           onPageChange={setPage}
-          onRowClick={row => router.push(`/employees/${row.id}`)}
+          // onRowClick={row => router.push(`/employees/${row.id}`)}
           emptyText="No employees found. Add your first employee to get started."
         />
       </div>

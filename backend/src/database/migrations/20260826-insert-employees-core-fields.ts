@@ -61,9 +61,10 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'text',     label: 'Pay Register Location', field_key: 'pay_register_location', section: 'Employment Details' },
   { field_type: 'date',     label: 'Actual Date of Joining', field_key: 'actual_doj',          section: 'Employment Details' },
   { field_type: 'date',     label: 'Current Date of Joining', field_key: 'current_doj',        section: 'Employment Details' },
-  { field_type: 'text',     label: 'Weekly Off',           field_key: 'weekly_off',            section: 'Employment Details' },
+  { field_type: 'select',   label: 'Weekly Off',           field_key: 'weekly_off',            section: 'Employment Details' },
+  { field_type: 'select',   label: 'Shift Category',       field_key: 'shift_category',        section: 'Employment Details' },
   { field_type: 'select',   label: 'Shift',                field_key: 'shift_id',              section: 'Employment Details' },
-  { field_type: 'number',   label: 'Grace Minutes',        field_key: 'grace_minutes',         section: 'Employment Details' },
+  { field_type: 'select',   label: 'Grace Minutes',        field_key: 'grace_minutes',         section: 'Employment Details' },
 
   // ── Managers & Work Contact ──────────────────────────────────────
   { field_type: 'select',   label: 'L1 Manager',           field_key: 'l1_manager_id',         section: 'Reporting & Contact' },

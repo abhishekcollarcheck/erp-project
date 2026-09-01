@@ -41,34 +41,51 @@ export const roleIdentityValidation: ValidationChain[] = [
   body('status').isIn(EMPLOYEE_STATUS).withMessage('Invalid status'),
   body('employment_type').isIn(EMPLOYMENT_TYPE).withMessage('Invalid employment type'),
   body('department_id').isInt({ min: 1 }).withMessage('Department is required'),
-  opt(body('sub_department_id').isInt({ min: 1 })),
+  body('sub_department_id').isInt({ min: 1 }).withMessage('Sub-department is required'),
   body('designation_id').isInt({ min: 1 }).withMessage('Designation is required'),
-  opt(body('sub_designation_id').isInt({ min: 1 })),
-  // "Personal Email" / "Personal Mobile Number" — these ARE employees.email/phone
-  body('email').isEmail().withMessage('Personal email is required'),
-  body('phone').notEmpty().matches(/^[+\d\s\-()]{7,20}$/).withMessage('Personal mobile number is required'),
+  body('sub_designation_id').isInt({ min: 1 }).withMessage('Sub-designation is required'),
+  opt(
+  body('email')
+    .isEmail()
+    .withMessage('Invalid email format')
+    .isLength({ max: 255 })
+    .withMessage('Email must not exceed 255 characters')
+),
+  body('phone')
+  .trim()
+  .notEmpty()
+  .withMessage('Personal mobile number is required')
+  .matches(/^[+\d\s\-()]{7,20}$/)
+  .withMessage('Invalid phone number'),
 ];
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
-// Only Date of Joining carries a * in the UI — everything else here is optional.
-// working_state_country/working_city/working_site/pay_register_location now
-// store dropdown IDs (INTEGER), not names — validated as integers, not strings.
-// shift_category added (Shift/Duration discriminator); shift_start/shift_end/
-// shift_duration removed (no longer exist on the schema).
 export const locationAttendanceValidation: ValidationChain[] = [
-  opt(body('working_state_country').isInt({ min: 1 })),
-  opt(body('working_city').isInt({ min: 1 })),
-  opt(body('working_site').isInt({ min: 1 })),
-  opt(body('pay_register_location').isInt({ min: 1 })),
-  body('actual_doj').notEmpty().withMessage('Date of Joining is required'),
-  opt(body('weekly_off').trim().isLength({ max: 200 })),
-  opt(body('shift_category').isIn(SHIFT_CATEGORY)),
-  opt(body('shift_id').isInt({ min: 1 })),
-  opt(body('grace_minutes').isInt({ min: 0, max: 120 })),
+  body('working_state_country').isInt({ min: 1 }).withMessage('Working state/country is required'),
+  body('working_city').isInt({ min: 1 }).withMessage('Working city is required'),
+  body('working_site').isInt({ min: 1 }).withMessage('Working site is required'),
+  body('pay_register_location').isInt({ min: 1 }).withMessage('Pay register location is required'),
+  body('actual_doj')
+    .matches(/^\d{4}-\d{2}-\d{2}$/)
+    .withMessage('Date of Joining must be in YYYY-MM-DD format')
+    .isISO8601({ strict: true })
+    .withMessage('Invalid Date of Joining'),
+  opt(
+    body('current_doj')
+      .isISO8601({ strict: true })
+      .withMessage('Invalid Current Date of Joining')
+  ),
+  body('weekly_off')
+    .isInt({ min: 1 })
+    .withMessage('Weekly off is required'),
+  opt(
+    body('shift_category').isIn(SHIFT_CATEGORY).withMessage('Shift category is required')
+  ),
+  body('shift_id').isInt({ min: 1 }).withMessage('Shift is required'),
+  body('grace_minutes').isInt({ min: 1 }).withMessage('Grace minutes is required'),
 ];
 
 // ─── Step 3 (HR): Managers & Work Contact ─────────────────────────────────────
-// Nothing carries a * in the UI — fully optional.
 export const managersWorkContactValidation: ValidationChain[] = [
   opt(body('l1_manager_id').isInt({ min: 1 })),
   opt(body('l2_manager_id').isInt({ min: 1 })),
@@ -77,23 +94,63 @@ export const managersWorkContactValidation: ValidationChain[] = [
 ];
 
 // ─── Step 4 (HR): Commitment & Probation ──────────────────────────────────────
-// Nothing carries a * in the UI. commitment/on_probation stay boolean per the
-// confirmed schema decision — the UI's Yes/No/Not Applicable dropdown needs to
-// map to true/false/null on submit, that's a frontend-layer concern, not this file.
 export const commitmentProbationValidation: ValidationChain[] = [
-  opt(body('commitment').isBoolean()),
-  opt(body('commitment_term').isIn(COMMITMENT_TERM)),
-  optDate('commitment_entered_on'),
-  opt(body('on_probation').isBoolean()),
-  opt(body('probation_period').trim().isLength({ max: 30 })),
-  opt(body('probation_extended_period').trim().isLength({ max: 50 })),
-  opt(body('confirmation_status').isIn(CONFIRMATION_STATUS)),
+
+  body('commitment')
+    .optional()
+    .isBoolean()
+    .withMessage('Invalid commitment value'),
+
+  body('commitment_term')
+    .if(body('commitment').equals('true'))
+    .notEmpty()
+    .withMessage('Commitment term is required')
+    .isIn(COMMITMENT_TERM)
+    .withMessage('Invalid commitment term'),
+
+  body('commitment_entered_on')
+    .if(body('commitment').equals('true'))
+    .notEmpty()
+    .withMessage('Commitment entered date is required'),
+
+  body('commitment_end_date')
+    .if(body('commitment').equals('true'))
+    .notEmpty()
+    .withMessage('Commitment end date is required'),
+
+  body('on_probation')
+    .optional()
+    .isBoolean()
+    .withMessage('Invalid probation value'),
+
+  body('probation_period')
+    .if(body('on_probation').equals('true'))
+    .trim()
+    .notEmpty()
+    .withMessage('Probation period is required')
+    .isLength({ max: 30 })
+    .withMessage('Probation period cannot exceed 30 characters'),
+
+  body('probation_end_date')
+    .if(body('on_probation').equals('true'))
+    .notEmpty()
+    .withMessage('Probation end date is required'),
+
+  body('probation_extended_period')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Probation extended period cannot exceed 50 characters'),
+
+  body('confirmation_status')
+    .optional()
+    .isIn(CONFIRMATION_STATUS)
+    .withMessage('Invalid confirmation status'),
+
   optDate('confirmed_on'),
 ];
 
 // ─── Step 5 (HR): Statutory Schemes ────────────────────────────────────────────
-// Nothing carries a * in the UI. esi_employee_pct/esi_employer_pct confirmed
-// missing, now added.
 export const statutorySchemesValidation: ValidationChain[] = [
   opt(body('pf_status').isBoolean()),
   opt(body('uan_number').trim().matches(/^\d{12}$/).withMessage('UAN must be 12 digits')),

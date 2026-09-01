@@ -16,8 +16,6 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
   const { setValue, watch } = useFormContext();
   const { company } = useCompany();
 
-  // employee_code stays null/pending until both the HR and Candidate parts
-  // reach 100% completion — shown here read-only.
   const employeeCode = watch('employee_code');
 
   useEffect(() => {
@@ -110,6 +108,7 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
         <FormSelect
           name="sub_department_id"
           label="Sub Department"
+          required
           placeholder='Select'
           options={[...SUB_DEPARTMENT_OPTIONS]}
           fieldPerm={f('sub_department_id')}
@@ -128,6 +127,7 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
         <FormSelect
           name="sub_designation_id"
           label="Sub Designation"
+          required
           placeholder='Select'
           options={[...SUB_DESIGNATION_OPTIONS]}
           fieldPerm={f('sub_designation_id')}
@@ -135,7 +135,7 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <FormInput name="email" label="Personal Email" type="email" required
+        <FormInput name="email" label="Personal Email" type="email"
           placeholder="name@email.com" fieldPerm={f('email')} />
         <FormInput name="phone" label="Personal Mobile Number" type="tel" required
           placeholder="+91-9876543210" fieldPerm={f('phone')} />

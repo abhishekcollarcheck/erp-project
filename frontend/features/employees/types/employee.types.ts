@@ -15,7 +15,7 @@ export type ConfirmationStatus  = 'Confirmed' | 'Failed' | 'Not Applicable';
 // ─── Core employee (list + card view) ────────────────────────────────────────
 export interface Employee {
   id:                     number;
-  employee_code:          string | null;   // null/pending until HR+Candidate parts both reach 100%
+  employee_code:          string | null;   
   reference_code:         string | null;   // tracking-only — traces this employee back to the Candidate record it was created from
   company_id:             number | null;
   first_name:             string;

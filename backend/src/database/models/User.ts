@@ -47,7 +47,7 @@ User.init({
   id:             { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   company_id:     { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   employee_id:    { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  email:          { type: DataTypes.STRING(255), allowNull: false, unique: true, validate: { isEmail: true } },
+  email:          { type: DataTypes.STRING(255), allowNull: false, validate: { isEmail: true } },
   password_hash:  { type: DataTypes.STRING(255), allowNull: false },
   role_id:        { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   is_super_admin: { type: DataTypes.BOOLEAN, defaultValue: false },
