@@ -41,16 +41,10 @@ export const roleIdentityValidation: ValidationChain[] = [
   body('status').isIn(EMPLOYEE_STATUS).withMessage('Invalid status'),
   body('employment_type').isIn(EMPLOYMENT_TYPE).withMessage('Invalid employment type'),
   body('department_id').isInt({ min: 1 }).withMessage('Department is required'),
-  body('sub_department_id').isInt({ min: 1 }).withMessage('Sub-department is required'),
+  opt(body('sub_department_id').isInt({ min: 1 }).withMessage('Sub-department is required')),
   body('designation_id').isInt({ min: 1 }).withMessage('Designation is required'),
-  body('sub_designation_id').isInt({ min: 1 }).withMessage('Sub-designation is required'),
-  opt(
-  body('email')
-    .isEmail()
-    .withMessage('Invalid email format')
-    .isLength({ max: 255 })
-    .withMessage('Email must not exceed 255 characters')
-),
+  opt(body('sub_designation_id').isInt({ min: 1 }).withMessage('Sub-designation is required')),
+  body('email').isEmail().withMessage('Invalid email format').isLength({ max: 255 }).withMessage('Email must not exceed 255 characters'),
   body('phone')
   .trim()
   .notEmpty()
@@ -61,28 +55,15 @@ export const roleIdentityValidation: ValidationChain[] = [
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
 export const locationAttendanceValidation: ValidationChain[] = [
-  body('working_state_country').isInt({ min: 1 }).withMessage('Working state/country is required'),
-  body('working_city').isInt({ min: 1 }).withMessage('Working city is required'),
-  body('working_site').isInt({ min: 1 }).withMessage('Working site is required'),
-  body('pay_register_location').isInt({ min: 1 }).withMessage('Pay register location is required'),
-  body('actual_doj')
-    .matches(/^\d{4}-\d{2}-\d{2}$/)
-    .withMessage('Date of Joining must be in YYYY-MM-DD format')
-    .isISO8601({ strict: true })
-    .withMessage('Invalid Date of Joining'),
-  opt(
-    body('current_doj')
-      .isISO8601({ strict: true })
-      .withMessage('Invalid Current Date of Joining')
-  ),
-  body('weekly_off')
-    .isInt({ min: 1 })
-    .withMessage('Weekly off is required'),
-  opt(
-    body('shift_category').isIn(SHIFT_CATEGORY).withMessage('Shift category is required')
-  ),
-  body('shift_id').isInt({ min: 1 }).withMessage('Shift is required'),
-  body('grace_minutes').isInt({ min: 1 }).withMessage('Grace minutes is required'),
+  opt(body('working_state_country').isInt({ min: 1 })),
+  opt(body('working_city').isInt({ min: 1 })),
+  opt(body('working_site').isInt({ min: 1 })),
+  opt(body('pay_register_location').isInt({ min: 1 })),
+  body('actual_doj').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date of Joining must be in YYYY-MM-DD format').isISO8601({ strict: true }).withMessage('Invalid Date of Joining'),
+  opt(body('weekly_off').isInt({ min: 1 })),
+  opt(body('shift_category').isIn(SHIFT_CATEGORY)),
+  opt(body('shift_id').isInt({ min: 1 })),
+  opt(body('grace_minutes').isInt({ min: 1 })),
 ];
 
 // ─── Step 3 (HR): Managers & Work Contact ─────────────────────────────────────

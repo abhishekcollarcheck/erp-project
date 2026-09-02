@@ -4,7 +4,7 @@ import { z } from 'zod';
 const optStr = z.string().optional().or(z.literal('')).nullable();
 const optDate = z.string().optional().or(z.literal('')).nullable();
 const reqStr = (msg: string) => z.string({ required_error: msg }).min(1, msg).trim();
-const yesNo = z.boolean().optional().nullable();   // UI's Yes/No/NA dropdowns need mapping to true/false/null before submit
+const yesNo = z.boolean().optional().nullable();  
 const optNum = z.number({ coerce: true }).nonnegative().optional().nullable();
 const optInt = z.union([z.number({ coerce: true }).int().min(1), z.literal(''), z.null(), z.undefined()]).optional();
 const reqInt = (msg: string) => z.union([
@@ -13,8 +13,6 @@ const reqInt = (msg: string) => z.union([
   z.null(),
   z.undefined(),
 ]).refine(v => v !== '' && v !== null && v !== undefined && Number(v) >= 1, { message: msg });
-// Same as reqInt but also enforces an upper bound — for small fixed-range
-// preset codes (e.g. weekly_off's 1-6 policy codes) rather than open-ended FKs.
 const reqIntRange = (msg: string, max: number) => z.union([
   z.number({ coerce: true, invalid_type_error: msg }).int().min(1, msg).max(max, msg),
   z.literal(''),
@@ -33,30 +31,26 @@ export const roleIdentitySchema = z.object({
   status: z.enum(['Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive']).default('Active'),
   employment_type: z.enum(['Permanent', 'Contract', 'Intern', 'Consultant', 'Probation']).default('Permanent'),
   department_id: reqInt('Department is required'),
-  sub_department_id: reqInt('Sub-department is required'),
+  sub_department_id: optStr,
   designation_id: reqInt('Designation is required'),
-  sub_designation_id: reqInt('Sub-designation is required'),
-  email: z.string().email('Valid email is required').toLowerCase().trim().optional().or(z.literal('')).nullable(),
+  sub_designation_id: optStr,
+  email: z.string().email('Valid email is required').toLowerCase().trim(),
   phone: reqStr('Personal mobile number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
 });
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
 export const locationAttendanceSchema = z.object({
-  working_state_country: reqInt('Working state/country is required'),
-  working_city: reqInt('Working city is required'),
-  working_site: reqInt('Working site is required'),
-  pay_register_location: reqInt('Pay register location is required'),
+  working_state_country: optStr,
+  working_city: optStr,
+  working_site: optStr,
+  pay_register_location: optStr,
   actual_doj: reqStr('Date of Joining is required')
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of Joining must be in YYYY-MM-DD format')
     .refine((v) => !Number.isNaN(new Date(v).getTime()), 'Invalid Date of Joining'),
-  current_doj: optDate,
-  weekly_off: reqIntRange('Invalid weekly-off selection', 6),
-  shift_category: z.enum(['Shift', 'Duration'], {
-    required_error: 'Shift category is required',
-    invalid_type_error: 'Shift category is required',
-  }),
-  shift_id: reqInt('Shift is required'),
-  grace_minutes: reqInt('Grace minutes is required'),
+  weekly_off: optInt,
+  shift_category: z.enum(['Shift', 'Duration']),
+  shift_id: optInt,
+  grace_minutes: optInt,
 });
 
 // ─── Step 3 (HR): Managers & Work Contact ─────────────────────────────────────
@@ -427,28 +421,24 @@ export const fullEmployeeSchema = z.object({
   status: z.enum(['Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive']).default('Active'),
   employment_type: z.enum(['Permanent', 'Contract', 'Intern', 'Consultant', 'Probation']).default('Permanent'),
   department_id: reqInt('Department is required'),
-  sub_department_id: reqInt('Sub-department is required'),
+  sub_department_id: optStr,
   designation_id: reqInt('Designation is required'),
-  sub_designation_id: reqInt('Sub-designation is required'),
-  email: z.string().email('Valid email is required').toLowerCase().trim().optional().or(z.literal('')).nullable(),
+  sub_designation_id: optStr,
+  email: z.string().email('Valid email is required').toLowerCase().trim(),
   phone: reqStr('Personal mobile number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
 
   // ── Location & Attendance ────────────────────────────────────────────────
-  working_state_country: reqInt('Working state/country is required'),
-  working_city: reqInt('Working city is required'),
-  working_site: reqInt('Working site is required'),
-  pay_register_location: reqInt('Pay register location is required'),
+  working_state_country: optStr,
+  working_city: optStr,
+  working_site: optStr,
+  pay_register_location: optStr,
   actual_doj: reqStr('Date of Joining is required')
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of Joining must be in YYYY-MM-DD format')
     .refine((v) => !Number.isNaN(new Date(v).getTime()), 'Invalid Date of Joining'),
-  current_doj: optDate,
-  weekly_off: reqIntRange('Invalid weekly-off selection', 6),
-  shift_category: z.enum(['Shift', 'Duration'], {
-    required_error: 'Shift category is required',
-    invalid_type_error: 'Shift category is required',
-  }),
-  shift_id: reqInt('Shift is required'),
-  grace_minutes: reqInt('Grace minutes is required'),
+  weekly_off: optInt,
+  shift_category: z.enum(['Shift', 'Duration']),
+  shift_id: optInt,
+  grace_minutes: optInt,
 
   // ── Managers & Work Contact ──────────────────────────────────────────────
   l1_manager_id: z.union([z.number().int().positive(), z.null(), z.undefined()]).optional(),

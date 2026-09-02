@@ -23,7 +23,6 @@ export function StepLocationAttendance({ }: Props) {
             name="working_state_country"
             label="State / Country"
             placeholder='Select'
-            required
             options={[...WORKING_STATE_COUNTRY_OPTIONS]}
             fieldPerm={f('working_state_country')}
           />
@@ -31,7 +30,6 @@ export function StepLocationAttendance({ }: Props) {
             name="working_city"
             label="City"
             placeholder='Select'
-            required
             options={[...WORKING_CITY_OPTIONS]}
             fieldPerm={f('working_city')}
           />
@@ -41,7 +39,6 @@ export function StepLocationAttendance({ }: Props) {
             name="working_site"
             label="Working Site"
             placeholder='Select'
-            required
             options={[...WORKING_SITE_OPTIONS]}
             fieldPerm={f('working_site')}
           />
@@ -49,7 +46,6 @@ export function StepLocationAttendance({ }: Props) {
             name="pay_register_location"
             label="Pay Register Location"
             placeholder='Select'
-            required
             options={[...REGISTRATION_LOCATION_OPTIONS]}
             fieldPerm={f('pay_register_location')}
           />
@@ -64,19 +60,13 @@ export function StepLocationAttendance({ }: Props) {
             name="weekly_off"
             label="Weekly Off"
             placeholder='Select'
-            required
             options={[...WEEKLY_OFF_OPTIONS]}
             fieldPerm={f('weekly_off')}
           />
-          {/* shift_category is now required — no more silent 'Shift' default.
-              TODO: 'Duration' mode still has no dedicated UI yet (start/end time
-              or duration-hours inputs). Confirm spec for Duration mode before
-              users can actually pick it meaningfully. */}
           <FormSelect
             name="shift_category"
             label="Shift Category"
             placeholder='Select'
-            required
             options={[
               { value: 'Shift', label: 'Shift' },
               { value: 'Duration', label: 'Duration' },
@@ -87,7 +77,6 @@ export function StepLocationAttendance({ }: Props) {
             name="shift_id"
             label="Working Shift"
             placeholder={shiftsLoading ? 'Loading shifts…' : 'Select'}
-            required
             options={shiftOptions}
             fieldPerm={f('shift_id')}
           />
@@ -95,7 +84,6 @@ export function StepLocationAttendance({ }: Props) {
             name="grace_minutes"
             label="Grace Minutes"
             placeholder='Select'
-            required
             options={[...GRACE_MINUTES_OPTIONS]}
             fieldPerm={f('grace_minutes')}
           />

@@ -39,26 +39,25 @@ export interface RoleIdentityDto {
   last_name:        string;
   status:           EmployeeStatus;
   employment_type:  EmploymentType;
-  email:            string | null;  
+  email:            string;  
   phone:            string; 
   department_id:    number;
-  sub_department_id?: number;
+  sub_department_id?: number | null;
   designation_id:   number;
-  sub_designation_id?: number;
+  sub_designation_id?: number | null;
 }
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
 export interface LocationAttendanceDto {
-  working_state_country:    number;
-  working_city:             number;
-  working_site:             number;
-  pay_register_location:    number;
+  working_state_country:    number | null;
+  working_city:             number | null;
+  working_site:             number | null;
+  pay_register_location:    number | null;
   actual_doj:               string;
-  current_doj?:             string | null;
-  weekly_off:               number;
+  weekly_off:               number | null;
   shift_category?:          'Shift' | 'Duration';
-  shift_id:                 number;
-  grace_minutes:            number;
+  shift_id:                 number | null;
+  grace_minutes:            number | null;
 }
 
 // ─── Step 3 (HR): Managers & Work Contact ─────────────────────────────────────

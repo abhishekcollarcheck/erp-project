@@ -14,10 +14,10 @@ interface EmployeeAttrs {
   company_id:             number;
   employment_type:        'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
   department_id:          number;
-  sub_department_id:      number;
+  sub_department_id:      number | null;
   designation_id:         number;
-  sub_designation_id:     number;
-  email:                  string | null;
+  sub_designation_id:     number | null;
+  email:                  string;
   phone:                  string;
   form_completion_pct:    number;
 
@@ -63,10 +63,10 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
   public company_id!:            number;
   public employment_type!:       'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
   public department_id!:         number;
-  public sub_department_id!:     number;
+  public sub_department_id!:     number | null;
   public designation_id!:        number;
-  public sub_designation_id!:    number;
-  public email!:                 string | null;
+  public sub_designation_id!:    number | null;
+  public email!:                 string;
   public phone!:                 string;
   public form_completion_pct!:   number;
   public portal_access!:         boolean;
@@ -129,10 +129,10 @@ Employee.init({
   company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'companies', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
   employment_type:        { type: DataTypes.ENUM('Permanent', 'Contract', 'Intern', 'Consultant', 'Probation'), defaultValue: 'Permanent' },
   department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
-  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'sub_departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+  sub_department_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'sub_departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
   designation_id:         { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'designations', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
-  sub_designation_id:     { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'sub_designations', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
-  email:                  { type: DataTypes.STRING(255), allowNull: true },
+  sub_designation_id:     { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'sub_designations', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+  email:                  { type: DataTypes.STRING(255), allowNull: false },
   phone:                  { type: DataTypes.STRING(20), allowNull: false },
   form_completion_pct:    { type: DataTypes.TINYINT.UNSIGNED, defaultValue: 0 },
   portal_access:          { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -165,29 +165,27 @@ Employee.init({
 
 export class EmployeeLocationAttendance extends Model {
   public employee_id!:           number;
-  public working_state_country!: number;
-  public working_city!:          number;
-  public working_site!:          number;
-  public pay_register_location!: number;
+  public working_state_country!: number | null;
+  public working_city!:          number | null;
+  public working_site!:          number | null;
+  public pay_register_location!: number | null;
   public actual_doj!:            Date;
-  public current_doj!:           Date | null;
-  public weekly_off!:            number;
+  public weekly_off!:            number | null;
   public shift_category!:        'Shift' | 'Duration';
-  public shift_id!:              number;
-  public grace_minutes!:         number;
+  public shift_id!:              number | null;
+  public grace_minutes!:         number | null;
 }
 EmployeeLocationAttendance.init({
   employee_id:            { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, references: { model: 'employees', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE' },
-  working_state_country:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  working_city:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  working_site:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  pay_register_location:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  working_state_country:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  working_city:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  working_site:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  pay_register_location:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   actual_doj:             { type: DataTypes.DATEONLY, allowNull: false },
-  current_doj:            { type: DataTypes.DATEONLY, allowNull: true },
-  weekly_off:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  weekly_off:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   shift_category:         { type: DataTypes.ENUM('Shift', 'Duration'), allowNull: false },
-  shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'shift', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
-  grace_minutes:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'shift', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
+  grace_minutes:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
 }, { sequelize, tableName: 'employee_location_attendance', modelName: 'EmployeeLocationAttendance', timestamps: true });
 
 export class EmployeeManagersWorkContact extends Model {
