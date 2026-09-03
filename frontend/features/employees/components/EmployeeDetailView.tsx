@@ -205,6 +205,7 @@ export function EmployeeDetailView({ id }: { id: number }) {
               ['Working Site', labelFrom(WORKING_SITE_OPTIONS, e.working_site)],
               ['Pay Register Location', labelFrom(REGISTRATION_LOCATION_OPTIONS, e.pay_register_location)],
               ['Date of Joining', date(e.actual_doj)],
+              ['Current Joining Date', date(e.current_doj)],
               ['Weekly Off', labelFrom(WEEKLY_OFF_OPTIONS, e.weekly_off)],
               ['Shift Category', e.shift_category],
               ['Working Shift', shiftLabel(e.shift_id)],

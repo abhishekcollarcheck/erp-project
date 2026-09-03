@@ -13,30 +13,126 @@ export const listCandidateValidation: ValidationChain[] = [
   query('max_experience').optional().toFloat().isFloat({ min: 0 }),
 ];
 
+const EDU_MODES = ['Regular', 'Non Regular', 'Not Applicable'];
+const VEHICLE_TYPES = ['Car', 'Bike', 'Scooty'];
+
 export const createCandidateValidation: ValidationChain[] = [
-  body('candidate_name').trim().notEmpty().withMessage('Candidate name is required').isLength({ max: 200 }),
+  body('first_name').trim().notEmpty().withMessage('First name is required').isLength({ max: 100 }),
+  body('middle_name').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 100 }),
+  body('last_name').trim().notEmpty().withMessage('Last name is required').isLength({ max: 100 }),
   body('email').optional({ nullable: true, checkFalsy: true }).isEmail().normalizeEmail(),
   body('phone_number').optional({ nullable: true, checkFalsy: true }).matches(/^[+\d\s\-()]{7,20}$/),
   body('gender').optional({ nullable: true, checkFalsy: true }).isIn(['Male','Female','Other','Prefer not to say']),
+
+  body('current_state_id').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+  body('current_city_id').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+  body('ready_to_relocate').optional({ nullable: true }).toBoolean().isBoolean(),
+  body('perm_address_same_as_present').optional().toBoolean().isBoolean(),
+  body('perm_state_id')
+    .if(body('perm_address_same_as_present').equals('false'))
+    .optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+  body('perm_city_id')
+    .if(body('perm_address_same_as_present').equals('false'))
+    .optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+
+  body('qualification').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('course').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('institute').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('edu_mode').optional({ nullable: true, checkFalsy: true }).isIn(EDU_MODES),
+  body('edu_start_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('edu_end_date')
+    .if(body('edu_currently_pursuing').not().equals('true'))
+    .optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('edu_currently_pursuing').optional().toBoolean().isBoolean(),
+
+  body('fresher').optional().toBoolean().isBoolean(),
   body('total_experience').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0, max: 60 }),
   body('relevant_experience').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0, max: 60 }),
+  body('employments').optional({ nullable: true }).isArray({ max: 20 }),
+  body('employments.*.company').if(body('employments').exists()).trim().notEmpty().withMessage('Employment company is required').isLength({ max: 200 }),
+  body('employments.*.designation').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('employments.*.joining_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('employments.*.leaving_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('employments.*.currently_working').optional().toBoolean().isBoolean(),
+
   body('apply_department').optional({nullable: true, checkFalsy: true}).isString().isLength({max: 200}),
   body('apply_designation').optional({nullable: true, checkFalsy: true}).isString().isLength({max: 200}),
   body('current_salary').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0 }),
   body('expected_salary').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0 }),
+  body('currently_working').optional({ nullable: true }).toBoolean().isBoolean(),
   body('notice_period').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 0 }),
+  body('serving_notice_period').optional({ nullable: true }).toBoolean().isBoolean(),
+  body('last_working_day')
+    .if(body('serving_notice_period').equals('true'))
+    .optional({ nullable: true, checkFalsy: true }).isISO8601(),
   body('immediate_joiner').optional().toBoolean().isBoolean(),
-  body('own_vehicle').optional().toBoolean().isBoolean(),
   body('expected_joining_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+
+  body('own_vehicle').optional().toBoolean().isBoolean(),
+  body('vehicle_types')
+    .if(body('own_vehicle').equals('true'))
+    .optional({ nullable: true }).isArray(),
+  body('vehicle_types.*').optional().isIn(VEHICLE_TYPES),
   body('source').optional({ nullable: true, checkFalsy: true }).isIn(SOURCES),
+  body('is_internal_referral').optional({ nullable: true }).toBoolean().isBoolean(),
+  body('referred_by_employee_id')
+    .if(body('is_internal_referral').equals('true'))
+    .toInt().isInt({ min: 1 }).withMessage('Referring employee is required'),
+  body('reference_source')
+    .if(body('is_internal_referral').equals('false'))
+    .optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 300 }),
 ];
 
 export const updateCandidateValidation: ValidationChain[] = [
   param('id').toInt().isInt({ min: 1 }),
   body('status').optional().isIn(STATUSES),
+  body('first_name').optional().trim().notEmpty().isLength({ max: 100 }),
+  body('middle_name').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 100 }),
+  body('last_name').optional().trim().notEmpty().isLength({ max: 100 }),
   body('email').optional({ nullable: true, checkFalsy: true }).isEmail().normalizeEmail(),
   body('phone_number').optional({ nullable: true, checkFalsy: true }).matches(/^[+\d\s\-()]{7,20}$/),
+
+  body('current_state_id').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+  body('current_city_id').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+  body('ready_to_relocate').optional({ nullable: true }).toBoolean().isBoolean(),
+  body('perm_address_same_as_present').optional().toBoolean().isBoolean(),
+  body('perm_state_id').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+  body('perm_city_id').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+
+  body('qualification').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('course').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('institute').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('edu_mode').optional({ nullable: true, checkFalsy: true }).isIn(EDU_MODES),
+  body('edu_start_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('edu_end_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('edu_currently_pursuing').optional().toBoolean().isBoolean(),
+  body('fresher').optional().toBoolean().isBoolean(),
   body('total_experience').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0, max: 60 }),
+  body('relevant_experience').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0, max: 60 }),
+  body('employments').optional({ nullable: true }).isArray({ max: 20 }),
+  body('employments.*.company').if(body('employments').exists()).trim().notEmpty().isLength({ max: 200 }),
+  body('employments.*.designation').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('employments.*.joining_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('employments.*.leaving_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('employments.*.currently_working').optional().toBoolean().isBoolean(),
+
+  body('apply_department').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('apply_designation').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('current_salary').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0 }),
+  body('expected_salary').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0 }),
+  body('currently_working').optional({ nullable: true }).toBoolean().isBoolean(),
+  body('notice_period').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 0 }),
+  body('serving_notice_period').optional({ nullable: true }).toBoolean().isBoolean(),
+  body('last_working_day').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  body('immediate_joiner').optional().toBoolean().isBoolean(),
+  body('expected_joining_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+
+  body('own_vehicle').optional().toBoolean().isBoolean(),
+  body('vehicle_types').optional({ nullable: true }).isArray(),
+  body('vehicle_types.*').optional().isIn(VEHICLE_TYPES),
+  body('is_internal_referral').optional({ nullable: true }).toBoolean().isBoolean(),
+  body('referred_by_employee_id').optional({ nullable: true, checkFalsy: true }).toInt().isInt({ min: 1 }),
+  body('reference_source').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 300 }),
   body('source').optional({ nullable: true, checkFalsy: true }).isIn(SOURCES),
 ];
 

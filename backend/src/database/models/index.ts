@@ -26,6 +26,7 @@ import {
 import { Attendance }                                    from './Attendance';
 import { LeaveType, LeaveRequest }                       from './LeaveModels';
 import { Candidate }                                     from './Candidate';
+import { CandidateEmployment }                           from './CandidateEmployment';
 import { AptitudeTest, AptitudeQuestion, CandidateAnswer } from './AptitudeTest';
 import { PayrollRun, Payslip }                           from './PayrollModels';
 import { Notification }                                  from './Notification';
@@ -73,7 +74,7 @@ export {
   // HR modules
   Attendance,
   LeaveType, LeaveRequest,
-  Candidate,
+  Candidate, CandidateEmployment,
   AptitudeTest, AptitudeQuestion, CandidateAnswer,
   PayrollRun, Payslip,
   Notification, ActivityLog,

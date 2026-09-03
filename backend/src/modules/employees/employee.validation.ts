@@ -76,6 +76,7 @@ export const locationAttendanceValidation: ValidationChain[] = [
   opt(body('working_site').isInt({ min: 1 })),
   opt(body('pay_register_location').isInt({ min: 1 })),
   body('actual_doj').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Date of Joining must be in YYYY-MM-DD format').isISO8601({ strict: true }).withMessage('Invalid Date of Joining'),
+  opt(body('current_doj').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Current Joining Date must be in YYYY-MM-DD format').isISO8601({ strict: true }).withMessage('Invalid Current Joining Date')),
   opt(body('weekly_off').isInt({ min: 1 })),
   opt(body('shift_category').isIn(SHIFT_CATEGORY)),
   opt(body('shift_id').isInt({ min: 1 })),
@@ -98,7 +99,8 @@ export const commitmentProbationValidation: ValidationChain[] = [
 
   opt(body('commitment_entered_on')),
 
-  opt(body('commitment_end_date')),
+  // Optional explicit override — normally auto-computed from term + entered-on.
+  opt(body('commitment_end_date').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Commitment End Date must be in YYYY-MM-DD format').isISO8601({ strict: true }).withMessage('Invalid Commitment End Date')),
 
   opt(body('on_probation').isBoolean().withMessage('Invalid probation value')),
 

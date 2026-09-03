@@ -24,52 +24,133 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = ['csv', 'xlsx', 'xls'];
 
 const HEADERS = [
-  'candidate_name',
+  'first_name',
+  'middle_name',
+  'last_name',
   'email',
   'phone_number',
   'gender',
   'date_of_birth',
+  'current_state_id',
+  'current_city_id',
+  'ready_to_relocate',
+  'perm_address_same_as_present',
+  'perm_state_id',
+  'perm_city_id',
   'current_company_name',
   'current_company_designation',
   'qualification',
+  'course',
+  'institute',
+  'edu_mode',
+  'edu_start_date',
+  'edu_end_date',
+  'edu_currently_pursuing',
+  'fresher',
   'location',
   'total_experience',
   'relevant_experience',
+  'employment_1_company',
+  'employment_1_designation',
+  'employment_1_joining_date',
+  'employment_1_leaving_date',
+  'employment_1_currently_working',
+  'employment_2_company',
+  'employment_2_designation',
+  'employment_2_joining_date',
+  'employment_2_leaving_date',
+  'employment_2_currently_working',
+  'employment_3_company',
+  'employment_3_designation',
+  'employment_3_joining_date',
+  'employment_3_leaving_date',
+  'employment_3_currently_working',
   'apply_department',
   'apply_designation',
   'current_salary',
   'expected_salary',
+  'currently_working',
   'notice_period',
+  'serving_notice_period',
+  'last_working_day',
   'immediate_joiner',
   'expected_joining_date',
   'own_vehicle',
+  'vehicle_types',
   'source',
+  'is_internal_referral',
+  'referred_by_employee_id',
   'reference_source',
   'remarks',
 ];
 
+// Excel date-format columns, resolved to letters at template build time — see colLetter().
+const DATE_FIELDS = [
+  'date_of_birth', 'edu_start_date', 'edu_end_date',
+  'employment_1_joining_date', 'employment_1_leaving_date',
+  'employment_2_joining_date', 'employment_2_leaving_date',
+  'employment_3_joining_date', 'employment_3_leaving_date',
+  'last_working_day', 'expected_joining_date',
+];
+
 const SAMPLE_ROW = [
-  'Priya Sharma',
+  'Priya',
+  '',
+  'Sharma',
   'priya@gmail.com',
   '+919876543210',
   'Female',
   '1995-05-15',
+  '',
+  '',
+  'true',
+  'true',
+  '',
+  '',
   'Infosys',
   'Senior Engineer',
+  "Bachelor's",
   'B.E. Computer Science',
+  'ABC Engineering College',
+  'Regular',
+  '2013-06-01',
+  '2017-05-31',
+  'false',
+  'false',
   'Bengaluru',
   5,
   4,
+  'Infosys',
+  'Senior Engineer',
+  '2019-06-01',
+  '',
+  'true',
+  'TCS',
+  'Associate Engineer',
+  '2017-06-01',
+  '2019-05-31',
+  'false',
+  '',
+  '',
+  '',
+  '',
+  '',
   'IT',
   'Sr. Software Engineer',
   75000,
   90000,
+  'true',
   30,
+  'true',
+  '',
   'false',
   '2026-07-01',
   'true',
+  'Car,Bike',
   'Naukri',
-  'Job Portal',
+  'false',
+  '',
+  '',
   'Strong profile',
 ];
 
@@ -91,7 +172,25 @@ const VALID_GENDERS = [
   'Prefer not to say',
 ];
 
+const VALID_EDU_MODES = ['Regular', 'Non Regular', 'Not Applicable'];
+
 const BOOLEAN_OPTIONS = ['true', 'false'];
+
+// Converts a 0-based column index to an Excel column letter (0 -> 'A', 26 -> 'AA', …)
+const colLetter = (index: number): string => {
+  let n = index + 1;
+  let letters = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
+};
+
+const HEADER_COL: Record<string, string> = Object.fromEntries(
+  HEADERS.map((h, i) => [h, colLetter(i)]),
+);
 
 const DROPZONE_BASE_STYLE: CSSProperties = {
   borderRadius: 'var(--r2)',
@@ -254,11 +353,10 @@ export function BulkUploadModal({
       });
 
       // Date Formats
-      sheet.getColumn(5).numFmt =
-        'yyyy-mm-dd';
-
-      sheet.getColumn(18).numFmt =
-        'yyyy-mm-dd';
+      DATE_FIELDS.forEach(field => {
+        const col = HEADERS.indexOf(field) + 1;
+        if (col > 0) sheet.getColumn(col).numFmt = 'yyyy-mm-dd';
+      });
 
       // Freeze Header
       sheet.views = [
@@ -271,33 +369,21 @@ export function BulkUploadModal({
       // Filters
       sheet.autoFilter = {
         from: 'A1',
-        to: `V${sheet.rowCount}`,
+        to: `${colLetter(HEADERS.length - 1)}${sheet.rowCount}`,
       };
 
       // Dropdowns
-      applyDropdownValidation(
-        sheet,
-        'D',
-        VALID_GENDERS,
-      );
+      applyDropdownValidation(sheet, HEADER_COL['gender'], VALID_GENDERS);
+      applyDropdownValidation(sheet, HEADER_COL['edu_mode'], VALID_EDU_MODES);
+      applyDropdownValidation(sheet, HEADER_COL['source'], VALID_SOURCES);
 
-      applyDropdownValidation(
-        sheet,
-        'Q',
-        BOOLEAN_OPTIONS,
-      );
-
-      applyDropdownValidation(
-        sheet,
-        'S',
-        BOOLEAN_OPTIONS,
-      );
-
-      applyDropdownValidation(
-        sheet,
-        'T',
-        VALID_SOURCES,
-      );
+      [
+        'ready_to_relocate', 'perm_address_same_as_present',
+        'edu_currently_pursuing', 'fresher',
+        'employment_1_currently_working', 'employment_2_currently_working', 'employment_3_currently_working',
+        'currently_working', 'serving_notice_period', 'immediate_joiner', 'own_vehicle',
+        'is_internal_referral',
+      ].forEach(field => applyDropdownValidation(sheet, HEADER_COL[field], BOOLEAN_OPTIONS));
 
       // Alternate Row Styling
       sheet.eachRow((row, rowNumber) => {
@@ -512,9 +598,11 @@ export function BulkUploadModal({
                     'var(--ink4)',
                 }}
               >
-                22 columns with
+                {HEADERS.length} columns with
                 dropdowns, filters,
-                and sample data
+                and sample data. Employment history
+                supports up to 3 rows per candidate
+                (employment_1_…, employment_2_…, employment_3_…).
               </div>
             </div>
 
@@ -571,24 +659,37 @@ export function BulkUploadModal({
 
             <br />
 
-            • email and
-            phone_number must be
+            • first_name and last_name are required
+            (or a single candidate_name with a space)
+
+            <br />
+
+            • email and phone_number must be
             unique per company
 
             <br />
 
-            • expected_joining_date
-            must be future or today
+            • Dates use YYYY-MM-DD · booleans use
+            true / false
 
             <br />
 
-            • Supported formats:
-            CSV, XLSX, XLS
+            • vehicle_types: comma-separated —
+            Car, Bike, Scooty
 
             <br />
 
-            • Maximum upload size:
-            10 MB
+            • referred_by_employee_id: numeric
+            employee ID (only when is_internal_referral = true)
+
+            <br />
+
+            • expected_joining_date must be
+            future or today
+
+            <br />
+
+            • CSV / XLSX / XLS · max 10 MB · up to 5,000 rows
           </div>
 
           {/* Dropzone */}

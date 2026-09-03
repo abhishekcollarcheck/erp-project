@@ -11,9 +11,11 @@ import { sendResponse, sendPaginated, sendError } from '../../utils/response';
 import { env } from '../../config/env';
 import { mailer } from '../../utils/mailer';
 import { ActivityLog } from '../../database/models/ActivityLog';
+import { parseResumeText } from './candidate.resume-parser';
 
 const MAX_ROWS = 5000;
-const REQUIRED_HEADERS = ['candidate_name'];
+const REQUIRED_HEADERS_LEGACY = ['candidate_name'];
+const REQUIRED_HEADERS_SPLIT = ['first_name', 'last_name'];
 const candidateService = new CandidateService();
 const PORTAL_TOKEN_SECRET = env.jwt.accessSecret + '_portal';
 
@@ -41,8 +43,15 @@ export async function getCandidateStats(req: Request, res: Response, next: NextF
 
 export async function getCandidate(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const data = await candidateService.getById(parseInt(req.params.id, 10), req.user!.companyId);
+    const data = await candidateService.getByIdWithEmployments(parseInt(req.params.id, 10), req.user!.companyId);
     sendResponse(res, { data, message: 'Candidate fetched' });
+  } catch (e) { next(e); }
+}
+
+export async function getCandidateActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await candidateService.getActivity(parseInt(req.params.id, 10), req.user!.companyId);
+    sendResponse(res, { data, message: 'Activity fetched' });
   } catch (e) { next(e); }
 }
 
@@ -141,6 +150,55 @@ export async function submitInterviewResult(req: Request, res: Response, next: N
     );
     sendResponse(res, { data, message: `Interview result recorded — candidate ${req.body.candidate_decision === 'Select' ? 'offered' : req.body.candidate_decision === 'Reject' ? 'rejected' : 'put on hold'}` });
   } catch (e) { next(e); }
+}
+
+// ─── Parse resume for autofill (unauthenticated — used before a candidate ID exists) ──
+// SECURITY NOTE: this route has no `authenticate` middleware by design (confirmed with
+// Rahul), since it's called from the "Add candidate" wizard before a candidate record
+// exists. That means it's reachable by anyone who can reach the API, so it's rate-limited
+// at the route level (see candidate.routes.ts) — revisit if abuse shows up in logs.
+export async function parseResumeCandidate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
+
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let text = '';
+
+    if (ext === '.pdf') {
+      const { PDFParse } = await import('pdf-parse');
+      const buffer = fs.readFileSync(req.file.path);
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const result = await parser.getText();
+        text = result.text || '';
+      } finally {
+        await parser.destroy();
+      }
+    } else if (ext === '.txt' || ext === '.text') {
+      text = fs.readFileSync(req.file.path, 'utf-8');
+    } else {
+      sendError(res, 'Only PDF or TXT resumes can be parsed', 400);
+      return;
+    }
+
+    if (!text.trim()) {
+      sendError(res, 'Could not extract any text from this file', 422);
+      return;
+    }
+
+    const parsed = parseResumeText(text);
+    sendResponse(res, { data: parsed, message: 'Resume parsed' });
+  } catch (e) {
+    next(e);
+  } finally {
+    try {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } catch (cleanupError) {
+      console.error('Failed to cleanup parsed resume file:', cleanupError);
+    }
+  }
 }
 
 export async function uploadResume(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -314,14 +372,13 @@ export async function bulkUploadCandidates(
 
     const fileHeaders = Object.keys(rows[0]);
 
-    const missingHeaders = REQUIRED_HEADERS.filter(
-      h => !fileHeaders.includes(h),
-    );
+    const hasLegacyName = REQUIRED_HEADERS_LEGACY.every(h => fileHeaders.includes(h));
+    const hasSplitName  = REQUIRED_HEADERS_SPLIT.every(h => fileHeaders.includes(h));
 
-    if (missingHeaders.length) {
+    if (!hasLegacyName && !hasSplitName) {
       sendError(
         res,
-        `Missing required columns: ${missingHeaders.join(', ')}`,
+        `Missing required columns: either "candidate_name" or both "first_name" and "last_name"`,
         400,
       );
 
@@ -548,7 +605,7 @@ export function portalAuthenticate(req: Request, res: Response, next: NextFuncti
 export async function portalGetProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { candidateId, companyId } = (req as any).portalCandidate;
-    const data = await candidateService.getById(candidateId, companyId, true);
+    const data = await candidateService.getByIdWithEmployments(candidateId, companyId, true);
     sendResponse(res, { data, message: 'Profile fetched' });
   } catch (e) { next(e); }
 }

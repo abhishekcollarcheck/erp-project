@@ -319,6 +319,12 @@ export class EmployeeRepository {
     });
   }
 
+  /** Fetch by primary key, not scoped to a company — used by the bulk importer
+   *  when an existing employee matched by employee_code is being updated. */
+  async findAnyById(id: number, t?: Transaction) {
+    return Employee.findByPk(id, { transaction: t });
+  }
+
   async findByEmail(email: string, excludeId?: number) {
     return Employee.findOne({
       where: {

@@ -20,7 +20,8 @@ import { Employee } from '../../database/models/Employee';
 import { STEP_VALIDATORS } from './employee.validation';
 import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE, type StepKey } from './employee.constants';
 import {
-  FIELD_DEFS, REPEATABLE_GROUPS, BULK_STEP_ORDER, type FieldDef, type FieldType,
+  FIELD_DEFS, REPEATABLE_GROUPS, BULK_STEP_ORDER, allTemplateColumns,
+  type FieldDef, type FieldType,
 } from './bulkImport.fields';
 import { resolveMasterOption } from './employee.masterOptions';
 
@@ -45,6 +46,7 @@ export interface MappedRow {
     employee_code: string | null;
     reference_code: string | null;
     avatar_url: string | null;
+    avatar: string | null;            // raw source (URL / data URI / /uploads path) to localise post-import
     reporting_manager_id: number | null;
   } | null;
   steps: Partial<Record<StepKey, any>>;
@@ -61,8 +63,16 @@ export interface Resolvers {
   subDepartment: (v: string) => number | null | undefined;
   subDesignation:(v: string) => number | null | undefined;
   shift:         (v: string) => number | null | undefined;
-  manager:       (v: string) => number | null | undefined;   // company-scoped, by employee_code
+  manager:       (v: string) => number | null | undefined;   // any company, by employee_code or email
   defaultCompanyId: number;
+  /** id → name, for back-filling identity cells of an existing (update) row. */
+  names: {
+    company:       (id: number | null | undefined) => string | undefined;
+    department:    (id: number | null | undefined) => string | undefined;
+    designation:   (id: number | null | undefined) => string | undefined;
+    subDepartment: (id: number | null | undefined) => string | undefined;
+    subDesignation:(id: number | null | undefined) => string | undefined;
+  };
 }
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -75,7 +85,10 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
     SubDepartment.findAll({ attributes: ['id', 'name'], raw: true }),
     SubDesignation.findAll({ attributes: ['id', 'name'], raw: true }),
     Shift.findAll({ attributes: ['id', 'label'], raw: true }),
-    Employee.findAll({ where: { company_id: companyId }, attributes: ['id', 'employee_code', 'email'], raw: true }),
+    // Managers are resolved across ALL companies — a reporting manager may be
+    // "remote" (in a different company). employee_code / email are globally
+    // unique, so the lookup stays unambiguous.
+    Employee.findAll({ attributes: ['id', 'employee_code', 'email'], raw: true }),
   ]);
 
   const map = (rows: any[], nameKey: string) => {
@@ -103,6 +116,19 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
     return m.get(norm(raw)) ?? null;
   };
 
+  const byId = (rows: any[], nameKey: string) => {
+    const m = new Map<number, string>();
+    for (const r of rows) if (r[nameKey] != null) m.set(r.id, String(r[nameKey]));
+    return m;
+  };
+  const deptById    = byId(depts, 'department_name');
+  const desigById   = byId(desigs, 'designation_name');
+  const compById    = byId(comps, 'name');
+  const subDeptById = byId(subDepts, 'name');
+  const subDesigById= byId(subDesigs, 'name');
+  const nameOf = (m: Map<number, string>) => (id: number | null | undefined) =>
+    id == null ? undefined : m.get(id);
+
   return {
     defaultCompanyId: companyId,
     company:       lookup(compMap),
@@ -111,6 +137,13 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
     subDepartment: lookup(subDeptMap),
     subDesignation:lookup(subDesigMap),
     manager:       lookup(mgrMap),
+    names: {
+      company:       nameOf(compById),
+      department:    nameOf(deptById),
+      designation:   nameOf(desigById),
+      subDepartment: nameOf(subDeptById),
+      subDesignation:nameOf(subDesigById),
+    },
     shift: (v: string) => {
       const raw = String(v ?? '').trim();
       if (!raw) return undefined;
@@ -179,13 +212,49 @@ function coerce(type: FieldType, v: unknown, enumValues?: readonly string[]): an
   }
 }
 
-// ─── Row key normalisation ───────────────────────────────────────────────────
+// ─── Header / row-key resolution ─────────────────────────────────────────────
+// Templates now ship human-readable column headers ("Salary Mode"), but older
+// files (and the failed-rows export) use the raw field keys ("salary_mode").
+// Resolve either form — plus loose case/spacing/punctuation — back to the
+// canonical column key the mapper expects.
+
+/** loose-normalise any header/key: lower-case, non-alphanumerics → single `_`. */
+const canon = (s: string) =>
+  String(s ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+const HEADER_TO_COL: Map<string, string> = (() => {
+  const m = new Map<string, string>();
+  const all = allTemplateColumns();
+  for (const c of all) m.set(canon(c.col), c.col);                 // exact keys win
+  for (const c of all) { const k = canon(c.label); if (!m.has(k)) m.set(k, c.col); }
+  // legacy header spellings (older downloaded templates)
+  for (const [from, to] of [
+    ['reporting_manager', 'reporting_manager_code'],
+    ['reporting_manager_employee_code', 'reporting_manager_code'],
+    ['l1_manager', 'l1_manager_code'],
+    ['l1_manager_employee_code', 'l1_manager_code'],
+    ['l2_manager', 'l2_manager_code'],
+    ['l2_manager_employee_code', 'l2_manager_code'],
+    ['avatar_image', 'avatar'],
+    ['profile_photo', 'avatar'],
+  ] as const) if (!m.has(from)) m.set(from, to);
+  return m;
+})();
+
+/** Resolve one spreadsheet header to its canonical column key. */
+export function resolveHeader(header: string): string {
+  const k = canon(header);
+  return HEADER_TO_COL.get(k) ?? k;
+}
+
+/** canonical column key → readable label (for error messages). */
+const COL_TO_LABEL: Map<string, string> = new Map(
+  allTemplateColumns().map(c => [c.col, c.label]),
+);
 
 export function normaliseKeys(row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(row)) {
-    out[k.trim().toLowerCase().replace(/\s+/g, '_')] = v;
-  }
+  for (const [k, v] of Object.entries(row)) out[resolveHeader(k)] = v;
   return out;
 }
 
@@ -259,7 +328,7 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
   let companyId: number = resolvers.defaultCompanyId;
   if (!BLANK(row['company'])) {
     const c = resolvers.company(String(row['company']));
-    if (c == null) errors.push({ column: 'company', message: `Company "${row['company']}" not found` });
+    if (c == null) errors.push({ column: 'company', message: `Company "${row['company']}" not found — pick a value from the template's Company dropdown` });
     else companyId = c;
   }
 
@@ -281,8 +350,11 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
   const employeeCode  = toStr(row['employee_code']) ?? null;
   const referenceCode = toStr(row['reference_code']) ?? null;
   const avatarUrl     = toStr(row['avatar_url']) ?? null;
+  const avatarSrc     = toStr(row['avatar']) ?? null;
   if (employeeCode && employeeCode.length > 30)  errors.push({ column: 'employee_code', message: 'Employee code cannot exceed 30 characters' });
   if (referenceCode && referenceCode.length > 50) errors.push({ column: 'reference_code', message: 'Reference code cannot exceed 50 characters' });
+  if (avatarSrc && !/^(https?:\/\/|data:image\/|\/uploads\/)/i.test(avatarSrc))
+    errors.push({ column: 'avatar', message: 'Avatar must be an http(s) URL, a data:image/… URI, or an existing /uploads/… path' });
 
   let reportingManagerId: number | null = null;
   if (!BLANK(row['reporting_manager_code'])) {
@@ -321,6 +393,7 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
         employee_code: employeeCode,
         reference_code: referenceCode,
         avatar_url: avatarUrl,
+        avatar: avatarSrc,
         reporting_manager_id: reportingManagerId,
       }
     : null;
@@ -409,7 +482,8 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
     seenErr.add(k);
     if (specificCols.has(e.column) && !/not found|not a valid/i.test(e.message) && isGeneric(e.message)) return false;
     return true;
-  });
+  // surface the readable header name in the error, matching the template
+  }).map(e => ({ ...e, column: COL_TO_LABEL.get(e.column) ?? e.column }));
 
   return {
     ok: dedupErrors.length === 0 && base !== null,

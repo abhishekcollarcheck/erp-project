@@ -408,7 +408,6 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         pendingAvatarRef.current = null;
       }
     } else if (savedId && step.key !== 'review') {
-      console.log('Updating employee with payload:', buildPayload(step.key));
       await updateMutation.mutateAsync({ step: step.key as StepSchemaKey, data: buildPayload(step.key) });
     }
     setCompletedSet(prev => new Set([...prev, currentIdx]));

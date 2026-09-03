@@ -24,6 +24,7 @@ import {
 import { Attendance }                                    from './Attendance';
 import { LeaveType, LeaveRequest }                       from './LeaveModels';
 import { Candidate }                                     from './Candidate';
+import { CandidateEmployment }                           from './CandidateEmployment';
 import { AptitudeTest, AptitudeQuestion, CandidateAnswer } from './AptitudeTest';
 import { PayrollRun, Payslip }                           from './PayrollModels';
 import { Notification }                                  from './Notification';
@@ -227,6 +228,8 @@ Payslip.belongsTo(Employee,   { foreignKey: 'employee_id',    as: 'employee'   }
 // ─── Candidates ───────────────────────────────────────────────────────────────
 Candidate.hasMany(CandidateAnswer,   { foreignKey: 'candidate_id', as: 'aptitudeAnswers' });
 CandidateAnswer.belongsTo(Candidate, { foreignKey: 'candidate_id', as: 'candidate'       });
+Candidate.hasMany(CandidateEmployment,   { foreignKey: 'candidate_id', as: 'employments' });
+CandidateEmployment.belongsTo(Candidate, { foreignKey: 'candidate_id', as: 'candidate'   });
 
 // ─── Form Builder ─────────────────────────────────────────────────────────────
 HrModule.hasMany(FormDefinition,      { foreignKey: 'module_id', as: 'forms'  });
@@ -297,7 +300,7 @@ export {
   // HR modules
   Attendance,
   LeaveType, LeaveRequest,
-  Candidate,
+  Candidate, CandidateEmployment,
   AptitudeTest, AptitudeQuestion, CandidateAnswer,
   PayrollRun, Payslip,
   Notification, ActivityLog,

@@ -3,12 +3,13 @@ import multer         from 'multer';
 import path           from 'path';
 import crypto         from 'crypto';
 import fs             from 'fs';
+import rateLimit       from 'express-rate-limit';
 import { validate }   from '../../middleware/validate.middleware';
 import { authenticate, authorize } from '../../modules/auth/auth.middleware';
 import {
-  getCandidates, getCandidateStats, getCandidate,
+  getCandidates, getCandidateStats, getCandidate, getCandidateActivity,
   createCandidate, updateCandidate, moveCandidateStatus,
-  deleteCandidate, uploadResume, bulkUploadCandidates,
+  deleteCandidate, uploadResume, parseResumeCandidate, bulkUploadCandidates,
   scheduleInterview, handleReschedule, grantPortalAccess, submitInterviewResult,
   sendOffer, hireCandidate, withdrawCandidate, sendPreInterviewForm, sendAptitudeTestLink,
   getPreInterviewForm, getPreJoiningForm,
@@ -39,6 +40,33 @@ const resumeUpload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, ['.pdf','.doc','.docx'].includes(ext));
   },
+});
+
+// ─── Multer: Resume parse (autofill) — PDF/TXT only, temp dir, always deleted after parsing ──
+const resumeParseDir = path.join(process.cwd(), env.upload.dir, 'resume-parse-tmp');
+if (!fs.existsSync(resumeParseDir)) fs.mkdirSync(resumeParseDir, { recursive: true });
+
+const resumeParseUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, resumeParseDir),
+    filename:    (_req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, ['.pdf', '.txt', '.text'].includes(ext));
+  },
+});
+
+// This route has no `authenticate` middleware (confirmed decision — used pre-candidate-creation),
+// so it's rate-limited per IP to reduce abuse of the unauthenticated file-parsing endpoint.
+// Requires `npm install express-rate-limit` if not already a dependency.
+const parseResumeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many resume parse attempts, please try again later' },
 });
 
 // ─── Multer: CSV bulk ─────────────────────────────────────────────────────────
@@ -73,10 +101,15 @@ export const bulkUpload = multer({
 
 const router = Router();
 
+// ─── Resume parse (autofill) — UNAUTHENTICATED by design, rate-limited ───────
+// Placed before '/:id' so it can't be shadowed by that param route.
+router.post('/parse-resume', parseResumeLimiter, resumeParseUpload.single('resume'), parseResumeCandidate);
+
 // ─── HR routes (JWT protected) ────────────────────────────────────────────────
 router.get('/stats', authenticate,  getCandidateStats);
 router.get('/',      authenticate, listCandidateValidation, validate,  getCandidates);
 router.get('/:id',   authenticate, idValidation, validate,  getCandidate);
+router.get('/:id/activity', authenticate, idValidation, validate, getCandidateActivity);
 
 router.post('/',     authenticate, createCandidateValidation, validate, createCandidate);
 router.post('/bulk', authenticate, bulkUpload.single('file'), bulkUploadCandidates);
@@ -114,7 +147,6 @@ router.post('/portal/verify-magic', portalVerifyMagic);
 router.get('/portal/profile',       portalAuthenticate, portalGetProfile);
 router.get('/portal/company-info',   portalAuthenticate, portalGetCompanyInfo);
 router.post('/portal/interview-response', portalAuthenticate, portalRespondInterview);
-router.post('/portal/reschedule',         portalAuthenticate, rescheduleValidation, validate, portalRequestReschedule);
 router.post('/portal/reschedule',         portalAuthenticate, rescheduleValidation, validate, portalRequestReschedule);
 router.post('/portal/preinterview',            portalAuthenticate, portalSavePreinterview);
 router.post('/portal/prejoining',         portalAuthenticate, portalSavePreJoining);

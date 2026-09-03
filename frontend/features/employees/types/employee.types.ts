@@ -391,10 +391,12 @@ export interface BulkUploadResult {
 // Full-field importer (POST /employees/bulk-import)
 export interface BulkImportResult {
   total: number;
-  imported: number;
+  imported: number;                            // successful rows = created + updated
+  createdCount: number;
+  updated: number;
   failed: number;
   success: number;                              // alias of `imported`
-  created: Array<{ row: number; employeeId: number; employeeCode: string | null; completionPct: number }>;
+  created: Array<{ row: number; employeeId: number; employeeCode: string | null; completionPct: number; action: 'created' | 'updated' }>;
   errors: Array<{
     row: number;
     name: string;
