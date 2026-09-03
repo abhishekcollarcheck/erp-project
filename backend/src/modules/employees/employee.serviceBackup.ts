@@ -173,8 +173,6 @@ export class EmployeeService {
     const emp = await repo.findById(id, companyId);
     if (!emp) throw new AppError('Employee not found', 404);
 
-    // console.log("hitted");
-
     return sequelize.transaction(async (t) => {
       await this.routeStep(id, companyId, step, dto, actorId, t);
 

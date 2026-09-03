@@ -4,7 +4,7 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { WORKING_SITE_OPTIONS, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS, REGISTRATION_LOCATION_OPTIONS, SATURDAY_OFF_OPTIONS, SHIFT_TIMING_OPTIONS } from "../../constants/employee.constants"
 import { FormSection } from '../../../../components/form/FormSection';
-import { useShifts } from '../../../../features/shift/hooks/useShift';
+import { useShiftOptions, useShifts } from '../../../../features/shift/hooks/useShift';
 import { useWatch } from 'react-hook-form';
 
 interface Props { isEdit: boolean; employeeId: number | null }
@@ -12,11 +12,13 @@ interface Props { isEdit: boolean; employeeId: number | null }
 export function StepEmployment({ }: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
-  const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
+  // const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
 
   const shiftType = useWatch({
     name: 'shift_type',
   });
+
+  const { data: shiftOptions = [], isLoading: shiftsLoading } = useShiftOptions();
 
 
   return (

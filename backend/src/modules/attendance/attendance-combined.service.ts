@@ -2789,9 +2789,6 @@ export class AttendanceCombinedService {
       }),
     ]);
 
-    // Debug logs
-    console.log("bioRows:", bioRows);
-    console.log("trakRows:", trakRows);
 
     // ============================================================
     // 3. GET LEAVE TYPES

@@ -86,9 +86,26 @@ async function runMonthlyAttendanceJob(dateOverride?: string): Promise<{
  * are unacceptable, add a startup catch-up check, or move this job
  * to a DB-backed queue (agenda / bullmq) instead.
  */
+// export function scheduleAttendanceMonthlyCron(): void {
+//   cron.schedule(
+//     "* * * * *", // every day at 20:00
+//     () => {
+//       runMonthlyAttendanceJob().catch((err) =>
+//         console.error("[attendance-cron] Unhandled job error:", err),
+//       );
+//     },
+//     {
+//       timezone: "Asia/Kolkata",
+//     },
+//   );
+
+//   console.log("[attendance-cron] Scheduled for 20:00 Asia/Kolkata daily");
+// }
+
+
 export function scheduleAttendanceMonthlyCron(): void {
   cron.schedule(
-    "0 20 * * *", // every day at 20:00
+    "0 * * * *", // Runs at the start of every hour
     () => {
       runMonthlyAttendanceJob().catch((err) =>
         console.error("[attendance-cron] Unhandled job error:", err),
@@ -99,7 +116,7 @@ export function scheduleAttendanceMonthlyCron(): void {
     },
   );
 
-  console.log("[attendance-cron] Scheduled for 20:00 Asia/Kolkata daily");
+  console.log("[attendance-cron] Scheduled to run hourly in Asia/Kolkata");
 }
 
 // Exported for manual/CLI triggering or a startup catch-up check.

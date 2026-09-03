@@ -368,6 +368,8 @@ import { queryMSSQL, sql } from "../../config/mssql.config";
         GROUP BY ${COL.cardNo}, CONVERT(VARCHAR(10), ${COL.punchDatetime}, 23)
         ORDER BY punch_date DESC, ${COL.cardNo}
       `, params);
+
+        
       return rows.map((r) => this.mapAggregatedRow(r));
     }
 

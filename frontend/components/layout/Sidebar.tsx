@@ -56,6 +56,13 @@ const NAV: NavSection[] = [
         href: "/leaves",
         permission: null,
       },
+      {
+        id: "masterdata",
+        label: "Master Data",
+        icon: <LayoutDashboard size={16} />,
+        href: "/masterdata",
+        permission: null,
+      },
     ],
   },
   {
@@ -105,7 +112,7 @@ const NAV: NavSection[] = [
             href: "/sub-department",
             permission: "sub-department:view",
             module: "sub-department",
-          },          
+          },
           {
             id: "designations",
             label: "Designations",
@@ -121,7 +128,7 @@ const NAV: NavSection[] = [
             href: "/sub-designation",
             permission: "sub-designation:view",
             module: "sub-designations",
-          },          
+          },
         ],
       },
     ],
@@ -173,6 +180,18 @@ const NAV: NavSection[] = [
       // Super admin only items
     ],
   },
+  // {
+  //   // label: "Overview",
+  //   items: [
+  //     {
+  //       id: "Master Data ",
+  //       label: "Master Data ",
+  //       icon: <LayoutDashboard size={16} />,
+  //       href: "/dashboard",
+  //       permission: null,
+  //     },
+  //   ],
+  // },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -410,8 +429,8 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 // ─── Sidebar component ────────────────────────────────────────────────────────
 
 export function Sidebar() {
-const openMenus = useAppSelector((s: any) => s.ui.openMenus);
-const dispatch = useAppDispatch();
+  const openMenus = useAppSelector((s: any) => s.ui.openMenus);
+  const dispatch = useAppDispatch();
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = useAppSelector((s: any) => s.ui.sidebarCollapsed);
@@ -424,11 +443,11 @@ const dispatch = useAppDispatch();
   const activeModules: string[] = (company as any)?.active_modules ?? [];
   const initials = user?.fullName
     ? user.fullName
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase()
     : (user?.email?.[0]?.toUpperCase() ?? "U");
 
   const roleSlug = user?.roleSlug || "emp";
@@ -529,6 +548,8 @@ const dispatch = useAppDispatch();
           });
           if (visibleItems.length === 0) return null;
 
+          console.log(visibleItems);
+
           return (
             <div key={index}>
               {/* {!collapsed && <div className="sb-sec">{section.label}</div>} */}
@@ -536,13 +557,13 @@ const dispatch = useAppDispatch();
                 // Parent active state
                 const isActive = item.children
                   ? item.children.some(
-                      (child) =>
-                        child.href &&
-                        (pathname === child.href ||
-                          pathname.startsWith(child.href)),
-                    )
+                    (child) =>
+                      child.href &&
+                      (pathname === child.href ||
+                        pathname.startsWith(child.href)),
+                  )
                   : !!item.href &&
-                    (pathname === item.href || pathname.startsWith(item.href));
+                  (pathname === item.href || pathname.startsWith(item.href));
 
                 // ==========================
                 // Dropdown Menu (HRMS)
@@ -576,7 +597,7 @@ const dispatch = useAppDispatch();
                         onClick={() => dispatch(toggleSidebarMenu(item.id))}
                       >
                         <span className="ni-ic">{item.icon}</span>
-                        {collapsed} 
+                        {collapsed}
                         {!collapsed && (
                           <>
                             <span className="ni-lb">{item.label}</span>

@@ -77,7 +77,6 @@ export async function getLeaveBalances(
       ? Number(req.query.employee_id)
       : req.user!.employeeId;
 
-      // console.log(requestedEmployeeId);
 
     // Validate employee_id if provided
     if (
@@ -240,7 +239,6 @@ export const processMonthlyLeaveController = async (
   res: Response
 ) => {
   try {
-    console.log("hitted");
     const employeeId = Number(req.params.employeeId);
     const year = Number(req.query.year);
     const month = Number(req.query.month);
