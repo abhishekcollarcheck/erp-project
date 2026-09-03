@@ -9,7 +9,7 @@ import path           from 'path';
 import { env } from '../../config/env';
 
 import {
-  listValidation, idValidation, STEP_VALIDATORS,
+  listValidation, idValidation, STEP_VALIDATORS, transferValidation,
 } from './employee.validation';
 
 // ─── Multer: CSV bulk ─────────────────────────────────────────────────────────
@@ -64,6 +64,11 @@ employeeRoutes.delete('/draft/:sessionId',   asyncHandler(employeeController.dis
 // employeeRoutes.get('/bulk-upload/template',  employeeController.downloadTemplate);
 employeeRoutes.post('/bulk-upload', bulkUpload.single('file'), employeeController.bulkUpload,);
 
+// Full-field bulk import (all ~180 columns) — reuses the wizard pipeline
+employeeRoutes.get('/bulk-import/template', asyncHandler(employeeController.bulkImportTemplate));
+employeeRoutes.get('/bulk-import/fields',   asyncHandler(employeeController.bulkImportFields));
+employeeRoutes.post('/bulk-import', bulkUpload.single('file'), asyncHandler(employeeController.bulkImport));
+
 // CRUD
 employeeRoutes.get('/',
   listValidation,
@@ -84,6 +89,13 @@ employeeRoutes.get('/:id',
 employeeRoutes.delete('/:id',
   idValidation,
   asyncHandler(employeeController.remove),
+);
+
+// Inter-company transfer — relieves the source, creates a new record in the destination company
+employeeRoutes.post('/:id/transfer',
+  idValidation,
+  transferValidation,
+  asyncHandler(employeeController.transfer),
 );
 
 // Step update — dynamic validation by step name

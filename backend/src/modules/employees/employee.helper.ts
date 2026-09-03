@@ -257,21 +257,46 @@ export interface CompletionBreakdown {
 }
 
 export function computeCompletionPct(employee: any): CompletionBreakdown {
+  // A step counts as complete when its REQUIRED fields (the ones the UI marks
+  // with a *) are filled. Steps that carry no required field only need to have
+  // been saved once — an empty save creates the child row, so `<assoc> != null`
+  // is the "was this step visited" signal. Optional field VALUES never gate
+  // completion (and therefore never gate employee_code generation).
+  //
+  // Called with the raw model JSON (child rows nested under their association
+  // name); `loc` also tolerates the flattened shape as a fallback.
+  const loc = employee.locationAttendance ?? employee;
+  const salaries = employee.salaries ?? [];
+  const addresses = employee.addresses ?? [];
+  const bankDetails = employee.bankDetails ?? [];
+
   const checks: Record<string, () => boolean> = {
-    // HR part
-    role_identity:          () => !!(employee.first_name && employee.last_name && employee.employment_type && employee.department_id && employee.designation_id),
-    location_attendance:    () => !!(employee.working_city && employee.working_site && employee.shift_id && employee.actual_doj),
-    managers_work_contact:  () => !!(employee.l1_manager_id),
+    // ── HR part ──────────────────────────────────────────────────────────────
+    // required: first/last name, employment type, department, designation, email, phone
+    role_identity:         () => !!(employee.first_name && employee.last_name && employee.employment_type
+                                    && employee.department_id && employee.designation_id
+                                    && employee.email && employee.phone),
+    // required: Date of Joining only
+    location_attendance:   () => !!(loc.actual_doj),
+    // no required fields — complete once saved
+    managers_work_contact: () => employee.managersWorkContact != null
+                                  || employee.l1_manager_id != null || employee.official_email != null,
     commitment_probation:  () => employee.commitmentProbation != null,
     statutory_schemes:     () => employee.schemes != null,
-    compensation:          () => !!(employee.salaries?.find((s: any) => s.salary_type === 'current')),
+    compensation:          () => salaries.some((s: any) => s.salary_type === 'current'),
     hr_joining_checklist:  () => employee.onboardingDocs != null,
-    // Candidate part
-    personal_profile:      () => !!(employee.personal?.date_of_birth && employee.personal?.gender && employee.personal?.blood_group),
-    address:                () => !!(employee.addresses?.find((a: any) => a.address_type === 'present')),
-    family_emergency:      () => !!(employee.family?.father_name && employee.family?.mother_name && employee.emergencyContacts?.[0]?.contact_name),
-    ids_bank:               () => !!(employee.statutory?.aadhaar_number && employee.bankDetails?.find((b: any) => b.bank_type === 'personal')),
-    experience_education:  () => !!(employee.education?.length > 0),
+    // ── Candidate part ───────────────────────────────────────────────────────
+    // no required fields — complete once saved
+    personal_profile:      () => employee.personal != null,
+    address:               () => addresses.some((a: any) => a.address_type === 'present'),
+    family_emergency:      () => employee.family != null,
+    // required: Aadhaar (number/name/dob/address) + personal bank (name/account/ifsc)
+    ids_bank:              () => !!(employee.statutory?.aadhaar_number && employee.statutory?.aadhaar_name
+                                    && employee.statutory?.aadhaar_dob && employee.statutory?.aadhaar_address
+                                    && bankDetails.some((b: any) => b.bank_type === 'personal'
+                                       && b.bank_name && b.account_number && b.ifsc_code)),
+    // no required fields — complete once saved (setExperienceFlag always runs)
+    experience_education:  () => employee.experienceFlag != null,
   };
 
   const hrKeys        = Object.keys(HR_STEP_WEIGHTS);

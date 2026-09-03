@@ -18,27 +18,39 @@ import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
+// TODO: move to employee.constants.ts alongside PF_EMPLOYER_FROM etc. for
+// consistency — kept inline here since this fixes an immediate mismatch
+// between the free-currency-input UI and the model's fixed ENUM.
+const MEDICLAIM_AMOUNT_OPTIONS = [
+  { value: '150000', label: '₹1,50,000' },
+  { value: '250000', label: '₹2,50,000' },
+  { value: '400000', label: '₹4,00,000' },
+  { value: '500000', label: '₹5,00,000' },
+  { value: 'Not Applicable', label: 'Not Applicable' },
+];
+
 function computeRdMaturity(
   openingDate: string | null | undefined,
   termStr:     string | null | undefined,
   empAmt:      number | null | undefined,
   emplrAmt:    number | null | undefined,
-): { maturityDate: string | null; maturityAmount: number } {
+): { maturityDate: string | null; maturityAmount: number; totalMonthly: number } {
+  const totalMonthly = (Number(empAmt) || 0) + (Number(emplrAmt) || 0);
+
   if (!openingDate || !termStr || termStr === 'N/A') {
-    return { maturityDate: null, maturityAmount: 0 };
+    return { maturityDate: null, maturityAmount: 0, totalMonthly };
   }
   const months = parseInt(termStr, 10);
-  if (isNaN(months) || months <= 0) return { maturityDate: null, maturityAmount: 0 };
+  if (isNaN(months) || months <= 0) return { maturityDate: null, maturityAmount: 0, totalMonthly };
 
   const d = new Date(openingDate);
-  if (isNaN(d.getTime())) return { maturityDate: null, maturityAmount: 0 };
+  if (isNaN(d.getTime())) return { maturityDate: null, maturityAmount: 0, totalMonthly };
 
   d.setMonth(d.getMonth() + months);
   const maturityDate   = d.toISOString().split('T')[0];
-  const totalMonthly   = (Number(empAmt) || 0) + (Number(emplrAmt) || 0);
   const maturityAmount = totalMonthly * months;
 
-  return { maturityDate, maturityAmount };
+  return { maturityDate, maturityAmount, totalMonthly };
 }
 
 function formatINR(n: number): string {
@@ -64,25 +76,28 @@ export function StepStatutorySchemes(_: Props) {
 
   useEffect(() => {
     if (!rdScheme) {
-      setValue('rd_maturity_date',   null,       { shouldDirty: false });
-      setValue('rd_maturity_amount', null,       { shouldDirty: false });
-      setValue('rd_status',          'Inactive', { shouldDirty: false });
+      setValue('rd_maturity_date',   null,             { shouldDirty: false });
+      setValue('rd_maturity_amount', null,             { shouldDirty: false });
+      setValue('ttl_m_contribution', null,             { shouldDirty: false });
+      setValue('rd_status',          'Not Applicable', { shouldDirty: false });
       return;
     }
 
-    const { maturityDate, maturityAmount } = computeRdMaturity(
+    const { maturityDate, maturityAmount, totalMonthly } = computeRdMaturity(
       rd_opening_date, rd_term, rd_amount_employee, rd_amount_employer,
     );
 
-    setValue('rd_maturity_date',   maturityDate,              { shouldDirty: false });
-    setValue('rd_maturity_amount', maturityAmount || null,    { shouldDirty: false });
-    setValue('rd_status',          'Active',                  { shouldDirty: false });
+    setValue('rd_maturity_date',   maturityDate,           { shouldDirty: false });
+    setValue('rd_maturity_amount', maturityAmount || null, { shouldDirty: false });
+    setValue('ttl_m_contribution', totalMonthly || null,   { shouldDirty: false });
+    setValue('rd_status',          'Yes',                  { shouldDirty: false });
   }, [rdScheme, rd_opening_date, rd_term, rd_amount_employee, rd_amount_employer, setValue]);
 
   const rd_maturity_amount = useWatch({ name: 'rd_maturity_amount' });
+  const ttl_m_contribution = useWatch({ name: 'ttl_m_contribution' });
 
   return (
-    <FormSection fields={[f('pf_status'), f('uan_number'), f('epfo_member_id'), f('pf_contribution_pct'), f('pf_employer_from'), f('esic_status'), f('esic_number'), f('mediclaim_status'), f('mediclaim_number'), f('mediclaim_amount'), f('rd_scheme'), f('rd_opening_date'), f('rd_account_number'), f('rd_deduction_from'), f('rd_amount_employee'), f('rd_amount_employer'), f('rd_maturity_date')]}>
+    <FormSection fields={[f('pf_status'), f('uan_number'), f('epfo_member_id'), f('pf_contribution_pct'), f('pf_employer_from'), f('pf_employee_12'), f('eps_employer_833'), f('epf_eps_diff_367'), f('esic_status'), f('esic_number'), f('esi_employee_pct'), f('esi_employer_pct'), f('mediclaim_status'), f('mediclaim_number'), f('mediclaim_amount'), f('rd_scheme'), f('rd_opening_date'), f('rd_account_number'), f('rd_deduction_from'), f('rd_amount_employee'), f('rd_amount_employer'), f('rd_maturity_date'), f('rd_maturity_amount'), f('ttl_m_contribution')]}>
     <div style={{ display: 'grid', gap: 20 }}>
 
       {/* ── Provident Fund ──────────────────────────────────────────────── */}
@@ -107,8 +122,10 @@ export function StepStatutorySchemes(_: Props) {
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>ESI</div>
         <FormToggle name="esic_status" label="ESI Applicable" showValue fieldPerm={f('esic_status')} />
         {esicStatus && (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 12 }}>
             <FormInput name="esic_number" label="ESI Number" fieldPerm={f('esic_number')} />
+            <FormInput name="esi_employee_pct" label="ESI Employee %" type="number" hint="e.g. 0.75" fieldPerm={f('esi_employee_pct')} />
+            <FormInput name="esi_employer_pct" label="ESI Employer %" type="number" hint="e.g. 3.25" fieldPerm={f('esi_employer_pct')} />
           </div>
         )}
       </div>
@@ -120,7 +137,7 @@ export function StepStatutorySchemes(_: Props) {
         {mediStatus === 'Yes' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <FormInput name="mediclaim_number" label="Mediclaim Policy Number" fieldPerm={f('mediclaim_number')} />
-            <FormCurrencyInput name="mediclaim_amount" label="Mediclaim Amount" fieldPerm={f('mediclaim_amount')} />
+            <FormSelect name="mediclaim_amount" label="Mediclaim Amount" options={MEDICLAIM_AMOUNT_OPTIONS} placeholder="Select" fieldPerm={f('mediclaim_amount')} />
           </div>
         )}
       </div>
@@ -158,6 +175,19 @@ export function StepStatutorySchemes(_: Props) {
                 aria-label="RD Maturity Amount (auto-calculated)"
               />
               <p className="field-hint">Auto-calculated: (Emp + Emplr) × months</p>
+            </div>
+
+            <div className="form-field fg">
+              <label className="field-label">Total Monthly Contribution</label>
+              <input
+                type="text"
+                className="form-input readonly"
+                readOnly
+                value={ttl_m_contribution ? formatINR(Number(ttl_m_contribution)) : '—'}
+                tabIndex={-1}
+                aria-label="Total Monthly Contribution (auto-calculated)"
+              />
+              <p className="field-hint">Auto-calculated: Employee + Employer amount</p>
             </div>
           </div>
         )}

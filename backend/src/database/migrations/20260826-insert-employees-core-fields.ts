@@ -103,9 +103,11 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'number',   label: 'EPF/EPS Diff 3.67%',          field_key: 'epf_eps_diff_367',            section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'checkbox', label: 'ESIC Status',                 field_key: 'esic_status',                 section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'text',     label: 'ESIC Number',                 field_key: 'esic_number',                 section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
+  { field_type: 'number',   label: 'ESI Employee %',               field_key: 'esi_employee_pct',            section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
+  { field_type: 'number',   label: 'ESI Employer %',               field_key: 'esi_employer_pct',            section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'select',   label: 'Mediclaim Status',            field_key: 'mediclaim_status',            section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'text',     label: 'Mediclaim Number',            field_key: 'mediclaim_number',            section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
-  { field_type: 'number',   label: 'Mediclaim Amount',            field_key: 'mediclaim_amount',            section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
+  { field_type: 'select',   label: 'Mediclaim Amount',            field_key: 'mediclaim_amount',            section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'checkbox', label: 'RD Scheme',                   field_key: 'rd_scheme',                   section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'select',   label: 'RD Term',                     field_key: 'rd_term',                     section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'date',     label: 'RD Opening Date',             field_key: 'rd_opening_date',             section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
@@ -116,7 +118,7 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'number',   label: 'Total Monthly Contribution',  field_key: 'ttl_m_contribution',          section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'date',     label: 'RD Maturity Date',            field_key: 'rd_maturity_date',            section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
   { field_type: 'number',   label: 'RD Maturity Amount',          field_key: 'rd_maturity_amount',          section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
-  { field_type: 'text',     label: 'RD Status',                   field_key: 'rd_status',                   section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
+  { field_type: 'select',   label: 'RD Status',                   field_key: 'rd_status',                   section: 'Schemes (PF/ESIC/Mediclaim/RD)' },
 
   // ── Personal Profile (EmployeePersonal) ───────────────────────────
   { field_type: 'date',     label: 'Date of Birth',               field_key: 'date_of_birth',               section: 'Personal' },
@@ -256,6 +258,9 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'number',   label: 'HRA',                           field_key: 'hra',                         section: 'Salary' },
   { field_type: 'number',   label: 'Allowance 1',                   field_key: 'allowance1',                  section: 'Salary' },
   { field_type: 'number',   label: 'Gross Salary (PM)',             field_key: 'gross_salary_pm',             section: 'Salary' },
+  // StepCompensation.tsx checks fieldPerm={f('amdb')} for both the current and
+  // joining AMDB inputs; `amdb_pm` is only the read-side column name.
+  { field_type: 'number',   label: 'AMDB',                          field_key: 'amdb',                        section: 'Salary' },
   { field_type: 'number',   label: 'AMDB (PM)',                     field_key: 'amdb_pm',                     section: 'Salary' },
   { field_type: 'number',   label: 'Total Earning (PM)',            field_key: 'total_earning_pm',            section: 'Salary' },
   { field_type: 'date',     label: 'Effective From',                field_key: 'salary_effective_from',       section: 'Salary' },
@@ -359,10 +364,40 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     'updated_at',
   ],
 } as any);
+
+  // Back-fill field_permissions_v2 so every newly-seeded field is actually
+  // visible/editable to the groups that already manage employee fields — the
+  // normal cascade only runs when an admin re-saves a permission group, which
+  // is easy to forget in a dev/test DB. Grants View + Edit + Download (Copy
+  // stays an explicit opt-in, matching applyModuleDefaultsToFields()).
+  // No-op when field_permissions_v2 has no rows yet.
+  await queryInterface.sequelize.query(`
+    INSERT INTO field_permissions_v2
+      (group_id, field_id, company_id, can_view, can_edit, can_copy, can_download, is_masked)
+    SELECT g.group_id, df.id, g.company_id, 1, 1, 0, 1, 0
+    FROM dynamic_fields df
+    CROSS JOIN (SELECT DISTINCT group_id, company_id FROM field_permissions_v2) g
+    WHERE df.form_id = ${FORM_ID}
+      AND NOT EXISTS (
+        SELECT 1 FROM field_permissions_v2 fp
+        WHERE fp.field_id = df.id
+          AND fp.group_id = g.group_id
+          AND (fp.company_id <=> g.company_id)
+      )
+  `);
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
   const fieldKeys = FIELDS.map((f) => f.field_key);
+
+  // remove the permission rows first so nothing is left dangling
+  await queryInterface.sequelize.query(`
+    DELETE fp FROM field_permissions_v2 fp
+    JOIN dynamic_fields df ON df.id = fp.field_id
+    WHERE df.form_id = ${FORM_ID}
+      AND df.field_key IN (:keys)
+  `, { replacements: { keys: fieldKeys } });
+
   await queryInterface.bulkDelete('dynamic_fields', {
     form_id: FORM_ID,
     field_key: fieldKeys,

@@ -122,16 +122,18 @@ export class EmployeeService {
     };
   }
 
-  async getById(id: number, companyId: number, isSuperAdmin: boolean) {
-    const canSeeSensitive = isSuperAdmin;
+  // `canSeeSensitive` — super admin, or anyone who can edit employees (if you
+  // can edit salary / KYC / bank you can view it). Controls both which child
+  // rows are loaded and whether masking is bypassed.
+  async getById(id: number, companyId: number, canSeeSensitive: boolean) {
     const emp = await repo.findById(id, companyId, canSeeSensitive);
     if (!emp) throw new AppError('Employee not found', 404);
 
-    const perms = isSuperAdmin ? {} : '';
+    const perms = canSeeSensitive ? {} : '';
     const json  = flattenEmployee(emp.toJSON() as any);
-    if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms as any, isSuperAdmin);
-    if (json.salaries)    json.salaries     = json.salaries.map((s: any) => applyMasking(s, perms as any, isSuperAdmin));
-    if (json.bankDetails) json.bankDetails  = json.bankDetails.map((b: any) => applyMasking(b, perms as any, isSuperAdmin));
+    if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms as any, canSeeSensitive);
+    if (json.salaries)    json.salaries     = json.salaries.map((s: any) => applyMasking(s, perms as any, canSeeSensitive));
+    if (json.bankDetails) json.bankDetails  = json.bankDetails.map((b: any) => applyMasking(b, perms as any, canSeeSensitive));
     return json;
   }
 
@@ -188,9 +190,13 @@ export class EmployeeService {
     return sequelize.transaction(async (t) => {
       await this.routeStep(id, companyId, step, dto, actorId, t);
 
-      const fresh = await repo.findById(id, companyId, true);
-      
-      const breakdown = computeCompletionPct(flattenEmployee(fresh?.toJSON()));
+      // pass `t` so completion is computed against THIS step's just-written rows
+      // (without it, form_completion_pct always lagged one step behind and the
+      // employee_code only caught up on the final submit)
+      const fresh = await repo.findById(id, companyId, true, t);
+
+      // raw JSON (child rows stay nested) — computeCompletionPct reads assocs directly
+      const breakdown = computeCompletionPct(fresh?.toJSON() ?? {});
       await repo.updateCompletionPct(id, breakdown.overallPct, t);
 
       if (breakdown.overallPct === 100 && !fresh?.employee_code) {
@@ -232,9 +238,11 @@ export class EmployeeService {
           working_site:            d.working_site != null ? Number(d.working_site) : null,
           pay_register_location:   d.pay_register_location != null ? Number(d.pay_register_location) : null,
           actual_doj:              d.actual_doj ? parseDdMmYyyy(d.actual_doj) : null,
-          current_doj:             d.current_doj ? parseDdMmYyyy(d.current_doj) : null,
           weekly_off:              d.weekly_off ?? null,
-          shift_category:          (d as any).shift_category ?? null,
+          // shift_category is NOT NULL in the DB but carries no `*` in the UI —
+          // default it (fixed shift ⇒ 'Shift', otherwise 'Duration') so leaving
+          // it blank never blocks the step save.
+          shift_category:          (d as any).shift_category || (d.shift_id ? 'Shift' : 'Duration'),
           shift_id:                d.shift_id || null,
           grace_minutes:           d.grace_minutes ?? null,
         }, t);
@@ -263,14 +271,14 @@ export class EmployeeService {
 
       case 'commitment_probation': {
         const d = dto as CommitmentProbationDto;
-        const emp = flattenEmployee((await repo.findById(id, companyId))?.toJSON());
+        // pass `t` so this read sees rows written earlier in the same
+        // transaction (matters for bulk import, where actual_doj was just set
+        // one step earlier; harmless for the wizard where it's already committed)
+        const emp = flattenEmployee((await repo.findById(id, companyId, false, t))?.toJSON());
 
         const commitEndDate = (d.commitment && d.commitment_term && d.commitment_entered_on)
           ? computeCommitmentEndDate(d.commitment_entered_on, d.commitment_term)
           : null;
-        const commitStatus = commitEndDate
-          ? (new Date() < commitEndDate ? 'Active' : 'Completed')
-          : 'N/A';
 
         const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_doj)
           ? computeProbationEndDate(String(emp.actual_doj), d.probation_period)
@@ -281,15 +289,13 @@ export class EmployeeService {
           commitment_term:          d.commitment_term || null,
           commitment_entered_on:    d.commitment_entered_on ? parseDdMmYyyy(d.commitment_entered_on) : null,
           commitment_end_date:      commitEndDate,
-          commitment_status:        commitStatus,
           on_probation:             d.on_probation,
           probation_period:         d.probation_period || null,
           probation_end_date:       probationEndDate,
-          probation_status:         probationEndDate ? (new Date() < probationEndDate ? 'On Probation' : 'Completed') : 'N/A',
-          probation_extended_period:d.probation_extended_period || null,
-          probation_final_status:   d.on_probation ? 'Pending' : 'N/A',
-          confirmation_status:      d.confirmation_status || null,
-          confirmed_on:             d.confirmed_on ? parseDdMmYyyy(d.confirmed_on) : null,
+          // User-selected outcome (Confirmed / Failed / Not Applicable) — the
+          // lifecycle "still on probation vs. done" is derivable from
+          // probation_end_date and is not stored here.
+          probation_status:         d.probation_status || null,
         }, t);
         break;
       }
@@ -306,7 +312,7 @@ export class EmployeeService {
           ...d,
           rd_maturity_date:   rdMaturityDate,
           rd_maturity_amount: rdMaturityAmount,
-          rd_status: d.rd_scheme ? 'Active' : 'Inactive',
+          rd_status: d.rd_scheme ? 'Yes' : 'Not Applicable',
         }, t);
         break;
       }
@@ -358,8 +364,10 @@ export class EmployeeService {
         } as any, t);
 
         if (d.family_members) {
-          await repo.replaceFamilyMembers(id, d.family_members.map((m: any) => ({
-            name: m.name,
+          // ignore fully-blank rows (the UI can submit a placeholder row)
+          const members = d.family_members.filter((m: any) => m && String(m.name ?? '').trim());
+          await repo.replaceFamilyMembers(id, members.map((m: any) => ({
+            name: String(m.name).trim(),
             relationship: m.relationship || null,
             relationship_other: m.relationship_other || null,
             salutation: m.salutation || null,
@@ -368,11 +376,15 @@ export class EmployeeService {
           })), t);
         }
         if (d.emergency_contacts) {
-          await repo.replaceEmergencyContacts(id, d.emergency_contacts.map((c: any) => ({
-            contact_name: c.contact_name,
-            contact_number: c.contact_number,
+          // keep only rows with both a name and a number (model requires both);
+          // fully-blank / half-filled placeholder rows are dropped
+          const contacts = d.emergency_contacts.filter((c: any) =>
+            c && String(c.contact_name ?? '').trim() && String(c.contact_number ?? '').trim());
+          await repo.replaceEmergencyContacts(id, contacts.map((c: any) => ({
+            contact_name: String(c.contact_name).trim(),
+            contact_number: String(c.contact_number).trim(),
             email: c.email || null,
-            relationship: c.relationship,
+            relationship: c.relationship || 'Other',
             relationship_other: c.relationship_other || null,
           })), t);
         }
@@ -413,8 +425,14 @@ export class EmployeeService {
           branch_name:    d.personal_bank_branch || null,
         }, t);
 
-        if (d.vaccinations) await repo.replaceVaccinations(id, d.vaccinations, t);
-        if (d.documents)    await repo.replaceDocuments(id, d.documents, t);
+        if (d.vaccinations) {
+          const vax = d.vaccinations.filter((v: any) => v && String(v.vaccine_name ?? '').trim());
+          await repo.replaceVaccinations(id, vax, t);
+        }
+        if (d.documents) {
+          const docs = d.documents.filter((x: any) => x && String(x.file_url ?? '').trim());
+          await repo.replaceDocuments(id, docs, t);
+        }
         break;
       }
 
@@ -423,7 +441,8 @@ export class EmployeeService {
         await repo.setExperienceFlag(id, d.is_experienced, t);
 
         if (d.experience) {
-          await repo.replaceExperience(id, d.experience.map(e => ({
+          const exp = d.experience.filter((e: any) => e && String(e.last_company_name ?? '').trim());
+          await repo.replaceExperience(id, exp.map(e => ({
             last_company_name:       e.last_company_name || null,
             last_designation:        e.last_designation || null,
             last_working_day:        e.last_working_day ? parseDdMmYyyy(e.last_working_day) : null,
@@ -435,7 +454,8 @@ export class EmployeeService {
         }
 
         if (d.education) {
-          await repo.replaceEducation(id, d.education.map(ed => ({
+          const edu = d.education.filter((e: any) => e && String(e.highest_education ?? '').trim());
+          await repo.replaceEducation(id, edu.map(ed => ({
             highest_education:    ed.highest_education,
             education_stream:     ed.education_stream || null,
             education_mode:       ed.education_mode || null,
@@ -509,6 +529,133 @@ export class EmployeeService {
     const emp = await repo.softDelete(id, companyId, actorId);
     if (!emp) throw new AppError('Employee not found', 404);
     await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_DELETED', module: 'employees', entityId: id });
+  }
+
+  /**
+   * Inter-company transfer. Relieves the source employee and creates a fresh
+   * employee record in the destination company under a new employee_code,
+   * copying personal / KYC / bank / family / education / experience details.
+   * A transfer-history row links the two.
+   */
+  async transferEmployee(
+    sourceId: number,
+    companyId: number,
+    dto: {
+      new_employee_code: string;
+      new_company_id: number;
+      transfer_date: string;
+      new_department_id?: number | null;
+      new_sub_department_id?: number | null;
+      new_designation_id?: number | null;
+      new_working_site?: number | null;
+    },
+    actorId: number,
+    ipAddress?: string,
+  ): Promise<{ newEmployeeId: number; newEmployeeCode: string }> {
+    const src = await repo.findById(sourceId, companyId, true);
+    if (!src) throw new AppError('Employee not found', 404);
+    const s = src.toJSON() as any;
+
+    if (s.status === 'Relieved') throw new AppError('This employee has already been relieved / transferred', 400);
+    if (Number(dto.new_company_id) === Number(s.company_id)) {
+      throw new AppError('Destination company must be different from the current company', 400);
+    }
+
+    const newCompany = await Company.findByPk(dto.new_company_id, { attributes: ['id', 'name'] });
+    if (!newCompany) throw new AppError('Destination company not found', 404);
+
+    const code = String(dto.new_employee_code).trim();
+    if (!code) throw new AppError('New employee code is required', 400);
+    if (await repo.findByCode(code)) throw new AppError(`Employee code "${code}" is already in use`, 409);
+
+    const doj = parseDdMmYyyy(dto.transfer_date);
+
+    const deptId  = dto.new_department_id  ?? s.department_id;
+    const desigId = dto.new_designation_id ?? s.designation_id;
+    const [srcCompany, srcDept, srcDesig, newDept, newDesig] = await Promise.all([
+      s.company_id ? Company.findByPk(s.company_id, { attributes: ['name'] }) : null,
+      s.department_id ? Department.findByPk(s.department_id, { attributes: ['department_name'] }) : null,
+      s.designation_id ? Designation.findByPk(s.designation_id, { attributes: ['designation_name'] }) : null,
+      deptId  ? Department.findByPk(deptId,  { attributes: ['department_name'] })  : null,
+      desigId ? Designation.findByPk(desigId, { attributes: ['designation_name'] }) : null,
+    ]);
+    const nm = (x: any, k: string) => (x ? (x as any)[k] as string : null);
+
+    return sequelize.transaction(async (t) => {
+      const loc = s.locationAttendance ?? {};
+
+      const newEmp = await repo.create({
+        company_id:         newCompany.id,
+        employee_code:      code,
+        reference_code:     null,
+        status:             'Active',
+        record_status:      'Final',
+        first_name:         s.first_name,
+        middle_name:        s.middle_name ?? null,
+        last_name:          s.last_name,
+        employment_type:    s.employment_type,
+        department_id:      deptId,
+        sub_department_id:  dto.new_sub_department_id ?? s.sub_department_id ?? null,
+        designation_id:     desigId,
+        sub_designation_id: s.sub_designation_id ?? null,
+        email:             s.email,
+        phone:             s.phone,
+        portal_access:     s.portal_access,
+        is_super_admin:    false,
+        otp_attempts:      0,
+        must_change_password: false,
+        form_completion_pct: s.form_completion_pct ?? 0,
+        created_by:        actorId,
+      } as any, t);
+
+      // Copy personal / KYC / bank / family / education / experience
+      await repo.cloneEmployeeChildren(sourceId, newEmp.id, t);
+
+      // Location & Attendance — new joining date + optional new site, rest copied
+      await repo.upsertLocationAttendance(newEmp.id, {
+        actual_doj:            doj,
+        working_site:          dto.new_working_site != null ? Number(dto.new_working_site) : (loc.working_site ?? null),
+        working_city:          loc.working_city ?? null,
+        working_state_country: loc.working_state_country ?? null,
+        pay_register_location: loc.pay_register_location ?? null,
+        weekly_off:            loc.weekly_off ?? null,
+        shift_category:        loc.shift_category ?? 'Duration',
+        shift_id:              loc.shift_id ?? null,
+        grace_minutes:         loc.grace_minutes ?? null,
+      }, t);
+
+      // Transfer history on the NEW record
+      await repo.replaceTransfers(newEmp.id, [{
+        transferred_on:   doj,
+        new_company:      newCompany.name,
+        new_joining_date: doj,
+        new_department:   nm(newDept, 'department_name'),
+        new_job_title:    nm(newDesig, 'designation_name'),
+        old_company:      nm(srcCompany, 'name'),
+        exit_date:        doj,
+        old_department:   nm(srcDept, 'department_name'),
+        old_job_title:    nm(srcDesig, 'designation_name'),
+        old_emp_code:     s.employee_code ?? null,
+      }], t);
+
+      // Close out the source employee
+      await repo.update(sourceId, companyId, { status: 'Relieved', portal_access: false, updated_by: actorId }, t);
+      await repo.upsertExit(sourceId, {
+        last_working_day:      doj,
+        exit_status:           'Transferred',
+        exit_remarks:          `Transferred to ${newCompany.name} — new code ${code}`,
+        exit_formalities_done: true,
+      }, t);
+
+      await logActivity({
+        companyId, employeeId: actorId, action: 'EMPLOYEE_TRANSFERRED', module: 'employees',
+        entityId: sourceId,
+        newValues: { newEmployeeId: newEmp.id, newEmployeeCode: code, newCompany: newCompany.name },
+        ipAddress,
+      });
+
+      return { newEmployeeId: newEmp.id, newEmployeeCode: code };
+    });
   }
 
   async searchManagers(query: string, companyId: number, excludeId?: number) {
@@ -608,7 +755,7 @@ export class EmployeeService {
         // crashing computeCompletionPct() on `undefined.first_name`.
         throw new AppError('Employee not found while finalizing draft save', 404);
       }
-      const breakdown = computeCompletionPct(flattenEmployee(fresh.toJSON()));
+      const breakdown = computeCompletionPct(fresh.toJSON());
       await repo.updateCompletionPct(id!, breakdown.overallPct, t);
 
       if (breakdown.overallPct === 100 && !fresh?.employee_code) {
@@ -825,6 +972,111 @@ export class EmployeeService {
     }
 
     return result;
+  }
+
+  /**
+   * Bulk-import path (used by bulkImport.service). Creates an employee and
+   * applies every provided wizard step in ONE transaction, reusing routeStep()
+   * — the same persistence + calculations the wizard uses — and the same
+   * completion / employee_code logic as updateStep(). The caller has already
+   * validated the payloads and resolved all master data.
+   *
+   * Any failure rolls the whole row back, so a partially-imported employee can
+   * never exist. Existing single-step flows are untouched.
+   */
+  async bulkCreateEmployee(
+    base: {
+      company_id: number; first_name: string; middle_name: string | null; last_name: string;
+      status: string; employment_type: string; department_id: number; designation_id: number;
+      sub_department_id: number | null; sub_designation_id: number | null; email: string; phone: string;
+      employee_code?: string | null; reference_code?: string | null; avatar_url?: string | null;
+      reporting_manager_id?: number | null;
+    },
+    steps: Partial<Record<StepKey, any>>,
+    actorId: number,
+  ): Promise<{ employeeId: number; employeeCode: string | null; completionPct: number; warnings: string[] }> {
+    const STEP_ORDER: StepKey[] = [
+      'location_attendance', 'managers_work_contact', 'commitment_probation', 'statutory_schemes',
+      'compensation', 'hr_joining_checklist', 'personal_profile', 'address', 'family_emergency',
+      'ids_bank', 'experience_education',
+    ];
+    // For optional steps the sheet didn't fill, create the empty child row anyway
+    // — same as an empty "Save & Continue" in the wizard — so completion (and
+    // therefore employee_code) is gated by required fields only. `location_
+    // attendance` and `ids_bank` are omitted: they carry required fields, so if
+    // the sheet skipped them the employee is genuinely incomplete.
+    const EMPTY_PAYLOAD: Partial<Record<StepKey, any>> = {
+      managers_work_contact: {},
+      commitment_probation:  { commitment: false, on_probation: false },
+      statutory_schemes:     { pf_status: false, esic_status: false, rd_scheme: false },
+      compensation:          { asset_deduction_applicable: false },
+      hr_joining_checklist:  {},
+      personal_profile:      {},
+      address:               {},
+      family_emergency:      {},
+      experience_education:  { is_experienced: false },
+    };
+
+    // A manually-supplied employee_code (existing-staff migration) is kept as-is;
+    // a blank one is still auto-generated once the profile hits 100%.
+    const manualCode = base.employee_code?.trim() || null;
+
+    return sequelize.transaction(async (t) => {
+      const emp = await repo.create({
+        company_id:         base.company_id,
+        employee_code:      manualCode,
+        reference_code:     base.reference_code?.trim() || null,
+        avatar_url:         base.avatar_url?.trim() || null,
+        reporting_manager_id: base.reporting_manager_id ?? null,
+        status:             (base.status as any) || 'Active',
+        record_status:      manualCode ? 'Final' : 'Draft',
+        first_name:         base.first_name.trim(),
+        middle_name:        base.middle_name?.trim() || null,
+        last_name:          base.last_name.trim(),
+        employment_type:    (base.employment_type as any) || 'Permanent',
+        department_id:      base.department_id,
+        sub_department_id:  base.sub_department_id ?? null,
+        designation_id:     base.designation_id,
+        sub_designation_id: base.sub_designation_id ?? null,
+        email:              base.email.toLowerCase().trim(),
+        phone:              normalizePhone(base.phone),
+        portal_access:      true,
+        is_super_admin:     false,
+        otp_attempts:       0,
+        must_change_password: false,
+        form_completion_pct: 0,
+        created_by:         actorId,
+      } as any, t);
+
+      for (const step of STEP_ORDER) {
+        const payload = steps[step] ?? EMPTY_PAYLOAD[step];
+        if (payload === undefined) continue;   // location_attendance / ids_bank not in the sheet
+        await this.routeStep(emp.id, base.company_id, step, payload, actorId, t);
+      }
+
+      const fresh = await repo.findById(emp.id, base.company_id, true, t);
+      const breakdown = computeCompletionPct(fresh?.toJSON() ?? {});
+      await repo.updateCompletionPct(emp.id, breakdown.overallPct, t);
+
+      const warnings: string[] = [];
+      let employeeCode: string | null = manualCode;
+      if (breakdown.overallPct === 100 && !manualCode && !fresh?.employee_code) {
+        try {
+          employeeCode = await generateEmployeeCode(base.company_id);
+          await repo.update(emp.id, base.company_id, { employee_code: employeeCode, record_status: 'Final' }, t);
+        } catch (e: any) {
+          warnings.push(`Reached 100% but employee_code was not generated: ${e.message}`);
+        }
+      }
+
+      await logActivity({
+        companyId: base.company_id, employeeId: actorId, action: 'EMPLOYEE_BULK_IMPORTED',
+        module: 'employees', entityId: emp.id,
+        newValues: { name: `${base.first_name} ${base.last_name}`, completionPct: breakdown.overallPct },
+      });
+
+      return { employeeId: emp.id, employeeCode, completionPct: breakdown.overallPct, warnings };
+    });
   }
 }
 

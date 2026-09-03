@@ -13,6 +13,11 @@ import type { EmployeeQueryParams } from './employee.types';
 const MGR_ATTRS = ['id', 'employee_code', 'first_name', 'last_name'];
 
 const DETAIL_INCLUDES: any[] = [
+  { association: 'company',     attributes: ['id', 'name'] },
+  { association: 'department',  attributes: ['id', ['department_name', 'name']] },
+  { association: 'designation', attributes: ['id', ['designation_name', 'name']] },
+  { association: 'subDepartment',  attributes: ['id', 'name'] },
+  { association: 'subDesignation', attributes: ['id', 'name'] },
   { association: 'locationAttendance' },
   {
     association: 'managersWorkContact',
@@ -269,6 +274,43 @@ export class EmployeeRepository {
 
   async updateCompletionPct(id: number, pct: number, t: Transaction) {
     return Employee.update({ form_completion_pct: pct }, { where: { id }, transaction: t });
+  }
+
+  /**
+   * Copy every child record of `fromId` onto `toId` — used by the transfer flow
+   * ("Personal / KYC details are copied"). EmployeeLocationAttendance is handled
+   * separately by the caller (new DOJ / site), EmployeeTransfer / EmployeeExit
+   * are transfer-specific and never cloned.
+   */
+  async cloneEmployeeChildren(fromId: number, toId: number, t: Transaction) {
+    const strip = (r: any) => {
+      const o = { ...r };
+      delete o.id; delete o.created_at; delete o.updated_at; delete o.createdAt; delete o.updatedAt;
+      return o;
+    };
+    const singleModels: any[] = [
+      EmployeeManagersWorkContact, EmployeeCommitmentProbation, EmployeeSchemes,
+      EmployeePersonal, EmployeeFamily, EmployeeStatutory, EmployeeAssetDeduction,
+      EmployeeOnboardingDocs, EmployeeExperienceFlag,
+    ];
+    const listModels: any[] = [
+      EmployeeFamilyMember, EmployeeAddress, EmployeeEmergencyContact, EmployeeVaccination,
+      EmployeeDocument, EmployeeBankDetail, EmployeeSalary, EmployeeExperience, EmployeeEducation,
+    ];
+
+    for (const M of singleModels) {
+      const row = await M.findOne({ where: { employee_id: fromId }, transaction: t });
+      if (!row) continue;
+      await M.create({ ...strip(row.toJSON()), employee_id: toId }, { transaction: t });
+    }
+    for (const M of listModels) {
+      const rows = await M.findAll({ where: { employee_id: fromId }, transaction: t });
+      if (!rows.length) continue;
+      await M.bulkCreate(
+        rows.map((r: any) => ({ ...strip(r.toJSON()), employee_id: toId })),
+        { transaction: t },
+      );
+    }
   }
 
   async findByCode(code: string, excludeId?: number) {

@@ -25,8 +25,8 @@ export const PROBATION_PERIOD = ['3 Months', '4 Months', '6 Months', '9 Months',
 export type ProbationPeriod = typeof PROBATION_PERIOD[number];
 
 // B60
-export const CONFIRMATION_STATUS = ['Confirmed', 'Failed', 'Not Applicable'] as const;
-export type ConfirmationStatus = typeof CONFIRMATION_STATUS[number];
+export const PROBATION_STATUS = ['Confirmed', 'Failed', 'Not Applicable'] as const;
+export type ProbationStatus = typeof PROBATION_STATUS[number];
 
 // H67
 export const PF_EMPLOYER_FROM = ['Employee', 'Employer', 'N/A'] as const;

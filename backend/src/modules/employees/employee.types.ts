@@ -10,7 +10,7 @@
  */
 
 import type {
-  EmployeeStatus, EmploymentType, CommitmentTerm, ConfirmationStatus,
+  EmployeeStatus, EmploymentType, CommitmentTerm, ProbationStatus,
   PfEmployerFrom, MediclaimStatus, RdTerm, HouseType, PermAddressType,
   FatherSalutation, MotherSalutation, MotherOccupationStatus,
   ParentOccupationStatus, SalaryMode, DeductionFrom, DeductionMonths,
@@ -78,40 +78,37 @@ export interface CommitmentProbationDto {
   on_probation: boolean;
   probation_period?: string | null;
   probation_end_date?: string | null;
-  probation_extended_period?: string | null;
-
-  confirmation_status?: ConfirmationStatus | null;
-  confirmed_on?: string | null;
+  probation_status?: ProbationStatus | null;
 }
 
 // ─── Step 5 (HR): Statutory Schemes ────────────────────────────────────────────
 export interface SchemesDto {
-  // PF
-  pf_status:              boolean;
-  uan_number?:            string | null;
-  epfo_member_id?:        string | null;
-  pf_contribution_pct?:   number | null;
-  pf_employer_from?:      PfEmployerFrom;
-  pf_employee_12?:        number | null;
-  eps_employer_833?:      number | null;
-  epf_eps_diff_367?:      number | null;
-  // ESIC — esi_employee_pct/esi_employer_pct confirmed missing before, now added
-  esic_status:            boolean;
-  esic_number?:           string | null;
-  esi_employee_pct?:      number | null;
-  esi_employer_pct?:      number | null;
-  // Mediclaim
-  mediclaim_status:       MediclaimStatus;
-  mediclaim_number?:      string | null;
-  mediclaim_amount?:      number | null;
-  // RD
-  rd_scheme:              boolean;
-  rd_term?:               RdTerm;
-  rd_opening_date?:       string | null;
-  rd_account_number?:     string | null;
-  rd_deduction_from?:     DeductionFrom;
-  rd_amount_employee?:    number | null;
-  rd_amount_employer?:    number | null;
+  pf_status?:              boolean;
+  uan_number?:             string | null;
+  epfo_member_id?:         string | null;
+  pf_contribution_pct?:    number | null;
+  pf_employer_from?:       string | null;
+  pf_employee_12?:         number | null;
+  eps_employer_833?:       number | null;
+  epf_eps_diff_367?:       number | null;
+  esic_status?:            boolean;
+  esic_number?:            string | null;
+  esi_employee_pct?:       number | null;
+  esi_employer_pct?:       number | null;
+  mediclaim_status?:       'Yes' | 'No' | 'Not Applicable' | null;
+  mediclaim_number?:       string | null;
+  mediclaim_amount?:       '150000' | '250000' | '400000' | '500000' | 'Not Applicable' | null;
+  rd_scheme?:              boolean;
+  rd_term?:                '6 Months' | '12 Months' | '18 Months' | '24 Months' | '30 Months' | '36 Months' | 'N/A' | null;
+  rd_opening_date?:        string | null;
+  rd_account_number?:      string | null;
+  rd_deduction_from?:      'Salary' | 'AMDB' | 'N/A' | null;
+  rd_amount_employee?:     number | null;
+  rd_amount_employer?:     number | null;
+  ttl_m_contribution?:     number | null;
+  rd_maturity_date?:       string | null;
+  rd_maturity_amount?:     number | null;
+  rd_status?:              'Yes' | 'No' | 'Not Applicable' | null;
 }
 
 // ─── Step 8 (Candidate): Personal Profile ─────────────────────────────────────

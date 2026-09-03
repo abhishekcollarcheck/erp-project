@@ -22,6 +22,7 @@ import { showToast } from '../../../utils/toast';
 import type { Employee, EmployeeStatus, EmploymentType } from '../../../features/employees/types/employee.types';
 import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE, DEPARTMENT_OPTIONS } from '../../../features/employees/constants/employee.constants';
 import { BulkUploadModal } from '../../../features/employees/components/BulkUploadModal';
+import { TransferEmployeeModal } from '../../../features/employees/components/TransferEmployeeModal';
 import { PermissionGuard } from '@/utils/permissionGuard';
 
 type StatusFilter     = EmployeeStatus | '';
@@ -39,6 +40,7 @@ export default function EmployeesPage() {
   const [typeFilter,   setTypeFilter]   = useState<EmpTypeFilter>('');
   const [deptFilter,   setDeptFilter]   = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [transferTarget, setTransferTarget] = useState<Employee | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
 
   const debouncedSearch = useDebounce(search, 400);
@@ -168,6 +170,9 @@ export default function EmployeesPage() {
               ? <Chip variant="amber" onClick={() => router.push(`/employees/${row.id}/edit`)}>Continue</Chip>
               : <Chip variant="gray" onClick={() => router.push(`/employees/${row.id}/edit`)}>Edit</Chip>
           )}
+          {canEdit('employees') && row.status !== 'Relieved' && (
+            <Chip variant="gray" onClick={() => setTransferTarget(row)}>Transfer</Chip>
+          )}
           {canDelete('employees') && <Chip variant="red" onClick={() => setDeleteTarget(row)}>Remove</Chip>}
         </div>
       ),
@@ -294,6 +299,12 @@ export default function EmployeesPage() {
       </Modal>
 
       <BulkUploadModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
+
+      <TransferEmployeeModal
+        open={!!transferTarget}
+        onClose={() => setTransferTarget(null)}
+        employee={transferTarget}
+      />
     </AppShell>
    </PermissionGuard> 
   );

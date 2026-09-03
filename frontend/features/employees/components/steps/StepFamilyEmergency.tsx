@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
@@ -13,7 +13,7 @@ interface Props { isEdit: boolean; employeeId: number | null }
 export function StepFamilyEmergency(_: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
-  const { control } = useFormContext();
+  const { control, getValues } = useFormContext();
 
   const familyMembers = useFieldArray({ control, name: 'family_members' });
   const emergencyContacts = useFieldArray({ control, name: 'emergency_contacts' });
@@ -22,8 +22,16 @@ export function StepFamilyEmergency(_: Props) {
   // start, not as a hand-written path outside it — otherwise the first
   // "+ Add contact" click appends its blank default at index 0 and silently
   // wipes whatever the user already typed there.
+  //
+  // The ref guard + getValues() check (rather than the stale `fields` closure)
+  // is what stops React 18 StrictMode's double-invoked mount effect from
+  // appending TWO blank primary rows.
+  const seededPrimary = useRef(false);
   useEffect(() => {
-    if (emergencyContacts.fields.length === 0) {
+    if (seededPrimary.current) return;
+    seededPrimary.current = true;
+    const existing = getValues('emergency_contacts');
+    if (!existing || existing.length === 0) {
       emergencyContacts.append({ contact_name: '', contact_number: '', email: '', relationship: '', relationship_other: '' }, { shouldFocus: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

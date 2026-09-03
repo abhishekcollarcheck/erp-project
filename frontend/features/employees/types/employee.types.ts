@@ -121,7 +121,7 @@ export interface EmployeeSchemes {
   esi_employer_pct?:    number | null;
   mediclaim_status:     MediclaimStatus;
   mediclaim_number?:    string | null;
-  mediclaim_amount?:    number | null;
+  mediclaim_amount?:    '150000' | '250000' | '400000' | '500000' | 'Not Applicable' | null;
   rd_scheme:            boolean;
   rd_term?:             string | null;
   rd_opening_date?:     string | null;
@@ -386,4 +386,22 @@ export interface BulkUploadResult {
   // Matches the backend's actual field name — was "inserted" here, but the
   // backend's bulkUpload() result object has always been `created: number[]`.
   created: number[];
+}
+
+// Full-field importer (POST /employees/bulk-import)
+export interface BulkImportResult {
+  total: number;
+  imported: number;
+  failed: number;
+  success: number;                              // alias of `imported`
+  created: Array<{ row: number; employeeId: number; employeeCode: string | null; completionPct: number }>;
+  errors: Array<{
+    row: number;
+    name: string;
+    reason: string;
+    errors: Array<{ column: string; message: string }>;
+    data: Record<string, unknown>;
+  }>;
+  warnings: Array<{ row: number; message: string }>;
+  errorFileBase64?: string;                     // .xlsx of failed rows, ready to fix & re-upload
 }

@@ -60,10 +60,16 @@ export const employeeController = {
 
   async getById(req: Request, res: Response) {
     if (checkErrors(req, res)) return;
+    const u = req.user!;
+    const canSeeSensitive =
+      u.isSuperAdmin ||
+      (u.permissions ?? []).includes('employees:edit') ||
+      (u.permissions ?? []).includes('*') ||
+      ['hr_manager', 'admin'].includes(u.roleSlug);
     const emp = await employeeService.getById(
       Number(req.params.id),
-      req.user!.companyId,
-      req.user!.isSuperAdmin,
+      u.companyId,
+      canSeeSensitive,
     );
     sendResponse(res, { data: emp });
   },
@@ -114,6 +120,20 @@ export const employeeController = {
       req.user!.employeeId,
     );
     sendResponse(res, { data: null, message: "Employee removed" });
+  },
+
+  async transfer(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (checkErrors(req, res)) return;
+      const result = await employeeService.transferEmployee(
+        Number(req.params.id),
+        req.user!.companyId,
+        req.body,
+        req.user!.employeeId,
+        req.ip,
+      );
+      sendResponse(res, { data: result, message: 'Employee transferred', statusCode: 201 });
+    } catch (e) { next(e); }
   },
 
   async managersSearch(req: Request, res: Response) {
@@ -456,7 +476,7 @@ export const employeeController = {
         );
       }
     }
-  }
+  },
 
   // downloadTemplate(_req: Request, res: Response) {
   //   const headers = [
@@ -493,6 +513,56 @@ export const employeeController = {
   //   );
   //   res.send(buf);
   // },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Full-field bulk import (all ~180 columns). Reuses the wizard pipeline —
+  // per-row validation via STEP_VALIDATORS, per-row transaction, calculations,
+  // and employee_code generation. Separate from the legacy `bulkUpload` above,
+  // which stays untouched.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  bulkImportTemplate: async function (_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { buildTemplateWorkbook } = await import('./bulkImport.service');
+      const buf = buildTemplateWorkbook();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="employee_bulk_import_template.xlsx"');
+      res.send(buf);
+    } catch (e) { next(e); }
+  },
+
+  bulkImportFields: async function (_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { allTemplateColumns } = await import('./bulkImport.fields');
+      sendResponse(res, { data: { columns: allTemplateColumns() } });
+    } catch (e) { next(e); }
+  },
+
+  bulkImport: async function (req: Request, res: Response, next: NextFunction): Promise<void> {
+    let filePath: string | undefined;
+    try {
+      if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
+      filePath = req.file.path;
+      const buf = fs.readFileSync(filePath);
+
+      const { runBulkImport, buildErrorWorkbook } = await import('./bulkImport.service');
+      const result = await runBulkImport(buf, req.user!.companyId, req.user!.employeeId);
+
+      const errorFileBase64 = result.errors.length
+        ? buildErrorWorkbook(result.errors).toString('base64')
+        : undefined;
+
+      sendResponse(res, {
+        data: { ...result, errorFileBase64 },
+        message: `Bulk import complete: ${result.imported} imported, ${result.failed} failed`,
+        statusCode: result.failed === 0 ? 201 : 207,
+      });
+    } catch (e) {
+      next(e);
+    } finally {
+      if (filePath) { try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch { /* ignore */ } }
+    }
+  },
 };
 
 export async function getManagedEmployees(

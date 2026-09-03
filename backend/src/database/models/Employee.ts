@@ -1,5 +1,6 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
+import { PROBATION_STATUS } from '../../modules/employees/employee.constants';
 
 interface EmployeeAttrs {
   id:                     number;
@@ -183,7 +184,7 @@ EmployeeLocationAttendance.init({
   pay_register_location:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   actual_doj:             { type: DataTypes.DATEONLY, allowNull: false },
   weekly_off:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  shift_category:         { type: DataTypes.ENUM('Shift', 'Duration'), allowNull: false },
+  shift_category:         { type: DataTypes.ENUM('Shift', 'Duration'), allowNull: false, defaultValue: 'Duration' },
   shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'shift', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
   grace_minutes:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
 }, { sequelize, tableName: 'employee_location_attendance', modelName: 'EmployeeLocationAttendance', timestamps: true });
@@ -209,47 +210,51 @@ EmployeeManagersWorkContact.init({
 export class EmployeeCommitmentProbation extends Model {
   public employee_id!:               number;
   public commitment!:                boolean;
-  public commitment_term!:           number | null;
+  public commitment_term!:           string | null;
   public commitment_entered_on!:     Date | null;
   public commitment_end_date!:       Date | null;
   public on_probation!:              boolean;
   public probation_period!:          string | null;
   public probation_end_date!:        Date | null;
-  public probation_extended_period!: string | null;
-  public confirmation_status!:       'Confirmed' | 'Failed' | 'Not Applicable' | null;
-  public confirmed_on!:              Date | null;
+  public probation_status!:          string | null;
 }
 EmployeeCommitmentProbation.init({
   employee_id:               { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
   commitment:                { type: DataTypes.BOOLEAN, defaultValue: false },
-  commitment_term:           { type: DataTypes.ENUM('36 Months', '60 Months', 'N/A'), allowNull: true },
+  commitment_term:           { type: DataTypes.ENUM('36 Months', '60 Months', 'N/A'), defaultValue: null, allowNull: true },
   commitment_entered_on:     { type: DataTypes.DATEONLY, allowNull: true },
   commitment_end_date:       { type: DataTypes.DATEONLY, allowNull: true },
   on_probation:              { type: DataTypes.BOOLEAN, defaultValue: true },
   probation_period:          { type: DataTypes.STRING(30), allowNull: true },
   probation_end_date:        { type: DataTypes.DATEONLY, allowNull: true },
-  probation_extended_period: { type: DataTypes.STRING(50), allowNull: true },
-  confirmation_status:       { type: DataTypes.ENUM('Confirmed', 'Failed', 'Not Applicable'), allowNull: true },
-  confirmed_on:              { type: DataTypes.DATEONLY, allowNull: true },
+  probation_status:          { type: DataTypes.ENUM(...PROBATION_STATUS), defaultValue: null, allowNull: true },
 }, { sequelize, tableName: 'employee_commitment_probation', modelName: 'EmployeeCommitmentProbation', timestamps: true });
 
 export class EmployeeSchemes extends Model {
   public employee_id!: number;
+
+  // Provident Fund
   public pf_status!: boolean;
   public uan_number!: string | null;
   public epfo_member_id!: string | null;
   public pf_contribution_pct!: number | null;
-  public pf_employer_from!: 'Employee' | 'Employer' | 'N/A' | null;
+  public pf_employer_from!: string | null;
   public pf_employee_12!: number | null;
   public eps_employer_833!: number | null;
   public epf_eps_diff_367!: number | null;
+
+  // ESI
   public esic_status!: boolean;
   public esic_number!: string | null;
   public esi_employee_pct!: number | null;
   public esi_employer_pct!: number | null;
-  public mediclaim_status!: 'Yes' | 'No' | 'Not Applicable';
+
+  // Mediclaim
+  public mediclaim_status!: 'Yes' | 'No' | 'Not Applicable' | null;
   public mediclaim_number!: string | null;
-  public mediclaim_amount!: number | null;
+  public mediclaim_amount!: string | null;
+
+  // RD Scheme
   public rd_scheme!: boolean;
   public rd_term!: string | null;
   public rd_opening_date!: Date | null;
@@ -260,7 +265,7 @@ export class EmployeeSchemes extends Model {
   public ttl_m_contribution!: number | null;
   public rd_maturity_date!: Date | null;
   public rd_maturity_amount!: number | null;
-  public rd_status!: string | null;
+  public rd_status!: 'Yes' | 'No' | 'Not Applicable' | null;
 }
 EmployeeSchemes.init({
   employee_id:         { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
@@ -268,7 +273,7 @@ EmployeeSchemes.init({
   uan_number:          { type: DataTypes.STRING(20), allowNull: true },
   epfo_member_id:      { type: DataTypes.STRING(30), allowNull: true },
   pf_contribution_pct: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
-  pf_employer_from:    { type: DataTypes.ENUM('Employee', 'Employer', 'N/A'), allowNull: true },
+  pf_employer_from:    { type: DataTypes.STRING(100), allowNull: true },
   pf_employee_12:      { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   eps_employer_833:    { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   epf_eps_diff_367:    { type: DataTypes.DECIMAL(12, 2), allowNull: true },
@@ -278,7 +283,7 @@ EmployeeSchemes.init({
   esi_employer_pct:    { type: DataTypes.DECIMAL(5, 2), allowNull: true },
   mediclaim_status:    { type: DataTypes.ENUM('Yes', 'No', 'Not Applicable'), defaultValue: 'No' },
   mediclaim_number:    { type: DataTypes.STRING(50), allowNull: true },
-  mediclaim_amount:    { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+  mediclaim_amount:    { type: DataTypes.ENUM('150000', '250000', '400000', '500000', 'Not Applicable'), allowNull: true },
   rd_scheme:           { type: DataTypes.BOOLEAN, defaultValue: false },
   rd_term:             { type: DataTypes.ENUM('6 Months', '12 Months', '18 Months', '24 Months', '30 Months', '36 Months', 'N/A'), allowNull: true },
   rd_opening_date:     { type: DataTypes.DATEONLY, allowNull: true },
@@ -289,7 +294,7 @@ EmployeeSchemes.init({
   ttl_m_contribution:  { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   rd_maturity_date:    { type: DataTypes.DATEONLY, allowNull: true },
   rd_maturity_amount:  { type: DataTypes.DECIMAL(14, 2), allowNull: true },
-  rd_status:           { type: DataTypes.STRING(50), allowNull: true },
+  rd_status:           { type: DataTypes.ENUM('Yes', 'No', 'Not Applicable'), allowNull: true },
 }, { sequelize, tableName: 'employee_schemes', modelName: 'EmployeeSchemes', timestamps: true });
 
 export class EmployeeSalary extends Model {
@@ -325,11 +330,6 @@ export class EmployeeAssetDeduction extends Model {
   public asset_deduction_applicable!:  boolean;
   public security_amount!:             number | null;
   public deduction_months!:            number | null;
-  // Confirmed against the live spreadsheet's actual Excel data validation
-  // on cell B213: list "Salary,AMDB,N/A" — this is the DEDUCTION_FROM enum,
-  // matching employee_constants.ts. A prior change mistakenly retyped this
-  // as a date ("the date deductions start from"); that was the bug, not
-  // the original design. Reverted to match the source-of-truth sheet.
   public deduction_from!:              'Salary' | 'AMDB' | 'N/A' | null;
   public monthly_deduction!:           number | null;
   public final_monthly_deduction!:     number | null;

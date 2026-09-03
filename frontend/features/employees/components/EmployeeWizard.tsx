@@ -51,7 +51,9 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
 
   const [currentIdx,   setCurrentIdx]   = useState(0);
   const [savedId,      setSavedId]      = useState<number | null>(employee?.id ?? null);
-  const [completedSet, setCompletedSet] = useState<Set<number>>(new Set(mode === 'edit' ? WIZARD_STEPS.map((_,i)=>i) : []));
+  // Populated from real per-step completion below (edit/draft) or as the user
+  // advances (create) — never pre-filled just because the record exists.
+  const [completedSet, setCompletedSet] = useState<Set<number>>(new Set());
   const [errorSet,     setErrorSet]     = useState<Set<number>>(new Set());
   const [isDirty,      setIsDirty]      = useState(false);
   const [draftSaving,  setDraftSaving]  = useState(false);
@@ -163,7 +165,10 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       eps_employer_833: sch.eps_employer_833 ?? undefined,
       epf_eps_diff_367: sch.epf_eps_diff_367 ?? undefined,
       esic_status: sch.esic_status ?? false,
-      esic_number: sch.esic_number ?? '', mediclaim_status: sch.mediclaim_status ?? 'No',
+      esic_number: sch.esic_number ?? '',
+      esi_employee_pct: (sch as any).esi_employee_pct ?? undefined,
+      esi_employer_pct: (sch as any).esi_employer_pct ?? undefined,
+      mediclaim_status: sch.mediclaim_status ?? 'No',
       mediclaim_number: sch.mediclaim_number ?? '', mediclaim_amount: sch.mediclaim_amount ?? undefined,
       rd_scheme: sch.rd_scheme ?? false, rd_term: (sch.rd_term as any) ?? undefined,
       rd_opening_date: sch.rd_opening_date ?? '', rd_account_number: sch.rd_account_number ?? '',
@@ -258,7 +263,19 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       account_opening_letter: doc.account_opening_letter ?? false, nda: doc.nda ?? false,
       remarks: (doc as any).remarks ?? '',
     } as FullEmployeeForm);
-  }, [employee, methods]);
+
+    // Mark a step "done" only when its REQUIRED fields are actually filled —
+    // reuse the same STEP_SCHEMA_MAP the wizard validates each step against, so
+    // an incomplete edit/draft no longer shows 100%.
+    const values = methods.getValues();
+    const done = new Set<number>();
+    visibleSteps.forEach((s, idx) => {
+      if (s.key === 'review') return;
+      const schema = STEP_SCHEMA_MAP[s.key as StepSchemaKey];
+      if (!schema || (schema as any).safeParse(values).success) done.add(idx);
+    });
+    setCompletedSet(done);
+  }, [employee, methods, visibleSteps]);
 
   // Unsaved changes guard
   useEffect(() => {
@@ -267,15 +284,12 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     return () => window.removeEventListener('beforeunload', h);
   }, [isDirty]);
 
-  // Auto-save
-  // useEffect(() => {
-  //   const sub = methods.watch(() => {
-  //     setIsDirty(true);
-  //     clearTimeout(autoSaveTimer.current);
-  //     autoSaveTimer.current = setTimeout(() => triggerAutoSave(), 3000);
-  //   });
-  //   return () => { sub.unsubscribe(); clearTimeout(autoSaveTimer.current); };
-  // }, [methods, savedId]); // eslint-disable-line
+  // Track dirty state so the unsaved-changes guard works. (Timed auto-save is
+  // intentionally disabled — draft saving is manual via the "Save Draft" button.)
+  useEffect(() => {
+    const sub = methods.watch((_v, { type }) => { if (type === 'change') setIsDirty(true); });
+    return () => sub.unsubscribe();
+  }, [methods]);
 
   const triggerAutoSave = useCallback((manual = false) => {
     if (!step) return;
@@ -324,10 +338,10 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         return { l1_manager_id: n(v.l1_manager_id), l2_manager_id: n(v.l2_manager_id), official_email: v.official_email?.toLowerCase().trim() || null, official_mobile: v.official_mobile?.trim() || null };
 
       case 'commitment_probation':
-        return { commitment: v.commitment ?? false, commitment_term: c(v.commitment_term), commitment_entered_on: c(v.commitment_entered_on), on_probation: v.on_probation ?? false, probation_period: c(v.probation_period), probation_extended_period: c(v.probation_extended_period), confirmation_status: c(v.confirmation_status), confirmed_on: c(v.confirmed_on) };
+        return { commitment: v.commitment ?? false, commitment_term: c(v.commitment_term), commitment_entered_on: c(v.commitment_entered_on), on_probation: v.on_probation ?? false, probation_period: c(v.probation_period), probation_status: c(v.probation_status) };
 
       case 'statutory_schemes':
-        return { pf_status: v.pf_status ?? false, uan_number: c(v.uan_number), epfo_member_id: c(v.epfo_member_id), pf_contribution_pct: n(v.pf_contribution_pct), pf_employer_from: c(v.pf_employer_from), pf_employee_12: n(v.pf_employee_12), eps_employer_833: n(v.eps_employer_833), epf_eps_diff_367: n(v.epf_eps_diff_367), esic_status: v.esic_status ?? false, esic_number: c(v.esic_number), esi_employee_pct: n((v as any).esi_employee_pct), esi_employer_pct: n((v as any).esi_employer_pct), mediclaim_status: v.mediclaim_status ?? 'No', mediclaim_number: c(v.mediclaim_number), mediclaim_amount: n(v.mediclaim_amount), rd_scheme: v.rd_scheme ?? false, rd_term: c(v.rd_term), rd_opening_date: c(v.rd_opening_date), rd_account_number: c(v.rd_account_number), rd_deduction_from: c(v.rd_deduction_from), rd_amount_employee: n(v.rd_amount_employee), rd_amount_employer: n(v.rd_amount_employer), rd_maturity_date: c(v.rd_maturity_date), rd_maturity_amount: n(v.rd_maturity_amount), rd_status: c(v.rd_status) };
+        return { pf_status: v.pf_status ?? false, uan_number: c(v.uan_number), epfo_member_id: c(v.epfo_member_id), pf_contribution_pct: n(v.pf_contribution_pct), pf_employer_from: c(v.pf_employer_from), pf_employee_12: n(v.pf_employee_12), eps_employer_833: n(v.eps_employer_833), epf_eps_diff_367: n(v.epf_eps_diff_367), esic_status: v.esic_status ?? false, esic_number: c(v.esic_number), esi_employee_pct: n((v as any).esi_employee_pct), esi_employer_pct: n((v as any).esi_employer_pct), mediclaim_status: v.mediclaim_status ?? 'No', mediclaim_number: c(v.mediclaim_number), mediclaim_amount: c(v.mediclaim_amount), rd_scheme: v.rd_scheme ?? false, rd_term: c(v.rd_term), rd_opening_date: c(v.rd_opening_date), rd_account_number: c(v.rd_account_number), rd_deduction_from: c(v.rd_deduction_from), rd_amount_employee: n(v.rd_amount_employee), rd_amount_employer: n(v.rd_amount_employer), rd_maturity_date: c(v.rd_maturity_date), rd_maturity_amount: n(v.rd_maturity_amount), rd_status: c(v.rd_status) };
 
       case 'compensation':
         return { salary_mode: v.salary_mode, current_basic: n(v.current_basic), current_hra: n(v.current_hra), current_allowance1: n(v.current_allowance1), current_amdb: n(v.current_amdb), joining_basic: n(v.joining_basic), joining_hra: n(v.joining_hra), joining_allowance1: n(v.joining_allowance1), joining_amdb: n(v.joining_amdb), asset_deduction_applicable: v.asset_deduction_applicable ?? false, security_amount: n(v.security_amount), deduction_months: n(v.deduction_months), deduction_from: c(v.deduction_from), monthly_deduction: n(v.monthly_deduction), final_monthly_deduction: n(v.final_monthly_deduction) };
@@ -342,13 +356,23 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         return { present_house_type: c(v.present_house_type), present_house_no: c(v.present_house_no), present_area: c(v.present_area), present_district: c(v.present_district), present_city: c(v.present_city), present_state: c(v.present_state), present_country: c(v.present_country), present_pincode: c(v.present_pincode), perm_address_type: c(v.perm_address_type), perm_house_type: c(v.perm_house_type), perm_house_no: c(v.perm_house_no), perm_area: c(v.perm_area), perm_district: c(v.perm_district), perm_city: c(v.perm_city), perm_state: c(v.perm_state), perm_country: c(v.perm_country), perm_pincode: c(v.perm_pincode) };
 
       case 'family_emergency':
-        return { marital_status: c(v.marital_status), marriage_date: c((v as any).marriage_date), spouse_name: c((v as any).spouse_name), spouse_dob: c((v as any).spouse_dob), child1_name: c((v as any).child1_name), child1_gender: c((v as any).child1_gender), child1_dob: c((v as any).child1_dob), child2_name: c((v as any).child2_name), child2_gender: c((v as any).child2_gender), child2_dob: c((v as any).child2_dob), child3_name: c((v as any).child3_name), child3_gender: c((v as any).child3_gender), child3_dob: c((v as any).child3_dob), father_salutation: c(v.father_salutation), father_name: c(v.father_name), father_dob: c(v.father_dob), father_occupation: c(v.father_occupation), mother_salutation: c(v.mother_salutation), mother_name: c(v.mother_name), mother_dob: c(v.mother_dob), mother_occupation: c(v.mother_occupation), family_members: v.family_members ?? [], emergency_contacts: v.emergency_contacts ?? [] };
+        return { marital_status: c(v.marital_status), marriage_date: c((v as any).marriage_date), spouse_name: c((v as any).spouse_name), spouse_dob: c((v as any).spouse_dob), child1_name: c((v as any).child1_name), child1_gender: c((v as any).child1_gender), child1_dob: c((v as any).child1_dob), child2_name: c((v as any).child2_name), child2_gender: c((v as any).child2_gender), child2_dob: c((v as any).child2_dob), child3_name: c((v as any).child3_name), child3_gender: c((v as any).child3_gender), child3_dob: c((v as any).child3_dob), father_salutation: c(v.father_salutation), father_name: c(v.father_name), father_dob: c(v.father_dob), father_occupation: c(v.father_occupation), mother_salutation: c(v.mother_salutation), mother_name: c(v.mother_name), mother_dob: c(v.mother_dob), mother_occupation: c(v.mother_occupation),
+          // drop the always-present blank rows — only send rows the user actually filled
+          family_members: (v.family_members ?? []).filter((m: any) => m && String(m.name ?? '').trim()),
+          emergency_contacts: (v.emergency_contacts ?? []).filter((cn: any) => cn && (String(cn.contact_name ?? '').trim() || String(cn.contact_number ?? '').trim())) };
 
       case 'ids_bank':
-        return { aadhaar_number: c(v.aadhaar_number), aadhaar_name: c(v.aadhaar_name), aadhaar_dob: c(v.aadhaar_dob), aadhaar_address: c(v.aadhaar_address), pan_number: v.pan_number?.toUpperCase() || null, pan_full_name: c(v.pan_full_name), pan_dob: c(v.pan_dob), pan_parent_spouse_name: c(v.pan_parent_spouse_name), passport_number: c(v.passport_number), passport_full_name: c(v.passport_full_name), passport_nationality: c(v.passport_nationality), passport_issue_date: c(v.passport_issue_date), passport_expiry: c(v.passport_expiry), passport_place_of_issue: c(v.passport_place_of_issue), yellow_fever: (v as any).yellow_fever ?? false, yellow_fever_date: c((v as any).yellow_fever_date), driving_license_number: c(v.driving_license_number), driving_license_name: c(v.driving_license_name), driving_license_issue_date: c(v.driving_license_issue_date), driving_license_expiry: c(v.driving_license_expiry), driving_license_authority: c(v.driving_license_authority), vaccinations: v.vaccinations ?? [], documents: v.documents ?? [], personal_bank_name: c(v.personal_bank_name), personal_bank_account: c(v.personal_bank_account), personal_ifsc: v.personal_ifsc?.toUpperCase() || null, personal_bank_branch: c(v.personal_bank_branch) };
+        return { aadhaar_number: c(v.aadhaar_number), aadhaar_name: c(v.aadhaar_name), aadhaar_dob: c(v.aadhaar_dob), aadhaar_address: c(v.aadhaar_address), pan_number: v.pan_number?.toUpperCase() || null, pan_full_name: c(v.pan_full_name), pan_dob: c(v.pan_dob), pan_parent_spouse_name: c(v.pan_parent_spouse_name), passport_number: c(v.passport_number), passport_full_name: c(v.passport_full_name), passport_nationality: c(v.passport_nationality), passport_issue_date: c(v.passport_issue_date), passport_expiry: c(v.passport_expiry), passport_place_of_issue: c(v.passport_place_of_issue), yellow_fever: (v as any).yellow_fever ?? false, yellow_fever_date: c((v as any).yellow_fever_date), driving_license_number: c(v.driving_license_number), driving_license_name: c(v.driving_license_name), driving_license_issue_date: c(v.driving_license_issue_date), driving_license_expiry: c(v.driving_license_expiry), driving_license_authority: c(v.driving_license_authority),
+          vaccinations: (v.vaccinations ?? []).filter((x: any) => x && String(x.vaccine_name ?? '').trim()),
+          documents: (v.documents ?? []).filter((x: any) => x && String(x.file_url ?? '').trim()),
+          personal_bank_name: c(v.personal_bank_name), personal_bank_account: c(v.personal_bank_account), personal_ifsc: v.personal_ifsc?.toUpperCase() || null, personal_bank_branch: c(v.personal_bank_branch) };
 
       case 'experience_education':
-        return { is_experienced: v.is_experienced ?? false, experience: v.experience ?? [], education: v.education ?? [] };
+        return {
+          is_experienced: v.is_experienced ?? false,
+          experience: (v.experience ?? []).filter((e: any) => e && String(e.last_company_name ?? '').trim()),
+          education:  (v.education ?? []).filter((e: any) => e && String(e.highest_education ?? '').trim()),
+        };
 
       default: return {};
     }
@@ -401,7 +425,9 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     onSuccess ? onSuccess({ id: savedId } as Employee) : router.push(`/employees/${savedId}`);
   };
 
-  const overallPct = Math.round((completedSet.size / visibleSteps.length) * 100);
+  // % over the data steps only (the final Review step is never a "completed" step)
+  const dataStepCount = visibleSteps.filter(s => s.key !== 'review').length;
+  const overallPct = dataStepCount ? Math.round((completedSet.size / dataStepCount) * 100) : 0;
 
   const handlePhotoSelected = async (file: File) => {
     if (savedId) {
@@ -433,7 +459,10 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       case 'family_emergency':       return <StepFamilyEmergency {...p} />;
       case 'ids_bank':                return <StepIdsBank {...p} />;
       case 'experience_education':   return <StepExperienceEducation {...p} />;
-      case 'review':                  return <StepReview employeeId={savedId} methods={methods} />;
+      case 'review':                  return <StepReview employeeId={savedId} methods={methods} onEdit={(key) => {
+        const i = visibleSteps.findIndex(s => s.key === key);
+        if (i >= 0) { setCurrentIdx(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      }} />;
       default:                        return null;
     }
   }
@@ -482,7 +511,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
           </nav>
 
           <div style={{ padding: '8px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--ink4)', minHeight: 36, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {draftSaving ? <>⟳ Saving draft…</> : draftSavedAt ? <>✓ Saved {draftSavedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</> : <>Auto-save enabled</>}
+            {draftSaving ? <>⟳ Saving draft…</> : draftSavedAt ? <>✓ Saved {draftSavedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</> : <>Use “Save Draft” to save progress</>}
           </div>
         </aside>
 
@@ -501,7 +530,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
             <button type="button" className="btn btn-sec" disabled={isFirst || isSaving} onClick={() => setCurrentIdx(p => p - 1)}>← Back</button>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="btn btn-sec btn-sm" onClick={() => triggerAutoSave(true)} disabled={draftSaving || !isDirty} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>
+              <button type="button" className="btn btn-sec btn-sm" onClick={() => triggerAutoSave(true)} disabled={draftSaving} style={{ fontSize: 11 }}>{draftSaving ? 'Saving…' : 'Save Draft'}</button>
               {!isLast
                 ? <button type="button" className="btn btn-pri" onClick={handleNext} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save & Continue →'}</button>
                 : <button type="button" className="btn btn-pri" onClick={handleSubmit} disabled={isSaving || !savedId} style={{ background: 'var(--green)', minWidth: 155 }}>{isSaving ? 'Submitting…' : mode === 'edit' ? '✓ Update Employee' : '✓ Create Employee'}</button>}

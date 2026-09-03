@@ -151,6 +151,19 @@ export function useDeleteEmployee() {
   });
 }
 
+// ─── Inter-company transfer ───────────────────────────────────────────────────
+export function useTransferEmployee(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: object) => employeeService.transfer(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: EMP_KEYS.lists() });
+      qc.invalidateQueries({ queryKey: EMP_KEYS.detail(id) });
+    },
+    onError: (err: any) => showToast(err?.response?.data?.message || err?.message || 'Transfer failed'),
+  });
+}
+
 // ─── Bulk upload ──────────────────────────────────────────────────────────────
 export function useBulkUpload() {
   const qc = useQueryClient();
@@ -161,6 +174,20 @@ export function useBulkUpload() {
       showToast(`${res.data?.success || 0} employees imported`);
     },
     onError: (err: any) => showToast(err?.message || 'Upload failed'),
+  });
+}
+
+// ─── Full-field bulk import ───────────────────────────────────────────────────
+export function useBulkImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => employeeService.bulkImport(file),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: EMP_KEYS.lists() });
+      const d = res.data || {};
+      showToast(`${d.imported || 0} imported, ${d.failed || 0} failed`);
+    },
+    onError: (err: any) => showToast(err?.response?.data?.message || err?.message || 'Import failed'),
   });
 }
 

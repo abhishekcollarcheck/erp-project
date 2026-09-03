@@ -9,7 +9,7 @@ import {
   toOpts,
   COMMITMENT_TERM,
   PROBATION_PERIOD,
-  CONFIRMATION_STATUS,
+  PROBATION_STATUS,
 } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { FormSection } from '../../../../components/form/FormSection';
@@ -98,7 +98,9 @@ export function StepCommitmentProbation(_: Props) {
       return endDate > new Date() ? 'Under Commitment' : 'Completed';
     }
 
-    return endDate > new Date(exitLastWorkingDay) ? 'Bond Break' : 'Completed';
+    return endDate > new Date(exitLastWorkingDay)
+      ? 'Bond Break'
+      : 'Completed';
   }
 
   const commitmentStatus = computeCommitmentStatus();
@@ -109,12 +111,13 @@ export function StepCommitmentProbation(_: Props) {
       setValue('commitment_end_date', null, {
         shouldDirty: false,
       });
+
       return;
     }
 
     const result = addMonths(
       commitmentEnteredOn,
-      commitmentTerm
+      commitmentTerm,
     );
 
     setValue(
@@ -122,7 +125,7 @@ export function StepCommitmentProbation(_: Props) {
       result ?? null,
       {
         shouldDirty: false,
-      }
+      },
     );
   }, [
     commitment,
@@ -137,12 +140,13 @@ export function StepCommitmentProbation(_: Props) {
       setValue('probation_end_date', null, {
         shouldDirty: false,
       });
+
       return;
     }
 
     const result = addMonths(
       actualDoj,
-      probationPeriod
+      probationPeriod,
     );
 
     setValue(
@@ -150,7 +154,7 @@ export function StepCommitmentProbation(_: Props) {
       result ?? null,
       {
         shouldDirty: false,
-      }
+      },
     );
   }, [
     onProbation,
@@ -170,10 +174,7 @@ export function StepCommitmentProbation(_: Props) {
         f('on_probation'),
         f('probation_period'),
         f('probation_end_date'),
-        f('probation_extended_period'),
-
-        f('confirmation_status'),
-        f('confirmed_on'),
+        f('probation_status'),
       ]}
     >
       <div
@@ -215,7 +216,6 @@ export function StepCommitmentProbation(_: Props) {
             <FormSelect
               name="commitment_term"
               label="Commitment Term"
-              required
               options={toOpts(COMMITMENT_TERM)}
               placeholder="Select term"
               fieldPerm={f('commitment_term')}
@@ -224,7 +224,6 @@ export function StepCommitmentProbation(_: Props) {
             <FormDatePicker
               name="commitment_entered_on"
               label="Commitment Entered On"
-              required
               disableFuture
               fieldPerm={f('commitment_entered_on')}
             />
@@ -241,6 +240,7 @@ export function StepCommitmentProbation(_: Props) {
               <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
                 Commitment Status
               </div>
+
               <div
                 style={{
                   padding: '8px 12px',
@@ -253,7 +253,14 @@ export function StepCommitmentProbation(_: Props) {
               >
                 {commitmentStatus || '—'}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ink3)',
+                  marginTop: 4,
+                }}
+              >
                 Auto-calculated — not saved as a separate field
               </div>
             </div>
@@ -292,7 +299,6 @@ export function StepCommitmentProbation(_: Props) {
             <FormSelect
               name="probation_period"
               label="Probation Period"
-              required
               options={toOpts(PROBATION_PERIOD)}
               placeholder="Select period"
               fieldPerm={f('probation_period')}
@@ -311,50 +317,14 @@ export function StepCommitmentProbation(_: Props) {
             />
 
             <FormSelect
-              name="probation_extended_period"
-              label="Extended Period (if any)"
-              options={toOpts(PROBATION_PERIOD)}
-              placeholder="None"
-              fieldPerm={f('probation_extended_period')}
+              name="probation_status"
+              label="Probation Status"
+              options={toOpts(PROBATION_STATUS)}
+              placeholder="Select status"
+              fieldPerm={f('probation_status')}
             />
           </div>
         )}
-
-        {/* ─────────────────────────────────────────────────────────────────── */}
-        {/* Confirmation */}
-        {/* ─────────────────────────────────────────────────────────────────── */}
-
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: 'var(--ink3)',
-          }}
-        >
-          Confirmation — fill after probation period ends
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-          }}
-        >
-          <FormSelect
-            name="confirmation_status"
-            label="Confirmation Status"
-            options={toOpts(CONFIRMATION_STATUS)}
-            placeholder="Pending — fill after probation"
-            fieldPerm={f('confirmation_status')}
-          />
-
-          <FormDatePicker
-            name="confirmed_on"
-            label="Confirmed On"
-            fieldPerm={f('confirmed_on')}
-          />
-        </div>
 
       </div>
     </FormSection>

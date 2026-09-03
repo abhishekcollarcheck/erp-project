@@ -31,24 +31,24 @@ export const roleIdentitySchema = z.object({
   status: z.enum(['Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive']).default('Active'),
   employment_type: z.enum(['Permanent', 'Contract', 'Intern', 'Consultant', 'Probation']).default('Permanent'),
   department_id: reqInt('Department is required'),
-  sub_department_id: optStr,
+  sub_department_id: optInt,
   designation_id: reqInt('Designation is required'),
-  sub_designation_id: optStr,
+  sub_designation_id: optInt,
   email: z.string().email('Valid email is required').toLowerCase().trim(),
   phone: reqStr('Personal mobile number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
 });
 
 // ─── Step 2 (HR): Location & Attendance ───────────────────────────────────────
 export const locationAttendanceSchema = z.object({
-  working_state_country: optStr,
-  working_city: optStr,
-  working_site: optStr,
-  pay_register_location: optStr,
+  working_state_country: optInt,
+  working_city: optInt,
+  working_site: optInt,
+  pay_register_location: optInt,
   actual_doj: reqStr('Date of Joining is required')
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of Joining must be in YYYY-MM-DD format')
     .refine((v) => !Number.isNaN(new Date(v).getTime()), 'Invalid Date of Joining'),
   weekly_off: optInt,
-  shift_category: z.enum(['Shift', 'Duration']),
+  shift_category: z.enum(['Shift', 'Duration']).optional().nullable(),
   shift_id: optInt,
   grace_minutes: optInt,
 });
@@ -66,80 +66,30 @@ export const managersWorkContactSchema = z.object({
 // Nothing carries a * in the UI. commitment/on_probation stay boolean per the
 // confirmed schema decision — the UI's Yes/No/Not Applicable dropdown must
 // map to true/false/null before this schema sees it.
-export const commitmentProbationSchema = z
-  .object({
-    commitment: yesNo,
+export const commitmentProbationSchema = z.object({
+  commitment: yesNo,
 
-    commitment_term: z
-      .enum(['36 Months', '60 Months', 'N/A'])
-      .optional()
-      .nullable(),
+  commitment_term: z
+    .enum(['36 Months', '60 Months', 'N/A'])
+    .optional()
+    .nullable(),
 
-    commitment_entered_on: optDate,
+  commitment_entered_on: optDate,
 
-    commitment_end_date: optDate,
+  commitment_end_date: optDate,
 
-    on_probation: yesNo,
+  on_probation: yesNo,
 
-    probation_period: optStr,
+  probation_period: optStr,
 
-    probation_end_date: optDate,
+  probation_end_date: optDate,
 
-    probation_extended_period: optStr,
+  probation_status: z
+    .enum(['Confirmed', 'Failed', 'Not Applicable'])
+    .optional()
+    .nullable(),
+});
 
-    confirmation_status: z
-      .enum(['Confirmed', 'Failed', 'Not Applicable'])
-      .optional()
-      .nullable(),
-
-    confirmed_on: optDate,
-  })
-  .superRefine((data, ctx) => {
-    if (data.commitment) {
-      if (!data.commitment_term) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['commitment_term'],
-          message: 'Commitment term is required',
-        });
-      }
-
-      if (!data.commitment_entered_on) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['commitment_entered_on'],
-          message: 'Commitment entered date is required',
-        });
-      }
-
-      if (!data.commitment_end_date) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['commitment_end_date'],
-          message: 'Commitment end date is required',
-        });
-      }
-    }
-
-    if (data.on_probation) {
-      if (!data.probation_period) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['probation_period'],
-          message: 'Probation period is required',
-        });
-      }
-
-      if (!data.probation_end_date) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['probation_end_date'],
-          message: 'Probation end date is required',
-        });
-      }
-
-    }
-  });
 // ─── Step 5 (HR): Statutory Schemes ────────────────────────────────────────────
 export const statutorySchemesSchema = z.object({
   pf_status: yesNo,
@@ -156,7 +106,7 @@ export const statutorySchemesSchema = z.object({
   esi_employer_pct: optNum,
   mediclaim_status: z.enum(['Yes', 'No', 'Not Applicable']).optional().nullable(),
   mediclaim_number: optStr,
-  mediclaim_amount: optNum,
+  mediclaim_amount: z.enum(['150000', '250000', '400000', '500000', 'Not Applicable']).optional().nullable(),
   rd_scheme: yesNo,
   rd_term: z.enum(['6 Months', '12 Months', '18 Months', '24 Months', '30 Months', '36 Months', 'N/A']).optional().nullable(),
   rd_opening_date: optDate,
@@ -164,7 +114,9 @@ export const statutorySchemesSchema = z.object({
   rd_deduction_from: z.enum(['Salary', 'AMDB', 'N/A']).optional().nullable(),
   rd_amount_employee: optNum,
   rd_amount_employer: optNum,
-  // Auto-computed
+  ttl_m_contribution: optNum,
+  // Auto-computed server-side — kept lenient so legacy values ('Active'/'Inactive')
+  // don't fail step validation on edit-load.
   rd_maturity_date: optDate,
   rd_maturity_amount: optNum,
   rd_status: z.string().optional().nullable(),
@@ -251,25 +203,43 @@ export const addressSchema = z.object({
 // mother_occupation is free text now. marital_status + spouse + children now
 // live here (moved from Personal Profile — matches the backend exactly).
 // family_members and emergency_contacts are repeatable lists — emergency
-// contacts' first entry is the primary.
+// contacts' first entry is the primary. Nothing on this step carries a * in the
+// UI, and the form always renders one blank primary-contact row, so a fully
+// blank row must validate. Blank rows are stripped in buildPayload before the
+// API sees them; a row the user starts filling still gets format-checked, and
+// its anchor field (name) is required via the superRefine on each list below.
+const nameMax = (msg: string) => z.string().max(200, msg).optional().or(z.literal('')).nullable();
+
 const familyMemberSchema = z.object({
   id: z.number().optional(),
-  name: reqStr('Name is required').max(200),
+  name: nameMax('Name cannot exceed 200 characters'),
   relationship: optStr,
   relationship_other: optStr,
   salutation: optStr,
   dob: optDate,
   occupation: optStr,
+}).superRefine((m, ctx) => {
+  const hasData = [m.relationship, m.salutation, m.dob, m.occupation].some(v => v && String(v).trim());
+  if (hasData && !(m.name && String(m.name).trim())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['name'], message: 'Name is required' });
+  }
 });
 
 const emergencyContactSchema = z.object({
   id: z.number().optional(),
-  contact_name: reqStr('Contact name is required').max(200),
-  contact_number: reqStr('Contact number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
+  contact_name: nameMax('Contact name cannot exceed 200 characters'),
+  contact_number: z.string().regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number').optional().or(z.literal('')).nullable(),
   email: z.string().email().optional().or(z.literal('')).nullable(),
   relationship: optStr,
   relationship_other: optStr,
   is_primary: z.boolean().optional(),
+}).superRefine((c, ctx) => {
+  const name = c.contact_name && String(c.contact_name).trim();
+  const num  = c.contact_number && String(c.contact_number).trim();
+  const hasData = name || num || (c.email && String(c.email).trim()) || (c.relationship && String(c.relationship).trim());
+  // blank row is fine; a started row needs both name and number (they go together)
+  if (hasData && !name) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['contact_name'], message: 'Contact name is required' });
+  if (hasData && !num)  ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['contact_number'], message: 'Contact number is required' });
 });
 
 export const familyEmergencySchema = z.object({
@@ -303,18 +273,27 @@ export const familyEmergencySchema = z.object({
 // ONLY required fields in this entire wizard outside Role & Identity and
 // Date of Joining — matches the UI's "0/2 required · Aadhaar & bank".
 // PAN, Passport, and Driving Licence are all fully optional.
+// Repeatable, all-optional. A blank row (user clicked "+ Add" then stopped)
+// must validate; a started row needs its anchor field. Blank rows are stripped
+// in buildPayload before submit.
 const vaccinationSchema = z.object({
   id: z.number().optional(),
-  vaccine_name: reqStr('Vaccine name is required').max(100),
+  vaccine_name: z.string().max(100).optional().or(z.literal('')).nullable(),
   date: optDate,
   notes: optStr,
+}).superRefine((v, ctx) => {
+  if ((v.date || v.notes) && !(v.vaccine_name && String(v.vaccine_name).trim()))
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['vaccine_name'], message: 'Vaccine name is required' });
 });
 
 const documentSchema = z.object({
   id: z.number().optional(),
-  doc_type: reqStr('Document type is required').max(100),
+  doc_type: z.string().max(100).optional().or(z.literal('')).nullable(),
   doc_type_other: optStr,
-  file_url: reqStr('File is required'),
+  file_url: optStr,
+}).superRefine((d, ctx) => {
+  if (d.doc_type && String(d.doc_type).trim() && !(d.file_url && String(d.file_url).trim()))
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['file_url'], message: 'File is required' });
 });
 
 export const idsBankSchema = z.object({
@@ -428,15 +407,15 @@ export const fullEmployeeSchema = z.object({
   phone: reqStr('Personal mobile number is required').regex(/^[+\d\s\-()]{7,20}$/, 'Invalid phone number'),
 
   // ── Location & Attendance ────────────────────────────────────────────────
-  working_state_country: optStr,
-  working_city: optStr,
-  working_site: optStr,
-  pay_register_location: optStr,
+  working_state_country: optInt,
+  working_city: optInt,
+  working_site: optInt,
+  pay_register_location: optInt,
   actual_doj: reqStr('Date of Joining is required')
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of Joining must be in YYYY-MM-DD format')
     .refine((v) => !Number.isNaN(new Date(v).getTime()), 'Invalid Date of Joining'),
   weekly_off: optInt,
-  shift_category: z.enum(['Shift', 'Duration']),
+  shift_category: z.enum(['Shift', 'Duration']).optional().nullable(),
   shift_id: optInt,
   grace_minutes: optInt,
 
@@ -447,31 +426,27 @@ export const fullEmployeeSchema = z.object({
   official_mobile: z.string().regex(/^[+\d\s\-()]{7,20}$/).optional().or(z.literal('')).nullable(),
 
   // ── Commitment & Probation ───────────────────────────────────────────────
-commitment: yesNo,
+  commitment: yesNo,
 
-commitment_term: z
-  .enum(['36 Months', '60 Months', 'N/A'])
-  .optional()
-  .nullable(),
+  commitment_term: z
+    .enum(['36 Months', '60 Months', 'N/A'])
+    .optional()
+    .nullable(),
 
-commitment_entered_on: optDate,
+  commitment_entered_on: optDate,
 
-commitment_end_date: optDate,
+  commitment_end_date: optDate,
 
-on_probation: yesNo,
+  on_probation: yesNo,
 
-probation_period: optStr,
+  probation_period: optStr,
 
-probation_end_date: optDate,
+  probation_end_date: optDate,
 
-probation_extended_period: optStr,
-
-confirmation_status: z
-  .enum(['Confirmed', 'Failed', 'Not Applicable'])
-  .optional()
-  .nullable(),
-
-confirmed_on: optDate,
+  probation_status: z
+    .enum(['Confirmed', 'Failed', 'Not Applicable'])
+    .optional()
+    .nullable(),
 
   // ── Statutory Schemes ────────────────────────────────────────────────────
   pf_status: yesNo,
@@ -488,7 +463,7 @@ confirmed_on: optDate,
   esi_employer_pct: optNum,
   mediclaim_status: z.enum(['Yes', 'No', 'Not Applicable']).optional().nullable(),
   mediclaim_number: optStr,
-  mediclaim_amount: optNum,
+  mediclaim_amount: z.enum(['150000', '250000', '400000', '500000', 'Not Applicable']).optional().nullable(),
   rd_scheme: yesNo,
   rd_term: z.enum(['6 Months', '12 Months', '18 Months', '24 Months', '30 Months', '36 Months', 'N/A']).optional().nullable(),
   rd_opening_date: optDate,
@@ -496,6 +471,7 @@ confirmed_on: optDate,
   rd_deduction_from: z.enum(['Salary', 'AMDB', 'N/A']).optional().nullable(),
   rd_amount_employee: optNum,
   rd_amount_employer: optNum,
+  ttl_m_contribution: optNum,
   rd_maturity_date: optDate,
   rd_maturity_amount: optNum,
   rd_status: z.string().optional().nullable(),
@@ -617,52 +593,6 @@ confirmed_on: optDate,
   is_experienced: yesNo,
   experience: z.array(experienceEntrySchema).optional().default([]),
   education: z.array(educationEntrySchema).optional().default([]),
-}).superRefine((data, ctx) => {
-  if (data.commitment) {
-    if (!data.commitment_term) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['commitment_term'],
-        message: 'Commitment term is required',
-      });
-    }
-
-    if (!data.commitment_entered_on) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['commitment_entered_on'],
-        message: 'Commitment entered date is required',
-      });
-    }
-
-    if (!data.commitment_end_date) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['commitment_end_date'],
-        message: 'Commitment end date is required',
-      });
-    }
-
-  }
-
-  if (data.on_probation) {
-    if (!data.probation_period) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['probation_period'],
-        message: 'Probation period is required',
-      });
-    }
-
-    if (!data.probation_end_date) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['probation_end_date'],
-        message: 'Probation end date is required',
-      });
-    }
-
-  }
 });
 
 export type FullEmployeeForm = z.infer<typeof fullEmployeeSchema>;

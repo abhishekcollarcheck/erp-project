@@ -7,13 +7,16 @@
 
 import { body, query, param, ValidationChain } from 'express-validator';
 import {
-  EMPLOYEE_STATUS, EMPLOYMENT_TYPE, COMMITMENT_TERM, CONFIRMATION_STATUS,
+  EMPLOYEE_STATUS, EMPLOYMENT_TYPE, COMMITMENT_TERM, PROBATION_STATUS,
   PF_EMPLOYER_FROM, MEDICLAIM_STATUS, RD_TERM, HOUSE_TYPE, PERM_ADDRESS_TYPE,
   FATHER_SALUTATION, MOTHER_SALUTATION, SALARY_MODE, DEDUCTION_FROM,
   DEDUCTION_MONTHS, GENDER, BLOOD_GROUP, MARITAL_STATUS, YES_NO, SHIFT_CATEGORY,
 } from './employee.constants';
 
 const opt = (c: ValidationChain) => c.optional({ nullable: true, checkFalsy: false });
+// like opt() but also skips empty strings — for format checks (regex/email/date)
+// on repeatable-row fields the UI may submit blank
+const optCF = (c: ValidationChain) => c.optional({ nullable: true, checkFalsy: true });
 const optDate = (field: string) => opt(body(field).isISO8601().withMessage(`${field}: invalid date`));
 
 // ─── List query params ────────────────────────────────────────────────────────
@@ -28,6 +31,19 @@ export const listValidation: ValidationChain[] = [
 
 export const idValidation: ValidationChain[] = [
   param('id').isInt({ min: 1 }).withMessage('Invalid employee ID'),
+];
+
+// ─── Inter-company transfer ──────────────────────────────────────────────────
+export const transferValidation: ValidationChain[] = [
+  body('new_employee_code').trim().notEmpty().withMessage('New employee code is required').isLength({ max: 30 }),
+  body('new_company_id').toInt().isInt({ min: 1 }).withMessage('Destination company is required'),
+  body('transfer_date')
+    .matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Transfer date must be in YYYY-MM-DD format')
+    .isISO8601({ strict: true }).withMessage('Invalid transfer date'),
+  opt(body('new_department_id').toInt().isInt({ min: 1 })),
+  opt(body('new_sub_department_id').toInt().isInt({ min: 1 })),
+  opt(body('new_designation_id').toInt().isInt({ min: 1 })),
+  opt(body('new_working_site').toInt().isInt({ min: 1 })),
 ];
 
 // ─── Step 1 (HR): Role & Identity ─────────────────────────────────────────────
@@ -76,59 +92,24 @@ export const managersWorkContactValidation: ValidationChain[] = [
 
 // ─── Step 4 (HR): Commitment & Probation ──────────────────────────────────────
 export const commitmentProbationValidation: ValidationChain[] = [
+  opt(body('commitment').isBoolean().withMessage('Invalid commitment value')),
 
-  body('commitment')
-    .optional()
-    .isBoolean()
-    .withMessage('Invalid commitment value'),
+  opt(body('commitment_term').isIn(COMMITMENT_TERM).withMessage('Invalid commitment term')),
 
-  body('commitment_term')
-    .if(body('commitment').equals('true'))
-    .notEmpty()
-    .withMessage('Commitment term is required')
-    .isIn(COMMITMENT_TERM)
-    .withMessage('Invalid commitment term'),
+  opt(body('commitment_entered_on')),
 
-  body('commitment_entered_on')
-    .if(body('commitment').equals('true'))
-    .notEmpty()
-    .withMessage('Commitment entered date is required'),
+  opt(body('commitment_end_date')),
 
-  body('commitment_end_date')
-    .if(body('commitment').equals('true'))
-    .notEmpty()
-    .withMessage('Commitment end date is required'),
+  opt(body('on_probation').isBoolean().withMessage('Invalid probation value')),
 
-  body('on_probation')
-    .optional()
-    .isBoolean()
-    .withMessage('Invalid probation value'),
-
-  body('probation_period')
-    .if(body('on_probation').equals('true'))
+  opt(body('probation_period')
     .trim()
-    .notEmpty()
-    .withMessage('Probation period is required')
     .isLength({ max: 30 })
-    .withMessage('Probation period cannot exceed 30 characters'),
+    .withMessage('Probation period cannot exceed 30 characters')),
 
-  body('probation_end_date')
-    .if(body('on_probation').equals('true'))
-    .notEmpty()
-    .withMessage('Probation end date is required'),
+  opt(body('probation_end_date')),
 
-  body('probation_extended_period')
-    .optional()
-    .trim()
-    .isLength({ max: 50 })
-    .withMessage('Probation extended period cannot exceed 50 characters'),
-
-  body('confirmation_status')
-    .optional()
-    .isIn(CONFIRMATION_STATUS)
-    .withMessage('Invalid confirmation status'),
-
-  optDate('confirmed_on'),
+  opt(body('probation_status').isIn(PROBATION_STATUS).withMessage('Invalid probation status')),
 ];
 
 // ─── Step 5 (HR): Statutory Schemes ────────────────────────────────────────────
@@ -137,7 +118,7 @@ export const statutorySchemesValidation: ValidationChain[] = [
   opt(body('uan_number').trim().matches(/^\d{12}$/).withMessage('UAN must be 12 digits')),
   opt(body('epfo_member_id').trim().isLength({ max: 30 })),
   opt(body('pf_contribution_pct').isFloat({ min: 0, max: 100 })),
-  opt(body('pf_employer_from').isIn(PF_EMPLOYER_FROM)),
+  opt(body('pf_employer_from').trim().isLength({ max: 100 })),
   opt(body('pf_employee_12').isFloat({ min: 0 })),
   opt(body('eps_employer_833').isFloat({ min: 0 })),
   opt(body('epf_eps_diff_367').isFloat({ min: 0 })),
@@ -147,7 +128,7 @@ export const statutorySchemesValidation: ValidationChain[] = [
   opt(body('esi_employer_pct').isFloat({ min: 0, max: 100 })),
   opt(body('mediclaim_status').isIn(MEDICLAIM_STATUS)),
   opt(body('mediclaim_number').trim().isLength({ max: 50 })),
-  opt(body('mediclaim_amount').isFloat({ min: 0 })),
+  opt(body('mediclaim_amount').isIn(['150000', '250000', '400000', '500000', 'Not Applicable'])),
   opt(body('rd_scheme').isBoolean()),
   opt(body('rd_term').isIn(RD_TERM)),
   optDate('rd_opening_date'),
@@ -155,6 +136,10 @@ export const statutorySchemesValidation: ValidationChain[] = [
   opt(body('rd_deduction_from').isIn(DEDUCTION_FROM)),
   opt(body('rd_amount_employee').isFloat({ min: 0 })),
   opt(body('rd_amount_employer').isFloat({ min: 0 })),
+  opt(body('ttl_m_contribution').isFloat({ min: 0 })),
+  optDate('rd_maturity_date'),
+  opt(body('rd_maturity_amount').isFloat({ min: 0 })),
+  opt(body('rd_status').isIn(['Yes', 'No', 'Not Applicable'])),
 ];
 
 // ─── Step 6 (HR): Compensation ────────────────────────────────────────────────
@@ -360,11 +345,11 @@ export const familyEmergencyValidation: ValidationChain[] = [
   opt(body('family_members.*.relationship').trim().isLength({ max: 100 })),
   opt(body('family_members.*.relationship_other').trim().isLength({ max: 100 })),
   opt(body('family_members.*.salutation').trim().isLength({ max: 10 })),
-  opt(body('family_members.*.dob').isISO8601()),
+  optCF(body('family_members.*.dob').isISO8601()),
   opt(body('emergency_contacts').isArray()),
   opt(body('emergency_contacts.*.contact_name').trim().isLength({ max: 200 })),
-  opt(body('emergency_contacts.*.contact_number').matches(/^[+\d\s\-()]{7,20}$/)),
-  opt(body('emergency_contacts.*.email').isEmail()),
+  optCF(body('emergency_contacts.*.contact_number').matches(/^[+\d\s\-()]{7,20}$/)),
+  optCF(body('emergency_contacts.*.email').isEmail()),
   opt(body('emergency_contacts.*.relationship').trim().isLength({ max: 100 })),
   opt(body('emergency_contacts.*.relationship_other').trim().isLength({ max: 100 })),
 ];
@@ -406,7 +391,7 @@ export const idsBankValidation: ValidationChain[] = [
   // Vaccinations — repeatable, optional
   opt(body('vaccinations').isArray()),
   opt(body('vaccinations.*.vaccine_name').trim().isLength({ max: 100 })),
-  opt(body('vaccinations.*.date').isISO8601()),
+  optCF(body('vaccinations.*.date').isISO8601()),
   // Additional documents — repeatable, optional
   opt(body('documents').isArray()),
   opt(body('documents.*.doc_type').trim().isLength({ max: 100 })),
@@ -427,18 +412,18 @@ export const experienceEducationValidation: ValidationChain[] = [
   opt(body('experience').isArray()),
   opt(body('experience.*.last_company_name').trim().isLength({ max: 300 })),
   opt(body('experience.*.last_designation').trim().isLength({ max: 200 })),
-  opt(body('experience.*.last_working_day').isISO8601()),
+  optCF(body('experience.*.last_working_day').isISO8601()),
   opt(body('experience.*.exp_contact_name').trim().isLength({ max: 200 })),
-  opt(body('experience.*.exp_contact_number').matches(/^[+\d\s\-()]{7,20}$/)),
-  opt(body('experience.*.last_inhand_salary').isFloat({ min: 0 })),
+  optCF(body('experience.*.exp_contact_number').matches(/^[+\d\s\-()]{7,20}$/)),
+  optCF(body('experience.*.last_inhand_salary').isFloat({ min: 0 })),
   opt(body('education').isArray()),
   opt(body('education.*.highest_education').trim().isLength({ max: 100 })),
   opt(body('education.*.education_stream').trim().isLength({ max: 100 })),
   opt(body('education.*.education_mode').trim().isLength({ max: 50 })),
   opt(body('education.*.institute_name').trim().isLength({ max: 300 })),
   opt(body('education.*.education_marks').trim().isLength({ max: 20 })),
-  opt(body('education.*.education_start_year').isInt({ min: 1950, max: new Date().getFullYear() + 1 })),
-  opt(body('education.*.education_end_year').isInt({ min: 1950, max: new Date().getFullYear() + 10 })),
+  optCF(body('education.*.education_start_year').isInt({ min: 1950, max: new Date().getFullYear() + 1 })),
+  optCF(body('education.*.education_end_year').isInt({ min: 1950, max: new Date().getFullYear() + 10 })),
   opt(body('education.*.is_pursuing').isBoolean()),
 ];
 

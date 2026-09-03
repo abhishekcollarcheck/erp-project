@@ -13,6 +13,7 @@ export const employeeService = {
   updateStep:          (id: number, step: string, data: object) =>
                                              apiClient.patch(`/employees/${id}/step/${step}`, data),
   delete:              (id: number)        => apiClient.delete(`/employees/${id}`),
+  transfer:            (id: number, data: object) => apiClient.post(`/employees/${id}/transfer`, data),
   summary:             ()                  => apiClient.get('/employees/summary'),
   fieldPermissions:    (module: string = 'employees') => apiClient.get('/employees/field-permissions', { params: { module } }),
   managerById:         (id: number)        => apiClient.get(`/employees/managers/${id}`),
@@ -29,6 +30,13 @@ export const employeeService = {
     const fd = new FormData(); fd.append('file', file);
     return apiClient.post('/employees/bulk-upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
+  // Full-field import — all ~180 columns, backend-validated, per-row isolated.
+  bulkImport:          (file: File)        => {
+    const fd = new FormData(); fd.append('file', file);
+    return apiClient.post('/employees/bulk-import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  bulkImportTemplate:  ()                  => apiClient.get('/employees/bulk-import/template', { responseType: 'blob' }),
+  bulkImportFields:    ()                  => apiClient.get('/employees/bulk-import/fields'),
   uploadAvatar:        (id: number, file: File) => {
     const fd = new FormData(); fd.append('avatar', file);
     return apiClient.post(`/employees/${id}/avatar`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
