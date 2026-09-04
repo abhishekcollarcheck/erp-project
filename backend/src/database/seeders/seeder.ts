@@ -1065,15 +1065,6 @@ export async function seedDatabase(): Promise<void> {
   try {
     logger.info("🚀 Running database seed...");
 
-<<<<<<< HEAD
-    // ── 1. Company ───────────────────────────────────────────────────────────
-    await Company.upsert({
-      id: COMPANY_ID, name: 'Narula Exports', slug: 'narula-exports',
-      country: 'India', currency: 'INR', timezone: 'Asia/Kolkata', employee_code_start: null, employee_code_end: null, employee_code_skip: '',
-      is_active: true, onboarding_step: 5,
-    }, { transaction });
-    logger.info('✅ Company ready');
-=======
     // =====================================================
     // 1. COMPANY
     // =====================================================
@@ -1151,14 +1142,9 @@ export async function seedDatabase(): Promise<void> {
     // =====================================================
     // 2. GLOBAL ROLE TEMPLATES
     // =====================================================
->>>>>>> origin/deploy1
 
     for (const def of TEMPLATE_DEFS) {
       await RoleTemplate.findOrCreate({
-<<<<<<< HEAD
-        where: { slug: def.slug },
-        defaults: { slug: def.slug, name: def.name, sort_order: def.sort_order, is_system: true },
-=======
         where: {
           slug: def.slug,
         },
@@ -1168,7 +1154,6 @@ export async function seedDatabase(): Promise<void> {
           sort_order: def.sort_order,
           is_system: true,
         },
->>>>>>> origin/deploy1
         transaction,
       });
     }
@@ -1342,52 +1327,6 @@ export async function seedDatabase(): Promise<void> {
     // 7. HOLIDAYS
     // =====================================================
 
-<<<<<<< HEAD
-    // ── 5d. Holidays ───────────────────────────────────────────────────────────
-    // NOTE: seedHolidays() currently takes no transaction, so its writes run on a
-    // separate connection and will NOT be rolled back if this seed fails later.
-    // Safe today only because `holidays` has no FK into the tables locked above.
-    // To make it consistent, change its signature to match seedShifts:
-    //   export async function seedHolidays(transaction?: Transaction)
-    // and then call it as `await seedHolidays(transaction);`
-    await seedHolidays();
-
-    // ── 6. Super admin employee ───────────────────────────────────────────────
-    const [superAdminEmp, saCreated] = await Employee.findOrCreate({
-      where: { email: 'superadmin@ung.com' },
-      defaults: {
-        company_id: COMPANY_ID,
-        first_name: 'Super', last_name: 'Admin',
-        email: 'superadmin@ung.com', phone: '+918130988753',
-        department_id: deptMap.get('HR')!,
-        designation_id: desigMap.get('Asst. General Manager')!, // or whichever designation you want
-        employment_type: 'Permanent',
-        status: 'Active',
-        record_status: 'Final',
-        form_completion_pct: seedAdminCompletionPct({
-          first_name: 'Super', last_name: 'Admin', employment_type: 'Permanent',
-          department_id: deptMap.get('HR')!, designation_id: desigMap.get('Asst. General Manager')!,
-          email: 'superadmin@ung.com', phone: '+918130988753',
-        }),
-        portal_access: true, is_super_admin: true,
-      },
-      transaction,
-    });
-    if (!saCreated) {
-      await superAdminEmp.update(
-        { is_super_admin: true, portal_access: true, record_status: 'Final' },
-        { transaction },
-      );
-    }
-    const saRole = await Role.findOne({
-      where: { company_id: COMPANY_ID, slug: 'super_admin' },
-      transaction,
-    });
-    if (saRole) {
-      await EmployeeRole.findOrCreate({
-        where: { employee_id: superAdminEmp.id, role_id: saRole.id },
-        defaults: { employee_id: superAdminEmp.id, role_id: saRole.id, company_id: COMPANY_ID },
-=======
     await seedHolidays();
 
     logger.info("✅ Holidays ready");
@@ -1487,48 +1426,10 @@ export async function seedDatabase(): Promise<void> {
           company_id: COMPANY_ID,
         },
 
->>>>>>> origin/deploy1
         transaction,
       });
     }
 
-<<<<<<< HEAD
-    // ── 7. HR admin employee ─────────────────────────────────────────────────
-    const [hrEmp, hrCreated] = await Employee.findOrCreate({
-      where: { email: 'admin@ung.com' },
-      defaults: {
-        company_id: COMPANY_ID,
-        first_name: 'Admin', last_name: 'User',
-        email: 'admin@ung.com', phone: '+918826693968',
-        department_id: deptMap.get('HR')!,
-        designation_id: desigMap.get('Asst. General Manager')!, // or whichever designation you want
-        employment_type: 'Permanent',
-        status: 'Active',
-        record_status: 'Final',
-        form_completion_pct: seedAdminCompletionPct({
-          first_name: 'Admin', last_name: 'User', employment_type: 'Permanent',
-          department_id: deptMap.get('HR')!, designation_id: desigMap.get('Asst. General Manager')!,
-          email: 'admin@ung.com', phone: '+918826693968',
-        }),
-        portal_access: true, is_super_admin: false,
-      },
-      transaction,
-    });
-    if (!hrCreated) {
-      await hrEmp.update(
-        { portal_access: true, is_super_admin: false, record_status: 'Final' },
-        { transaction },
-      );
-    }
-    const hrRole = await Role.findOne({
-      where: { company_id: COMPANY_ID, slug: 'hr_manager' },
-      transaction,
-    });
-    if (hrRole) {
-      await EmployeeRole.findOrCreate({
-        where: { employee_id: hrEmp.id, role_id: hrRole.id },
-        defaults: { employee_id: hrEmp.id, role_id: hrRole.id, company_id: COMPANY_ID },
-=======
     logger.info("✅ Super admin employee ready");
 
     // =====================================================
@@ -1638,7 +1539,6 @@ export async function seedDatabase(): Promise<void> {
           company_id: COMPANY_ID,
         },
 
->>>>>>> origin/deploy1
         transaction,
       });
     }
