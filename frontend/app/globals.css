@@ -541,3 +541,126 @@ tbody tr:hover td { background: var(--surface2); cursor: pointer; }
   .g4 { grid-template-columns: 1fr 1fr; }
   #content { padding: 12px; }
 }
+
+
+
+
+
+.leave-balance-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.leave-balance-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--leave-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.leave-balance-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.leave-balance-code {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--leave-color);
+  text-transform: uppercase;
+}
+
+.leave-balance-name {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.leave-balance-badge {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--surface2);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.leave-balance-main {
+  margin-top: 18px;
+}
+
+.leave-balance-available {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.leave-balance-label {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--ink4);
+}
+
+.leave-balance-progress {
+  margin-top: 18px;
+}
+
+.leave-balance-progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 11px;
+  color: var(--ink4);
+}
+
+.leave-balance-progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface2);
+}
+
+.leave-balance-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.leave-balance-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.leave-balance-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.leave-balance-stats span {
+  font-size: 10px;
+  color: var(--ink4);
+}
+
+.leave-balance-stats strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}

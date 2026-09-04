@@ -11,8 +11,6 @@ import {
 import { useAuth, usePermission } from "../../features/auth/hooks/useAuth";
 import { useCompany } from "../../features/company/hooks/useCompany";
 import { authService } from "../../services/api/auth.service";
-import { useQuery } from "@tanstack/react-query";
-import { pgApi } from "../../features/setting/services/permissions.services";
 import { ChevronDown, ChevronRight, Brain, LayoutDashboard, SquareUserRound, Target, BookKey, ArrowUpNarrowWide, BookA, Settings, Building2, ShieldUser, Form, Shrink } from "lucide-react";
 import { toggleSidebarMenu } from "../../store/slices/uiSlice";
 
@@ -29,14 +27,12 @@ interface NavItem {
   children?: NavItem[];
 }
 interface NavSection {
-  id: string;
   items: NavItem[];
   superOnly?: boolean;
 }
 
 const NAV: NavSection[] = [
   {
-    id: "overview",
     // label: "Overview",
     items: [
       {
@@ -46,10 +42,30 @@ const NAV: NavSection[] = [
         href: "/dashboard",
         permission: null,
       },
+      {
+        id: "attendance",
+        label: "Attendance",
+        icon: <LayoutDashboard size={16} />,
+        href: "/attendance",
+        permission: null,
+      },
+      {
+        id: "leaves",
+        label: "Leaves",
+        icon: <LayoutDashboard size={16} />,
+        href: "/leaves",
+        permission: null,
+      },
+      {
+        id: "masterdata",
+        label: "Master Data",
+        icon: <LayoutDashboard size={16} />,
+        href: "/masterdata",
+        permission: null,
+      },
     ],
   },
   {
-    id: "hrms-section",
     items: [
       {
         id: "hrms",
@@ -87,7 +103,15 @@ const NAV: NavSection[] = [
             icon: <BookA size={16} />,
             href: "/departments",
             permission: "department:view",
-            module: "department",
+            module: "departments",
+          },
+          {
+            id: "subdepartments",
+            label: "Sub Departments",
+            icon: <BookA size={16} />,
+            href: "/sub-department",
+            permission: "sub-department:view",
+            module: "sub-department",
           },
           {
             id: "designations",
@@ -95,28 +119,21 @@ const NAV: NavSection[] = [
             icon: <Target size={16} />,
             href: "/designations",
             permission: "designation:view",
-            module: "designation",
+            module: "designations",
           },
           {
-            id: "attendance",
-            label: "Attendance",
-            icon: <LayoutDashboard size={16} />,
-            href: "/attendance",
-            permission: null,
-          },
-          {
-            id: "leaves",
-            label: "Leaves",
-            icon: <LayoutDashboard size={16} />,
-            href: "/leaves",
-            permission: null,
+            id: "subdesignations",
+            label: "Sub Designations",
+            icon: <Target size={16} />,
+            href: "/sub-designation",
+            permission: "sub-designation:view",
+            module: "sub-designations",
           },
         ],
       },
     ],
   },
   {
-    id: "settings-section",
     items: [
       {
         id: "setting",
@@ -144,7 +161,14 @@ const NAV: NavSection[] = [
             icon: <Building2 size={16} />,
             href: "/settings/companies",
             permission: "companies:view",
-          }
+          },
+          {
+            id: "super-admins",
+            label: "Super Admins",
+            icon: <ShieldUser size={16} />,
+            href: "/settings/super-admins",
+            permission: "super_admin:manage",
+          },
         ],
       },
 
@@ -156,6 +180,18 @@ const NAV: NavSection[] = [
       // Super admin only items
     ],
   },
+  // {
+  //   // label: "Overview",
+  //   items: [
+  //     {
+  //       id: "Master Data ",
+  //       label: "Master Data ",
+  //       icon: <LayoutDashboard size={16} />,
+  //       href: "/dashboard",
+  //       permission: null,
+  //     },
+  //   ],
+  // },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -403,24 +439,8 @@ export function Sidebar() {
   const { logout } = useAuth();
   const { hasPermission } = usePermission();
   const { company, companyId, companies } = useCompany();
-  // Active modules for the current company — live from the ModuleCompany
-  // catalog, scoped to whichever company is currently active. Refetches
-  // automatically on company switch since companyId is in the query key.
-  // Super admins bypass module gating entirely below, so skip the fetch for
-  // them — matches existing behavior exactly, just skips the wasted call.
-  const { data: activeModules = [], isLoading: modulesLoading } = useQuery({
-    // Shared cache key with PermissionGuard's modules query — same endpoint,
-    // same shape — so both consumers hit the network once, not twice.
-    queryKey: ['company-enabled-modules', companyId],
-    queryFn: () => pgApi.companyEnabledModules(companyId),
-    enabled: !!companyId && !isSuperAdmin,
-    staleTime: 60_000,
-    select: (r: any): string[] => ((r.data ?? []) as any[]).map(m => m.permission_key ?? m.slug),
-  });
-  // Same "ready" gate as PermissionGuard: don't decide a module-gated item's
-  // visibility until we actually know the module list, so a not-yet-enabled
-  // module never flashes in the menu before disappearing.
-  const modulesReady = isSuperAdmin || !modulesLoading;
+  // Active modules for the current company — filters sidebar items
+  const activeModules: string[] = (company as any)?.active_modules ?? [];
   const initials = user?.fullName
     ? user.fullName
       .split(" ")
@@ -514,23 +534,24 @@ export function Sidebar() {
 
       {/* Navigation */}
       <div className="sb-nav">
-        {NAV.map((section) => {
+        {NAV.map((section, index) => {
           // Filter items
           const visibleItems = section.items.filter((item) => {
             if (item.superOnly && !isSuperAdmin) return false;
-            // Module filter: same rule as PermissionGuard — super admins bypass,
-            // everyone else waits for the module list before the item can show,
-            // then it must be in activeModules.
-            if (item.module && !isSuperAdmin) {
-              if (!modulesReady) return false;
+            // Module filter: hide item if company has modules loaded but this module is inactive
+            // Super admins see everything; empty activeModules = fallback show all
+            if (item.module && !isSuperAdmin && activeModules.length > 0) {
               if (!activeModules.includes(item.module)) return false;
             }
             if (item.permission === null) return true;
             return hasPermission(item.permission);
           });
           if (visibleItems.length === 0) return null;
+
+          console.log(visibleItems);
+
           return (
-            <div key={section.id}>
+            <div key={index}>
               {/* {!collapsed && <div className="sb-sec">{section.label}</div>} */}
               {visibleItems.map((item) => {
                 // Parent active state
@@ -551,16 +572,22 @@ export function Sidebar() {
                   const visibleChildren = item.children.filter((child) => {
                     if (child.superOnly && !isSuperAdmin) return false;
 
-                    if (child.module && !isSuperAdmin) {
-                      if (!modulesReady) return false;
-                      if (!activeModules.includes(child.module)) return false;
+                    if (
+                      child.module &&
+                      !isSuperAdmin &&
+                      activeModules.length > 0 &&
+                      !activeModules.includes(child.module)
+                    ) {
+                      return false;
                     }
 
                     if (child.permission === null) return true;
+
                     return hasPermission(child.permission);
                   });
 
                   if (visibleChildren.length === 0) return null;
+
                   return (
                     <div key={item.id}>
                       {/* Parent */}

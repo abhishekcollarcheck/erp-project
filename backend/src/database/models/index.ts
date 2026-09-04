@@ -4,7 +4,7 @@ import { sequelize } from '../../config/database';
 import { Employee }    from './Employee';
 import { Company }     from './Company';
 import { Department }  from './Department';
-import { Designation } from './Designation';
+import { Designation, SubDesignation } from './Designation';
 
 // ─── Auth (new — employee-as-identity) ───────────────────────────────────────
 import {
@@ -53,7 +53,8 @@ import { CompanyManager } from './CompanyManager';
 import { EmployeePermission } from './EmployeePermission';
 import { EmployeeExperience, EmployeeExit, EmployeeOnboardingDocs, EmployeeTransfer, EmployeeCommitmentProbation, EmployeeAddress, EmployeeAssetDeduction, EmployeeBankDetail, EmployeeEducation, EmployeeSchemes, EmployeePersonal, EmployeeFamily, EmployeeEmergencyContact, EmployeeStatutory, EmployeeSalary, EmployeeLocationAttendance, EmployeeManagersWorkContact, EmployeeFamilyMember, EmployeeExperienceFlag, EmployeeVaccination, EmployeeDocument } from './Employee';
 import { SubDepartment } from './Subdepartment';
-import { SubDesignation } from './SubDesignation';
+// import { SubDesignation } from './SubDesignation';
+
 // IMPORTANT
 import './Associations';
 

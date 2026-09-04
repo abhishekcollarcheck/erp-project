@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { AttendanceService } from './attendance.service';
-import { sendResponse, sendPaginated } from '../../utils/response';
+// import { sendResponse, sendPaginated } from '../../utils/response';
+import { AppError } from '../../middleware/errorHandler.middleware';
+import { runMonthlyAttendanceJob } from './attendance-monthly.cron';
+import { sendPaginated, sendResponse } from './response';
 
 const attendanceService = new AttendanceService();
 
@@ -162,5 +165,36 @@ export async function reviewRegularization(req: Request, res: Response, next: Ne
     sendResponse(res, { data: record, message: `Request ${req.body.decision.toLowerCase()}` });
   } catch (e) {
     next(e);
+  }
+}
+
+
+
+export async function runMonthlyAttendanceForAllEmployees(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { date } = req.body as { date?: string };
+ 
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new AppError("date must be in YYYY-MM-DD format", 400);
+    }
+ 
+    // FIX: `date` was validated above but never actually passed to
+    // runMonthlyAttendanceJob(), so a caller-supplied date silently
+    // had no effect — the job always ran for "yesterday" regardless.
+    const summary = await runMonthlyAttendanceJob(date);
+ 
+    res.status(200).json({
+      success: true,
+      // FIX: `summary` is an object, not a string — interpolating it
+      // directly produced "[object Object]" in the response message.
+      message: `Monthly attendance recalculated for ${summary.endDate}`,
+      data: summary,
+    });
+  } catch (error) {
+    next(error);
   }
 }

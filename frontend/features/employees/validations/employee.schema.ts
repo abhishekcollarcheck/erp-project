@@ -369,6 +369,7 @@ export const experienceEducationSchema = z.object({
   education: z.array(educationEntrySchema).optional().default([]),
 });
 
+
 // ─── Step schema map ──────────────────────────────────────────────────────────
 export const STEP_SCHEMA_MAP = {
   role_identity: roleIdentitySchema,

@@ -10,10 +10,10 @@
 import { validationResult } from 'express-validator';
 
 import { Department } from '../../database/models/Department';
-import { Designation } from '../../database/models/Designation';
+import { Designation, SubDesignation } from '../../database/models/Designation';
 import { Company } from '../../database/models/Company';
 import { SubDepartment } from '../../database/models/Subdepartment';
-import { SubDesignation } from '../../database/models/SubDesignation';
+// import { SubDesignation } from '../../database/models/SubDesignation';
 import { Shift } from '../../database/models/Shift';
 import { Employee } from '../../database/models/Employee';
 
@@ -26,6 +26,8 @@ import {
 import { resolveMasterOption } from './employee.masterOptions';
 
 export interface RowError { column: string; message: string }
+
+// SubDesignation
 
 export interface MappedRow {
   ok: boolean;

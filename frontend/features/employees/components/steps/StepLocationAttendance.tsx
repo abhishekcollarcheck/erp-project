@@ -5,14 +5,22 @@ import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { WORKING_SITE_OPTIONS, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS, REGISTRATION_LOCATION_OPTIONS, WEEKLY_OFF_OPTIONS, GRACE_MINUTES_OPTIONS } from "../../constants/employee.constants"
 import { FormSection } from '../../../../components/form/FormSection';
-import { useShifts } from '../../../../features/shift/hooks/useShift';
+import { useShiftOptions, useShifts } from '../../../../features/shift/hooks/useShift';
+import { useWatch } from 'react-hook-form';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepLocationAttendance({ }: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
-  const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
+  // const { data: shiftOptions = [], isLoading: shiftsLoading } = useShifts();
+
+  const shiftType = useWatch({
+    name: 'shift_type',
+  });
+
+  const { data: shiftOptions = [], isLoading: shiftsLoading } = useShiftOptions();
+
 
   return (
     <FormSection fields={[f('working_state_country'), f('working_city'), f('working_site'), f('pay_register_location'), f('actual_doj'), f('weekly_off'), f('shift_category'), f('shift_id'), f('grace_minutes')]}>

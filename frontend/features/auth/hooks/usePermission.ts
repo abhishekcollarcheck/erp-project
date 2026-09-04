@@ -5,7 +5,7 @@ export function usePermission() {
   const user         = useAppSelector(selectUser);
   const permissions  = useAppSelector(selectPermissions);
   const isSuperAdmin = useAppSelector(selectIsSuperAdmin);
-    const role        = useAppSelector(selectCurrentRole);
+  const role        = useAppSelector(selectCurrentRole);
 
   const has = (slug: string) => {
     if (!user) return false;

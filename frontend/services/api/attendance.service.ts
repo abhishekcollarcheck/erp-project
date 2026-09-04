@@ -98,6 +98,7 @@ export interface CombinedAttendanceRow {
   finalStatus: FinalAttendanceStatus | null;   // rule-evaluated status; null if no shift assigned
   matchedRule: string | null;
   lateMinutes: number | null;
+  punch_count: number;
 }
 
 export interface AttendanceQueryParams {

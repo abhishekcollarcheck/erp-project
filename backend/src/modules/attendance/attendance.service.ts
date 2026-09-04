@@ -4,7 +4,7 @@ import { AttendanceRegularization, RegularizationStatus } from '../../database/m
 import { Employee } from '../../database/models/Employee';
 import { AppError } from '../../middleware/errorHandler.middleware';
 import { parsePaginationParams, buildPaginationMeta } from '../../utils/response';
-import { PaginatedResponse } from "@/utils/response";
+import { PaginatedResponse } from "../../utils/response";
 
 export interface MarkAttendanceDto {
   company_id: number;

@@ -15,7 +15,7 @@ const MGR_ATTRS = ['id', 'employee_code', 'first_name', 'last_name'];
 const DETAIL_INCLUDES: any[] = [
   { association: 'company',     attributes: ['id', 'name'] },
   { association: 'department',  attributes: ['id', ['department_name', 'name']] },
-  { association: 'designation', attributes: ['id', ['designation_name', 'name']] },
+  { association: 'designation', attributes: ['id', 'name'] },
   { association: 'subDepartment',  attributes: ['id', 'name'] },
   { association: 'subDesignation', attributes: ['id', 'name'] },
   { association: 'locationAttendance' },
@@ -53,7 +53,7 @@ const SENSITIVE_INCLUDES: any[] = [
 const LIST_INCLUDES: any[] = [
   { association: 'company', attributes: ['id', 'name'] },
   { association: 'department', attributes: ['id', ['department_name', 'name']] },
-  { association: 'designation', attributes: ['id', ['designation_name', 'name']] },
+  { association: 'designation', attributes: ['id', 'name'] },
   {
     association: 'managersWorkContact',
     include: [{ association: 'l1Manager', attributes: MGR_ATTRS }],
