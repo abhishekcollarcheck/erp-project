@@ -207,28 +207,119 @@ EmployeeManagersWorkContact.init({
   indexes: [{ fields: ['l1_manager_id'] }],
 });
 
+// export class EmployeeCommitmentProbation extends Model {
+//   public employee_id!:               number;
+//   public commitment!:                boolean;
+//   public commitment_term!:           string | null;
+//   public commitment_entered_on!:     Date | null;
+//   public commitment_end_date!:       Date | null;
+//   public on_probation!:              boolean;
+//   public probation_period!:          string | null;
+//   public probation_end_date!:        Date | null;
+//   public probation_status!:          string | null;
+// }
+// EmployeeCommitmentProbation.init({
+//   employee_id:               { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
+//   commitment:                { type: DataTypes.BOOLEAN, defaultValue: false },
+//   commitment_term:           { type: DataTypes.ENUM('36 Months', '60 Months', 'N/A'), defaultValue: null, allowNull: true },
+//   commitment_entered_on:     { type: DataTypes.DATEONLY, allowNull: true },
+//   commitment_end_date:       { type: DataTypes.DATEONLY, allowNull: true },
+//   on_probation:              { type: DataTypes.BOOLEAN, defaultValue: true },
+//   probation_period:          { type: DataTypes.STRING(30), allowNull: true },
+//   probation_end_date:        { type: DataTypes.DATEONLY, allowNull: true },
+//   probation_status:          { type: DataTypes.ENUM(...PROBATION_STATUS), defaultValue: null, allowNull: true },
+// }, { sequelize, tableName: 'employee_commitment_probation', modelName: 'EmployeeCommitmentProbation', timestamps: true });
+
+
 export class EmployeeCommitmentProbation extends Model {
-  public employee_id!:               number;
-  public commitment!:                boolean;
-  public commitment_term!:           string | null;
-  public commitment_entered_on!:     Date | null;
-  public commitment_end_date!:       Date | null;
-  public on_probation!:              boolean;
-  public probation_period!:          string | null;
-  public probation_end_date!:        Date | null;
-  public probation_status!:          string | null;
+  public employee_id!: number;
+
+  public commitment!: boolean;
+  public commitment_term!: string | null;
+  public commitment_entered_on!: Date | null;
+  public commitment_end_date!: Date | null;
+
+  public on_probation!: boolean;
+  public probation_period!: string | null;
+  public probation_end_date!: Date | null;
+  public probation_status!: string | null;
+
+  public probation_el_credit!: number;
+  public probation_el_transefered!: number;
 }
-EmployeeCommitmentProbation.init({
-  employee_id:               { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-  commitment:                { type: DataTypes.BOOLEAN, defaultValue: false },
-  commitment_term:           { type: DataTypes.ENUM('36 Months', '60 Months', 'N/A'), defaultValue: null, allowNull: true },
-  commitment_entered_on:     { type: DataTypes.DATEONLY, allowNull: true },
-  commitment_end_date:       { type: DataTypes.DATEONLY, allowNull: true },
-  on_probation:              { type: DataTypes.BOOLEAN, defaultValue: true },
-  probation_period:          { type: DataTypes.STRING(30), allowNull: true },
-  probation_end_date:        { type: DataTypes.DATEONLY, allowNull: true },
-  probation_status:          { type: DataTypes.ENUM(...PROBATION_STATUS), defaultValue: null, allowNull: true },
-}, { sequelize, tableName: 'employee_commitment_probation', modelName: 'EmployeeCommitmentProbation', timestamps: true });
+
+EmployeeCommitmentProbation.init(
+  {
+    employee_id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      primaryKey: true,
+    },
+
+    commitment: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+
+    commitment_term: {
+      type: DataTypes.ENUM('36 Months', '60 Months', 'N/A'),
+      defaultValue: null,
+      allowNull: true,
+    },
+
+    commitment_entered_on: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+
+    commitment_end_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+
+    on_probation: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+
+    probation_period: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+
+    probation_end_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+
+    probation_status: {
+      type: DataTypes.ENUM(...PROBATION_STATUS),
+      defaultValue: null,
+      allowNull: true,
+    },
+
+    // ========================================================
+    // PROBATION EARNED LEAVE
+    // ========================================================
+
+    probation_el_credit: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+
+    probation_el_transefered: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'employee_commitment_probation',
+    modelName: 'EmployeeCommitmentProbation',
+    timestamps: true,
+  },
+);
 
 export class EmployeeSchemes extends Model {
   public employee_id!: number;
@@ -268,10 +359,10 @@ export class EmployeeSchemes extends Model {
   public rd_status!: 'Yes' | 'No' | 'Not Applicable' | null;
 }
 EmployeeSchemes.init({
-  employee_id:         { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-  pf_status:           { type: DataTypes.BOOLEAN, defaultValue: false },
-  uan_number:          { type: DataTypes.STRING(20), allowNull: true },
-  epfo_member_id:      { type: DataTypes.STRING(30), allowNull: true },
+  employee_id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
+  pf_status: { type: DataTypes.BOOLEAN, defaultValue: false },
+  uan_number: { type: DataTypes.STRING(20), allowNull: true },
+  epfo_member_id: { type: DataTypes.STRING(30), allowNull: true },
   pf_contribution_pct: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
   pf_employer_from:    { type: DataTypes.STRING(100), allowNull: true },
   pf_employee_12:      { type: DataTypes.DECIMAL(12, 2), allowNull: true },
@@ -580,9 +671,9 @@ EmployeeFamilyMember.init({
   indexes: [{ fields: ['employee_id'] }] });
 
 export class EmployeeEmergencyContact extends Model {
-  public id!:             number;
-  public employee_id!:    number;
-  public contact_name!:   string;
+  public id!: number;
+  public employee_id!: number;
+  public contact_name!: string;
   public contact_number!: string;
   public email!:          string | null;
   public relationship!:   string;
@@ -590,9 +681,9 @@ export class EmployeeEmergencyContact extends Model {
   public is_primary!:     boolean;
 }
 EmployeeEmergencyContact.init({
-  id:             { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  employee_id:    { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  contact_name:   { type: DataTypes.STRING(200), allowNull: false },
+  id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  contact_name: { type: DataTypes.STRING(200), allowNull: false },
   contact_number: { type: DataTypes.STRING(20), allowNull: false },
   email:          { type: DataTypes.STRING(255), allowNull: true },
   relationship:   { type: DataTypes.STRING(100), allowNull: false },
@@ -690,24 +781,26 @@ EmployeeDocument.init({
   indexes: [{ fields: ['employee_id'] }] });
 
 export class EmployeeBankDetail extends Model {
-  public id!:             number;
-  public employee_id!:    number;
-  public bank_type!:      'personal' | 'official';
-  public bank_name!:      string | null;
+  public id!: number;
+  public employee_id!: number;
+  public bank_type!: 'personal' | 'official';
+  public bank_name!: string | null;
   public account_number!: string | null;
-  public ifsc_code!:      string | null;
-  public branch_name!:    string | null;
+  public ifsc_code!: string | null;
+  public branch_name!: string | null;
 }
 EmployeeBankDetail.init({
-  id:             { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  employee_id:    { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  bank_type:      { type: DataTypes.ENUM('personal', 'official'), allowNull: false },
-  bank_name:      { type: DataTypes.STRING(200), allowNull: true },
+  id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  bank_type: { type: DataTypes.ENUM('personal', 'official'), allowNull: false },
+  bank_name: { type: DataTypes.STRING(200), allowNull: true },
   account_number: { type: DataTypes.STRING(30), allowNull: true },
-  ifsc_code:      { type: DataTypes.STRING(15), allowNull: true },
-  branch_name:    { type: DataTypes.STRING(200), allowNull: true },
-}, { sequelize, tableName: 'employee_bank_details', modelName: 'EmployeeBankDetail', timestamps: true,
-  indexes: [{ unique: true, fields: ['employee_id', 'bank_type'] }] });
+  ifsc_code: { type: DataTypes.STRING(15), allowNull: true },
+  branch_name: { type: DataTypes.STRING(200), allowNull: true },
+}, {
+  sequelize, tableName: 'employee_bank_details', modelName: 'EmployeeBankDetail', timestamps: true,
+  indexes: [{ unique: true, fields: ['employee_id', 'bank_type'] }]
+});
 
 export class EmployeeExperience extends Model {
   public id!:                       number;
@@ -737,6 +830,7 @@ export class EmployeeExperienceFlag extends Model {
   public employee_id!:    number;
   public is_experienced!: boolean;
 }
+
 EmployeeExperienceFlag.init({
   employee_id:    { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
   is_experienced: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -756,7 +850,7 @@ export class EmployeeEducation extends Model {
 }
 EmployeeEducation.init({
   id:                   { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  employee_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  employee_id:          { type: DataTypes.INTEGER.UNSIGNED,  allowNull: false },
   highest_education:    { type: DataTypes.STRING(100), allowNull: true },
   education_stream:     { type: DataTypes.STRING(100), allowNull: true },
   education_mode:       { type: DataTypes.STRING(50), allowNull: true },
@@ -769,70 +863,72 @@ EmployeeEducation.init({
   indexes: [{ fields: ['employee_id'] }] });
 
 export class EmployeeTransfer extends Model {
-  public id!:               number;
-  public employee_id!:      number;
-  public transfer_order!:   number;
-  public transferred_on!:   Date | null;
-  public new_company!:      string | null;
+  public id!: number;
+  public employee_id!: number;
+  public transfer_order!: number;
+  public transferred_on!: Date | null;
+  public new_company!: string | null;
   public new_joining_date!: Date | null;
-  public new_location!:     string | null;
-  public new_department!:   string | null;
-  public new_job_title!:    string | null;
-  public old_company!:      string | null;
-  public exit_date!:        Date | null;
-  public old_location!:     string | null;
-  public old_department!:   string | null;
-  public old_job_title!:    string | null;
-  public old_emp_code!:     string | null;
+  public new_location!: string | null;
+  public new_department!: string | null;
+  public new_job_title!: string | null;
+  public old_company!: string | null;
+  public exit_date!: Date | null;
+  public old_location!: string | null;
+  public old_department!: string | null;
+  public old_job_title!: string | null;
+  public old_emp_code!: string | null;
 }
 EmployeeTransfer.init({
-  id:               { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  employee_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  transfer_order:   { type: DataTypes.TINYINT.UNSIGNED, allowNull: false },
-  transferred_on:   { type: DataTypes.DATEONLY, allowNull: true },
-  new_company:      { type: DataTypes.STRING(200), allowNull: true },
+  id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  transfer_order: { type: DataTypes.TINYINT.UNSIGNED, allowNull: false },
+  transferred_on: { type: DataTypes.DATEONLY, allowNull: true },
+  new_company: { type: DataTypes.STRING(200), allowNull: true },
   new_joining_date: { type: DataTypes.DATEONLY, allowNull: true },
-  new_location:     { type: DataTypes.STRING(200), allowNull: true },
-  new_department:   { type: DataTypes.STRING(200), allowNull: true },
-  new_job_title:    { type: DataTypes.STRING(200), allowNull: true },
-  old_company:      { type: DataTypes.STRING(200), allowNull: true },
-  exit_date:        { type: DataTypes.DATEONLY, allowNull: true },
-  old_location:     { type: DataTypes.STRING(200), allowNull: true },
-  old_department:   { type: DataTypes.STRING(200), allowNull: true },
-  old_job_title:    { type: DataTypes.STRING(200), allowNull: true },
-  old_emp_code:     { type: DataTypes.STRING(30), allowNull: true },
-}, { sequelize, tableName: 'employee_transfers', modelName: 'EmployeeTransfer', timestamps: true,
-  indexes: [{ fields: ['employee_id', 'transfer_order'] }] });
+  new_location: { type: DataTypes.STRING(200), allowNull: true },
+  new_department: { type: DataTypes.STRING(200), allowNull: true },
+  new_job_title: { type: DataTypes.STRING(200), allowNull: true },
+  old_company: { type: DataTypes.STRING(200), allowNull: true },
+  exit_date: { type: DataTypes.DATEONLY, allowNull: true },
+  old_location: { type: DataTypes.STRING(200), allowNull: true },
+  old_department: { type: DataTypes.STRING(200), allowNull: true },
+  old_job_title: { type: DataTypes.STRING(200), allowNull: true },
+  old_emp_code: { type: DataTypes.STRING(30), allowNull: true },
+}, {
+  sequelize, tableName: 'employee_transfers', modelName: 'EmployeeTransfer', timestamps: true,
+  indexes: [{ fields: ['employee_id', 'transfer_order'] }]
+});
 
 export class EmployeeExit extends Model {
-  public employee_id!:           number;
+  public employee_id!: number;
   public resignation_submitted!: boolean;
-  public resignation_date!:      Date | null;
-  public notice_period!:         string | null;
-  public last_working_day!:      Date | null;
+  public resignation_date!: Date | null;
+  public notice_period!: string | null;
+  public last_working_day!: Date | null;
   public exit_formalities_done!: boolean;
-  public exit_status!:           string | null;
-  public exit_remarks!:          string | null;
-  public verified!:              boolean;
-  public verified_by!:           string | null;
-  public verification_remarks!:  string | null;
+  public exit_status!: string | null;
+  public exit_remarks!: string | null;
+  public verified!: boolean;
+  public verified_by!: string | null;
+  public verification_remarks!: string | null;
 }
 EmployeeExit.init({
-  employee_id:              { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-  resignation_submitted:    { type: DataTypes.BOOLEAN, defaultValue: false },
-  resignation_date:         { type: DataTypes.DATEONLY, allowNull: true },
-  notice_period:            { type: DataTypes.STRING(50), allowNull: true },
-  last_working_day:         { type: DataTypes.DATEONLY, allowNull: true },
-  exit_formalities_done:    { type: DataTypes.BOOLEAN, defaultValue: false },
-  exit_status:              { type: DataTypes.STRING(50), allowNull: true },
-  exit_remarks:             { type: DataTypes.TEXT, allowNull: true },
-  verified:                 { type: DataTypes.BOOLEAN, defaultValue: false },
-  verified_by:              { type: DataTypes.STRING(200), allowNull: true },
-  verification_remarks:     { type: DataTypes.TEXT, allowNull: true },
+  employee_id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
+  resignation_submitted: { type: DataTypes.BOOLEAN, defaultValue: false },
+  resignation_date: { type: DataTypes.DATEONLY, allowNull: true },
+  notice_period: { type: DataTypes.STRING(50), allowNull: true },
+  last_working_day: { type: DataTypes.DATEONLY, allowNull: true },
+  exit_formalities_done: { type: DataTypes.BOOLEAN, defaultValue: false },
+  exit_status: { type: DataTypes.STRING(50), allowNull: true },
+  exit_remarks: { type: DataTypes.TEXT, allowNull: true },
+  verified: { type: DataTypes.BOOLEAN, defaultValue: false },
+  verified_by: { type: DataTypes.STRING(200), allowNull: true },
+  verification_remarks: { type: DataTypes.TEXT, allowNull: true },
 }, { sequelize, tableName: 'employee_exit', modelName: 'EmployeeExit', timestamps: true });
 
 export class EmployeeDraft extends Model {
-  public id!:          number;
+  public id!: number;
   public employee_id!: number | null;
   public created_by!:  number;
   public step!:        string;
@@ -841,7 +937,7 @@ export class EmployeeDraft extends Model {
   public expires_at!:  Date;
 }
 EmployeeDraft.init({
-  id:          { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   created_by:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   step:        { type: DataTypes.STRING(50), allowNull: false },

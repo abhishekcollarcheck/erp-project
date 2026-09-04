@@ -56,12 +56,12 @@ async function loadFieldPerms(groupIds: number[], companyId: number): Promise<Fi
   }
 
   for (const [fieldKey, rows] of byFieldKey) {
-    const can_view     = rows.some(r => r.can_view);
-    const can_edit     = rows.some(r => r.can_edit);
-    const can_copy     = rows.some(r => r.can_copy);
+    const can_view = rows.some(r => r.can_view);
+    const can_edit = rows.some(r => r.can_edit);
+    const can_copy = rows.some(r => r.can_copy);
     const can_download = rows.some(r => r.can_download);
     const viewGranting = rows.filter(r => r.can_view);
-    const is_masked     = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
+    const is_masked = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
     map[fieldKey] = { can_view, can_edit, can_copy, can_download, is_masked };
   }
 
@@ -115,7 +115,7 @@ export class EmployeeService {
 
   async getAll(params: EmployeeQueryParams, companyId: number, isSuperAdmin: boolean) {
     const result = await repo.findAll(params, companyId);
-    const perms  = isSuperAdmin ? {} : '';
+    const perms = isSuperAdmin ? {} : '';
     return {
       ...result,
       rows: result.rows.map(e => applyMasking(flattenEmployee(e.toJSON()), perms as any, isSuperAdmin)),
@@ -187,6 +187,7 @@ export class EmployeeService {
     const emp = await repo.findById(id, companyId);
     if (!emp) throw new AppError('Employee not found', 404);
 
+
     return sequelize.transaction(async (t) => {
       await this.routeStep(id, companyId, step, dto, actorId, t);
 
@@ -216,10 +217,10 @@ export class EmployeeService {
       case 'role_identity': {
         const d = dto as RoleIdentityDto;
         await repo.update(id, companyId, {
-          first_name:     d.first_name?.trim(),
-          middle_name:    d.middle_name?.trim() || null,
-          last_name:      d.last_name?.trim(),
-          status:         d.status,
+          first_name: d.first_name?.trim(),
+          middle_name: d.middle_name?.trim() || null,
+          last_name: d.last_name?.trim(),
+          status: d.status,
           employment_type: d.employment_type,
           department_id:  d.department_id,
           sub_department_id: d.sub_department_id || null,
@@ -310,7 +311,7 @@ export class EmployeeService {
         }
         await repo.upsertSchemes(id, {
           ...d,
-          rd_maturity_date:   rdMaturityDate,
+          rd_maturity_date: rdMaturityDate,
           rd_maturity_amount: rdMaturityAmount,
           rd_status: d.rd_scheme ? 'Yes' : 'Not Applicable',
         }, t);
@@ -506,7 +507,7 @@ export class EmployeeService {
 
       case 'review': {
         if (dto.transfers) await repo.replaceTransfers(id, dto.transfers, t);
-        if (dto.exit)      await repo.upsertExit(id, dto.exit, t);
+        if (dto.exit) await repo.upsertExit(id, dto.exit, t);
         break;
       }
 
@@ -865,7 +866,7 @@ export class EmployeeService {
     };
     const resolveDesignationId = async (name: string): Promise<number | null> => {
       if (designationCache.has(name)) return designationCache.get(name)!;
-      const desig = await Designation.findOne({ where: { designation_name: name } });
+      const desig = await Designation.findOne({ where: { name: name } });
       const id = desig ? desig.get('id') as number : null;
       designationCache.set(name, id);
       return id;

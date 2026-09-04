@@ -65,7 +65,6 @@ export class RolesService {
   }, updatedBy?: number) {
     const role = await this.getById(id, companyId);
     const oldValues = { name: role.name, description: role.description };
-
     await role.update({ name: dto.name || role.name, description: dto.description ?? role.description });
 
     clearPermissionCache(id);

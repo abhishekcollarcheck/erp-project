@@ -41,7 +41,7 @@ export function FormTextarea({
           aria-invalid={!!error}
           aria-describedby={error ? `${name}-err` : hint ? `${name}-hint` : undefined}
           value={field.value ?? ''}
-          className={`form-textarea${isReadOnly ? ' readonly' : ''}`}
+          className={`w-full border border-gray-300 p-2 rounded-2xl form-textarea${isReadOnly ? ' readonly' : ''}`}
           onChange={e => { if (!isReadOnly) field.onChange(e.target.value); }}
         />
         {maxLength && (

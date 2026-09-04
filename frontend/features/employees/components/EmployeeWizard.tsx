@@ -25,7 +25,8 @@ import { StepIdsBank }             from './steps/StepIdsBank';
 import { StepExperienceEducation } from './steps/StepExperienceEducation';
 import { StepReview }              from './steps/StepReview';
 
-import type { Employee, CommitmentProbation, EmployeePersonal, EmployeeFamily,
+import type {
+  Employee, CommitmentProbation, EmployeePersonal, EmployeeFamily,
   EmployeeStatutory, EmployeeSchemes, EmployeeBankDetail, EmployeeSalary,
   EmployeeAssetDeduction, OnboardingDocs,
   EmployeeAddress } from '../types/employee.types';
@@ -45,7 +46,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   const { isHR, isAdmin, isSuperAdmin } = usePermission();
   const canSeeSensitive = isHR || isAdmin || isSuperAdmin;
 
-  const sidRef        = useRef(getOrCreateSid());
+  const sidRef = useRef(getOrCreateSid());
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
   const pendingAvatarRef = useRef<File | null>(null);
 
@@ -60,9 +61,9 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
 
   const visibleSteps = useMemo(() => WIZARD_STEPS.filter(s => !s.sensitive || canSeeSensitive), [canSeeSensitive]);
-  const step    = visibleSteps[currentIdx];
+  const step = visibleSteps[currentIdx];
   const isFirst = currentIdx === 0;
-  const isLast  = currentIdx === visibleSteps.length - 1;
+  const isLast = currentIdx === visibleSteps.length - 1;
 
   // HR/Candidate dual progress — matches the "0% · HR 0/7 · Candidate 0/5" UI
   const hrSteps        = useMemo(() => visibleSteps.filter(s => s.part === 'hr'), [visibleSteps]);

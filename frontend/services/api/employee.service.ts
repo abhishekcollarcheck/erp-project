@@ -11,7 +11,7 @@ export const employeeService = {
   getById:             (id: number)        => apiClient.get(`/employees/${id}`),
   create:              (data: object)      => apiClient.post('/employees', data),
   updateStep:          (id: number, step: string, data: object) =>
-                                             apiClient.patch(`/employees/${id}/step/${step}`, data),
+                                              apiClient.patch(`/employees/${id}/step/${step}`, data),
   delete:              (id: number)        => apiClient.delete(`/employees/${id}`),
   transfer:            (id: number, data: object) => apiClient.post(`/employees/${id}/transfer`, data),
   summary:             ()                  => apiClient.get('/employees/summary'),
