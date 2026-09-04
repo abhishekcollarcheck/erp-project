@@ -24,6 +24,7 @@ export const listValidation: ValidationChain[] = [
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('status').optional().isIn(EMPLOYEE_STATUS),
+  query('record_status').optional().isIn(['Draft', 'Final']),
   query('employment_type').optional().isIn(EMPLOYMENT_TYPE),
   query('sort').optional().isIn(['created_at', 'first_name', 'last_name', 'employee_code', 'actual_doj']),
   query('order').optional().isIn(['ASC', 'DESC']),

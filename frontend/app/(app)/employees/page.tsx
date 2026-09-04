@@ -25,7 +25,7 @@ import { BulkUploadModal } from '../../../features/employees/components/BulkUplo
 import { TransferEmployeeModal } from '../../../features/employees/components/TransferEmployeeModal';
 import { PermissionGuard } from '@/utils/permissionGuard';
 
-type StatusFilter     = EmployeeStatus | '';
+type StatusFilter     = EmployeeStatus | 'Draft' | '';
 type EmpTypeFilter    = EmploymentType | '';
 
 export default function EmployeesPage() {
@@ -50,7 +50,9 @@ export default function EmployeesPage() {
     page,
     limit:  20,
     search: debouncedSearch || undefined,
-    status: statusFilter    || undefined,
+    // "Draft" isn't an employment status — it's record_status. Route it there.
+    status: (statusFilter && statusFilter !== 'Draft') ? statusFilter : undefined,
+    record_status: statusFilter === 'Draft' ? 'Draft' : undefined,
     employment_type: typeFilter || undefined,
     department_id: deptFilter || undefined,
   });
@@ -200,6 +202,7 @@ export default function EmployeesPage() {
           onChange={e => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
           style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
           <option value="">All Status</option>
+          <option value="Draft">Draft (incomplete profile)</option>
           {EMPLOYEE_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
@@ -257,7 +260,16 @@ export default function EmployeesPage() {
           <StatCard label="Total"     value={summary?.total ?? '…'}    color="var(--blue)" />
           <StatCard label="Active"    value={summary?.active ?? '…'}   color="var(--green)" />
           <StatCard label="On Notice" value={summary?.onNotice ?? '…'} color="var(--amber)" />
-          <StatCard label="Draft"     value={summary?.draft ?? '…'}    color="var(--ink4)" />
+          <div
+            role="button"
+            tabIndex={0}
+            title="Show only draft (incomplete) profiles"
+            onClick={() => { setStatusFilter(f => f === 'Draft' ? '' : 'Draft'); setPage(1); }}
+            onKeyDown={e => { if (e.key === 'Enter') { setStatusFilter(f => f === 'Draft' ? '' : 'Draft'); setPage(1); } }}
+            style={{ cursor: 'pointer', borderRadius: 'var(--r)', outline: statusFilter === 'Draft' ? '2px solid var(--blue)' : 'none' }}
+          >
+            <StatCard label={statusFilter === 'Draft' ? 'Draft ✓' : 'Draft'} value={summary?.draft ?? '…'} color="var(--ink4)" />
+          </div>
         </div>
 
         {/* Table */}

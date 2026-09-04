@@ -23,6 +23,7 @@ export interface EmployeeQueryParams {
   limit?: number | string;
   search?: string;
   status?: EmployeeStatus;
+  record_status?: 'Draft' | 'Final';
   employment_type?: EmploymentType;
   department_id?: number | string;
   designation_id?: number | string;

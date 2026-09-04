@@ -611,9 +611,9 @@ export class EmployeeService {
     const [srcCompany, srcDept, srcDesig, newDept, newDesig] = await Promise.all([
       s.company_id ? Company.findByPk(s.company_id, { attributes: ['name'] }) : null,
       s.department_id ? Department.findByPk(s.department_id, { attributes: ['department_name'] }) : null,
-      s.designation_id ? Designation.findByPk(s.designation_id, { attributes: ['designation_name'] }) : null,
+      s.designation_id ? Designation.findByPk(s.designation_id, { attributes: ['name'] }) : null,
       deptId  ? Department.findByPk(deptId,  { attributes: ['department_name'] })  : null,
-      desigId ? Designation.findByPk(desigId, { attributes: ['designation_name'] }) : null,
+      desigId ? Designation.findByPk(desigId, { attributes: ['name'] }) : null,
     ]);
     const nm = (x: any, k: string) => (x ? (x as any)[k] as string : null);
 
@@ -666,11 +666,11 @@ export class EmployeeService {
         new_company:      newCompany.name,
         new_joining_date: doj,
         new_department:   nm(newDept, 'department_name'),
-        new_job_title:    nm(newDesig, 'designation_name'),
+        new_job_title:    nm(newDesig, 'name'),
         old_company:      nm(srcCompany, 'name'),
         exit_date:        doj,
         old_department:   nm(srcDept, 'department_name'),
-        old_job_title:    nm(srcDesig, 'designation_name'),
+        old_job_title:    nm(srcDesig, 'name'),
         old_emp_code:     s.employee_code ?? null,
       }], t);
 

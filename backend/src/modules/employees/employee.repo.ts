@@ -75,6 +75,7 @@ export class EmployeeRepository {
 
     const where: any = { company_id: companyId };
     if (params.status)          where.status          = params.status;
+    if (params.record_status)   where.record_status   = params.record_status;
     if (params.employment_type) where.employment_type = params.employment_type;
     if (params.department_id)   where.department_id   = Number(params.department_id);
     if (params.designation_id)  where.designation_id  = Number(params.designation_id);

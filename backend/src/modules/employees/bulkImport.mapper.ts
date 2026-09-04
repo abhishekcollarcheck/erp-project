@@ -82,7 +82,7 @@ const norm = (s: string) => s.trim().toLowerCase();
 export async function buildResolvers(companyId: number): Promise<Resolvers> {
   const [depts, desigs, comps, subDepts, subDesigs, shifts, mgrs] = await Promise.all([
     Department.findAll({ attributes: ['id', 'department_name'], raw: true }),
-    Designation.findAll({ attributes: ['id', 'designation_name'], raw: true }),
+    Designation.findAll({ attributes: ['id', 'name'], raw: true }),
     Company.findAll({ attributes: ['id', 'name'], raw: true }),
     SubDepartment.findAll({ attributes: ['id', 'name'], raw: true }),
     SubDesignation.findAll({ attributes: ['id', 'name'], raw: true }),
@@ -99,7 +99,7 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
     return m;
   };
   const deptMap    = map(depts, 'department_name');
-  const desigMap   = map(desigs, 'designation_name');
+  const desigMap   = map(desigs, 'name');
   const compMap    = map(comps, 'name');
   const subDeptMap = map(subDepts, 'name');
   const subDesigMap= map(subDesigs, 'name');
@@ -124,7 +124,7 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
     return m;
   };
   const deptById    = byId(depts, 'department_name');
-  const desigById   = byId(desigs, 'designation_name');
+  const desigById   = byId(desigs, 'name');
   const compById    = byId(comps, 'name');
   const subDeptById = byId(subDepts, 'name');
   const subDesigById= byId(subDesigs, 'name');

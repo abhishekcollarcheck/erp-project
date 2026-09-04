@@ -1374,7 +1374,13 @@ export async function seedDatabase(): Promise<void> {
           status: "Active",
 
           record_status: "Final",
-          form_completion_pct: 100,
+          // Honest completion for a base-identity-only record (matches the
+          // Employee List and the Edit wizard). NOT a hard-coded 100.
+          form_completion_pct: seedAdminCompletionPct({
+            first_name: "Super", last_name: "Admin", employment_type: "Permanent",
+            department_id: hrDepartmentId!, designation_id: superAdminDesignationId!,
+            email: "superadmin@ung.com", phone: "+918130988753",
+          }),
 
           portal_access: true,
           is_super_admin: true,
@@ -1505,7 +1511,13 @@ export async function seedDatabase(): Promise<void> {
           status: "Active",
 
           record_status: "Final",
-          form_completion_pct: 100,
+          // Honest completion for a base-identity-only record (matches the
+          // Employee List and the Edit wizard). NOT a hard-coded 100.
+          form_completion_pct: seedAdminCompletionPct({
+            first_name: "Admin", last_name: "User", employment_type: "Permanent",
+            department_id: hrDepartmentId!, designation_id: superAdminDesignationId!,
+            email: "admin@ung.com", phone: "+918826693968",
+          }),
 
           portal_access: true,
           is_super_admin: false,

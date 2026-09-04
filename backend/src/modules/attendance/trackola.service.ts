@@ -1,153 +1,165 @@
 /**
- * trakola.service.ts
+ * trackola.service.ts
  *
- * Parses Trakola's report format (columns[] + rows[][cell]) into
- * name-keyed objects, then into a normalized attendance row shape.
+ * Fetches a single employee's DAILY_PRODUCTIVITY_BY_DAY report from Trackola's
+ * employee-wise template API and parses it into a normalized attendance row
+ * shape (the same spirit as MSSQLAttendanceRow, so the combined-attendance
+ * merge can treat both sources uniformly).
  *
- * IMPORTANT: Trakola's rows are POSITIONAL, not keyed — row[i] corresponds
- * to columns[i]. This parser zips them by column NAME (not fixed index),
- * so if you reorder or add/remove columns in Trakola's report config,
- * this still works as long as the expected column names still exist.
+ * Trackola's rows are POSITIONAL — row[i] ↔ columns[i]. This parser zips them
+ * by column NAME, so adding/reordering columns in Trackola's template is safe
+ * as long as the column names we read still exist.
  *
- * Place at: backend/src/modules/attendance/trakola.service.ts
+ * ID mapping:
+ *   - our employee  → `employee_code` → Trackola `employeeIden` (body filter)
+ *   - Trackola admin → `TC_ADMIN_ID`  → `employee_id` (query param, in config)
  */
 
-import { fetchTrakolaReport, TrackolaReportResponse, TrackolaReportCell } from '../../config/trackolap.config';
+import {
+  runTrackolaTemplate,
+  TrackolaApiError,
+  TrackolaTemplateRunResponse,
+  TrackolaReportCell,
+} from '../../config/trackolap.config';
 import { AppError } from '../../middleware/errorHandler.middleware';
 
-const TRAKOLA_REPORT_ID = process.env.TRAKOLA_REPORT_ID || '6a630a8d6edf973e580d2e0c';
-
-// Column names as they appeared in your sample response. If you rename any
-// of these when adding the Employee ID column, update the matching constant
-// below — everything else in this file references these constants, not
-// hardcoded strings.
+// Column labels as returned by the DAILY_PRODUCTIVITY_BY_DAY template. Update
+// here (nowhere else references raw strings) if Trackola renames a column.
 const COLUMN = {
   employeeName: 'Employee',
-  employeeId: 'Identifier', // NOT YET IN YOUR REPORT — add this column, then confirm the exact label here
   date: 'Date',
   punchIn: 'Punch In Date Time',
   punchOut: 'Punch Out Date Time',
   workingTime: 'Working Time',
   punchInLocation: 'Punch In Location',
   punchOutLocation: 'Punch Out Location',
+  customerVisits: 'Number of Customer Visits',
+  distanceKm: 'Total Distance Travelled (KM)',
 };
 
 export interface TrakolaAttendanceRow {
   employee_name: string;
-  employee_id: string | null; // will hold Employee ID once the column exists; null until then
-  date: string;                // YYYY-MM-DD
-  check_in: string | null;     // HH:MM:SS
-  check_out: string | null;    // HH:MM:SS
+  employee_id: string | null;   // the Trackola employeeIden this report was filtered by
+  date: string;                 // YYYY-MM-DD
+  check_in: string | null;      // HH:MM:SS
+  check_out: string | null;     // HH:MM:SS
   working_hours: number | null;
   punch_in_location: string | null;
   punch_out_location: string | null;
+  customer_visits: number | null;
+  distance_km: number | null;
   source: 'Trakola';
+}
+
+/**
+ * Trackola's `employeeIden` filter is strict — it only accepts the exact
+ * unpadded integer string it stores (e.g. "2654"). Our `employee_code` may be
+ * zero-padded ("00002654"), spaced, or carry a prefix — all of which Trackola
+ * rejects as "Please enter valid values in filter". Normalise to the bare
+ * digits, leading zeros removed. Returns '' if there are no digits.
+ */
+export function toTrackolaEmployeeIden(employeeCode: unknown): string {
+  const digits = String(employeeCode ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  return digits;
 }
 
 export class TrakolaService {
   /**
-   * Fetches and parses a Trakola report into name-keyed rows.
-   * Exposed separately from getNormalizedAttendance() so we can inspect
-   * the raw parsed shape while confirming column names during testing.
+   * Fetch + parse one employee's DAILY_PRODUCTIVITY_BY_DAY rows (column-keyed,
+   * not yet normalized). Filtering is done server-side by Trackola via the
+   * `employeeIden` filter, so every returned row belongs to that employee.
+   *
+   * @param employeeCode our employee's `employee_code`; normalised to Trackola's
+   *   `employeeIden` (bare digits) before the request.
    */
-  async getParsedReportRows(startDate: string, endDate: string, employeeId?: string): Promise<Record<string, string | number>[]> {
-    if (!TRAKOLA_REPORT_ID) {
-      throw new AppError('TRAKOLA_REPORT_ID is not configured', 500);
+  async getParsedReportRows(
+    startDate: string,
+    endDate: string,
+    employeeCode: string,
+  ): Promise<Record<string, string | number>[]> {
+    const iden = toTrackolaEmployeeIden(employeeCode);
+    if (!iden) {
+      throw new AppError(
+        `Cannot map employee code "${employeeCode}" to a Trackola employee identifier`,
+        400,
+      );
     }
 
-    let response: TrackolaReportResponse;
+    let response: TrackolaTemplateRunResponse;
     try {
-      response = await fetchTrakolaReport(TRAKOLA_REPORT_ID, startDate, endDate);
+      response = await runTrackolaTemplate({
+        templateType: 'DAILY_PRODUCTIVITY_BY_DAY',
+        filters: [{ filter: 'employeeIden', condition: 'in', values: [iden] }],
+        startDate,
+        endDate,
+      });
     } catch (e: any) {
-      throw new AppError(`Trakola API unavailable: ${e.message}`, 502);
-    }
-    const allRows = response.rows.map((row) => this.zipRowToObject(response.columns, row));
-
-    if (!employeeId) {
-      return allRows;
-    }
-
-    // BUGFIX: COLUMN.employeeId ('Identifier') is not a column Trakola
-    // actually sends yet (see the const above). Filtering on it unconditionally
-    // meant `row[COLUMN.employeeId]` was always undefined, normalizeEmployeeId()
-    // always returned null, `null === employeeId` was always false, and every
-    // row was filtered out — this is why trakRows always came back empty.
-    //
-    // Fix: only filter by Identifier when the report actually contains that
-    // column (i.e. at least one row has a non-empty value there). Until then,
-    // fall back to matching on employee_name, which Trakola does send today.
-    const hasIdentifierColumn = allRows.some((row) => {
-      const raw = row[COLUMN.employeeId];
-      return raw !== undefined && raw !== null && String(raw).trim() !== '';
-    });
-
-    if (employeeId && hasIdentifierColumn) {
-      return allRows.filter((row) => this.normalizeEmployeeId(row[COLUMN.employeeId]) === employeeId);
+      if (e instanceof TrackolaApiError) {
+        // Bad employeeIden / bad filter → the caller's input is wrong (422);
+        // missing admin id / other → config or upstream problem (502).
+        throw new AppError(
+          `Trackola: ${e.message}`,
+          e.invalidInput ? 422 : 502,
+        );
+      }
+      throw new AppError(`Trackola API unavailable: ${e.message}`, 502);
     }
 
-    // if (employeeName) {
-    //   const target = employeeName.trim().toLowerCase();
-    //   return allRows.filter((row) => String(row[COLUMN.employeeName] || '').trim().toLowerCase() === target);
-    // }
-
-    // No reliable way to filter by this employee (no Identifier column, no
-    // name supplied) — return nothing rather than silently mixing another
-    // employee's rows into this employee's attendance.
-    return [];
+    return response.rows.map((row) => this.zipRowToObject(response.columns, row));
   }
 
   /**
-   * Fetches, parses, AND normalizes into our common attendance row shape —
-   * the same spirit as MSSQLAttendanceRow, so downstream merge logic can
-   * treat both sources uniformly once employee_ref is reliably populated.
+   * Fetch, parse AND normalize one employee's daily report into
+   * TrakolaAttendanceRow[] — the shape the combined-attendance merge consumes.
    *
-   * `employeeName` is a temporary fallback filter key — see getParsedReportRows —
-   * needed until Trakola's report actually exposes an Identifier column.
+   * @param employeeCode our employee's `employee_code`
    */
   async getNormalizedAttendance(
     startDate: string,
     endDate: string,
-    employeeId?: string,
-    employeeName?: string,
+    employeeCode: string,
   ): Promise<TrakolaAttendanceRow[]> {
-    const parsedRows = await this.getParsedReportRows(startDate, endDate, employeeId);
-    return parsedRows.map((row) => this.normalizeRow(row));
+    const iden = toTrackolaEmployeeIden(employeeCode);
+    const parsedRows = await this.getParsedReportRows(startDate, endDate, employeeCode);
+    return parsedRows.map((row) => this.normalizeRow(row, iden));
   }
 
-  // ─── Zip columns[] + one row's cells into a { columnName: value } object ──
-  private zipRowToObject(columns: string[], row: TrackolaReportCell[]): Record<string, string | number> {
+  // ─── Zip columns[] + one row's cells into { columnName: value } ─────────────
+  private zipRowToObject(
+    columns: string[],
+    row: TrackolaReportCell[],
+  ): Record<string, string | number> {
     const obj: Record<string, string | number> = {};
     columns.forEach((colName, i) => {
       const cell = row[i];
       const values = cell?.data?.map((d) => d.value) ?? [];
-      // Most columns have exactly one value. If a column ever has multiple
-      // (columnsMulti in the raw response suggests this is possible for
-      // some report types), join them rather than silently dropping data.
       obj[colName] = values.length <= 1 ? (values[0] ?? '') : values.join(', ');
     });
     return obj;
   }
 
-  private normalizeRow(row: Record<string, string | number>): TrakolaAttendanceRow {
+  private normalizeRow(
+    row: Record<string, string | number>,
+    employeeIden: string,
+  ): TrakolaAttendanceRow {
     const punchInRaw = String(row[COLUMN.punchIn] || '');
     const punchOutRaw = String(row[COLUMN.punchOut] || '');
     return {
       employee_name: String(row[COLUMN.employeeName] || '').trim(),
-      employee_id: this.normalizeEmployeeId(row[COLUMN.employeeId]),
+      employee_id: employeeIden || null,
       date: String(row[COLUMN.date] || ''),
       check_in: this.extractTime(punchInRaw),
       check_out: this.extractTime(punchOutRaw),
       working_hours: this.parseWorkingTime(String(row[COLUMN.workingTime] || '')),
       punch_in_location: String(row[COLUMN.punchInLocation] || '') || null,
       punch_out_location: String(row[COLUMN.punchOutLocation] || '') || null,
+      customer_visits: this.parseNumber(row[COLUMN.customerVisits]),
+      distance_km: this.parseNumber(row[COLUMN.distanceKm]),
       source: 'Trakola',
     };
   }
 
-  // "2026-06-26 10:11:51 +0530" → "10:11:51"
-  // NOTE: the +0530 offset is discarded here — this assumes Trakola always
-  // reports in IST, matching our own server convention. Flag if Trakola
-  // ever serves multi-timezone data (e.g. a distributed sales team).
+  // "2026-06-26 10:11:51 +0530" → "10:11:51"  (offset discarded — assumes IST)
   private extractTime(raw: string): string | null {
     const match = raw.match(/\d{4}-\d{2}-\d{2}\s(\d{2}:\d{2}:\d{2})/);
     return match ? match[1] : null;
@@ -162,22 +174,11 @@ export class TrakolaService {
     return hours > 0 ? Math.round(hours * 100) / 100 : null;
   }
 
-private normalizeEmployeeId(value: unknown): string | null {
-  if (value === null || value === undefined) {
-    return null;
+  private parseNumber(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
   }
-  const id = String(value).trim();
-  if (!id) {
-    return null;
-  }
-
-  // Keep digits only in case the value comes from Excel or contains formatting.
-  const numericId = id.replace(/\D/g, '');
-  if (!numericId) {
-    return null;
-  }
-  return numericId.padStart(8, '0');
-}
 }
 
 export const trakolaService = new TrakolaService();

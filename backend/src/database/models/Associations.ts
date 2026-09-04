@@ -24,7 +24,6 @@ import {
 
 // ─── HR Modules ───────────────────────────────────────────────────────────────
 import { Attendance }                                    from './Attendance';
-import { LeaveType, LeaveRequest }                       from './LeaveModels';
 import { Candidate }                                     from './Candidate';
 import { CandidateEmployment }                           from './CandidateEmployment';
 import { AptitudeTest, AptitudeQuestion, CandidateAnswer } from './AptitudeTest';
@@ -36,28 +35,6 @@ import {
   LeaveType,
   LeaveRequest,
 } from './LeaveModels';
-
-import { Candidate } from './Candidate';
-
-import {
-  AptitudeTest,
-  AptitudeQuestion,
-  CandidateAnswer,
-} from './AptitudeTest';
-
-import {
-  PayrollRun,
-  Payslip,
-} from './PayrollModels';
-
-import { Notification } from './Notification';
-
-import { ActivityLog } from './ActivityLog';
-
-import {
-  EmailBranding,
-  EmailTemplate,
-} from './EmailTemplate';
 
 import {
   HrModule,
@@ -236,14 +213,6 @@ Company.hasMany(CompanyDepartment, {
 
 Employee.belongsTo(Department, { foreignKey: 'department_id', as: 'department' });
 Department.hasMany(Employee,   { foreignKey: 'department_id', as: 'employees'  });
-
-// ─── Department ↔ SubDepartmentDepartment ↔ SubDepartment ──────────────────
-// Many-to-many via the junction table (replaces the old direct
-// Department.hasMany(SubDepartment) / SubDepartment.belongsTo(Department)
-// pair that referenced a now-dropped `department_id` column on
-// sub_departments).
-// ─── Department ↔ SubDepartmentDepartment ↔ SubDepartment ──────────────────
-// Many-to-many relationship through the junction table.
 
 SubDepartment.hasMany(SubDepartmentDepartment, {
   foreignKey: 'sub_department_id',
@@ -484,13 +453,11 @@ Attendance.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee'   });
 Employee.hasMany(LeaveRequest,   { foreignKey: 'employee_id', as: 'leaveRequests' });
 LeaveRequest.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee'      });
 
-<<<<<<< HEAD
 // ─── Candidates ───────────────────────────────────────────────────────────────
 Candidate.hasMany(CandidateAnswer,   { foreignKey: 'candidate_id', as: 'aptitudeAnswers' });
 CandidateAnswer.belongsTo(Candidate, { foreignKey: 'candidate_id', as: 'candidate'       });
 Candidate.hasMany(CandidateEmployment,   { foreignKey: 'candidate_id', as: 'employments' });
 CandidateEmployment.belongsTo(Candidate, { foreignKey: 'candidate_id', as: 'candidate'   });
-=======
 LeaveRequest.belongsTo(LeaveType, { foreignKey: 'leave_type_id', as: 'leaveType' });
 LeaveType.hasMany(LeaveRequest,   { foreignKey: 'leave_type_id', as: 'requests'  });
 
@@ -502,20 +469,11 @@ Payslip.belongsTo(PayrollRun,    { foreignKey: 'payroll_run_id', as: 'payrollRun
 Employee.hasMany(Payslip,   { foreignKey: 'employee_id', as: 'payslips' });
 Payslip.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee' });
 
-// ─── Candidates ──────────────────────────────────────────────────────────────
-
-Candidate.hasMany(CandidateAnswer, {
-  foreignKey: 'candidate_id',
-  as: 'aptitudeAnswers',
-});
-
-CandidateAnswer.belongsTo(Candidate, {
-  foreignKey: 'candidate_id',
-  as: 'candidate',
-});
+// (Candidate ↔ CandidateAnswer / CandidateEmployment associations are defined
+//  once in the "Candidates" block above — the duplicate here was a merge
+//  artifact and made Sequelize throw on the repeated `aptitudeAnswers` alias.)
 
 // ─── Form Builder ────────────────────────────────────────────────────────────
->>>>>>> origin/deploy1
 
 HrModule.hasMany(FormDefinition,      { foreignKey: 'module_id', as: 'forms'  });
 FormDefinition.belongsTo(HrModule,    { foreignKey: 'module_id', as: 'module' });
@@ -610,14 +568,8 @@ export {
   RoleModulePermission,
   // HR modules
   Attendance,
-<<<<<<< HEAD
   LeaveType, LeaveRequest,
   Candidate, CandidateEmployment,
-=======
-  LeaveType,
-  LeaveRequest,
-  Candidate,
->>>>>>> origin/deploy1
   AptitudeTest, AptitudeQuestion, CandidateAnswer,
   PayrollRun, Payslip,
   Notification, ActivityLog,

@@ -33,21 +33,24 @@ EmployeeType.init(
       primaryKey: true,
       autoIncrement: true,
     },
+
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
       unique: true,
     },
+
     code: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      unique: true,
     },
+
     display_order: {
       type: DataTypes.INTEGER.UNSIGNED,
       allowNull: false,
       defaultValue: 0,
     },
+
     is_active: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -58,9 +61,21 @@ EmployeeType.init(
     sequelize,
     tableName: 'employee_types',
     modelName: 'EmployeeType',
+
     indexes: [
-      { fields: ['display_order'] },
-      { fields: ['is_active'] },
+      {
+        unique: true,
+        name: 'employee_types_code_unique',
+        fields: ['code'],
+      },
+      {
+        name: 'employee_types_display_order_idx',
+        fields: ['display_order'],
+      },
+      {
+        name: 'employee_types_is_active_idx',
+        fields: ['is_active'],
+      },
     ],
   },
 );
