@@ -44,9 +44,21 @@ export interface Employee {
   shift_id?:              number | null;
   weekly_off:              string | null;
   grace_minutes:          number | null;
-  form_completion_pct:    number;          // overall — average of hr_completion_pct/candidate_completion_pct
+  form_completion_pct:    number;          // overall — average of hr/candidate; kept in sync with `completion.overallPct`
   hr_completion_pct?:      number;
   candidate_completion_pct?: number;
+  // Full completion breakdown — returned by getById (sensitive view) and every
+  // step save. Drives the Edit wizard's progress so it matches the list exactly.
+  completion?: {
+    overallPct: number;
+    hrPct: number;
+    candidatePct: number;
+    hrDone: number;
+    hrTotal: number;
+    candidateDone: number;
+    candidateTotal: number;
+    steps: Record<string, boolean>;
+  };
   avatar_url?:            string | null;
   // Auth fields (read-only in wizard)
   portal_access:          boolean;

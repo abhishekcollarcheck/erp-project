@@ -276,6 +276,12 @@ export class EmployeeRepository {
     return Employee.update({ form_completion_pct: pct }, { where: { id }, transaction: t });
   }
 
+  /** Correct a drifted form_completion_pct outside any transaction, without
+   *  bumping updated_at (used by getById's self-heal on read). */
+  async updateCompletionPctSilent(id: number, pct: number) {
+    return Employee.update({ form_completion_pct: pct }, { where: { id }, silent: true });
+  }
+
   /**
    * Copy every child record of `fromId` onto `toId` — used by the transfer flow
    * ("Personal / KYC details are copied"). EmployeeLocationAttendance is handled

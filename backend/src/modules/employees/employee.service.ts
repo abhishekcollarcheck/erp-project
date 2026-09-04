@@ -137,10 +137,25 @@ export class EmployeeService {
     if (!emp) throw new AppError('Employee not found', 404);
 
     const perms = canSeeSensitive ? {} : '';
-    const json  = flattenEmployee(emp.toJSON() as any);
+    const raw   = emp.toJSON() as any;
+    const json  = flattenEmployee(raw);
     if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms as any, canSeeSensitive);
     if (json.salaries)    json.salaries     = json.salaries.map((s: any) => applyMasking(s, perms as any, canSeeSensitive));
     if (json.bankDetails) json.bankDetails  = json.bankDetails.map((b: any) => applyMasking(b, perms as any, canSeeSensitive));
+
+    // Completion — recompute from the record we just loaded so the detail view
+    // and the Edit wizard always show the true, current percentage (never a
+    // stale or seeded form_completion_pct). Only safe when the sensitive child
+    // rows are actually loaded — otherwise ids_bank / compensation would read
+    // as incomplete. Self-heal the stored column when it has drifted.
+    if (canSeeSensitive) {
+      const breakdown = computeCompletionPct(raw);
+      json.form_completion_pct = breakdown.overallPct;
+      json.completion = breakdown;
+      if ((emp.get('form_completion_pct') ?? 0) !== breakdown.overallPct) {
+        try { await repo.updateCompletionPctSilent(id, breakdown.overallPct); } catch { /* non-fatal on a read */ }
+      }
+    }
     return json;
   }
 
@@ -213,7 +228,10 @@ export class EmployeeService {
       }
 
       await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_STEP_SAVED', module: 'employees', entityId: id, newValues: { step, hrPct: breakdown.hrPct, candidatePct: breakdown.candidatePct }, ipAddress });
-      return flattenEmployee((await repo.findById(id, companyId, false))?.toJSON());
+      const out = flattenEmployee((await repo.findById(id, companyId, false))?.toJSON());
+      // Return the authoritative completion (computed above with full data) so
+      // the Edit wizard's progress bar stays in lock-step with the list.
+      return { ...out, form_completion_pct: breakdown.overallPct, completion: breakdown };
     });
   }
 

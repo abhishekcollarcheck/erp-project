@@ -254,6 +254,9 @@ export interface CompletionBreakdown {
   hrTotal:      number;
   candidateDone: number;
   candidateTotal: number;
+  /** Per wizard-step completion (the 12 data steps). The wizard's Edit-mode
+   *  progress reads this so it shows the exact same number as the list. */
+  steps:        Record<string, boolean>;
 }
 
 export function computeCompletionPct(employee: any): CompletionBreakdown {
@@ -302,14 +305,18 @@ export function computeCompletionPct(employee: any): CompletionBreakdown {
   const hrKeys        = Object.keys(HR_STEP_WEIGHTS);
   const candidateKeys  = Object.keys(CANDIDATE_STEP_WEIGHTS);
 
+  // Evaluate every step once — reused for scoring AND the per-step map.
+  const steps: Record<string, boolean> = {};
+  for (const key of Object.keys(checks)) steps[key] = !!checks[key]();
+
   let hrScore = 0, hrDone = 0;
   for (const key of hrKeys) {
-    if (checks[key]?.()) { hrScore += HR_STEP_WEIGHTS[key]; hrDone++; }
+    if (steps[key]) { hrScore += HR_STEP_WEIGHTS[key]; hrDone++; }
   }
 
   let candidateScore = 0, candidateDone = 0;
   for (const key of candidateKeys) {
-    if (checks[key]?.()) { candidateScore += CANDIDATE_STEP_WEIGHTS[key]; candidateDone++; }
+    if (steps[key]) { candidateScore += CANDIDATE_STEP_WEIGHTS[key]; candidateDone++; }
   }
 
   const hrPct        = Math.min(100, Math.round(hrScore));
@@ -322,6 +329,7 @@ export function computeCompletionPct(employee: any): CompletionBreakdown {
     hrPct, candidatePct, overallPct,
     hrDone, hrTotal: hrKeys.length,
     candidateDone, candidateTotal: candidateKeys.length,
+    steps,
   };
 }
 

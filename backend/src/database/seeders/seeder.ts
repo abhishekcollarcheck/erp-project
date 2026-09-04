@@ -11,9 +11,18 @@ import { EmployeeRole, RoleTemplate } from '../models/AuthModels';
 import { logger } from '../../config/logger';
 import { seedShifts } from "./shift-seed-data";
 import { seedHolidays } from "./holiday-seed-data";
+import { computeCompletionPct } from "../../modules/employees/employee.helper";
 
 
 const COMPANY_ID = 1;
+
+// The seeded admin accounts are login users, not filled-in employee profiles —
+// their completion % must reflect the actual data (base identity only), not a
+// hard-coded 100. Kept in sync with the wizard/list by using the same helper.
+const seedAdminCompletionPct = (emp: {
+  first_name: string; last_name: string; employment_type: string;
+  department_id: number; designation_id: number; email: string; phone: string;
+}) => computeCompletionPct(emp).overallPct;
 
 const TEMPLATE_DEFS = [
   { slug: 'super_admin', name: 'Super Admin', sort_order: 1 },
@@ -300,7 +309,12 @@ const desigsToCreate = desigNames
         designation_id: desigMap.get('Asst. General Manager')!, // or whichever designation you want
         employment_type: 'Permanent',
         status: 'Active',
-        record_status: 'Final', form_completion_pct: 100,
+        record_status: 'Final',
+        form_completion_pct: seedAdminCompletionPct({
+          first_name: 'Super', last_name: 'Admin', employment_type: 'Permanent',
+          department_id: deptMap.get('HR')!, designation_id: desigMap.get('Asst. General Manager')!,
+          email: 'superadmin@ung.com', phone: '+918130988753',
+        }),
         portal_access: true, is_super_admin: true,
       },
       transaction,
@@ -334,7 +348,12 @@ const desigsToCreate = desigNames
         designation_id: desigMap.get('Asst. General Manager')!, // or whichever designation you want
         employment_type: 'Permanent',
         status: 'Active',
-        record_status: 'Final', form_completion_pct: 100,
+        record_status: 'Final',
+        form_completion_pct: seedAdminCompletionPct({
+          first_name: 'Admin', last_name: 'User', employment_type: 'Permanent',
+          department_id: deptMap.get('HR')!, designation_id: desigMap.get('Asst. General Manager')!,
+          email: 'admin@ung.com', phone: '+918826693968',
+        }),
         portal_access: true, is_super_admin: false,
       },
       transaction,
