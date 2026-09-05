@@ -286,6 +286,8 @@
 //       { params: { year, month } },
 //     ),
 // };
+
+
 import apiClient from './client';
 import type { ApiResponse } from '../../types/api.types';
 
@@ -357,6 +359,49 @@ export interface LeaveRequest {
     unit?: 'day' | 'minutes';
     is_paid?: boolean;
   };
+}
+
+
+export interface ManagedEmployee {
+  id: number;
+  employee_code: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  employment_type: string;
+  company_id: number;
+  department_id: number | null;
+  sub_department_id: number | null;
+  designation_id: number | null;
+  avatar_url: string | null;
+
+  // Logged-in employee can be L1, L2, or both
+  manager_type: ('L1' | 'L2')[];
+}
+
+export interface MyManager {
+  id: number;
+  employee_code: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  employment_type: string;
+  company_id: number;
+  department_id: number | null;
+  sub_department_id: number | null;
+  designation_id: number | null;
+  avatar_url: string | null;
+}
+
+export interface MyManagersResponse {
+  l1_manager: MyManager | null;
+  l2_manager: MyManager | null;
 }
 
 export interface LeaveRequestDay {
@@ -529,6 +574,16 @@ export interface MonthlyLeaveProcessResult {
 
 export const leaveService = {
   // Leave requests
+  getMyManagedEmployees: () =>
+    apiClient.get<unknown, ApiResponse<ManagedEmployee[]>>(
+      '/leaves/my-managed-employees',
+    ),
+
+  // L1 and L2 managers of the logged-in employee
+  getMyManagers: () =>
+    apiClient.get<unknown, ApiResponse<MyManagersResponse>>(
+      '/leaves/my-managers',
+    ),
   getAll: (params?: LeaveQueryParams) =>
     apiClient.get<unknown, ApiResponse<LeaveRequest[]>>('/leaves', { params }),
 

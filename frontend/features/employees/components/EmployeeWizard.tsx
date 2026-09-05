@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 
 import { fullEmployeeSchema, STEP_SCHEMA_MAP, type FullEmployeeForm, type StepSchemaKey } from '../validations/employee.schema';
-import { WIZARD_STEPS } from '../constants/employee.constants';
+import { WIZARD_STEPS, HR_STEP_WEIGHTS, CANDIDATE_STEP_WEIGHTS } from '../constants/employee.constants';
 import { useCreateEmployee, useUpdateStep, useSaveDraft } from '../hooks/useEmployees';
 import { employeeService } from '../../../services/api/employee.service';
 import { showToast } from '../../../utils/toast';
@@ -68,8 +68,34 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   // HR/Candidate dual progress — matches the "0% · HR 0/7 · Candidate 0/5" UI
   const hrSteps        = useMemo(() => visibleSteps.filter(s => s.part === 'hr'), [visibleSteps]);
   const candidateSteps = useMemo(() => visibleSteps.filter(s => s.part === 'candidate'), [visibleSteps]);
-  const hrDone        = useMemo(() => [...completedSet].filter(i => visibleSteps[i]?.part === 'hr').length, [completedSet, visibleSteps]);
-  const candidateDone = useMemo(() => [...completedSet].filter(i => visibleSteps[i]?.part === 'candidate').length, [completedSet, visibleSteps]);
+
+  // Progress uses the SAME weighted calculation as the backend's
+  // computeCompletionPct (the value stored in form_completion_pct and shown on
+  // the Employee List). In edit mode we take the server's authoritative
+  // `completion` breakdown verbatim; in create mode there is no saved record
+  // yet, so we mirror the formula over the steps the user has completed.
+  const wizardCompletion = useMemo(() => {
+    if (mode === 'edit' && employee?.completion) return employee.completion;
+
+    let hrScore = 0, hrDone = 0, candScore = 0, candDone = 0;
+    visibleSteps.forEach((s, idx) => {
+      if (s.key === 'review' || !completedSet.has(idx)) return;
+      if (s.part === 'hr')             { hrScore  += HR_STEP_WEIGHTS[s.key] ?? 0;        hrDone++; }
+      else if (s.part === 'candidate') { candScore += CANDIDATE_STEP_WEIGHTS[s.key] ?? 0; candDone++; }
+    });
+    const hrPct        = Math.min(100, Math.round(hrScore));
+    const candidatePct = Math.min(100, Math.round(candScore));
+    return {
+      hrPct, candidatePct,
+      overallPct: Math.round((hrPct + candidatePct) / 2),
+      hrDone, hrTotal: hrSteps.length,
+      candidateDone: candDone, candidateTotal: candidateSteps.length,
+      steps: {} as Record<string, boolean>,
+    };
+  }, [mode, employee?.completion, completedSet, visibleSteps, hrSteps.length, candidateSteps.length]);
+
+  const hrDone        = wizardCompletion.hrDone;
+  const candidateDone = wizardCompletion.candidateDone;
 
   const createMutation  = useCreateEmployee();
   const updateMutation  = useUpdateStep(savedId ?? 0);
@@ -265,16 +291,23 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
       remarks: (doc as any).remarks ?? '',
     } as FullEmployeeForm);
 
-    // Mark a step "done" only when its REQUIRED fields are actually filled —
-    // reuse the same STEP_SCHEMA_MAP the wizard validates each step against, so
-    // an incomplete edit/draft no longer shows 100%.
-    const values = methods.getValues();
+    // Step checkmarks come from the SAME per-step completion the backend used
+    // to compute form_completion_pct (returned as `employee.completion.steps`),
+    // so the sidebar, the "HR x/7" counts and the % all tell one story and
+    // match the Employee List. Fallback to the local schema check only when the
+    // breakdown is missing (older API / non-sensitive fetch).
     const done = new Set<number>();
-    visibleSteps.forEach((s, idx) => {
-      if (s.key === 'review') return;
-      const schema = STEP_SCHEMA_MAP[s.key as StepSchemaKey];
-      if (!schema || (schema as any).safeParse(values).success) done.add(idx);
-    });
+    const serverSteps = employee.completion?.steps;
+    if (serverSteps) {
+      visibleSteps.forEach((s, idx) => { if (s.key !== 'review' && serverSteps[s.key]) done.add(idx); });
+    } else {
+      const values = methods.getValues();
+      visibleSteps.forEach((s, idx) => {
+        if (s.key === 'review') return;
+        const schema = STEP_SCHEMA_MAP[s.key as StepSchemaKey];
+        if (!schema || (schema as any).safeParse(values).success) done.add(idx);
+      });
+    }
     setCompletedSet(done);
   }, [employee, methods, visibleSteps]);
 
@@ -409,7 +442,6 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
         pendingAvatarRef.current = null;
       }
     } else if (savedId && step.key !== 'review') {
-      console.log('Updating employee with payload:', buildPayload(step.key));
       await updateMutation.mutateAsync({ step: step.key as StepSchemaKey, data: buildPayload(step.key) });
     }
     setCompletedSet(prev => new Set([...prev, currentIdx]));
@@ -426,9 +458,8 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     onSuccess ? onSuccess({ id: savedId } as Employee) : router.push(`/employees/${savedId}`);
   };
 
-  // % over the data steps only (the final Review step is never a "completed" step)
-  const dataStepCount = visibleSteps.filter(s => s.key !== 'review').length;
-  const overallPct = dataStepCount ? Math.round((completedSet.size / dataStepCount) * 100) : 0;
+  // Same number the Employee List shows (backend computeCompletionPct).
+  const overallPct = wizardCompletion.overallPct;
 
   const handlePhotoSelected = async (file: File) => {
     if (savedId) {

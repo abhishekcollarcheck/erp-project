@@ -298,30 +298,32 @@ import {
 import { showToast } from '../../../utils/toast';
 
 const KEYS = {
-  all:      ['leaves']                                    as const,
-  list:     (p?: LeaveQueryParams) => ['leaves', 'list', p] as const,
-  byId:     (id: number) => ['leaves', 'detail', id]        as const,
-  breakdown:(id: number) => ['leaves', 'breakdown', id]      as const,
-  types:    ['leaves', 'types']                            as const,
-  type:     (id: number) => ['leaves', 'types', id]          as const,
-  pending:  ['leaves', 'pending']                          as const,
-  balance:  (employeeId?: number, year?: number) => ['leaves', 'balance', employeeId, year] as const,
+  all: ['leaves'] as const,
+  list: (p?: LeaveQueryParams) => ['leaves', 'list', p] as const,
+  byId: (id: number) => ['leaves', 'detail', id] as const,
+  breakdown: (id: number) => ['leaves', 'breakdown', id] as const,
+  types: ['leaves', 'types'] as const,
+  type: (id: number) => ['leaves', 'types', id] as const,
+  pending: ['leaves', 'pending'] as const,
+  managedEmployees: ['leaves', 'my-managed-employees'] as const,
+  myManagers: ['leaves', 'my-managers'] as const,
+  balance: (employeeId?: number, year?: number) => ['leaves', 'balance', employeeId, year] as const,
   companyBalances: (year?: number) => ['leaves', 'balances', 'overview', year] as const,
   shortBalance: (employeeId?: number, year?: number, month?: number) =>
     ['leaves', 'short-balance', employeeId, year, month] as const,
   accruals: (employeeId?: number, year?: number) => ['leaves', 'accruals', employeeId, year] as const,
-  policy:   ['leaves', 'policy']                           as const,
-  weeklyOff:(employeeId?: number) => ['leaves', 'weekly-off', employeeId] as const,
-  credits:  (employeeId?: number) => ['leaves', 'credits', employeeId]    as const,
+  policy: ['leaves', 'policy'] as const,
+  weeklyOff: (employeeId?: number) => ['leaves', 'weekly-off', employeeId] as const,
+  credits: (employeeId?: number) => ['leaves', 'credits', employeeId] as const,
 };
 
 // ─── Leave types ────────────────────────────────────────────────────────────
 export function useLeaveTypes() {
   return useQuery({
-    queryKey:  KEYS.types,
-    queryFn:   () => leaveService.getTypes(),
+    queryKey: KEYS.types,
+    queryFn: () => leaveService.getTypes(),
     staleTime: 5 * 60_000,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
@@ -375,10 +377,10 @@ export function useSetLeaveTypeActive() {
 // ─── List / detail ────────────────────────────────────────────────────────────
 export function useLeaves(params?: LeaveQueryParams) {
   return useQuery({
-    queryKey:  KEYS.list(params),
-    queryFn:   () => leaveService.getAll(params),
+    queryKey: KEYS.list(params),
+    queryFn: () => leaveService.getAll(params),
     staleTime: 60_000,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
@@ -386,29 +388,29 @@ export function useLeaves(params?: LeaveQueryParams) {
 // full history, not just the latest page) and "My Leave Requests" both see everything.
 export function useMyLeaves(employeeId?: number) {
   return useQuery({
-    queryKey:  KEYS.list({ employee_id: employeeId }),
-    queryFn:   () => leaveService.getAll({ employee_id: employeeId, limit: 100 }),
+    queryKey: KEYS.list({ employee_id: employeeId }),
+    queryFn: () => leaveService.getAll({ employee_id: employeeId, limit: 100 }),
     staleTime: 30_000,
-    enabled:   !!employeeId,
-    select:    (res) => res.data,
+    enabled: !!employeeId,
+    select: (res) => res.data,
   });
 }
 
 export function useLeaveById(id?: number) {
   return useQuery({
-    queryKey:  KEYS.byId(id ?? -1),
-    queryFn:   () => leaveService.getById(id!),
-    enabled:   !!id,
-    select:    (res) => res.data,
+    queryKey: KEYS.byId(id ?? -1),
+    queryFn: () => leaveService.getById(id!),
+    enabled: !!id,
+    select: (res) => res.data,
   });
 }
 
 export function useLeaveBreakdown(id?: number) {
   return useQuery({
-    queryKey:  KEYS.breakdown(id ?? -1),
-    queryFn:   () => leaveService.getBreakdown(id!),
-    enabled:   !!id,
-    select:    (res) => res.data,
+    queryKey: KEYS.breakdown(id ?? -1),
+    queryFn: () => leaveService.getBreakdown(id!),
+    enabled: !!id,
+    select: (res) => res.data,
   });
 }
 
@@ -417,22 +419,22 @@ export function useLeaveBreakdown(id?: number) {
 // on the backend); omit to get the logged-in user's own balance.
 export function useLeaveBalances(employeeId?: number, year?: number, enabled: boolean = true) {
   return useQuery({
-    queryKey:  KEYS.balance(employeeId, year),
-    queryFn:   () => leaveService.getBalance(employeeId, year),
+    queryKey: KEYS.balance(employeeId, year),
+    queryFn: () => leaveService.getBalance(employeeId, year),
     staleTime: 30_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
 // Admin/HR — every employee's balances in one table (backs the Balances tab).
 export function useCompanyLeaveBalances(year?: number, enabled: boolean = true) {
   return useQuery({
-    queryKey:  KEYS.companyBalances(year),
-    queryFn:   () => leaveService.getCompanyBalances(year),
+    queryKey: KEYS.companyBalances(year),
+    queryFn: () => leaveService.getCompanyBalances(year),
     staleTime: 30_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
@@ -441,11 +443,11 @@ export function useShortLeaveBalance(employeeId?: number, year?: number, month?:
   const y = year ?? now.getFullYear();
   const m = month ?? now.getMonth() + 1;
   return useQuery({
-    queryKey:  KEYS.shortBalance(employeeId, y, m),
-    queryFn:   () => leaveService.getShortBalance(employeeId, y, m),
+    queryKey: KEYS.shortBalance(employeeId, y, m),
+    queryFn: () => leaveService.getShortBalance(employeeId, y, m),
     staleTime: 30_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
@@ -453,33 +455,33 @@ export function useShortLeaveBalance(employeeId?: number, year?: number, month?:
 export function useLeaveAccruals(employeeId?: number, year?: number, enabled: boolean = true) {
   const y = year ?? new Date().getFullYear();
   return useQuery({
-    queryKey:  KEYS.accruals(employeeId, y),
-    queryFn:   () => leaveService.getAccruals(employeeId, y),
+    queryKey: KEYS.accruals(employeeId, y),
+    queryFn: () => leaveService.getAccruals(employeeId, y),
     staleTime: 60_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
 // ─── Pending approvals ──────────────────────────────────────────────────────
 export function usePendingLeaves(enabled: boolean = true) {
   return useQuery({
-    queryKey:  KEYS.pending,
-    queryFn:   () => leaveService.getPending(),
+    queryKey: KEYS.pending,
+    queryFn: () => leaveService.getPending(),
     staleTime: 30_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
 // ─── Policy ──────────────────────────────────────────────────────────────────
 export function useLeavePolicy(enabled: boolean = true) {
   return useQuery({
-    queryKey:  KEYS.policy,
-    queryFn:   () => leaveService.getPolicy(),
+    queryKey: KEYS.policy,
+    queryFn: () => leaveService.getPolicy(),
     staleTime: 60_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
@@ -498,11 +500,11 @@ export function useUpdateLeavePolicy() {
 // ─── Weekly-off assignment ──────────────────────────────────────────────────
 export function useEmployeeWeeklyOff(employeeId?: number, enabled: boolean = true) {
   return useQuery({
-    queryKey:  KEYS.weeklyOff(employeeId),
-    queryFn:   () => leaveService.getWeeklyOff(employeeId),
+    queryKey: KEYS.weeklyOff(employeeId),
+    queryFn: () => leaveService.getWeeklyOff(employeeId),
     staleTime: 60_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
@@ -522,11 +524,11 @@ export function useAssignEmployeeWeeklyOff() {
 // ─── Special leave credits ──────────────────────────────────────────────────
 export function useLeaveCredits(employeeId?: number, enabled: boolean = true) {
   return useQuery({
-    queryKey:  KEYS.credits(employeeId),
-    queryFn:   () => leaveService.getCredits(employeeId),
+    queryKey: KEYS.credits(employeeId),
+    queryFn: () => leaveService.getCredits(employeeId),
     staleTime: 30_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
@@ -632,11 +634,11 @@ const HOLIDAY_KEYS = {
 
 export function useHolidayList(params?: HolidayQueryParams, enabled: boolean = true) {
   return useQuery({
-    queryKey:  HOLIDAY_KEYS.list(params),
-    queryFn:   () => holidayService.getAll(params),
+    queryKey: HOLIDAY_KEYS.list(params),
+    queryFn: () => holidayService.getAll(params),
     staleTime: 60_000,
     enabled,
-    select:    (res) => res.data,
+    select: (res) => res.data,
   });
 }
 
@@ -673,5 +675,28 @@ export function useDeleteHoliday() {
       showToast('Holiday removed');
     },
     onError: (err: any) => showToast(err?.message || 'Failed to remove holiday'),
+  });
+}
+
+
+
+export function useMyManagedEmployees(enabled: boolean = true) {
+  return useQuery({
+    queryKey: KEYS.managedEmployees,
+    queryFn: () => leaveService.getMyManagedEmployees(),
+    staleTime: 30_000,
+    enabled,
+    select: (res) => res.data,
+  });
+}
+
+// L1 and L2 managers of the logged-in employee.
+export function useMyManagers(enabled: boolean = true) {
+  return useQuery({
+    queryKey: KEYS.myManagers,
+    queryFn: () => leaveService.getMyManagers(),
+    staleTime: 30_000,
+    enabled,
+    select: (res) => res.data,
   });
 }

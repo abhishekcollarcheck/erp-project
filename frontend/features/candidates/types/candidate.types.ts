@@ -29,32 +29,68 @@ export const TERMINAL_STATUSES: CandidateStatus[] = [
 ];
 
 
+export interface CandidateEmployment {
+  id?: number;
+  candidate_id?: number;
+  company: string;
+  designation?: string | null;
+  joining_date?: string | null;
+  leaving_date?: string | null;
+  currently_working?: boolean;
+}
+
 export interface Candidate {
     id: number; 
   company_id: number; 
   job_id?: number | null;
+  reference_code?: string | null;
 
-  candidate_name: string; 
+  candidate_name: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
   email?: string | null; 
   phone_number?: string | null;
   gender?: CandidateGender | null; 
   date_of_birth?: string | null;
 
+  current_state_id?: number | null;
+  current_city_id?: number | null;
+  ready_to_relocate?: boolean | null;
+  perm_address_same_as_present?: boolean;
+  perm_state_id?: number | null;
+  perm_city_id?: number | null;
+
   current_company_name?: string | null; 
   current_company_designation?: string | null;
-  qualification?: string | null; 
+  qualification?: string | null;
+  course?: string | null;
+  institute?: string | null;
+  edu_mode?: 'Regular' | 'Non Regular' | 'Not Applicable' | null;
+  edu_start_date?: string | null;
+  edu_end_date?: string | null;
+  edu_currently_pursuing?: boolean;
+  fresher?: boolean;
   location?: string | null;
   total_experience?: number | null; 
   relevant_experience?: number | null;
+  employments?: CandidateEmployment[];
+
   apply_department?: string | null;
   apply_designation?: string | null;
   current_salary?: number | null; 
   expected_salary?: number | null;
+  currently_working?: boolean | null;
   notice_period?: number | null; 
+  serving_notice_period?: boolean | null;
+  last_working_day?: string | null;
   immediate_joiner?: boolean;
   expected_joining_date?: string | null; 
   own_vehicle?: boolean;
+  vehicle_types?: string[] | null;
   source?: CandidateSource | null; 
+  is_internal_referral?: boolean | null;
+  referred_by_employee_id?: number | null;
   reference_source?: string | null;
   status: CandidateStatus; 
   remarks?: string | null; 
@@ -118,6 +154,16 @@ export interface Candidate {
   pre_joining_form_sent_at?:   Date | null;
 }
 
+export interface CandidateActivityEntry {
+  id: number;
+  action: string;
+  actor_id: number | null;
+  actor_name: string;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  created_at: string;
+}
+
 export interface CandidateStats {
   summary: { total: number; hired: number; active: number; rejected: number; thisMonth: number; conversionRate: number };
   pipeline: { status: string; count: number }[];
@@ -125,24 +171,53 @@ export interface CandidateStats {
 }
 
 export interface CreateCandidateDto {
-  candidate_name: string; 
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
   email?: string | null; 
   phone_number?: string | null;
   gender?: CandidateGender | null; 
   date_of_birth?: string | null;
+
+  current_state_id?: number | null;
+  current_city_id?: number | null;
+  ready_to_relocate?: boolean | null;
+  perm_address_same_as_present?: boolean;
+  perm_state_id?: number | null;
+  perm_city_id?: number | null;
+
   current_company_name?: string | null; 
   current_company_designation?: string | null;
   qualification?: string | null; 
+  course?: string | null;
+  institute?: string | null;
+  edu_mode?: 'Regular' | 'Non Regular' | 'Not Applicable' | null;
+  edu_start_date?: string | null;
+  edu_end_date?: string | null;
+  edu_currently_pursuing?: boolean;
+  fresher?: boolean;
   location?: string | null;
   total_experience?: number | null; 
   relevant_experience?: number | null;
+  employments?: CandidateEmployment[];
+
   apply_department?: string | null;
   apply_designation?: string | null;
   current_salary?: number | null; 
   expected_salary?: number | null;
-  notice_period?: number | null; immediate_joiner?: boolean;
-  expected_joining_date?: string | null; own_vehicle?: boolean;
-  source?: CandidateSource | null; reference_source?: string | null; remarks?: string | null;
+  currently_working?: boolean | null;
+  notice_period?: number | null;
+  serving_notice_period?: boolean | null;
+  last_working_day?: string | null;
+  immediate_joiner?: boolean;
+  expected_joining_date?: string | null;
+  own_vehicle?: boolean;
+  vehicle_types?: string[] | null;
+  source?: CandidateSource | null;
+  is_internal_referral?: boolean | null;
+  referred_by_employee_id?: number | null;
+  reference_source?: string | null;
+  remarks?: string | null;
 }
 
 export type UpdateCandidateDto = Partial<CreateCandidateDto> & { status?: CandidateStatus };

@@ -1,6 +1,16 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
 
+// MariaDB stores `DataTypes.JSON` as LONGTEXT, and neither mysql2 nor Sequelize's
+// mysql dialect parses it on read — JSON columns come back as raw strings
+// ("c.vehicle_types.join is not a function"). This getter normalises them.
+const jsonGet = (field: string) =>
+  function (this: Model): unknown {
+    const raw = this.getDataValue(field as never);
+    if (typeof raw !== 'string') return raw;
+    try { return JSON.parse(raw); } catch { return raw; }
+  };
+
 export type CandidateStatus =
   | 'Applied' | 'Shortlisted' | 'Interview_Scheduled' | 'Technical'
   | 'HR_Round' | 'Interview_Result' | 'Offered' | 'Hired' | 'Rejected' | 'Withdrawn' | 'On_Hold';
@@ -17,17 +27,36 @@ export interface CandidateAttributes {
   id: number;
   company_id: number;
   job_id?: number | null;
+  reference_code?: string | null;
 
   candidate_name: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
   email?: string | null;
   phone_number?: string | null;
   gender?: CandidateGender | null;
   date_of_birth?: Date | null;
 
+  // ── Location ──────────────────────────────────────────────────────────────
+  current_state_id?: number | null;
+  current_city_id?: number | null;
+  ready_to_relocate?: boolean | null;
+  perm_address_same_as_present?: boolean;
+  perm_state_id?: number | null;
+  perm_city_id?: number | null;
+
   // ── Professional ──────────────────────────────────────────────────────────
   current_company_name?: string | null;
   current_company_designation?: string | null;
   qualification?: string | null;
+  course?: string | null;
+  institute?: string | null;
+  edu_mode?: 'Regular' | 'Non Regular' | 'Not Applicable' | null;
+  edu_start_date?: Date | null;
+  edu_end_date?: Date | null;
+  edu_currently_pursuing?: boolean;
+  fresher?: boolean;
   location?: string | null;
   total_experience?: number | null;
   relevant_experience?: number | null;
@@ -39,13 +68,19 @@ export interface CandidateAttributes {
   expected_salary?: number | null;
 
   // ── Availability ──────────────────────────────────────────────────────────
+  currently_working?: boolean | null;
   notice_period?: number | null;
+  serving_notice_period?: boolean | null;
+  last_working_day?: Date | null;
   immediate_joiner?: boolean;
   expected_joining_date?: Date | null;
   own_vehicle?: boolean;
+  vehicle_types?: string[] | null;
 
   // ── Sourcing ──────────────────────────────────────────────────────────────
   source?: CandidateSource | null;
+  is_internal_referral?: boolean | null;
+  referred_by_employee_id?: number | null;
   reference_source?: string | null;
   remarks?: string | null;
 
@@ -136,6 +171,8 @@ export interface CandidateAttributes {
 type CandidateCreationAttributes = Optional<
   CandidateAttributes,
   'id' | 'status' | 'immediate_joiner' | 'own_vehicle' | 'is_portal_user' | 'reschedule_requested'
+  | 'candidate_name' | 'perm_address_same_as_present' | 'edu_currently_pursuing' | 'fresher'
+  | 'reference_code'
 >;
 
 export class Candidate
@@ -144,14 +181,31 @@ export class Candidate
   public id!: number;
   public company_id!: number;
   public job_id!: number | null;
+  public reference_code!: string | null;
   public candidate_name!: string;
+  public first_name!: string;
+  public middle_name!: string | null;
+  public last_name!: string;
   public email!: string | null;
   public phone_number!: string | null;
   public gender!: CandidateGender | null;
   public date_of_birth!: Date | null;
+  public current_state_id!: number | null;
+  public current_city_id!: number | null;
+  public ready_to_relocate!: boolean | null;
+  public perm_address_same_as_present!: boolean;
+  public perm_state_id!: number | null;
+  public perm_city_id!: number | null;
   public current_company_name!: string | null;
   public current_company_designation!: string | null;
   public qualification!: string | null;
+  public course!: string | null;
+  public institute!: string | null;
+  public edu_mode!: 'Regular' | 'Non Regular' | 'Not Applicable' | null;
+  public edu_start_date!: Date | null;
+  public edu_end_date!: Date | null;
+  public edu_currently_pursuing!: boolean;
+  public fresher!: boolean;
   public location!: string | null;
   public total_experience!: number | null;
   public relevant_experience!: number | null;
@@ -159,11 +213,17 @@ export class Candidate
   public apply_designation!: string | null;
   public current_salary!: number | null;
   public expected_salary!: number | null;
+  public currently_working!: boolean | null;
   public notice_period!: number | null;
+  public serving_notice_period!: boolean | null;
+  public last_working_day!: Date | null;
   public immediate_joiner!: boolean;
   public expected_joining_date!: Date | null;
   public own_vehicle!: boolean;
+  public vehicle_types!: string[] | null;
   public source!: CandidateSource | null;
+  public is_internal_referral!: boolean | null;
+  public referred_by_employee_id!: number | null;
   public reference_source!: string | null;
   public remarks!: string | null;
   public resume_url!: string | null;
@@ -233,8 +293,12 @@ Candidate.init(
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     company_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     job_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    reference_code: { type: DataTypes.STRING(20), allowNull: true },
 
     candidate_name: { type: DataTypes.STRING(200), allowNull: false },
+    first_name: { type: DataTypes.STRING(100), allowNull: false },
+    middle_name: { type: DataTypes.STRING(100), allowNull: true },
+    last_name: { type: DataTypes.STRING(100), allowNull: false },
     email: { type: DataTypes.STRING(255), allowNull: true, validate: { isEmail: true } },
     phone_number: { type: DataTypes.STRING(20), allowNull: true },
     gender: {
@@ -242,9 +306,24 @@ Candidate.init(
       allowNull: true,
     },
     date_of_birth: { type: DataTypes.DATEONLY, allowNull: true },
+
+    current_state_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    current_city_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    ready_to_relocate: { type: DataTypes.BOOLEAN, allowNull: true },
+    perm_address_same_as_present: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    perm_state_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    perm_city_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+
     current_company_name: { type: DataTypes.STRING(200), allowNull: true },
     current_company_designation: { type: DataTypes.STRING(200), allowNull: true },
     qualification: { type: DataTypes.STRING(200), allowNull: true },
+    course: { type: DataTypes.STRING(200), allowNull: true },
+    institute: { type: DataTypes.STRING(200), allowNull: true },
+    edu_mode: { type: DataTypes.ENUM('Regular', 'Non Regular', 'Not Applicable'), allowNull: true },
+    edu_start_date: { type: DataTypes.DATEONLY, allowNull: true },
+    edu_end_date: { type: DataTypes.DATEONLY, allowNull: true },
+    edu_currently_pursuing: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    fresher: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     location: { type: DataTypes.STRING(200), allowNull: true },
     total_experience: { type: DataTypes.DECIMAL(5, 1), allowNull: true },
     relevant_experience: { type: DataTypes.DECIMAL(5, 1), allowNull: true },
@@ -254,15 +333,21 @@ Candidate.init(
     apply_department: { type: DataTypes.STRING(200), allowNull: true },
     apply_designation: { type: DataTypes.STRING(200), allowNull: true },
 
+    currently_working: { type: DataTypes.BOOLEAN, allowNull: true },
     notice_period: { type: DataTypes.INTEGER, allowNull: true },
+    serving_notice_period: { type: DataTypes.BOOLEAN, allowNull: true },
+    last_working_day: { type: DataTypes.DATEONLY, allowNull: true },
     immediate_joiner: { type: DataTypes.BOOLEAN, defaultValue: false },
     expected_joining_date: { type: DataTypes.DATEONLY, allowNull: true },
     own_vehicle: { type: DataTypes.BOOLEAN, defaultValue: false },
+    vehicle_types: { type: DataTypes.JSON, allowNull: true, get: jsonGet('vehicle_types') },
 
     source: {
       type: DataTypes.ENUM('Naukri', 'LinkedIn', 'CollarCheck', 'Referral', 'Walk-in', 'Indeed', 'Direct', 'Other'),
       allowNull: true,
     },
+    is_internal_referral: { type: DataTypes.BOOLEAN, allowNull: true },
+    referred_by_employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     reference_source: { type: DataTypes.STRING(300), allowNull: true },
     remarks: { type: DataTypes.TEXT, allowNull: true },
     resume_url: { type: DataTypes.STRING(500), allowNull: true },
@@ -316,14 +401,14 @@ Candidate.init(
     portal_last_login: { type: DataTypes.DATE, allowNull: true },
 
     // ── Pre-interview ───────────────────────────────────────────────────────────
-    preinterview_form_data: { type: DataTypes.JSON, allowNull: true },
+    preinterview_form_data: { type: DataTypes.JSON, allowNull: true, get: jsonGet('preinterview_form_data') },
     preinterview_form_status: { type: DataTypes.ENUM('Not_Started', 'Draft', 'Submitted'), allowNull: true, defaultValue: 'Not_Started', },
     preinterview_submitted_at: { type: DataTypes.DATE, allowNull: true },
     pre_interview_form_sent: { type: DataTypes.BOOLEAN, defaultValue: false },
     pre_interview_form_sent_at: { type: DataTypes.DATE, allowNull: true },
 
     // ── Pre-join ───────────────────────────────────────────────────────────
-    prejoining_form_data: { type: DataTypes.JSON, allowNull: true },
+    prejoining_form_data: { type: DataTypes.JSON, allowNull: true, get: jsonGet('prejoining_form_data') },
     prejoining_form_status: { type: DataTypes.ENUM('Not_Started', 'Draft', 'Submitted'), allowNull: true, defaultValue: 'Not_Started' },
     prejoining_submitted_at: { type: DataTypes.DATE, allowNull: true },
     pre_joining_form_sent: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -347,12 +432,22 @@ Candidate.init(
     tableName: 'candidates',
     modelName: 'Candidate',
     paranoid: true,
+    hooks: {
+      beforeValidate: (candidate: Candidate) => {
+        const parts = [candidate.first_name, candidate.middle_name, candidate.last_name]
+          .map(p => (p || '').trim())
+          .filter(Boolean);
+        candidate.candidate_name = parts.join(' ');
+      },
+    },
     indexes: [
       { fields: ['company_id'] },
       { fields: ['status'] },
       { fields: ['email'] },
       { unique: true, fields: ['company_id', 'email'], where: { deleted_at: null } },
       { fields: ['portal_access_token'] },
+      { fields: ['referred_by_employee_id'] },
+      { unique: true, fields: ['reference_code'], name: 'candidates_reference_code_unique' },
     ],
   },
 );

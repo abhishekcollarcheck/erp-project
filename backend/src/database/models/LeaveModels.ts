@@ -632,7 +632,7 @@ import { sequelize } from '../../config/database';
 // Holiday is NOT imported here since nothing in this file references it
 // directly — your sandwich-day calculation service will import it there.
 import { WeeklyOffPreset } from './weeklyOffPreset';
- 
+
 /* ============================================================================
  * LEAVE MANAGEMENT — MODELS
  * ----------------------------------------------------------------------------
@@ -652,9 +652,9 @@ import { WeeklyOffPreset } from './weeklyOffPreset';
  * "Half Day" sessions, and full_day covers EL / CL / Special. I kept and
  * leaned into that instead of adding a redundant "variant" column.
  * ==========================================================================*/
- 
+
 // ─── Enums ──────────────────────────────────────────────────────────────
- 
+
 export type LeaveUnit = 'day' | 'minutes';
 export type LeaveApplicationType =
   | 'arrival_late'   // short leave — late coming
@@ -666,9 +666,9 @@ export type LeaveRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelle
 export type LeaveSubmissionType = 'self' | 'admin';
 export type LeaveDayKind = 'working' | 'weekly_off' | 'holiday';
 export type AccrualRuleType = 'monthly' | 'yearly' | 'custom';
- 
+
 // ─── 1. Leave Type (policy master — one row per EL/CL/SHORT/SPECIAL/HALF) ─
- 
+
 interface LeaveTypeAttributes {
   id: number;
   company_id: number;
@@ -691,7 +691,7 @@ interface LeaveTypeAttributes {
   deduct_from_leave_type_id: number | null; // HALF day deducts 0.5 from this linked type (e.g. CL)
   is_active: boolean;
 }
- 
+
 export class LeaveType
   extends Model<
     LeaveTypeAttributes,
@@ -716,8 +716,7 @@ export class LeaveType
       | 'is_active'
     >
   >
-  implements LeaveTypeAttributes
-{
+  implements LeaveTypeAttributes {
   public id!: number;
   public company_id!: number;
   public name!: string;
@@ -739,7 +738,7 @@ export class LeaveType
   public deduct_from_leave_type_id!: number | null;
   public is_active!: boolean;
 }
- 
+
 LeaveType.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
@@ -773,9 +772,9 @@ LeaveType.init(
     ],
   },
 );
- 
+
 // ─── 2. Company Leave Policy (global sandwich switches, one row per company) ─
- 
+
 interface LeavePolicySettingAttributes {
   id: number;
   company_id: number;
@@ -783,21 +782,20 @@ interface LeavePolicySettingAttributes {
   sandwich_include_weekly_off: boolean;
   sandwich_include_holidays: boolean;
 }
- 
+
 export class LeavePolicySetting
   extends Model<
     LeavePolicySettingAttributes,
     Optional<LeavePolicySettingAttributes, 'id' | 'sandwich_enabled' | 'sandwich_include_weekly_off' | 'sandwich_include_holidays'>
   >
-  implements LeavePolicySettingAttributes
-{
+  implements LeavePolicySettingAttributes {
   public id!: number;
   public company_id!: number;
   public sandwich_enabled!: boolean;
   public sandwich_include_weekly_off!: boolean;
   public sandwich_include_holidays!: boolean;
 }
- 
+
 LeavePolicySetting.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
@@ -808,24 +806,23 @@ LeavePolicySetting.init(
   },
   { sequelize, tableName: 'leave_policy_settings', modelName: 'LeavePolicySetting', timestamps: true, underscored: true },
 );
- 
+
 // ─── 3. Employee ↔ Weekly-Off Preset assignment ────────────────────────────
- 
+
 interface EmployeeWeeklyOffAssignmentAttributes {
   id: number;
   employee_id: number;
   weekly_off_preset_id: number;
 }
- 
+
 export class EmployeeWeeklyOffAssignment
   extends Model<EmployeeWeeklyOffAssignmentAttributes, Optional<EmployeeWeeklyOffAssignmentAttributes, 'id'>>
-  implements EmployeeWeeklyOffAssignmentAttributes
-{
+  implements EmployeeWeeklyOffAssignmentAttributes {
   public id!: number;
   public employee_id!: number;
   public weekly_off_preset_id!: number;
 }
- 
+
 EmployeeWeeklyOffAssignment.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
@@ -834,9 +831,9 @@ EmployeeWeeklyOffAssignment.init(
   },
   { sequelize, tableName: 'employee_weekly_off_assignments', modelName: 'EmployeeWeeklyOffAssignment', timestamps: true, underscored: true },
 );
- 
+
 // ─── 4. Employee Leave Balance (annual, day-based: EL / CL / SPECIAL) ─────
- 
+
 interface EmployeeLeaveBalanceAttributes {
   id: number;
   employee_id: number;
@@ -847,14 +844,13 @@ interface EmployeeLeaveBalanceAttributes {
   pending: number;
   carried_forward: number;
 }
- 
+
 export class EmployeeLeaveBalance
   extends Model<
     EmployeeLeaveBalanceAttributes,
     Optional<EmployeeLeaveBalanceAttributes, 'id' | 'allocated' | 'used' | 'pending' | 'carried_forward'>
   >
-  implements EmployeeLeaveBalanceAttributes
-{
+  implements EmployeeLeaveBalanceAttributes {
   public id!: number;
   public employee_id!: number;
   public leave_type_id!: number;
@@ -866,7 +862,7 @@ export class EmployeeLeaveBalance
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
- 
+
 EmployeeLeaveBalance.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
@@ -892,9 +888,9 @@ EmployeeLeaveBalance.init(
     ],
   },
 );
- 
+
 // ─── 5. Employee Short-Leave Minutes Balance (monthly quota, e.g. 60 min) ──
- 
+
 interface EmployeeLeaveMinutesBalanceAttributes {
   id: number;
   employee_id: number;
@@ -910,14 +906,13 @@ interface EmployeeLeaveMinutesBalanceAttributes {
   // EmployeeLeaveBalance's allocated/used/pending pattern.
   pending_minutes: number;
 }
- 
+
 export class EmployeeLeaveMinutesBalance
   extends Model<
     EmployeeLeaveMinutesBalanceAttributes,
     Optional<EmployeeLeaveMinutesBalanceAttributes, 'id' | 'allocated_minutes' | 'used_minutes' | 'pending_minutes'>
   >
-  implements EmployeeLeaveMinutesBalanceAttributes
-{
+  implements EmployeeLeaveMinutesBalanceAttributes {
   public id!: number;
   public employee_id!: number;
   public leave_type_id!: number;
@@ -929,7 +924,7 @@ export class EmployeeLeaveMinutesBalance
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
- 
+
 EmployeeLeaveMinutesBalance.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
@@ -957,9 +952,9 @@ EmployeeLeaveMinutesBalance.init(
     ],
   },
 );
- 
+
 // ─── 6. Employee Leave Accrual (your model, corrected) ─────────────────────
- 
+
 interface EmployeeLeaveAccrualAttributes {
   id: number;
   employee_id: number;
@@ -972,14 +967,13 @@ interface EmployeeLeaveAccrualAttributes {
   working_hours: number;
   remarks?: string | null;
 }
- 
+
 export class EmployeeLeaveAccrual
   extends Model<
     EmployeeLeaveAccrualAttributes,
     Optional<EmployeeLeaveAccrualAttributes, 'id' | 'days_earned' | 'working_days' | 'working_hours' | 'remarks'>
   >
-  implements EmployeeLeaveAccrualAttributes
-{
+  implements EmployeeLeaveAccrualAttributes {
   public id!: number;
   public employee_id!: number;
   public leave_type_id!: number;
@@ -993,7 +987,7 @@ export class EmployeeLeaveAccrual
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
- 
+
 EmployeeLeaveAccrual.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
@@ -1026,9 +1020,9 @@ EmployeeLeaveAccrual.init(
     ],
   },
 );
- 
+
 // ─── 7. Special-Leave Credit ledger (earned by working a holiday) ─────────
- 
+
 interface LeaveCreditAttributes {
   id: number;
   employee_id: number;
@@ -1039,11 +1033,10 @@ interface LeaveCreditAttributes {
   note?: string | null;
   credited_by: number;
 }
- 
+
 export class LeaveCredit
   extends Model<LeaveCreditAttributes, Optional<LeaveCreditAttributes, 'id' | 'holiday_name' | 'note'>>
-  implements LeaveCreditAttributes
-{
+  implements LeaveCreditAttributes {
   public id!: number;
   public employee_id!: number;
   public leave_type_id!: number;
@@ -1054,7 +1047,7 @@ export class LeaveCredit
   public credited_by!: number;
   public readonly created_at!: Date;
 }
- 
+
 LeaveCredit.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
@@ -1068,9 +1061,9 @@ LeaveCredit.init(
   },
   { sequelize, tableName: 'leave_credits', modelName: 'LeaveCredit', timestamps: true, underscored: true, updatedAt: false },
 );
- 
+
 // ─── 8. Leave Request (your model, corrected + extended) ─────────────────
- 
+
 interface LeaveRequestAttributes {
   id: number;
   ref_no: string; // e.g. LV-2026-0001
@@ -1096,12 +1089,14 @@ interface LeaveRequestAttributes {
   applied_at: string; // DATEONLY — date the request was submitted
   cancelled_by?: number | null;
   cancelled_at?: Date | null;
-  hod_id?: number | null;
-  hod_name?: string | null;
-  coordinator_name?: string | null;
+  // hod_id?: number | null;
+  // hod_name?: string | null;
+  // coordinator_name?: string | null;
+  l1_manager_id: number | null;
+  l2_manager_id: number | null;
   undertaking_accepted: boolean;
 }
- 
+
 export class LeaveRequest
   extends Model<
     LeaveRequestAttributes,
@@ -1119,8 +1114,7 @@ export class LeaveRequest
       | 'applied_at'
     >
   >
-  implements LeaveRequestAttributes
-{
+  implements LeaveRequestAttributes {
   public id!: number;
   public ref_no!: string;
   public employee_id!: number;
@@ -1145,14 +1139,17 @@ export class LeaveRequest
   public applied_at!: string;
   public cancelled_by!: number | null;
   public cancelled_at!: Date | null;
-  public hod_id!: number | null;
-  public hod_name!: string | null;
-  public coordinator_name!: string | null;
+  // public hod_id!: number | null;
+  // public hod_name!: string | null;
+  // public coordinator_name!: string | null;
+  public l1_manager_id!: number | null;
+  public l2_manager_id!: number | null;
+
   public undertaking_accepted!: boolean;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
- 
+
 LeaveRequest.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
@@ -1183,9 +1180,17 @@ LeaveRequest.init(
     applied_at: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
     cancelled_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     cancelled_at: { type: DataTypes.DATE, allowNull: true },
-    hod_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-    hod_name: { type: DataTypes.STRING(200), allowNull: true },
-    coordinator_name: { type: DataTypes.STRING(200), allowNull: true },
+    l1_manager_id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+    },
+    // ─────────────────────────────────────────────
+    // L2 MANAGER
+    // ─────────────────────────────────────────────
+    l2_manager_id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+    },
     undertaking_accepted: { type: DataTypes.BOOLEAN, defaultValue: false },
   },
   {
@@ -1197,16 +1202,15 @@ LeaveRequest.init(
     indexes: [
       { fields: ['employee_id'] },
       { fields: ['status'] },
-      { fields: ['hod_id'] },
       { fields: ['applied_by'] },
       { fields: ['leave_type_id'] },
       { fields: ['from_date', 'to_date'] },
     ],
   },
 );
- 
+
 // ─── 9. Per-day breakdown (audit trail for sandwich / charged days) ──────
- 
+
 interface LeaveRequestDayAttributes {
   id: number;
   leave_request_id: number;
@@ -1217,11 +1221,10 @@ interface LeaveRequestDayAttributes {
   is_sandwich: boolean;
   is_adjacent: boolean; // charged because it bridges to a separate adjacent request
 }
- 
+
 export class LeaveRequestDay
   extends Model<LeaveRequestDayAttributes, Optional<LeaveRequestDayAttributes, 'id' | 'label' | 'is_sandwich' | 'is_adjacent'>>
-  implements LeaveRequestDayAttributes
-{
+  implements LeaveRequestDayAttributes {
   public id!: number;
   public leave_request_id!: number;
   public date!: string;
@@ -1231,7 +1234,7 @@ export class LeaveRequestDay
   public is_sandwich!: boolean;
   public is_adjacent!: boolean;
 }
- 
+
 LeaveRequestDay.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },

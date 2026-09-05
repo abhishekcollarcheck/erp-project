@@ -27,8 +27,15 @@ import { Company } from '../../database/models/Company';
 import { Department } from '../../database/models/Department';
 import { Designation } from '../../database/models/Designation';
 import { FormBuilderService } from '../form-builder/formBuilder.service';
+import { EmployeeLocationAttendance, EmployeeCommitmentProbation } from '../../database/models/Employee';
 
 const fbSvc = new FormBuilderService();
+
+/** Drop PK / audit columns from a child-row JSON so it can be merged as a step payload. */
+function stripRowMeta<T extends Record<string, any>>(row: T): Partial<T> {
+  const { employee_id, id, created_at, updated_at, createdAt, updatedAt, ...rest } = row as any;
+  return rest;
+}
 
 // ─── Field permission cache ───────────────────────────────────────────────────
 const fpCache = new Map<string, { data: FieldPermissionMap; ts: number }>();
@@ -130,10 +137,25 @@ export class EmployeeService {
     if (!emp) throw new AppError('Employee not found', 404);
 
     const perms = canSeeSensitive ? {} : '';
-    const json  = flattenEmployee(emp.toJSON() as any);
+    const raw   = emp.toJSON() as any;
+    const json  = flattenEmployee(raw);
     if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms as any, canSeeSensitive);
     if (json.salaries)    json.salaries     = json.salaries.map((s: any) => applyMasking(s, perms as any, canSeeSensitive));
     if (json.bankDetails) json.bankDetails  = json.bankDetails.map((b: any) => applyMasking(b, perms as any, canSeeSensitive));
+
+    // Completion — recompute from the record we just loaded so the detail view
+    // and the Edit wizard always show the true, current percentage (never a
+    // stale or seeded form_completion_pct). Only safe when the sensitive child
+    // rows are actually loaded — otherwise ids_bank / compensation would read
+    // as incomplete. Self-heal the stored column when it has drifted.
+    if (canSeeSensitive) {
+      const breakdown = computeCompletionPct(raw);
+      json.form_completion_pct = breakdown.overallPct;
+      json.completion = breakdown;
+      if ((emp.get('form_completion_pct') ?? 0) !== breakdown.overallPct) {
+        try { await repo.updateCompletionPctSilent(id, breakdown.overallPct); } catch { /* non-fatal on a read */ }
+      }
+    }
     return json;
   }
 
@@ -207,7 +229,10 @@ export class EmployeeService {
       }
 
       await logActivity({ companyId, employeeId: actorId, action: 'EMPLOYEE_STEP_SAVED', module: 'employees', entityId: id, newValues: { step, hrPct: breakdown.hrPct, candidatePct: breakdown.candidatePct }, ipAddress });
-      return flattenEmployee((await repo.findById(id, companyId, false))?.toJSON());
+      const out = flattenEmployee((await repo.findById(id, companyId, false))?.toJSON());
+      // Return the authoritative completion (computed above with full data) so
+      // the Edit wizard's progress bar stays in lock-step with the list.
+      return { ...out, form_completion_pct: breakdown.overallPct, completion: breakdown };
     });
   }
 
@@ -233,7 +258,7 @@ export class EmployeeService {
 
       case 'location_attendance': {
         const d = dto as LocationAttendanceDto;
-        await repo.upsertLocationAttendance(id, {
+        const locData: any = {
           working_state_country: d.working_state_country != null ? Number(d.working_state_country) : null,
           working_city:           d.working_city != null ? Number(d.working_city) : null,
           working_site:            d.working_site != null ? Number(d.working_site) : null,
@@ -246,7 +271,13 @@ export class EmployeeService {
           shift_category:          (d as any).shift_category || (d.shift_id ? 'Shift' : 'Duration'),
           shift_id:                d.shift_id || null,
           grace_minutes:           d.grace_minutes ?? null,
-        }, t);
+        };
+        // Only write current_doj when a real value is supplied (bulk import
+        // "Current Joining Date"). The wizard has no input for it and always
+        // sends null — omitting the key from the upsert then preserves any
+        // value a transfer / bulk import already set.
+        if (d.current_doj) locData.current_doj = parseDdMmYyyy(d.current_doj);
+        await repo.upsertLocationAttendance(id, locData, t);
         break;
       }
 
@@ -277,9 +308,13 @@ export class EmployeeService {
         // one step earlier; harmless for the wizard where it's already committed)
         const emp = flattenEmployee((await repo.findById(id, companyId, false, t))?.toJSON());
 
-        const commitEndDate = (d.commitment && d.commitment_term && d.commitment_entered_on)
-          ? computeCommitmentEndDate(d.commitment_entered_on, d.commitment_term)
-          : null;
+        // An explicit commitment_end_date (bulk import) wins; otherwise it's
+        // auto-computed from the term + entered-on date, as before.
+        const commitEndDate = d.commitment_end_date
+          ? parseDdMmYyyy(d.commitment_end_date)
+          : (d.commitment && d.commitment_term && d.commitment_entered_on)
+            ? computeCommitmentEndDate(d.commitment_entered_on, d.commitment_term)
+            : null;
 
         const probationEndDate = (d.on_probation && d.probation_period && emp?.actual_doj)
           ? computeProbationEndDate(String(emp.actual_doj), d.probation_period)
@@ -576,9 +611,9 @@ export class EmployeeService {
     const [srcCompany, srcDept, srcDesig, newDept, newDesig] = await Promise.all([
       s.company_id ? Company.findByPk(s.company_id, { attributes: ['name'] }) : null,
       s.department_id ? Department.findByPk(s.department_id, { attributes: ['department_name'] }) : null,
-      s.designation_id ? Designation.findByPk(s.designation_id, { attributes: ['designation_name'] }) : null,
+      s.designation_id ? Designation.findByPk(s.designation_id, { attributes: ['name'] }) : null,
       deptId  ? Department.findByPk(deptId,  { attributes: ['department_name'] })  : null,
-      desigId ? Designation.findByPk(desigId, { attributes: ['designation_name'] }) : null,
+      desigId ? Designation.findByPk(desigId, { attributes: ['name'] }) : null,
     ]);
     const nm = (x: any, k: string) => (x ? (x as any)[k] as string : null);
 
@@ -631,11 +666,11 @@ export class EmployeeService {
         new_company:      newCompany.name,
         new_joining_date: doj,
         new_department:   nm(newDept, 'department_name'),
-        new_job_title:    nm(newDesig, 'designation_name'),
+        new_job_title:    nm(newDesig, 'name'),
         old_company:      nm(srcCompany, 'name'),
         exit_date:        doj,
         old_department:   nm(srcDept, 'department_name'),
-        old_job_title:    nm(srcDesig, 'designation_name'),
+        old_job_title:    nm(srcDesig, 'name'),
         old_emp_code:     s.employee_code ?? null,
       }], t);
 
@@ -990,7 +1025,7 @@ export class EmployeeService {
       company_id: number; first_name: string; middle_name: string | null; last_name: string;
       status: string; employment_type: string; department_id: number; designation_id: number;
       sub_department_id: number | null; sub_designation_id: number | null; email: string; phone: string;
-      employee_code?: string | null; reference_code?: string | null; avatar_url?: string | null;
+      employee_code?: string | null; reference_code?: string | null; avatar_url?: string | null; avatar?: string | null;
       reporting_manager_id?: number | null;
     },
     steps: Partial<Record<StepKey, any>>,
@@ -1077,6 +1112,111 @@ export class EmployeeService {
       });
 
       return { employeeId: emp.id, employeeCode, completionPct: breakdown.overallPct, warnings };
+    });
+  }
+
+  /**
+   * Bulk-import UPDATE path — the row carried an Employee Code that matched an
+   * existing employee. Applies the row's base identity/role fields and only the
+   * wizard steps the sheet actually filled (never wipes untouched sections),
+   * then recomputes completion. An existing employee_code is preserved; a
+   * still-missing one is generated if the profile now reaches 100%.
+   *
+   * `currentCompanyId` is the employee's company right now; `base.company_id` is
+   * where the row places them (they differ on a transfer row).
+   */
+  async bulkUpdateEmployee(
+    existingId: number,
+    currentCompanyId: number,
+    base: {
+      company_id: number; first_name: string; middle_name: string | null; last_name: string;
+      status: string; employment_type: string; department_id: number; designation_id: number;
+      sub_department_id: number | null; sub_designation_id: number | null; email: string; phone: string;
+      employee_code?: string | null; reference_code?: string | null; avatar_url?: string | null; avatar?: string | null;
+      reporting_manager_id?: number | null;
+    },
+    steps: Partial<Record<StepKey, any>>,
+    actorId: number,
+  ): Promise<{ employeeId: number; employeeCode: string | null; completionPct: number; warnings: string[] }> {
+    const STEP_ORDER: StepKey[] = [
+      'location_attendance', 'managers_work_contact', 'commitment_probation', 'statutory_schemes',
+      'compensation', 'hr_joining_checklist', 'personal_profile', 'address', 'family_emergency',
+      'ids_bank', 'experience_education',
+    ];
+
+    return sequelize.transaction(async (t) => {
+      const existing = await repo.findAnyById(existingId, t);
+      if (!existing) throw new AppError('Employee to update not found', 404);
+
+      const targetCompanyId = base.company_id;
+
+      const baseUpdate: any = {
+        company_id:         targetCompanyId,
+        first_name:         base.first_name.trim(),
+        middle_name:        base.middle_name?.trim() || null,
+        last_name:          base.last_name.trim(),
+        status:             (base.status as any) || existing.status,
+        employment_type:    (base.employment_type as any) || existing.employment_type,
+        department_id:      base.department_id,
+        sub_department_id:  base.sub_department_id ?? null,
+        designation_id:     base.designation_id,
+        sub_designation_id: base.sub_designation_id ?? null,
+        email:              base.email.toLowerCase().trim(),
+        phone:              normalizePhone(base.phone),
+        updated_by:         actorId,
+      };
+      if (base.reference_code?.trim()) baseUpdate.reference_code = base.reference_code.trim();
+      if (base.avatar_url?.trim())     baseUpdate.avatar_url = base.avatar_url.trim();
+      if (base.reporting_manager_id != null) baseUpdate.reporting_manager_id = base.reporting_manager_id;
+
+      // scope the write by the CURRENT company so the row is found, then the
+      // update itself moves company_id to the target
+      await repo.update(existingId, currentCompanyId, baseUpdate, t);
+
+      // `location_attendance` and `commitment_probation` (the two sections that
+      // carry the transfer date fields) map 1:1 to a single child row, and
+      // routeStep rewrites every column of that row. Merge the current values
+      // underneath the sheet's so a partial edit — e.g. only Current Joining
+      // Date — doesn't blank the rest of the section.
+      if (steps.location_attendance) {
+        const cur = await EmployeeLocationAttendance.findByPk(existingId, { transaction: t });
+        if (cur) steps.location_attendance = { ...stripRowMeta(cur.toJSON()), ...steps.location_attendance };
+      }
+      if (steps.commitment_probation) {
+        const cur = await EmployeeCommitmentProbation.findByPk(existingId, { transaction: t });
+        if (cur) steps.commitment_probation = { ...stripRowMeta(cur.toJSON()), ...steps.commitment_probation };
+      }
+
+      // Apply only the steps present in the sheet — untouched sections are left
+      // exactly as they were (unlike create, which seeds empty child rows).
+      for (const step of STEP_ORDER) {
+        const payload = steps[step];
+        if (payload === undefined) continue;
+        await this.routeStep(existingId, targetCompanyId, step, payload, actorId, t);
+      }
+
+      const fresh = await repo.findById(existingId, targetCompanyId, true, t);
+      const breakdown = computeCompletionPct(fresh?.toJSON() ?? {});
+      await repo.updateCompletionPct(existingId, breakdown.overallPct, t);
+
+      const warnings: string[] = [];
+      let employeeCode: string | null = fresh?.employee_code ?? existing.employee_code ?? null;
+      if (breakdown.overallPct === 100 && !employeeCode) {
+        try {
+          employeeCode = await generateEmployeeCode(targetCompanyId);
+          await repo.update(existingId, targetCompanyId, { employee_code: employeeCode, record_status: 'Final' }, t);
+        } catch (e: any) {
+          warnings.push(`Reached 100% but employee_code was not generated: ${e.message}`);
+        }
+      }
+
+      await logActivity({
+        companyId: targetCompanyId, employeeId: actorId, action: 'EMPLOYEE_BULK_UPDATED',
+        module: 'employees', entityId: existingId,
+        newValues: { name: `${base.first_name} ${base.last_name}`, completionPct: breakdown.overallPct },
+      });
+
+      return { employeeId: existingId, employeeCode, completionPct: breakdown.overallPct, warnings };
     });
   }
 }

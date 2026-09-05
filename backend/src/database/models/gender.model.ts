@@ -28,10 +28,18 @@ export class Gender
 Gender.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(50), allowNull: false, unique: true },
-    code: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    name: { type: DataTypes.STRING(50), allowNull: false },
+    code: { type: DataTypes.STRING(50), allowNull: false },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'genders', modelName: 'Gender' }
+  {
+    sequelize,
+    tableName: 'genders',
+    modelName: 'Gender',
+    indexes: [
+      { unique: true, fields: ['name'], name: 'genders_name_unique' },
+      { unique: true, fields: ['code'], name: 'genders_code_unique' },
+    ],
+  }
 );

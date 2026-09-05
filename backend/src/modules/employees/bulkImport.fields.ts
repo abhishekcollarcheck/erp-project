@@ -48,9 +48,10 @@ export const FIELD_DEFS: FieldDef[] = [
   // ── Role & Identity (base employees row) ────────────────────────────────────
   f({ col: 'employee_code',     step: 'role_identity', key: 'employee_code',     type: 'str',  label: 'Employee Code', help: 'Leave blank to auto-generate when the profile is complete; set it to keep an existing code (must be unique)' }),
   f({ col: 'reference_code',       step: 'role_identity', key: 'reference_code',       type: 'str', label: 'Reference Code', help: 'Optional external/legacy tracking code (must be unique)' }),
-  f({ col: 'avatar_url',           step: 'role_identity', key: 'avatar_url',           type: 'str', label: 'Avatar URL', help: 'Optional link to an already-hosted profile photo' }),
-  f({ col: 'reporting_manager_code', step: 'role_identity', key: 'reporting_manager_id', type: 'dbmaster', dbMaster: 'manager', label: 'Reporting Manager (employee code)', help: 'Used for leave approvals & org chart' }),
-  f({ col: 'company',           step: 'role_identity', key: 'company_id',        type: 'dbmaster', dbMaster: 'company',        label: 'Company', help: 'Company name — defaults to your company if blank' }),
+  f({ col: 'avatar',               step: 'role_identity', key: 'avatar',               type: 'str', label: 'Avatar', help: 'Image URL (http/https) or data URI — downloaded and saved to the employee upload folder. An existing /uploads/… path is kept as-is' }),
+  f({ col: 'avatar_url',           step: 'role_identity', key: 'avatar_url',           type: 'str', label: 'Avatar URL', help: 'Legacy — stores the given link verbatim without downloading it. Prefer the "Avatar" column' }),
+  f({ col: 'reporting_manager_code', step: 'role_identity', key: 'reporting_manager_id', type: 'dbmaster', dbMaster: 'manager', label: 'Reporting Manager Code', help: 'Employee Code (or email) of the reporting manager — may be in another company. Used for leave approvals & org chart' }),
+  f({ col: 'company',           step: 'role_identity', key: 'company_id',        type: 'dbmaster', dbMaster: 'company',        label: 'Company', help: 'Pick from the dropdown (company master). Defaults to your company if blank; an unknown name is rejected' }),
   f({ col: 'first_name',        step: 'role_identity', key: 'first_name',        type: 'str',  required: true, label: 'First Name' }),
   f({ col: 'middle_name',       step: 'role_identity', key: 'middle_name',       type: 'str',  label: 'Middle Name' }),
   f({ col: 'last_name',         step: 'role_identity', key: 'last_name',         type: 'str',  required: true, label: 'Last Name' }),
@@ -68,15 +69,16 @@ export const FIELD_DEFS: FieldDef[] = [
   f({ col: 'working_city',          step: 'location_attendance', key: 'working_city',          type: 'master', master: 'working_city',          label: 'Working City' }),
   f({ col: 'working_state_country', step: 'location_attendance', key: 'working_state_country', type: 'master', master: 'working_state_country', label: 'Working State / Country' }),
   f({ col: 'pay_register_location', step: 'location_attendance', key: 'pay_register_location', type: 'master', master: 'pay_register_location', label: 'Pay Register Location' }),
-  f({ col: 'date_of_joining',       step: 'location_attendance', key: 'actual_doj',            type: 'date', requiredWithStep: true, label: 'Date of Joining', help: 'YYYY-MM-DD' }),
+  f({ col: 'date_of_joining',       step: 'location_attendance', key: 'actual_doj',            type: 'date', requiredWithStep: true, label: 'Date of Joining', help: 'Original / group joining date — YYYY-MM-DD' }),
+  f({ col: 'current_joining_date',  step: 'location_attendance', key: 'current_doj',           type: 'date', label: 'Current Joining Date', help: 'Transfer field — joining date at the current company after a transfer (YYYY-MM-DD)' }),
   f({ col: 'weekly_off',            step: 'location_attendance', key: 'weekly_off',            type: 'master', master: 'weekly_off',            label: 'Weekly Off' }),
   f({ col: 'shift_category',        step: 'location_attendance', key: 'shift_category',        type: 'enum', enumValues: SHIFT_CATEGORY, label: 'Shift Category' }),
   f({ col: 'shift',                 step: 'location_attendance', key: 'shift_id',              type: 'dbmaster', dbMaster: 'shift', label: 'Shift', help: 'Shift label' }),
   f({ col: 'grace_minutes',         step: 'location_attendance', key: 'grace_minutes',         type: 'master', master: 'grace_minutes',         label: 'Grace Minutes' }),
 
   // ── Managers & Work Contact ────────────────────────────────────────────────
-  f({ col: 'l1_manager_code',  step: 'managers_work_contact', key: 'l1_manager_id',  type: 'dbmaster', dbMaster: 'manager', label: 'L1 Manager (employee code)' }),
-  f({ col: 'l2_manager_code',  step: 'managers_work_contact', key: 'l2_manager_id',  type: 'dbmaster', dbMaster: 'manager', label: 'L2 Manager (employee code)' }),
+  f({ col: 'l1_manager_code',  step: 'managers_work_contact', key: 'l1_manager_id',  type: 'dbmaster', dbMaster: 'manager', label: 'L1 Manager Code', help: 'Employee Code of the L1 manager (must be in the same company)' }),
+  f({ col: 'l2_manager_code',  step: 'managers_work_contact', key: 'l2_manager_id',  type: 'dbmaster', dbMaster: 'manager', label: 'L2 Manager Code', help: 'Employee Code of the L2 manager (must be in the same company)' }),
   f({ col: 'official_email',   step: 'managers_work_contact', key: 'official_email', type: 'str', label: 'Official Email' }),
   f({ col: 'official_mobile',  step: 'managers_work_contact', key: 'official_mobile',type: 'str', label: 'Official Mobile' }),
 
@@ -84,6 +86,7 @@ export const FIELD_DEFS: FieldDef[] = [
   f({ col: 'commitment',            step: 'commitment_probation', key: 'commitment',            type: 'bool', label: 'Has Commitment Bond' }),
   f({ col: 'commitment_term',       step: 'commitment_probation', key: 'commitment_term',       type: 'enum', enumValues: COMMITMENT_TERM, label: 'Commitment Term' }),
   f({ col: 'commitment_entered_on', step: 'commitment_probation', key: 'commitment_entered_on', type: 'date', label: 'Commitment Entered On' }),
+  f({ col: 'commitment_end_date',   step: 'commitment_probation', key: 'commitment_end_date',   type: 'date', label: 'Commitment End Date', help: 'Transfer field — optional; auto-computed from term + entered-on when left blank' }),
   f({ col: 'on_probation',          step: 'commitment_probation', key: 'on_probation',          type: 'bool', label: 'On Probation' }),
   f({ col: 'probation_period',      step: 'commitment_probation', key: 'probation_period',      type: 'enum', enumValues: PROBATION_PERIOD, label: 'Probation Period' }),
   f({ col: 'probation_status',      step: 'commitment_probation', key: 'probation_status',      type: 'enum', enumValues: PROBATION_STATUS, label: 'Probation Status' }),
@@ -313,7 +316,12 @@ export const BULK_STEP_ORDER: StepKey[] = [
   'ids_bank', 'experience_education',
 ];
 
-/** Every spreadsheet column, in order — scalars then each repeatable expanded. */
+/** "family_member" / "contact_name" → "Family Member" / "Contact Name" */
+const titleize = (s: string) =>
+  s.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+
+/** Every spreadsheet column, in order — scalars then each repeatable expanded.
+ *  `label` is the human-readable header; `col` is the canonical key. */
 export function allTemplateColumns(): Array<{ col: string; label: string; step: string; required: boolean; help?: string; enumValues?: readonly string[] }> {
   const out: Array<{ col: string; label: string; step: string; required: boolean; help?: string; enumValues?: readonly string[] }> = [];
   for (const d of FIELD_DEFS) {
@@ -322,7 +330,11 @@ export function allTemplateColumns(): Array<{ col: string; label: string; step: 
   for (const g of REPEATABLE_GROUPS) {
     for (let i = 1; i <= g.max; i++) {
       for (const gf of g.fields) {
-        out.push({ col: `${g.prefix}_${i}_${gf.sub}`, label: `${g.prefix} ${i} ${gf.sub}`.replace(/_/g, ' '), step: g.step, required: false, enumValues: gf.enumValues });
+        out.push({
+          col: `${g.prefix}_${i}_${gf.sub}`,
+          label: `${titleize(g.prefix)} ${i} — ${titleize(gf.sub)}`,
+          step: g.step, required: false, enumValues: gf.enumValues,
+        });
       }
     }
   }

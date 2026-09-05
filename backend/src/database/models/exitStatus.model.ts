@@ -36,12 +36,10 @@ ExitStatus.init(
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
     },
     code: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      unique: true,
     },
     display_order: {
       type: DataTypes.INTEGER.UNSIGNED,
@@ -59,6 +57,8 @@ ExitStatus.init(
     tableName: 'exit_statuses',
     modelName: 'ExitStatus',
     indexes: [
+      { unique: true, fields: ['name'], name: 'exit_statuses_name_unique' },
+      { unique: true, fields: ['code'], name: 'exit_statuses_code_unique' },
       { fields: ['display_order'] },
       { fields: ['is_active'] },
     ],

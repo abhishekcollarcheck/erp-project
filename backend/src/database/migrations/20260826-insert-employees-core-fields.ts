@@ -1,29 +1,5 @@
 import { QueryInterface } from 'sequelize';
 
-/**
- * Seeds dynamic_fields with one row per user-facing column on the core
- * `employees` table itself — as distinct from insert-employee_migration.ts,
- * which also covers the related child tables (family, address, statutory,
- * salary, etc.) as part of the full onboarding wizard.
- *
- * This is scoped narrowly to `employees` so field-permission work has a
- * clean, accurate list of the actual core-record fields to grant/restrict
- * per role — matching the CURRENT model (post sub_designation_id rename,
- * post company_id/department_id/designation_id nullability changes).
- *
- * Excluded on purpose — not user-facing, not something a role should be
- * granted/denied field-level access to:
- *   id, otp_hash, otp_expires, otp_attempts, otp_locked_until,
- *   refresh_token, refresh_expires, created_by, updated_by, deleted_by,
- *   created_at, updated_at, deleted_at
- *
- * form_id: 2 matches the Employee Onboarding form used throughout
- * insert-employee_migration.ts. If that ID isn't guaranteed stable across
- * environments, resolve it via a SELECT against form_definitions
- * (slug = 'employee_onboarding') instead of hardcoding it — flagging this
- * the same way as the previous dynamic_fields migration.
- */
-
 const FORM_ID = 1;
 const SORT_ORDER_START = 1; // continues after the 30 core-field rows (sort_order 0-29)
  

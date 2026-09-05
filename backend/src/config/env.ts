@@ -60,7 +60,12 @@ export const env = {
   },  
 
   trackolap: {
-    authId: process.env.TC_CUSTOMERID,
-    authKey: process.env.TC_KEY 
+    authId: process.env.TC_CUSTOMERID,   // `tlp-cid` header — Trackola customer id
+    authKey: process.env.TC_KEY,          // `api-key` header
+    // Trackola Admin ID — the `employee_id` query param required by the
+    // employee-wise `/report/template/run` API. This is a distinct Trackola
+    // identity (an admin/owner employee record), NOT our employee id and NOT
+    // the customer id (the customer id is rejected here as "Invalid Employee Id").
+    adminId: process.env.TC_ADMIN_ID,
   }
 } as const;

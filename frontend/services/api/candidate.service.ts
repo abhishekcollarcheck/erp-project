@@ -2,7 +2,7 @@ import apiClient from '../../services/api/client';
 import axios from 'axios';
 import type { ApiResponse } from '../../types/api.types';
 import type {
-  Candidate, CandidateStats, CreateCandidateDto,
+  Candidate, CandidateStats, CreateCandidateDto, CandidateActivityEntry,
   UpdateCandidateDto, CandidateQueryParams, BulkUploadResult, CandidateStatus,
 } from '../../features/candidates/types/candidate.types';
 
@@ -18,8 +18,31 @@ export const candidateService = {
   getById: (id: number) =>
     apiClient.get<unknown, ApiResponse<Candidate>>(`/candidates/${id}`),
 
+  getActivity: (id: number) =>
+    apiClient.get<unknown, ApiResponse<CandidateActivityEntry[]>>(`/candidates/${id}/activity`),
+
   create: (data: CreateCandidateDto) =>
     apiClient.post<unknown, ApiResponse<Candidate>>('/candidates', data),
+
+  // Unauthenticated on the backend by design — used from the "Add candidate" wizard
+  // before a candidate record exists yet. PDF/TXT only.
+  parseResume: (file: File) => {
+    const form = new FormData();
+    form.append('resume', file);
+    return apiClient.post<unknown, ApiResponse<{
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      phone_number: string | null;
+      date_of_birth: string | null;
+      qualification: string | null;
+      total_experience: number | null;
+      raw_sections: { education: string | null; experience: string | null };
+      raw_text_length: number;
+    }>>('/candidates/parse-resume', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 
   update: (id: number, data: UpdateCandidateDto) =>
     apiClient.put<unknown, ApiResponse<Candidate>>(`/candidates/${id}`, data),

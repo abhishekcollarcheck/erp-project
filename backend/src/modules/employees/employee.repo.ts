@@ -75,6 +75,7 @@ export class EmployeeRepository {
 
     const where: any = { company_id: companyId };
     if (params.status)          where.status          = params.status;
+    if (params.record_status)   where.record_status   = params.record_status;
     if (params.employment_type) where.employment_type = params.employment_type;
     if (params.department_id)   where.department_id   = Number(params.department_id);
     if (params.designation_id)  where.designation_id  = Number(params.designation_id);
@@ -276,6 +277,12 @@ export class EmployeeRepository {
     return Employee.update({ form_completion_pct: pct }, { where: { id }, transaction: t });
   }
 
+  /** Correct a drifted form_completion_pct outside any transaction, without
+   *  bumping updated_at (used by getById's self-heal on read). */
+  async updateCompletionPctSilent(id: number, pct: number) {
+    return Employee.update({ form_completion_pct: pct }, { where: { id }, silent: true });
+  }
+
   /**
    * Copy every child record of `fromId` onto `toId` — used by the transfer flow
    * ("Personal / KYC details are copied"). EmployeeLocationAttendance is handled
@@ -317,6 +324,12 @@ export class EmployeeRepository {
     return Employee.findOne({
       where: { employee_code: code, ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}) },
     });
+  }
+
+  /** Fetch by primary key, not scoped to a company — used by the bulk importer
+   *  when an existing employee matched by employee_code is being updated. */
+  async findAnyById(id: number, t?: Transaction) {
+    return Employee.findByPk(id, { transaction: t });
   }
 
   async findByEmail(email: string, excludeId?: number) {

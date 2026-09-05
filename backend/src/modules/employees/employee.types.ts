@@ -23,6 +23,7 @@ export interface EmployeeQueryParams {
   limit?: number | string;
   search?: string;
   status?: EmployeeStatus;
+  record_status?: 'Draft' | 'Final';
   employment_type?: EmploymentType;
   department_id?: number | string;
   designation_id?: number | string;
@@ -54,6 +55,7 @@ export interface LocationAttendanceDto {
   working_site:             number | null;
   pay_register_location:    number | null;
   actual_doj:               string;
+  current_doj?:             string | null;   // joining date at current company after a transfer
   weekly_off:               number | null;
   shift_category?:          'Shift' | 'Duration';
   shift_id:                 number | null;

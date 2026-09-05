@@ -330,7 +330,6 @@ Department.init(
     department_name: {
       type: DataTypes.STRING(200),
       allowNull: false,
-      unique: true,
     },
     department_code: {
       type: DataTypes.STRING(20),
@@ -369,6 +368,9 @@ Department.init(
     modelName: 'Department',
     paranoid: true,
     underscored: true,
+    indexes: [
+      { unique: true, fields: ['department_name'], name: 'departments_department_name_unique' },
+    ],
   }
 );
 

@@ -44,6 +44,17 @@ export function useCandidate(id: number) {
   });
 }
 
+// ─── Activity feed ────────────────────────────────────────────────────────────
+export function useCandidateActivity(id: number, enabled = true) {
+  return useQuery({
+    queryKey: ['candidates', id, 'activity'],
+    queryFn:  () => candidateService.getActivity(id),
+    enabled:  enabled && !!id && id > 0,
+    staleTime: 15_000,
+    select:   (res) => res.data,
+  });
+}
+
 // ─── Create ───────────────────────────────────────────────────────────────────
 export function useCreateCandidate() {
   const qc = useQueryClient();

@@ -45,7 +45,6 @@ Country.init(
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
     },
     code: {
       type: DataTypes.STRING(10),
@@ -75,7 +74,10 @@ Country.init(
     modelName: 'Country',
     paranoid: true,
     underscored: true,
-    indexes: [{ fields: ['is_active'] }],
+    indexes: [
+      { unique: true, fields: ['name'], name: 'countries_name_unique' },
+      { fields: ['is_active'] },
+    ],
   },
 );
 

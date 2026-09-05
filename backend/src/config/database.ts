@@ -28,7 +28,14 @@ export async function connectDatabase(): Promise<void> {
     logger.info('Database connection established');
 
     if (env.nodeEnv === 'development') {
-      await sequelize.sync({alter: true});
+      // alter MUST stay false. `sync({ alter: true })` on inline `unique: true`
+      // attributes is what caused the "Too many keys specified; max 64 keys
+      // allowed" outage on the master-data tables (see the 2026-09-05
+      // unique-index cleanup migration) — every boot added another anonymous
+      // unique index Sequelize couldn't match to the one it made last time.
+      // Schema changes belong in migrations (`npm run migrate`); this only
+      // creates tables that don't exist yet.
+      await sequelize.sync({ alter: false});
     }
 
   }catch (error: any) {

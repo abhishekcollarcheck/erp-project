@@ -28,10 +28,18 @@ export class ShirtSize
 ShirtSize.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(50), allowNull: false, unique: true },
-    code: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    name: { type: DataTypes.STRING(50), allowNull: false },
+    code: { type: DataTypes.STRING(50), allowNull: false },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'shirt_sizes', modelName: 'ShirtSize' }
+  {
+    sequelize,
+    tableName: 'shirt_sizes',
+    modelName: 'ShirtSize',
+    indexes: [
+      { unique: true, fields: ['name'], name: 'shirt_sizes_name_unique' },
+      { unique: true, fields: ['code'], name: 'shirt_sizes_code_unique' },
+    ],
+  }
 );

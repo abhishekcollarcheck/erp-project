@@ -1,6 +1,8 @@
 import { Op } from 'sequelize';
 import { AppError } from '../../middleware/errorHandler.middleware';
-import { Holiday } from '@/database/models/Holiday';
+import { Holiday } from '../../database/models/Holiday';
+// import { Holiday } from '@/database/models/Holiday';
+
 
 export interface HolidayQueryParams {
   activeOnly?: boolean;

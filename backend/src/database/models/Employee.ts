@@ -171,6 +171,7 @@ export class EmployeeLocationAttendance extends Model {
   public working_site!:          number | null;
   public pay_register_location!: number | null;
   public actual_doj!:            Date;
+  public current_doj!:           Date | null;
   public weekly_off!:            number | null;
   public shift_category!:        'Shift' | 'Duration';
   public shift_id!:              number | null;
@@ -183,6 +184,7 @@ EmployeeLocationAttendance.init({
   working_site:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   pay_register_location:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   actual_doj:             { type: DataTypes.DATEONLY, allowNull: false },
+  current_doj:            { type: DataTypes.DATEONLY, allowNull: true },
   weekly_off:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   shift_category:         { type: DataTypes.ENUM('Shift', 'Duration'), allowNull: false, defaultValue: 'Duration' },
   shift_id:               { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, references: { model: 'shift', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },

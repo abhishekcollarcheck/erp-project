@@ -28,11 +28,17 @@ export class SaturdayRule
 SaturdayRule.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+    name: { type: DataTypes.STRING(100), allowNull: false },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'saturday_rules', modelName: 'SaturdayRule', paranoid: true }
+  {
+    sequelize,
+    tableName: 'saturday_rules',
+    modelName: 'SaturdayRule',
+    paranoid: true,
+    indexes: [{ unique: true, fields: ['name'], name: 'saturday_rules_name_unique' }],
+  }
 );
 
 // ─── 2. GRACE MINUTE MODEL ────────────────────────────────────────────────
@@ -64,12 +70,18 @@ export class GraceMinute
 GraceMinute.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+    name: { type: DataTypes.STRING(100), allowNull: false },
     minutes: { type: DataTypes.INTEGER, allowNull: true },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'grace_minutes', modelName: 'GraceMinute', paranoid: true }
+  {
+    sequelize,
+    tableName: 'grace_minutes',
+    modelName: 'GraceMinute',
+    paranoid: true,
+    indexes: [{ unique: true, fields: ['name'], name: 'grace_minutes_name_unique' }],
+  }
 );
 
 // ─── 3. ATTENDANCE TYPE MODEL ─────────────────────────────────────────────
@@ -101,10 +113,16 @@ export class AttendanceType
 AttendanceType.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+    name: { type: DataTypes.STRING(100), allowNull: false },
     code: { type: DataTypes.STRING(20), allowNull: true },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'attendance_types', modelName: 'AttendanceType', paranoid: true }
+  {
+    sequelize,
+    tableName: 'attendance_types',
+    modelName: 'AttendanceType',
+    paranoid: true,
+    indexes: [{ unique: true, fields: ['name'], name: 'attendance_types_name_unique' }],
+  }
 );

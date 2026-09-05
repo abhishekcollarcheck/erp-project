@@ -1,6 +1,14 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '../../config/database';
 
+// MariaDB stores DataTypes.JSON as LONGTEXT and doesn't parse it on read.
+const jsonGet = (field: string) =>
+  function (this: Model): unknown {
+    const raw = this.getDataValue(field as never);
+    if (typeof raw !== 'string') return raw;
+    try { return JSON.parse(raw); } catch { return raw; }
+  };
+
 interface ActivityLogAttributes {
   id: number;
   company_id: number | null;
@@ -41,8 +49,8 @@ ActivityLog.init(
     action:     { type: DataTypes.STRING(200), allowNull: false },
     module:     { type: DataTypes.STRING(100), allowNull: true },
     entity_id:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-    old_values: { type: DataTypes.JSON, allowNull: true },
-    new_values: { type: DataTypes.JSON, allowNull: true },
+    old_values: { type: DataTypes.JSON, allowNull: true, get: jsonGet('old_values') },
+    new_values: { type: DataTypes.JSON, allowNull: true, get: jsonGet('new_values') },
     ip_address: { type: DataTypes.STRING(45), allowNull: true },
     user_agent: { type: DataTypes.TEXT, allowNull: true },
   },

@@ -642,9 +642,14 @@ import {
 } from './RoleModels';
 
 // ─── HR Modules ───────────────────────────────────────────────────────────────
-
-import { Attendance } from './Attendance';
-
+import { Attendance }                                    from './Attendance';
+import { Candidate }                                     from './Candidate';
+import { CandidateEmployment }                           from './CandidateEmployment';
+import { AptitudeTest, AptitudeQuestion, CandidateAnswer } from './AptitudeTest';
+import { PayrollRun, Payslip }                           from './PayrollModels';
+import { Notification }                                  from './Notification';
+import { ActivityLog }                                   from './ActivityLog';
+import { EmailBranding, EmailTemplate }                  from './EmailTemplate';
 import {
   LeaveType,
   LeaveRequest,
@@ -656,28 +661,6 @@ import {
   EmployeeLeaveAccrual,
   LeaveCredit,
 } from './LeaveModels';
-
-import { Candidate } from './Candidate';
-
-import {
-  AptitudeTest,
-  AptitudeQuestion,
-  CandidateAnswer,
-} from './AptitudeTest';
-
-import {
-  PayrollRun,
-  Payslip,
-} from './PayrollModels';
-
-import { Notification } from './Notification';
-
-import { ActivityLog } from './ActivityLog';
-
-import {
-  EmailBranding,
-  EmailTemplate,
-} from './EmailTemplate';
 
 import {
   HrModule,
@@ -1081,8 +1064,11 @@ Attendance.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee'   });
 Employee.hasMany(LeaveRequest,   { foreignKey: 'employee_id', as: 'leaveRequests' });
 LeaveRequest.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee'      });
 
-// Single declaration of this pair — this alias must not be repeated
-// anywhere else in the file (that duplication was the SequelizeAssociationError).
+// ─── Candidates ───────────────────────────────────────────────────────────────
+Candidate.hasMany(CandidateAnswer,   { foreignKey: 'candidate_id', as: 'aptitudeAnswers' });
+CandidateAnswer.belongsTo(Candidate, { foreignKey: 'candidate_id', as: 'candidate'       });
+Candidate.hasMany(CandidateEmployment,   { foreignKey: 'candidate_id', as: 'employments' });
+CandidateEmployment.belongsTo(Candidate, { foreignKey: 'candidate_id', as: 'candidate'   });
 LeaveRequest.belongsTo(LeaveType, { foreignKey: 'leave_type_id', as: 'leaveType' });
 LeaveType.hasMany(LeaveRequest,   { foreignKey: 'leave_type_id', as: 'requests'  });
 
@@ -1122,17 +1108,9 @@ Payslip.belongsTo(PayrollRun,    { foreignKey: 'payroll_run_id', as: 'payrollRun
 Employee.hasMany(Payslip,   { foreignKey: 'employee_id', as: 'payslips' });
 Payslip.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee' });
 
-// ─── Candidates ──────────────────────────────────────────────────────────────
-
-Candidate.hasMany(CandidateAnswer, {
-  foreignKey: 'candidate_id',
-  as: 'aptitudeAnswers',
-});
-
-CandidateAnswer.belongsTo(Candidate, {
-  foreignKey: 'candidate_id',
-  as: 'candidate',
-});
+// (Candidate ↔ CandidateAnswer / CandidateEmployment associations are defined
+//  once in the "Candidates" block above — the duplicate here was a merge
+//  artifact and made Sequelize throw on the repeated `aptitudeAnswers` alias.)
 
 // ─── Form Builder ────────────────────────────────────────────────────────────
 
@@ -1238,7 +1216,7 @@ export {
   EmployeeLeaveMinutesBalance,
   EmployeeLeaveAccrual,
   LeaveCredit,
-  Candidate,
+  Candidate, CandidateEmployment,
   AptitudeTest, AptitudeQuestion, CandidateAnswer,
   PayrollRun, Payslip,
   Notification, ActivityLog,

@@ -54,7 +54,6 @@ export const employeeController = {
       req.user!.companyId,
       req.user!.isSuperAdmin,
     );
-    console.log("result", result)
     sendPaginated(res, result.rows, result.meta);
   },
 
@@ -534,7 +533,16 @@ export const employeeController = {
   bulkImportFields: async function (_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { allTemplateColumns } = await import('./bulkImport.fields');
-      sendResponse(res, { data: { columns: allTemplateColumns() } });
+      const { Company } = await import('../../database/models/Company');
+      // Company master for the template's Company dropdown. Same set the bulk
+      // import resolver accepts (see bulkImport.mapper.ts → buildResolvers),
+      // so the dropdown options == the values the importer will accept.
+      const companies = await Company.findAll({
+        attributes: ['id', 'name'],
+        order: [['name', 'ASC']],
+        raw: true,
+      });
+      sendResponse(res, { data: { columns: allTemplateColumns(), companies } });
     } catch (e) { next(e); }
   },
 
@@ -554,7 +562,7 @@ export const employeeController = {
 
       sendResponse(res, {
         data: { ...result, errorFileBase64 },
-        message: `Bulk import complete: ${result.imported} imported, ${result.failed} failed`,
+        message: `Bulk import complete: ${result.createdCount} created, ${result.updated} updated, ${result.failed} failed`,
         statusCode: result.failed === 0 ? 201 : 207,
       });
     } catch (e) {
