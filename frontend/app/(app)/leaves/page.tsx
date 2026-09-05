@@ -1970,7 +1970,7 @@ function CheckboxRow({ checked, onChange, label }: { checked: boolean; onChange:
   );
 }
 
-const TABS = ['Overview', 'All Requests', 'Balances', 'Holidays & Special', 'Policy', 'Triggers'] as const;
+const TABS = ['Overview', 'All Requests', 'Balances', 'Holidays & Special', 'Policy'] as const;
 type Tab = typeof TABS[number];
 
 export default function LeavesPage() {
@@ -2097,13 +2097,13 @@ export default function LeavesPage() {
 
         {tab === 'Policy' && <PolicyTab canManage={hasApprovePermission} leaveTypes={leaveTypes} policy={policy} />}
 
-        {tab === 'Triggers' && (
+        {/* {tab === 'Triggers' && (
           <div className="card" style={{ padding: 32, fontSize: 12.5, color: 'var(--ink4)' }}>
             No trigger-builder integration is wired up here — nothing in the files shared so far defines what this
             tab should show (your original demo called an undefined <code>tbRender('leaves')</code>). Point me at
             that module's API and I'll wire this tab up properly.
           </div>
-        )}
+        )} */}
       </div>
 
       <Modal
