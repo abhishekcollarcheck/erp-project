@@ -36,12 +36,10 @@ EmployeeStatus.init(
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
     },
     code: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      unique: true,
     },
     display_order: {
       type: DataTypes.INTEGER.UNSIGNED,
@@ -59,6 +57,8 @@ EmployeeStatus.init(
     tableName: 'employee_statuses',
     modelName: 'EmployeeStatus',
     indexes: [
+      { unique: true, fields: ['name'], name: 'employee_statuses_name_unique' },
+      { unique: true, fields: ['code'], name: 'employee_statuses_code_unique' },
       { fields: ['display_order'] },
       { fields: ['is_active'] },
     ],

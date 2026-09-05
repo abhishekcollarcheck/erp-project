@@ -36,12 +36,10 @@ Bond.init(
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
     },
     code: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      unique: true,
     },
     display_order: {
       type: DataTypes.INTEGER.UNSIGNED,
@@ -59,6 +57,8 @@ Bond.init(
     tableName: 'bonds',
     modelName: 'Bond',
     indexes: [
+      { unique: true, fields: ['name'], name: 'bonds_name_unique' },
+      { unique: true, fields: ['code'], name: 'bonds_code_unique' },
       { fields: ['display_order'] },
       { fields: ['is_active'] },
     ],

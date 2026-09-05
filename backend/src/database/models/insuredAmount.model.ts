@@ -29,12 +29,20 @@ export class InsuredAmount
 InsuredAmount.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(100), allowNull: false, unique: true },
-    code: { type: DataTypes.STRING(50), allowNull: true, unique: true },
+    name: { type: DataTypes.STRING(100), allowNull: false },
+    code: { type: DataTypes.STRING(50), allowNull: true },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'insured_amounts', modelName: 'InsuredAmount' }
+  {
+    sequelize,
+    tableName: 'insured_amounts',
+    modelName: 'InsuredAmount',
+    indexes: [
+      { unique: true, fields: ['name'], name: 'insured_amounts_name_unique' },
+      { unique: true, fields: ['code'], name: 'insured_amounts_code_unique' },
+    ],
+  }
 );
 
 // --- Salary Bracket Model ---

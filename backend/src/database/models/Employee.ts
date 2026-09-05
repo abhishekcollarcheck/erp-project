@@ -184,9 +184,6 @@ EmployeeLocationAttendance.init({
   working_site:           { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   pay_register_location:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   actual_doj:             { type: DataTypes.DATEONLY, allowNull: false },
-  // "Current" date of joining — the joining date at the present company after a
-  // transfer; `actual_doj` stays the original/group joining date. Nullable:
-  // only set for transferred staff (or via bulk import).
   current_doj:            { type: DataTypes.DATEONLY, allowNull: true },
   weekly_off:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   shift_category:         { type: DataTypes.ENUM('Shift', 'Duration'), allowNull: false, defaultValue: 'Duration' },

@@ -28,10 +28,18 @@ export class Qualification
 Qualification.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(100), allowNull: false, unique: true },
-    code: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+    name: { type: DataTypes.STRING(100), allowNull: false },
+    code: { type: DataTypes.STRING(100), allowNull: false },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'qualifications', modelName: 'Qualification' }
+  {
+    sequelize,
+    tableName: 'qualifications',
+    modelName: 'Qualification',
+    indexes: [
+      { unique: true, fields: ['name'], name: 'qualifications_name_unique' },
+      { unique: true, fields: ['code'], name: 'qualifications_code_unique' },
+    ],
+  }
 );

@@ -37,7 +37,6 @@ EmployeeType.init(
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
     },
 
     code: {
@@ -63,6 +62,11 @@ EmployeeType.init(
     modelName: 'EmployeeType',
 
     indexes: [
+      {
+        unique: true,
+        name: 'employee_types_name_unique',
+        fields: ['name'],
+      },
       {
         unique: true,
         name: 'employee_types_code_unique',

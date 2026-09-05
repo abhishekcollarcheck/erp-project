@@ -28,10 +28,18 @@ export class ModeOfPayment
 ModeOfPayment.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(50), allowNull: false, unique: true },
-    code: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+    name: { type: DataTypes.STRING(50), allowNull: false },
+    code: { type: DataTypes.STRING(50), allowNull: false },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'modes_of_payment', modelName: 'ModeOfPayment' }
+  {
+    sequelize,
+    tableName: 'modes_of_payment',
+    modelName: 'ModeOfPayment',
+    indexes: [
+      { unique: true, fields: ['name'], name: 'modes_of_payment_name_unique' },
+      { unique: true, fields: ['code'], name: 'modes_of_payment_code_unique' },
+    ],
+  }
 );

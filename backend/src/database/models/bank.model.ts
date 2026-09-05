@@ -28,10 +28,18 @@ export class Bank
 Bank.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING(150), allowNull: false, unique: true },
-    code: { type: DataTypes.STRING(150), allowNull: false, unique: true },
+    name: { type: DataTypes.STRING(150), allowNull: false },
+    code: { type: DataTypes.STRING(150), allowNull: false },
     display_order: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
-  { sequelize, tableName: 'banks', modelName: 'Bank' }
+  {
+    sequelize,
+    tableName: 'banks',
+    modelName: 'Bank',
+    indexes: [
+      { unique: true, fields: ['name'], name: 'banks_name_unique' },
+      { unique: true, fields: ['code'], name: 'banks_code_unique' },
+    ],
+  }
 );

@@ -65,12 +65,16 @@ const schema = z.object({
 
   email: z.preprocess(
     emptyToUndefined,
-    z.string().trim().email('Please enter a valid email address').optional(),
+    z.string({ required_error: 'Email is required' })
+      .trim().min(1, 'Email is required')
+      .email('Please enter a valid email address'),
   ),
 
   phone_number: z.preprocess(
     emptyToUndefined,
-    z.string().trim().regex(/^[+\d\s\-()]{7,20}$/, 'Please enter a valid phone number').optional(),
+    z.string({ required_error: 'Phone number is required' })
+      .trim().min(1, 'Phone number is required')
+      .regex(/^[+\d\s\-()]{7,20}$/, 'Please enter a valid phone number'),
   ),
 
   gender: z.preprocess(
@@ -557,7 +561,7 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
           ? `${candidate?.candidate_name ?? ''}${src?.reference_code ? `  ·  ${src.reference_code}` : ''}`
           : 'Only name is required — jump to any section, we validate on save'
       }
-      width={720}
+      width={820}
       footer={
         <div className="cfm-ft">
           <span className="cfm-ft__count">Step {step + 1} of {STEPS.length}</span>
@@ -664,11 +668,13 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         {step === 0 && (
           <>
             <Section title="Personal" />
-            <div className="fg"><label>First Name <i className="cfm-req">*</i></label><input placeholder="Priya" {...register('first_name')} autoFocus /><Err f="first_name" /></div>
-            <div className="fg"><label>Middle Name</label><input placeholder="Optional" {...register('middle_name')} /></div>
-            <div className="fg"><label>Last Name <i className="cfm-req">*</i></label><input placeholder="Sharma" {...register('last_name')} /><Err f="last_name" /></div>
-            <div className="fg"><label>Email</label><input type="email" placeholder="priya@gmail.com" {...register('email')} /><Err f="email" /></div>
-            <div className="fg"><label>Phone</label><input type="tel" placeholder="+91 98765 43210" {...register('phone_number')} /><Err f="phone_number" /></div>
+            <div className="cfm-full cfm-row3">
+              <div className="fg"><label>First Name <i className="cfm-req">*</i></label><input placeholder="Priya" {...register('first_name')} autoFocus /><Err f="first_name" /></div>
+              <div className="fg"><label>Middle Name</label><input placeholder="Optional" {...register('middle_name')} /></div>
+              <div className="fg"><label>Last Name <i className="cfm-req">*</i></label><input placeholder="Sharma" {...register('last_name')} /><Err f="last_name" /></div>
+            </div>
+            <div className="fg"><label>Email <i className="cfm-req">*</i></label><input type="email" placeholder="priya@gmail.com" {...register('email')} /><Err f="email" /></div>
+            <div className="fg"><label>Phone <i className="cfm-req">*</i></label><input type="tel" placeholder="+91 98765 43210" {...register('phone_number')} /><Err f="phone_number" /></div>
             <div className="fg"><label>Gender</label><select {...register('gender')}><option value="">— Select —</option><option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option></select></div>
             <div className="fg"><label>Date of Birth</label><input type="date" {...register('date_of_birth')} /></div>
 
@@ -963,6 +969,7 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         }
         @keyframes cfmFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
         .cfm-full { grid-column: 1 / -1; }
+        .cfm-row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; }
 
         .cfm .fg { margin-bottom: 13px; }
         .cfm .fg label { display: flex; align-items: center; gap: 4px; }
@@ -1078,8 +1085,13 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         .cfm-ft__count { font-size: 11px; font-weight: 600; color: var(--ink4); font-family: var(--mono); white-space: nowrap; }
         .cfm-ft__actions { display: flex; gap: 8px; }
 
+        @media (max-width: 700px) {
+          .cfm-row3 { grid-template-columns: 1fr 1fr; }
+          .cfm-row3 > .fg:last-child { grid-column: 1 / -1; }
+        }
         @media (max-width: 560px) {
           .cfm-panel { grid-template-columns: 1fr; }
+          .cfm-row3 { grid-template-columns: 1fr; }
           .cfm-step__label { font-size: 10.5px; }
           .cfm-ft__count { display: none; }
         }

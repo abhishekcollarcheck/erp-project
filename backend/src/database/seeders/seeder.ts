@@ -892,6 +892,36 @@ import { logger } from "../../config/logger";
 import { seedHolidays } from "./holiday-seed-data";
 import { computeCompletionPct } from "../../modules/employees/employee.helper";
 import { Designation } from "../models";
+import type { Sequelize } from "sequelize";
+
+/**
+ * Guard against repeating the "Too many keys specified; max 64 keys allowed"
+ * outage (see the 2026-09-05 unique-index cleanup migration + the comment at
+ * the ALLOW_SYNC_ALTER call site). MySQL caps a table at 64 indexes; refuse to
+ * run `sync({ alter: true })` — which can still add an index per un-matched
+ * attribute — while any table is already within striking distance of that
+ * ceiling, so a stray env var fails loudly instead of silently piling on.
+ */
+async function assertNoIndexBloat(db: Sequelize, threshold = 55): Promise<void> {
+  const [rows] = (await db.query(
+    `SELECT TABLE_NAME, COUNT(DISTINCT INDEX_NAME) AS index_count
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+     GROUP BY TABLE_NAME
+     HAVING index_count >= ${threshold}
+     ORDER BY index_count DESC`
+  )) as unknown as [{ TABLE_NAME: string; index_count: number }[], unknown];
+
+  if (rows.length > 0) {
+    const detail = rows.map((r) => `${r.TABLE_NAME} (${r.index_count})`).join(", ");
+    throw new Error(
+      `Refusing to run sequelize.sync({ alter: true }) — ${rows.length} table(s) already ` +
+      `have ${threshold}+ of MySQL's 64-key limit: ${detail}. Run the index cleanup ` +
+      `migration first, or fix the model(s) still declaring inline "unique: true" ` +
+      `instead of a named index in "indexes: []".`
+    );
+  }
+}
 
 // =========================================================
 // CONSTANTS
@@ -1591,8 +1621,23 @@ if (require.main === module) {
       // Schema changes belong in migrations.
       // Do not use sequelize.sync({ alter: true }) in
       // staging/production.
-
+      //
+      // HISTORY: this flag is what caused the "Too many keys specified;
+      // max 64 keys allowed" outage on the master-data tables (probation_periods,
+      // genders, bonds, etc. — see the 2026-09-05 unique-index cleanup migration).
+      // Every model attribute that declared `unique: true` inline got a fresh,
+      // anonymously-named unique index (`name`, `name_2`, `name_3`, ...) on each
+      // `alter: true` run, because MySQL's ALTER TABLE ... CHANGE COLUMN ... UNIQUE
+      // can't be matched back to an existing index by Sequelize's diffing. All such
+      // models now declare ONE named unique index via `indexes: []` instead, which
+      // Sequelize's alter-diff can match by name and skip re-adding — but this
+      // escape hatch is still opt-in-only and still discouraged outside a
+      // throwaway dev DB. The guard below refuses to run if any table is already
+      // dangerously close to the 64-key ceiling, so a stray env var can't repeat
+      // the outage silently.
       if (process.env.ALLOW_SYNC_ALTER === "true") {
+        await assertNoIndexBloat(sequelize);
+
         logger.warn(
           "⚠️ ALLOW_SYNC_ALTER=true — running sequelize.sync({ alter: true }). Do not use this in staging/production."
         );

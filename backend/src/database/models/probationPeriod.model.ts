@@ -36,12 +36,10 @@ ProbationPeriod.init(
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
     },
     code: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      unique: true,
     },
     display_order: {
       type: DataTypes.INTEGER.UNSIGNED,
@@ -59,6 +57,8 @@ ProbationPeriod.init(
     tableName: 'probation_periods',
     modelName: 'ProbationPeriod',
     indexes: [
+      { unique: true, fields: ['name'], name: 'probation_periods_name_unique' },
+      { unique: true, fields: ['code'], name: 'probation_periods_code_unique' },
       { fields: ['display_order'] },
       { fields: ['is_active'] },
     ],
