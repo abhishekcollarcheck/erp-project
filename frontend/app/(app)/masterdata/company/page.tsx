@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { Building2, Upload } from 'lucide-react';
+import { Chip } from '@/components/ui/Chip';
 import {
   useCompanies,
   useCompany,
@@ -13,12 +14,6 @@ import {
   useActivateCompany,
 } from '@/features/companies/hooks/useCompanies';
 import type { CompanyFormDto } from '@/services/api/company.service';
-
-// NOTE on paths: adjust the '@/...' aliases above to match your actual
-// tsconfig paths / relative depth from app/(app)/masterdata/company/page.tsx
-// — I've used the same '@/' alias style your MasterDataLayout import already
-// uses in the boilerplate you pasted, since that file lives one level away
-// from this page (app/(app)/masterdata/layout.tsx).
 
 const EMPTY_FORM: CompanyFormDto = {
   name: '',
@@ -155,144 +150,118 @@ export default function CompanyPage() {
   return (
     <AppShell>
       <MasterDataLayout>
-        <div className="flex h-full min-h-0 w-full">
+        <div className="md-shell">
           {/* ── Company list (left) ─────────────────────────────────────── */}
-          <aside className="flex w-[245px] shrink-0 flex-col border-r border-gray-200 bg-white">
-            <div className="flex items-center gap-2 border-b border-gray-100 p-3">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search companies..."
-                className="h-9 flex-1 rounded-md border border-gray-200 bg-white px-3 text-xs text-gray-700 outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-              />
-              <span className="rounded bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-500">
-                {filteredCompanies.length}
-              </span>
+          <aside className="md-side">
+            <div className="md-side-search" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="search-bar" style={{ flex: 1 }}>
+                <span style={{ color: 'var(--ink4)' }}>⌕</span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search companies..."
+                />
+              </div>
+              <Chip variant="gray">{filteredCompanies.length}</Chip>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
-              <button
-                onClick={resetToNew}
-                className="mb-2 w-full rounded-md border border-dashed border-gray-300 px-2.5 py-2 text-left text-[12px] font-medium text-blue-600 hover:bg-blue-50"
-              >
+            <div className="md-nav">
+              <button type="button" className="btn btn-sec btn-sm" style={{ width: '100%', marginBottom: 8, justifyContent: 'center' }} onClick={resetToNew}>
                 + New company
               </button>
 
               {listLoading ? (
-                <div className="p-3 text-xs text-gray-400">Loading…</div>
+                <div style={{ padding: 10, fontSize: 12, color: 'var(--ink4)' }}>Loading…</div>
               ) : filteredCompanies.length === 0 ? (
-                <div className="p-3 text-xs text-gray-400">No companies found.</div>
+                <div style={{ padding: 10, fontSize: 12, color: 'var(--ink4)' }}>No companies found.</div>
               ) : (
-                <div className="space-y-1">
-                  {filteredCompanies.map((c) => {
-                    const active = c.id === selectedId;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => setSelectedId(c.id)}
-                        className={[
-                          'flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2 text-left transition-colors',
-                          active
-                            ? 'border-blue-200 bg-blue-50'
-                            : 'border-transparent hover:bg-gray-50',
-                        ].join(' ')}
-                      >
-                        {c.logo_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={c.logo_url}
-                            alt={c.name}
-                            className="h-8 w-8 shrink-0 rounded-md object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-[11px] font-semibold text-blue-600">
-                            {initials(c.name) || <Building2 size={14} />}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-semibold text-gray-800">
-                            {c.name}
-                          </div>
-                          <div className="truncate text-[11px] text-gray-400">
-                            {[c.code, c.gstin ? `GST ${c.gstin.slice(0, 10)}…` : null]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                filteredCompanies.map((c) => {
+                  const active = c.id === selectedId;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setSelectedId(c.id)}
+                      className={`ni${active ? ' on' : ''}`}
+                      style={{ width: '100%', height: 'auto', padding: '7px 9px' }}
+                    >
+                      {c.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.logo_url} alt={c.name} style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                      ) : (
+                        <span style={{
+                          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                          background: active ? 'rgba(255,255,255,.2)' : 'var(--blue-lt)',
+                          color: active ? '#fff' : 'var(--blue)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 11, fontWeight: 700,
+                        }}>
+                          {initials(c.name) || <Building2 size={14} />}
+                        </span>
+                      )}
+                      <span style={{ minWidth: 0, textAlign: 'left' }}>
+                        <span className="ni-lb" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.name}
+                        </span>
+                        <span style={{
+                          display: 'block', fontSize: 10.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          color: active ? 'rgba(255,255,255,.75)' : 'var(--ink4)',
+                        }}>
+                          {[c.code, c.gstin ? `GST ${c.gstin.slice(0, 10)}…` : null].filter(Boolean).join(' · ')}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })
               )}
             </div>
           </aside>
 
           {/* ── Form (right) ────────────────────────────────────────────── */}
-          <div className="min-w-0 flex-1 overflow-y-auto bg-white p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold text-gray-800">
-                {isEdit ? selectedCompany?.name || 'Edit company' : 'New company'}
-              </h2>
-              <button
-                onClick={resetToNew}
-                className="text-xs font-medium text-gray-400 hover:text-gray-600"
-              >
-                Close
-              </button>
+          <div className="md-main">
+            <div className="ph">
+              <div>
+                <h1>{isEdit ? selectedCompany?.name || 'Edit company' : 'New company'}</h1>
+              </div>
+              <div className="ph-r">
+                <button type="button" className="btn btn-ghost btn-sm" onClick={resetToNew}>Close</button>
+              </div>
             </div>
 
-            <div className="max-w-3xl space-y-4">
-              <Field label="Company Name" required>
-                <input
-                  className="in"
-                  placeholder="e.g. Narula Exports"
-                  value={form.name}
-                  onChange={(e) => handleField('name', e.target.value)}
-                />
-              </Field>
+            <div className="card cp" style={{ maxWidth: 760 }}>
+              <div className="fg">
+                <label>Company Name <span className="req-mark">*</span></label>
+                <input placeholder="e.g. Narula Exports" value={form.name} onChange={(e) => handleField('name', e.target.value)} />
+              </div>
 
-              <Field label="Legal Name">
-                <input
-                  className="in"
-                  placeholder="Registered legal name"
-                  value={form.legal_name}
-                  onChange={(e) => handleField('legal_name', e.target.value)}
-                />
-              </Field>
+              <div className="fg">
+                <label>Legal Name</label>
+                <input placeholder="Registered legal name" value={form.legal_name} onChange={(e) => handleField('legal_name', e.target.value)} />
+              </div>
 
-              <Field label="Tagline">
-                <input
-                  className="in"
-                  placeholder="Short one-line positioning"
-                  value={form.tagline}
-                  onChange={(e) => handleField('tagline', e.target.value)}
-                />
-              </Field>
+              <div className="fg">
+                <label>Tagline</label>
+                <input placeholder="Short one-line positioning" value={form.tagline} onChange={(e) => handleField('tagline', e.target.value)} />
+              </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <Field label="Short Code">
+              <div className="g3">
+                <div className="fg">
+                  <label>Short Code</label>
+                  <input placeholder="e.g. NE" value={form.code} onChange={(e) => handleField('code', e.target.value)} />
+                </div>
+                <div className="fg">
+                  <label>Since (Year)</label>
                   <input
-                    className="in"
-                    placeholder="e.g. NE"
-                    value={form.code}
-                    onChange={(e) => handleField('code', e.target.value)}
-                  />
-                </Field>
-                <Field label="Since (Year)">
-                  <input
-                    className="in"
                     type="number"
                     placeholder="e.g. 2010"
                     value={form.since_year ?? ''}
-                    onChange={(e) =>
-                      handleField('since_year', e.target.value ? Number(e.target.value) : undefined)
-                    }
+                    onChange={(e) => handleField('since_year', e.target.value ? Number(e.target.value) : undefined)}
                   />
-                </Field>
-                <Field label="Status">
+                </div>
+                <div className="fg">
+                  <label>Status</label>
                   <select
-                    className="in"
                     value={statusDraft}
                     onChange={(e) => setStatusDraft(e.target.value as 'active' | 'suspended')}
                     disabled={!isEdit}
@@ -301,133 +270,85 @@ export default function CompanyPage() {
                     <option value="active">Active</option>
                     <option value="suspended">Suspended</option>
                   </select>
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <Field label="GST Number" required>
-                  <input
-                    className="in"
-                    placeholder="22AAAAA0000A1Z5"
-                    value={form.gstin}
-                    onChange={(e) => handleField('gstin', e.target.value)}
-                  />
-                </Field>
-                <Field label="PAN">
-                  <input
-                    className="in"
-                    placeholder="AAAAA0000A"
-                    value={form.pan}
-                    onChange={(e) => handleField('pan', e.target.value)}
-                  />
-                </Field>
-                <Field label="CIN">
-                  <input
-                    className="in"
-                    placeholder="U12345DL2010PTC000000"
-                    value={form.cin}
-                    onChange={(e) => handleField('cin', e.target.value)}
-                  />
-                </Field>
-              </div>
-
-              <Field label="Registered Address" required>
-                <textarea
-                  className="in min-h-[70px] resize-y"
-                  placeholder="Full registered / office address"
-                  value={form.address}
-                  onChange={(e) => handleField('address', e.target.value)}
-                />
-              </Field>
-
-              <Field label="Google Maps Link">
-                <input
-                  className="in"
-                  placeholder="https://maps.google.com/..."
-                  value={form.google_maps_link}
-                  onChange={(e) => handleField('google_maps_link', e.target.value)}
-                />
-              </Field>
-
-              <div className="grid grid-cols-3 gap-4">
-                <Field label="Phone">
-                  <input
-                    className="in"
-                    placeholder="+91 ..."
-                    value={form.phone}
-                    onChange={(e) => handleField('phone', e.target.value)}
-                  />
-                </Field>
-                <Field label="Email">
-                  <input
-                    className="in"
-                    placeholder="info@company.com"
-                    value={form.email}
-                    onChange={(e) => handleField('email', e.target.value)}
-                  />
-                </Field>
-                <Field label="HR Email">
-                  <input
-                    className="in"
-                    placeholder="hr@company.com"
-                    value={form.hr_email}
-                    onChange={(e) => handleField('hr_email', e.target.value)}
-                  />
-                </Field>
-              </div>
-
-              <Field label="Website">
-                <input
-                  className="in max-w-sm"
-                  placeholder="https://..."
-                  value={form.website}
-                  onChange={(e) => handleField('website', e.target.value)}
-                />
-              </Field>
-
-              <Field label="About">
-                <textarea
-                  className="in min-h-[70px] resize-y"
-                  placeholder="Short company description for letters, portal & onboarding"
-                  value={form.about}
-                  onChange={(e) => handleField('about', e.target.value)}
-                />
-              </Field>
-
-              <div>
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400">
-                  Logo
                 </div>
-                <div className="flex items-center gap-3">
-                  <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+              </div>
+
+              <div className="g3">
+                <div className="fg">
+                  <label>GST Number <span className="req-mark">*</span></label>
+                  <input placeholder="22AAAAA0000A1Z5" value={form.gstin} onChange={(e) => handleField('gstin', e.target.value)} />
+                </div>
+                <div className="fg">
+                  <label>PAN</label>
+                  <input placeholder="AAAAA0000A" value={form.pan} onChange={(e) => handleField('pan', e.target.value)} />
+                </div>
+                <div className="fg">
+                  <label>CIN</label>
+                  <input placeholder="U12345DL2010PTC000000" value={form.cin} onChange={(e) => handleField('cin', e.target.value)} />
+                </div>
+              </div>
+
+              <div className="fg">
+                <label>Registered Address <span className="req-mark">*</span></label>
+                <textarea placeholder="Full registered / office address" value={form.address} onChange={(e) => handleField('address', e.target.value)} />
+              </div>
+
+              <div className="fg">
+                <label>Google Maps Link</label>
+                <input placeholder="https://maps.google.com/..." value={form.google_maps_link} onChange={(e) => handleField('google_maps_link', e.target.value)} />
+              </div>
+
+              <div className="g3">
+                <div className="fg">
+                  <label>Phone</label>
+                  <input placeholder="+91 ..." value={form.phone} onChange={(e) => handleField('phone', e.target.value)} />
+                </div>
+                <div className="fg">
+                  <label>Email</label>
+                  <input placeholder="info@company.com" value={form.email} onChange={(e) => handleField('email', e.target.value)} />
+                </div>
+                <div className="fg">
+                  <label>HR Email</label>
+                  <input placeholder="hr@company.com" value={form.hr_email} onChange={(e) => handleField('hr_email', e.target.value)} />
+                </div>
+              </div>
+
+              <div className="fg" style={{ maxWidth: 320 }}>
+                <label>Website</label>
+                <input placeholder="https://..." value={form.website} onChange={(e) => handleField('website', e.target.value)} />
+              </div>
+
+              <div className="fg">
+                <label>About</label>
+                <textarea placeholder="Short company description for letters, portal & onboarding" value={form.about} onChange={(e) => handleField('about', e.target.value)} />
+              </div>
+
+              <div className="fg">
+                <label>Logo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <label className="btn btn-sec btn-sm" style={{ cursor: 'pointer' }}>
                     <Upload size={13} />
                     Upload Logo
-                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleLogoPick} />
+                    <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={handleLogoPick} />
                   </label>
                   {logoPreview && (
-                    <button onClick={clearLogo} className="text-xs font-medium text-gray-400 hover:text-gray-600">
-                      Clear
-                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={clearLogo}>Clear</button>
                   )}
-                  <span className="text-[11px] text-gray-400">PNG / JPG / WebP · under 800 KB</span>
+                  <span style={{ fontSize: 11, color: 'var(--ink4)' }}>PNG / JPG / WebP · under 800 KB</span>
                   {logoPreview && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={logoPreview} alt="Logo preview" className="h-8 w-8 rounded-md border border-gray-200 object-cover" />
+                    <img src={logoPreview} alt="Logo preview" style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover' }} />
                   )}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 border-t border-gray-100 pt-5">
+              <div className="modal-ft" style={{ marginTop: 8 }}>
+                <button type="button" className="btn btn-sec btn-sm" onClick={resetToNew}>Cancel</button>
                 <button
-                  onClick={resetToNew}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
+                  type="button"
+                  className="btn btn-pri btn-sm"
                   disabled={saving || !form.name.trim() || !form.gstin.trim() || !form.address.trim()}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  onClick={handleSave}
                 >
                   {saving ? 'Saving…' : 'Save company'}
                 </button>
@@ -435,53 +356,7 @@ export default function CompanyPage() {
             </div>
           </div>
         </div>
-
-        {/* Shared input styling for this page only */}
-        <style jsx global>{`
-          .in {
-            width: 100%;
-            height: 38px;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            padding: 0 10px;
-            font-size: 13px;
-            color: #374151;
-            outline: none;
-            background: white;
-          }
-          textarea.in {
-            height: auto;
-            padding: 8px 10px;
-          }
-          .in:focus {
-            border-color: #93c5fd;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-          }
-          .in::placeholder {
-            color: #9ca3af;
-          }
-        `}</style>
       </MasterDataLayout>
     </AppShell>
-  );
-}
-
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400">
-        {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
-      </div>
-      {children}
-    </div>
   );
 }

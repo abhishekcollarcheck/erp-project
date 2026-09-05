@@ -234,72 +234,45 @@ export  function MasterDataLayout({
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full bg-white">
-      {/* Master Data Sidebar */}
-      <aside className="flex w-[225px] shrink-0 flex-col border-r border-gray-200 bg-white">
-        {/* Search */}
-        <div className="border-b border-gray-100 p-3">
-          <input
-            type="text"
-            placeholder="Search catalogs..."
-            className="h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-xs text-gray-700 outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-          />
+    <div className="md-shell">
+      {/* Master Data Sidebar — reuses the app's own .search-bar / .sb-sec / .ni nav-item tokens */}
+      <aside className="md-side">
+        <div className="md-side-search">
+          <div className="search-bar">
+            <span style={{ color: 'var(--ink4)' }}>⌕</span>
+            <input type="text" placeholder="Search catalogs..." />
+          </div>
         </div>
 
-        {/* Navigation */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+        <div className="md-nav">
           {MASTER_DATA_SECTIONS.map((section) => (
-            <div key={section.title} className="mb-5">
-              <div className="mb-2 px-2 text-[10px] font-semibold tracking-[0.12em] text-gray-400">
+            <div key={section.title} className="mb16">
+              <div className="sb-sec" style={{ padding: '4px 9px' }}>
                 {section.title}
               </div>
 
-              <div className="space-y-0.5">
-                {section.items.map((item) => {
-                  const active = isActive(item.href);
-                  const Icon = item.icon;
+              {section.items.map((item) => {
+                const active = isActive(item.href);
+                const Icon = item.icon;
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={[
-                        'group flex h-9 items-center justify-between rounded-md px-2.5 text-[13px] transition-colors',
-                        active
-                          ? 'bg-blue-600 font-medium text-white'
-                          : 'text-gray-700 hover:bg-gray-100',
-                      ].join(' ')}
-                    >
-                      <span className="flex min-w-0 items-center gap-2.5">
-                        {Icon && (
-                          <Icon
-                            size={14}
-                            strokeWidth={active ? 2.2 : 1.8}
-                          />
-                        )}
-
-                        <span className="truncate">{item.label}</span>
-                      </span>
-
-                      {/* Placeholder count */}
-                      {active && item.href === '/masterdata' && (
-                        <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px]">
-                          1
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`ni${active ? ' on' : ''}`}
+                  >
+                    {Icon && <Icon size={14} strokeWidth={active ? 2.2 : 1.8} className="ni-ic" />}
+                    <span className="ni-lb">{item.label}</span>
+                  </Link>
+                );
+              })}
             </div>
           ))}
         </div>
       </aside>
 
       {/* Master Data Content */}
-      <main className="min-w-0 flex-1 overflow-hidden bg-white">
-        {children}
-      </main>
+      <main className="md-main">{children}</main>
     </div>
   );
 }

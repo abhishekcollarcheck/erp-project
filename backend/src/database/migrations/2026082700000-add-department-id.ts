@@ -1,8 +1,34 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
+// `sequelize.sync({ alter: true })` (dev boot) already added this column and
+// some of these indexes on many local DBs before this migration existed, so
+// both helpers must tolerate "already exists" instead of throwing.
+async function addColumnIfMissing(
+  queryInterface: QueryInterface,
+  table: string,
+  column: string,
+  attribute: Parameters<QueryInterface['addColumn']>[2],
+): Promise<void> {
+  const existing = await queryInterface.describeTable(table);
+  if (!existing[column]) {
+    await queryInterface.addColumn(table, column, attribute);
+  }
+}
+
+async function addIndexIfMissing(
+  queryInterface: QueryInterface,
+  table: string,
+  fields: string[],
+  options: { name?: string; unique?: boolean },
+): Promise<void> {
+  await queryInterface.addIndex(table, fields, options).catch((e: any) => {
+    if (e?.parent?.code !== 'ER_DUP_KEYNAME' && e?.original?.code !== 'ER_DUP_KEYNAME') throw e;
+  });
+}
+
 export async function up(queryInterface: QueryInterface): Promise<void> {
   // Add department_id to sub_departments
-  await queryInterface.addColumn('sub_departments', 'department_id', {
+  await addColumnIfMissing(queryInterface, 'sub_departments', 'department_id', {
     type: DataTypes.INTEGER.UNSIGNED,
     allowNull: true,
   });
@@ -16,7 +42,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   });
 
   // Add composite unique index
-  await queryInterface.addIndex(
+  await addIndexIfMissing(
+    queryInterface,
     'sub_departments',
     ['department_id', 'name'],
     {
@@ -26,7 +53,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   );
 
   // Add index for department_id
-  await queryInterface.addIndex(
+  await addIndexIfMissing(
+    queryInterface,
     'sub_departments',
     ['department_id'],
     {

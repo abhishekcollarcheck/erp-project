@@ -890,6 +890,7 @@ import { Role } from "../models/RoleModels";
 import { EmployeeRole, RoleTemplate } from "../models/AuthModels";
 import { logger } from "../../config/logger";
 import { seedHolidays } from "./holiday-seed-data";
+import { seedEmpLookups } from "./seedEmpLookups";
 import { computeCompletionPct } from "../../modules/employees/employee.helper";
 import { Designation } from "../models";
 import type { Sequelize } from "sequelize";
@@ -1596,6 +1597,19 @@ export async function seedDatabase(): Promise<void> {
     logger.info("🎉 Database seed completed successfully");
     logger.info("📧 Login: admin@ung.com");
     logger.info("🔑 Password: 123456");
+
+    // Legacy Excel master-data catalog (genders, blood groups, banks,
+    // countries/states/cities, etc. — see seedEmpLookups.ts). Wired in here so
+    // a fresh `npm run seed` (new DB, CI, a reset dev DB) always includes it —
+    // it was previously a one-off script and silently vanished on the next
+    // reseed. Runs AFTER the commit above, in its own try/catch, so a problem
+    // here can never roll back or fail the core company/department/employee
+    // seed that just succeeded.
+    try {
+      await seedEmpLookups();
+    } catch (lookupError) {
+      logger.error("⚠️ Excel master-data catalog seed failed (core seed already committed):", lookupError);
+    }
   } catch (error) {
     await transaction.rollback();
 

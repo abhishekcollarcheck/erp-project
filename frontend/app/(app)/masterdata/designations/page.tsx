@@ -1677,6 +1677,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
+import { Chip } from '@/components/ui/Chip';
 import {
   GripVertical,
   Pencil,
@@ -2100,40 +2101,38 @@ export default function DesignationsPage() {
   return (
     <AppShell>
       <MasterDataLayout>
-        <div className="mx-auto w-full px-6 py-8">
+        <div className="pg-enter">
 
           {/* ─────────────────────────────────────────────────────────────── */}
           {/* Header */}
           {/* ─────────────────────────────────────────────────────────────── */}
 
-          <div className="mb-6 flex items-start justify-between">
+          <div className="ph">
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              <h1>
                 {tab === 'designation'
                   ? 'Designation Management'
                   : 'Sub-Designation Management'}
               </h1>
 
-              <p className="mt-1 text-xs text-slate-500">
+              <p>
                 Manage designations, department assignments,
                 and linked sub-designations.
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="ph-r">
               <button
                 type="button"
                 onClick={handleDeleteMaster}
                 disabled={rows.length === 0}
-                className="text-xs font-medium text-red-500 transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--red)' }}
               >
                 Delete master
               </button>
 
-              <span className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                Auto-save on
-              </span>
+              <Chip variant="green">Auto-save on</Chip>
             </div>
           </div>
 
@@ -2141,59 +2140,39 @@ export default function DesignationsPage() {
           {/* Tabs + Search */}
           {/* ─────────────────────────────────────────────────────────────── */}
 
-          <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
 
-            <div className="flex gap-2">
-
-              <button
-                type="button"
+            <div className="tabs">
+              <div
+                className={`tab${tab === 'designation' ? ' on' : ''}`}
                 onClick={() => switchTab('designation')}
-                className={`flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${
-                  tab === 'designation'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
               >
-                <Building2 size={14} />
-
-                Designations
-
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                  {designations.length}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Building2 size={14} />
+                  Designations
+                  <span className="chip cgr">{designations.length}</span>
                 </span>
-              </button>
+              </div>
 
-              <button
-                type="button"
+              <div
+                className={`tab${tab === 'subdesignation' ? ' on' : ''}`}
                 onClick={() => switchTab('subdesignation')}
-                className={`flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${
-                  tab === 'subdesignation'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
               >
-                <Layers size={14} />
-
-                Sub-Designations
-
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                  {subDesignations.length}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Layers size={14} />
+                  Sub-Designations
+                  <span className="chip cgr">{subDesignations.length}</span>
                 </span>
-              </button>
+              </div>
             </div>
 
-            <div className="relative">
-              <Search
-                size={14}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-
+            <div className="search-bar" style={{ maxWidth: 220 }}>
+              <Search size={14} style={{ color: 'var(--ink4)' }} />
               <input
                 type="text"
                 placeholder="Search..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="h-8 w-48 rounded-lg border border-slate-200 pl-8 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -2202,59 +2181,61 @@ export default function DesignationsPage() {
           {/* Quick Creation */}
           {/* ─────────────────────────────────────────────────────────────── */}
 
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
             {tab === 'subdesignation' && (
-              <select
-                className="h-9 w-48 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 outline-none focus:border-blue-500"
-                value={quickAddDesignationId}
-                onChange={(e) =>
-                  setQuickAddDesignationId(
-                    e.target.value
-                      ? Number(e.target.value)
-                      : '',
-                  )
-                }
-              >
-                <option value="">
-                  Select Designation...
-                </option>
-
-                {designations.map((d) => (
-                  <option
-                    key={d.id}
-                    value={d.id}
-                  >
-                    {d.name}
+              <div className="fg" style={{ margin: 0, width: 200 }}>
+                <select
+                  value={quickAddDesignationId}
+                  onChange={(e) =>
+                    setQuickAddDesignationId(
+                      e.target.value
+                        ? Number(e.target.value)
+                        : '',
+                    )
+                  }
+                >
+                  <option value="">
+                    Select Designation...
                   </option>
-                ))}
-              </select>
+
+                  {designations.map((d) => (
+                    <option
+                      key={d.id}
+                      value={d.id}
+                    >
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
 
-            <input
-              type="text"
-              className="h-9 flex-1 px-3 text-xs text-slate-800 outline-none placeholder:text-slate-400"
-              placeholder={
-                tab === 'designation'
-                  ? 'Add new designation...'
-                  : 'Add new sub-designation...'
-              }
-              value={quickAddName}
-              onChange={(e) =>
-                setQuickAddName(e.target.value)
-              }
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleQuickAdd();
+            <div className="fg" style={{ margin: 0, flex: 1 }}>
+              <input
+                type="text"
+                placeholder={
+                  tab === 'designation'
+                    ? 'Add new designation...'
+                    : 'Add new sub-designation...'
                 }
-              }}
-            />
+                value={quickAddName}
+                onChange={(e) =>
+                  setQuickAddName(e.target.value)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleQuickAdd();
+                  }
+                }}
+              />
+            </div>
 
             <button
               type="button"
               onClick={handleQuickAdd}
               disabled={addDisabled}
-              className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="btn btn-pri btn-sm"
             >
               {createDesignation.isPending ||
               createSubDesignation.isPending ? (

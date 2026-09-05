@@ -1,5 +1,14 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
+// `sequelize.sync({ alter: true })` (dev boot) already created this table and
+// its plain indexes on many local DBs before this migration existed, so
+// addIndex must tolerate "index already exists" instead of throwing.
+async function addIndexIfMissing(queryInterface: QueryInterface, table: string, fields: string[]): Promise<void> {
+  await queryInterface.addIndex(table, fields).catch((e: any) => {
+    if (e?.parent?.code !== 'ER_DUP_KEYNAME' && e?.original?.code !== 'ER_DUP_KEYNAME') throw e;
+  });
+}
+
 export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable('probation_statuses', {
     id: {
@@ -40,8 +49,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     },
   });
 
-  await queryInterface.addIndex('probation_statuses', ['display_order']);
-  await queryInterface.addIndex('probation_statuses', ['is_active']);
+  await addIndexIfMissing(queryInterface, 'probation_statuses', ['display_order']);
+  await addIndexIfMissing(queryInterface, 'probation_statuses', ['is_active']);
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
