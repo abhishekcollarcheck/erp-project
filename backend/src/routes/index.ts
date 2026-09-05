@@ -43,6 +43,7 @@ import salutationRoutes from '../modules/salutation/salutation.router'
 import bankRoutes from '../modules/banks/bank.router'
 import modeofPaymentRoutes from '../modules/mode-of-payment/mode-of-payment.router'
 import attendanceRulesRoutes from '../modules/attendance-rules/attendance-rule.routes'
+import holidayRoutes from '../modules/holiday/holiday.route'
 
 const router = Router();
 
@@ -92,6 +93,7 @@ router.use('/emergency-relationships',emergencyRelationshipRoutes);
 router.use('/salutations',salutationRoutes);
 router.use('/banks',bankRoutes);
 router.use('/modes-of-payment',modeofPaymentRoutes);
-router.use('/attendance-rules',attendanceRulesRoutes)
+router.use('/attendance-rules',attendanceRulesRoutes);
+router.use('/holidays',holidayRoutes);
 
 export default router;
