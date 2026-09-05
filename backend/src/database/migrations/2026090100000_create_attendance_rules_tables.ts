@@ -1,8 +1,24 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
+// `sequelize.sync({ alter: true })` (dev boot) already created these tables
+// and indexes on many local DBs before this migration existed. createTable
+// is already safe (MySQL's CREATE TABLE IF NOT EXISTS), but addIndex must
+// tolerate "index already exists" instead of throwing — narrowly, so a real
+// schema error doesn't get silently swallowed along with it.
+async function addIndexIfMissing(
+  queryInterface: QueryInterface,
+  table: string,
+  fields: string[],
+  options: { name?: string; unique?: boolean },
+): Promise<void> {
+  await queryInterface.addIndex(table, fields, options).catch((e: any) => {
+    if (e?.parent?.code !== 'ER_DUP_KEYNAME' && e?.original?.code !== 'ER_DUP_KEYNAME') throw e;
+  });
+}
+
 export async function up(queryInterface: QueryInterface): Promise<void> {
   // ─── 1. CREATE 'saturday_rules' TABLE ───────────────────────────────────
-  try {
+  {
     await queryInterface.createTable('saturday_rules', {
       id: {
         type: DataTypes.INTEGER.UNSIGNED,
@@ -40,16 +56,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       },
     });
 
-    await queryInterface.addIndex('saturday_rules', ['name'], {
+    await addIndexIfMissing(queryInterface, 'saturday_rules', ['name'], {
       unique: true,
       name: 'saturday_rules_name_unique',
     });
-  } catch (error) {
-    // Table or index already exists
   }
 
   // ─── 2. CREATE 'grace_minutes' TABLE ─────────────────────────────────────
-  try {
+  {
     await queryInterface.createTable('grace_minutes', {
       id: {
         type: DataTypes.INTEGER.UNSIGNED,
@@ -91,16 +105,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       },
     });
 
-    await queryInterface.addIndex('grace_minutes', ['name'], {
+    await addIndexIfMissing(queryInterface, 'grace_minutes', ['name'], {
       unique: true,
       name: 'grace_minutes_name_unique',
     });
-  } catch (error) {
-    // Table or index already exists
   }
 
   // ─── 3. CREATE 'attendance_types' TABLE ──────────────────────────────────
-  try {
+  {
     await queryInterface.createTable('attendance_types', {
       id: {
         type: DataTypes.INTEGER.UNSIGNED,
@@ -142,12 +154,10 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       },
     });
 
-    await queryInterface.addIndex('attendance_types', ['name'], {
+    await addIndexIfMissing(queryInterface, 'attendance_types', ['name'], {
       unique: true,
       name: 'attendance_types_name_unique',
     });
-  } catch (error) {
-    // Table or index already exists
   }
 }
 

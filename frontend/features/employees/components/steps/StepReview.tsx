@@ -2,12 +2,8 @@
 import { useMemo } from 'react';
 import { useEmployee } from '../../hooks/useEmployees';
 import { useShifts } from '../../../../features/shift/hooks/useShift';
-import {
-  WIZARD_STEPS,
-  DEPARTMENT_OPTIONS, SUB_DEPARTMENT_OPTIONS, DESIGNATION_OPTIONS, SUB_DESIGNATION_OPTIONS,
-  WORKING_SITE_OPTIONS, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS,
-  REGISTRATION_LOCATION_OPTIONS, WEEKLY_OFF_OPTIONS, GRACE_MINUTES_OPTIONS,
-} from '../../constants/employee.constants';
+import { useGraceMinutesData } from '../../../attendance-rule/hooks/useAttendanceRules';
+import { WIZARD_STEPS } from '../../constants/employee.constants';
 
 interface Props {
   employeeId: number | null;
@@ -17,9 +13,6 @@ interface Props {
 
 type Field = [label: string, value: any];
 
-const labelFrom = (list: readonly { value: any; label: string }[], v: any) =>
-  v == null || v === '' ? undefined : (list.find(o => String(o.value) === String(v))?.label ?? v);
-
 const yn = (v: any) => (v === true || v === 'Yes' ? 'Yes' : v === false || v === 'No' ? 'No' : v == null || v === '' ? undefined : v);
 const money = (n: any) => (n == null || n === '' || Number(n) === 0 ? undefined : `₹${new Intl.NumberFormat('en-IN').format(Number(n))}`);
 const count = (arr: any[] | undefined, noun: string) => (arr && arr.length ? `${arr.length} ${noun}${arr.length > 1 ? 's' : ''}` : undefined);
@@ -27,10 +20,16 @@ const count = (arr: any[] | undefined, noun: string) => (arr && arr.length ? `${
 export function StepReview({ employeeId, onEdit }: Props) {
   const { data: emp } = useEmployee(employeeId ?? 0);
   const { data: shifts = [] } = useShifts();
+  const { data: graceMinutesResponse } = useGraceMinutesData();
+  const graceMinutes = graceMinutesResponse?.data ?? [];
 
   const shiftLabel = useMemo(
     () => (id: any) => (id == null ? undefined : (shifts.find((s: any) => String(s.value ?? s.id) === String(id))?.label ?? `Shift #${id}`)),
     [shifts],
+  );
+  const graceMinutesLabel = useMemo(
+    () => (minutes: any) => (minutes == null || minutes === '' ? undefined : (graceMinutes.find((g: any) => String(g.minutes) === String(minutes))?.name ?? `${minutes} min`)),
+    [graceMinutes],
   );
 
   if (!emp) {
@@ -55,22 +54,22 @@ export function StepReview({ employeeId, onEdit }: Props) {
     role_identity: [
       ['First Name', emp.first_name], ['Middle Name', emp.middle_name], ['Last Name', emp.last_name],
       ['Status', emp.status], ['Employment Type', emp.employment_type],
-      ['Department', labelFrom(DEPARTMENT_OPTIONS, emp.department_id) ?? emp.department?.name],
-      ['Sub Department', labelFrom(SUB_DEPARTMENT_OPTIONS, emp.sub_department_id)],
-      ['Designation', labelFrom(DESIGNATION_OPTIONS, emp.designation_id) ?? emp.designation?.name],
-      ['Sub Designation', labelFrom(SUB_DESIGNATION_OPTIONS, emp.sub_designation_id)],
+      ['Department', emp.department?.name],
+      ['Sub Department', (emp as any).subDepartment?.name],
+      ['Designation', emp.designation?.name],
+      ['Sub Designation', (emp as any).subDesignation?.name],
       ['Personal Email', emp.email], ['Personal Mobile', emp.phone],
     ],
     location_attendance: [
-      ['State / Country', labelFrom(WORKING_STATE_COUNTRY_OPTIONS, emp.working_state_country)],
-      ['Working City', labelFrom(WORKING_CITY_OPTIONS, emp.working_city)],
-      ['Working Site', labelFrom(WORKING_SITE_OPTIONS, emp.working_site)],
-      ['Pay Register Location', labelFrom(REGISTRATION_LOCATION_OPTIONS, emp.pay_register_location)],
+      ['State / Country', (emp as any).workingState?.name],
+      ['Working City', (emp as any).workingCity?.name],
+      ['Working Site', (emp as any).workingSite?.name],
+      ['Pay Register Location', (emp as any).payRegister?.name],
       ['Date of Joining', emp.actual_doj],
-      ['Weekly Off', labelFrom(WEEKLY_OFF_OPTIONS, emp.weekly_off)],
+      ['Weekly Off', (emp as any).weeklyOffPreset?.name],
       ['Shift Category', (emp as any).shift_category],
       ['Working Shift', shiftLabel(emp.shift_id)],
-      ['Grace Minutes', labelFrom(GRACE_MINUTES_OPTIONS, emp.grace_minutes)],
+      ['Grace Minutes', graceMinutesLabel((emp as any).grace_minutes)],
     ],
     managers_work_contact: [
       ['L-1 Manager', emp.l1Manager ? (emp.l1Manager.employee_code ?? `${emp.l1Manager.first_name} ${emp.l1Manager.last_name}`) : undefined],
@@ -152,8 +151,8 @@ export function StepReview({ employeeId, onEdit }: Props) {
   const initials = `${(emp.first_name?.[0] ?? '')}${(emp.last_name?.[0] ?? '')}`.toUpperCase() || 'NE';
   const meta = [
     emp.employee_code ?? 'Code pending',
-    labelFrom(DESIGNATION_OPTIONS, emp.designation_id) ?? emp.designation?.name ?? 'No designation',
-    labelFrom(DEPARTMENT_OPTIONS, emp.department_id) ?? emp.department?.name ?? 'No department',
+    emp.designation?.name ?? 'No designation',
+    emp.department?.name ?? 'No department',
     emp.record_status ?? 'Draft',
   ].join(' · ');
 

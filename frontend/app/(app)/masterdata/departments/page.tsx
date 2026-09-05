@@ -2897,6 +2897,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
+import { Chip } from '@/components/ui/Chip';
 import {
   GripVertical,
   Pencil,
@@ -3403,50 +3404,43 @@ export default function DepartmentsPage() {
   return (
     <AppShell>
       <MasterDataLayout>
-        <div className="mx-auto w-full  px-6 py-8">
+        <div className="pg-enter">
 
           {/* ─────────────────────────────────────────────────────────────── */}
           {/* Header */}
           {/* ─────────────────────────────────────────────────────────────── */}
 
-          <div className="mb-6 flex items-start justify-between">
+          <div className="ph">
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">
-                Structure Management
-              </h1>
-
-              <p className="mt-1 text-xs text-slate-500">
+              <h1>Structure Management</h1>
+              <p>
                 Manage structural hierarchy, company assignments,
                 and linked sub-departments.
               </p>
             </div>
 
-            <span className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-              Live Sync Active
-            </span>
+            <div className="ph-r">
+              <Chip variant="green">Live Sync Active</Chip>
+            </div>
           </div>
 
           {/* ─────────────────────────────────────────────────────────────── */}
           {/* Company Scope Filter */}
           {/* ─────────────────────────────────────────────────────────────── */}
 
-          <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+          <div className="card cp mb16">
 
-            <div className="mb-3 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                <Building2
-                  size={13}
-                  className="text-slate-400"
-                />
-
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink4)' }}>
+                <Building2 size={13} />
                 Company Scope Filter
               </span>
 
               <button
                 type="button"
                 onClick={toggleSelectAllCompanies}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--blue)' }}
               >
                 {isAllExplicitlySelected
                   ? 'Deselect All'
@@ -3455,16 +3449,12 @@ export default function DepartmentsPage() {
             </div>
 
             {companiesLoading ? (
-              <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
-                <Loader2
-                  size={13}
-                  className="animate-spin text-blue-600"
-                />
-
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 12, color: 'var(--ink4)' }}>
+                <Loader2 size={13} className="animate-spin" style={{ color: 'var(--blue)' }} />
                 Loading company scope options...
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {companies.map((company) => {
                   const active =
                     selectedCompanyIds.includes(company.id);
@@ -3476,20 +3466,8 @@ export default function DepartmentsPage() {
                       onClick={() =>
                         toggleCompanyFilter(company.id)
                       }
-                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
-                        active
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                      }`}
+                      className={active ? 'btn btn-pri btn-sm' : 'btn btn-sec btn-sm'}
                     >
-                      <div
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          active
-                            ? 'bg-blue-600'
-                            : 'bg-slate-300'
-                        }`}
-                      />
-
                       {company.name}
                     </button>
                   );
@@ -3498,12 +3476,8 @@ export default function DepartmentsPage() {
             )}
 
             {selectedCompanyIds.length === 0 && (
-              <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
-                <AlertCircle
-                  size={13}
-                  className="shrink-0 text-amber-500"
-                />
-
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 500, color: 'var(--ink3)' }}>
+                <AlertCircle size={13} style={{ color: 'var(--amber)', flexShrink: 0 }} />
                 No specific filter selected. All companies
                 are automatically included.
               </div>
@@ -3514,53 +3488,34 @@ export default function DepartmentsPage() {
           {/* Tabs + Search */}
           {/* ─────────────────────────────────────────────────────────────── */}
 
-          <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
 
-            <div className="flex gap-2">
-
-              <button
-                type="button"
+            <div className="tabs">
+              <div
+                className={`tab${tab === 'department' ? ' on' : ''}`}
                 onClick={() => switchTab('department')}
-                className={`flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${
-                  tab === 'department'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
               >
-                <Building2 size={14} />
-
-                Departments
-
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                  {activeDepartments.length}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Building2 size={14} />
+                  Departments
+                  <span className="chip cgr">{activeDepartments.length}</span>
                 </span>
-              </button>
+              </div>
 
-              <button
-                type="button"
+              <div
+                className={`tab${tab === 'subdepartment' ? ' on' : ''}`}
                 onClick={() => switchTab('subdepartment')}
-                className={`flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${
-                  tab === 'subdepartment'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
               >
-                <Layers size={14} />
-
-                Sub-Departments
-
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                  {activeSubDepartments.length}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Layers size={14} />
+                  Sub-Departments
+                  <span className="chip cgr">{activeSubDepartments.length}</span>
                 </span>
-              </button>
+              </div>
             </div>
 
-            <div className="relative">
-              <Search
-                size={14}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-
+            <div className="search-bar" style={{ maxWidth: 220 }}>
+              <Search size={14} style={{ color: 'var(--ink4)' }} />
               <input
                 type="text"
                 placeholder="Search..."
@@ -3568,7 +3523,6 @@ export default function DepartmentsPage() {
                 onChange={(e) =>
                   setFilter(e.target.value)
                 }
-                className="h-8 w-48 rounded-lg border border-slate-200 pl-8 pr-3 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -3577,53 +3531,55 @@ export default function DepartmentsPage() {
           {/* Quick Creation */}
           {/* ─────────────────────────────────────────────────────────────── */}
 
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
             {tab === 'subdepartment' && (
-              <select
-                className="h-9 w-48 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 outline-none focus:border-blue-500"
-                value={quickAddDeptId}
-                onChange={(e) =>
-                  setQuickAddDeptId(
-                    e.target.value
-                      ? Number(e.target.value)
-                      : '',
-                  )
-                }
-              >
-                <option value="">
-                  Select Department...
-                </option>
-
-                {activeDepartments.map((dept) => (
-                  <option
-                    key={dept.id}
-                    value={dept.id}
-                  >
-                    {dept.department_name}
+              <div className="fg" style={{ margin: 0, width: 200 }}>
+                <select
+                  value={quickAddDeptId}
+                  onChange={(e) =>
+                    setQuickAddDeptId(
+                      e.target.value
+                        ? Number(e.target.value)
+                        : '',
+                    )
+                  }
+                >
+                  <option value="">
+                    Select Department...
                   </option>
-                ))}
-              </select>
+
+                  {activeDepartments.map((dept) => (
+                    <option
+                      key={dept.id}
+                      value={dept.id}
+                    >
+                      {dept.department_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
 
-            <input
-              type="text"
-              className="h-9 flex-1 px-3 text-xs text-slate-800 outline-none placeholder:text-slate-400"
-              placeholder={
-                tab === 'department'
-                  ? 'Add new department...'
-                  : 'Add new sub-department...'
-              }
-              value={quickAddName}
-              onChange={(e) =>
-                setQuickAddName(e.target.value)
-              }
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleQuickAdd();
+            <div className="fg" style={{ margin: 0, flex: 1 }}>
+              <input
+                type="text"
+                placeholder={
+                  tab === 'department'
+                    ? 'Add new department...'
+                    : 'Add new sub-department...'
                 }
-              }}
-            />
+                value={quickAddName}
+                onChange={(e) =>
+                  setQuickAddName(e.target.value)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleQuickAdd();
+                  }
+                }}
+              />
+            </div>
 
             <button
               type="button"
@@ -3633,7 +3589,7 @@ export default function DepartmentsPage() {
                 createDepartment.isPending ||
                 createSubDepartment.isPending
               }
-              className="flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="btn btn-pri btn-sm"
             >
               {createDepartment.isPending ||
               createSubDepartment.isPending ? (

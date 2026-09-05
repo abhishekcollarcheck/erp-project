@@ -5,9 +5,10 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormToggle } from '../../../../components/form/FormToggle';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { FormCurrencyInput } from '../../../../components/form/FormCurrencyInput';
-import { toOpts, HIGHEST_EDUCATION_OPTIONS, EDUCATION_MODE_OPTIONS } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { FormSection } from '@/components/form/FormSection';
+import { useQualificationData } from '../../../qualification/hoooks/useQualification';
+import { useEducationModeData } from '../../../education-mode/hooks/useEducationMode';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -16,6 +17,8 @@ export function StepExperienceEducation(_: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
   const { control } = useFormContext();
+  const { data: qualifications = [] } = useQualificationData();
+  const { data: educationModes = [] } = useEducationModeData();
 
   const experience = useFieldArray({ control, name: 'experience' });
   const education   = useFieldArray({ control, name: 'education' });
@@ -60,9 +63,9 @@ export function StepExperienceEducation(_: Props) {
       {education.fields.map((field, i) => (
         <div key={field.id} style={{ padding: 12, background: 'var(--surface2)', borderRadius: 'var(--r2)', display: 'grid', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
-            <FormSelect name={`education.${i}.highest_education`} label="Highest qualification" options={[...HIGHEST_EDUCATION_OPTIONS]} placeholder="Select" fieldPerm={f('education')} />
+            <FormSelect name={`education.${i}.highest_education`} label="Highest qualification" options={qualifications.map((q: any) => ({ value: q.name, label: q.name }))} placeholder="Select" fieldPerm={f('education')} />
             <FormInput name={`education.${i}.education_stream`}  label="Stream / specialization" fieldPerm={f('education')} />
-            <FormSelect name={`education.${i}.education_mode`}    label="Mode of education" options={[...EDUCATION_MODE_OPTIONS]} placeholder="Select" fieldPerm={f('education')} />
+            <FormSelect name={`education.${i}.education_mode`}    label="Mode of education" options={educationModes.map((m: any) => ({ value: m.name, label: m.name }))} placeholder="Select" fieldPerm={f('education')} />
             <FormInput name={`education.${i}.institute_name`}    label="Institute name" fieldPerm={f('education')} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>

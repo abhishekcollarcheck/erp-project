@@ -4,9 +4,13 @@ import { useFormContext } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
-import { toOpts, EMPLOYMENT_TYPE, DEPARTMENT_OPTIONS, SUB_DEPARTMENT_OPTIONS, DESIGNATION_OPTIONS, SUB_DESIGNATION_OPTIONS } from '../../constants/employee.constants';
+import { toOpts } from '../../constants/employee.constants';
 import { useCompany } from '../../../company/hooks/useCompany';
 import { FormSection } from '../../../../components/form/FormSection';
+import { useEmployeeTypes } from '../../../employee-type/hooks/useEmployeeType';
+import { useDepartments } from '../../../departments/hooks/useDepartments';
+import { useSubDepartments } from '../../../sub-departments/hooks/useSubDepartments';
+import { useDesignations, useSubDesignations } from '../../../designation/hooks/useDesignations';
 
 interface Props { isEdit: boolean; employeeId: number | null; avatarUrl?: string | null; onPhotoSelected?: (file: File) => void }
 
@@ -15,6 +19,17 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
   const f = (n: string) => resolveFieldPerm(fp, n);
   const { setValue, watch } = useFormContext();
   const { company } = useCompany();
+
+  const { data: employeeTypes = [] } = useEmployeeTypes();
+  const { data: departments = [] } = useDepartments({ is_active: 'true' } as any);
+  const { data: subDepartments = [] } = useSubDepartments({ is_active: 'true' } as any);
+  const { data: designations = [] } = useDesignations({ is_active: 'true' } as any);
+  const { data: subDesignations = [] } = useSubDesignations({ is_active: 'true' } as any);
+
+  const departmentOpts = (departments ?? []).map((d: any) => ({ value: d.id, label: d.department_name }));
+  const subDepartmentOpts = (subDepartments ?? []).map((d: any) => ({ value: d.id, label: d.name }));
+  const designationOpts = (designations ?? []).map((d: any) => ({ value: d.id, label: d.name }));
+  const subDesignationOpts = (subDesignations ?? []).map((d: any) => ({ value: d.id, label: d.name }));
 
   const employeeCode = watch('employee_code');
 
@@ -91,7 +106,7 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
           name="employment_type"
           label="Employment Type"
           required
-          options={toOpts(EMPLOYMENT_TYPE)}
+          options={toOpts(employeeTypes.map((t: any) => t.name))}
           fieldPerm={f('employment_type')}
         />
       </div>
@@ -102,14 +117,14 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
           label="Department"
           required
           placeholder='Select'
-          options={[...DEPARTMENT_OPTIONS]}
+          options={departmentOpts}
           fieldPerm={f('department_id')}
         />
         <FormSelect
           name="sub_department_id"
           label="Sub Department"
           placeholder='Select'
-          options={[...SUB_DEPARTMENT_OPTIONS]}
+          options={subDepartmentOpts}
           fieldPerm={f('sub_department_id')}
         />
       </div>
@@ -120,14 +135,14 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
           label="Designation"
           required
           placeholder='Select'
-          options={[...DESIGNATION_OPTIONS]}
+          options={designationOpts}
           fieldPerm={f('designation_id')}
         />
         <FormSelect
           name="sub_designation_id"
           label="Sub Designation"
           placeholder='Select'
-          options={[...SUB_DESIGNATION_OPTIONS]}
+          options={subDesignationOpts}
           fieldPerm={f('sub_designation_id')}
         />
       </div>

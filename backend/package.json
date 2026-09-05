@@ -4,8 +4,10 @@
   "description": "NexHR ERP — Enterprise Backend API",
   "main": "dist/server.js",
   "scripts": {
+    "predev": "node scripts/free-port.js",
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/server.ts",
     "build": "tsc",
+    "prestart": "node scripts/free-port.js",
     "start": "node dist/server.js",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeders/seeder.ts",
     "type-check": "tsc --noEmit",

@@ -10,8 +10,9 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormCurrencyInput } from '../../../../components/form/FormCurrencyInput';
 import { FormToggle } from '../../../../components/form/FormToggle';
 import { useFieldPermissions } from '../../hooks/useEmployees';
-import { toOpts, SALARY_MODE, DEDUCTION_FROM, DEDUCTION_MONTHS } from '../../constants/employee.constants';
+import { toOpts, DEDUCTION_FROM, DEDUCTION_MONTHS } from '../../constants/employee.constants';
 import { FormSection } from '@/components/form/FormSection';
+import { useModeOfPaymentData } from '../../../modeofPayment/hooks/useModeOfPayment';
 
 function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: string }) {
   const { data: fp } = useFieldPermissions();
@@ -58,6 +59,7 @@ interface Props { isEdit: boolean; employeeId: number | null }
 export function StepCompensation(_: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => fp?.[n];
+  const { data: modesOfPayment = [] } = useModeOfPaymentData();
   const assetDeduction = useWatch({ name: 'asset_deduction_applicable' });
   const security       = useWatch({ name: 'security_amount' }) ?? 0;
   const months         = useWatch({ name: 'deduction_months' }) ?? '';
@@ -69,7 +71,7 @@ export function StepCompensation(_: Props) {
   return (
     <FormSection fields={[f('salary_mode'), f('asset_deduction_applicable'), f('deduction_months'), f('deduction_from'), f('security_amount')]}>
     <div style={{ display: 'grid', gap: 20 }}>
-      <FormSelect name="salary_mode" label="Mode of Payment" options={toOpts(SALARY_MODE)} placeholder="Select" fieldPerm={f('salary_mode')}  />
+      <FormSelect name="salary_mode" label="Mode of Payment" options={toOpts(modesOfPayment.map((m: any) => m.name))} placeholder="Select" fieldPerm={f('salary_mode')}  />
       <SalaryBlock prefix="current" label="Current Salary" />
       <SalaryBlock prefix="joining" label="Salary at Joining" />
 

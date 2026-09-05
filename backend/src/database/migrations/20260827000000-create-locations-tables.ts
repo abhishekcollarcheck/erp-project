@@ -1,5 +1,14 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
+// `sequelize.sync({ alter: true })` (dev boot) already created these tables
+// and some of their plain indexes on many local DBs before this migration
+// existed, so addIndex must tolerate "index already exists" instead of throwing.
+async function addIndexIfMissing(queryInterface: QueryInterface, table: string, fields: string[]): Promise<void> {
+  await queryInterface.addIndex(table, fields).catch((e: any) => {
+    if (e?.parent?.code !== 'ER_DUP_KEYNAME' && e?.original?.code !== 'ER_DUP_KEYNAME') throw e;
+  });
+}
+
 export default {
   up: async (queryInterface: QueryInterface) => {
     // 1. Create 'countries' table
@@ -49,7 +58,7 @@ export default {
         allowNull: true,
       },
     });
-    await queryInterface.addIndex('countries', ['is_active']);
+    await addIndexIfMissing(queryInterface, 'countries', ['is_active']);
 
     // 2. Create 'states' table
     await queryInterface.createTable('states', {
@@ -107,8 +116,8 @@ export default {
         allowNull: true,
       },
     });
-    await queryInterface.addIndex('states', ['country_id']);
-    await queryInterface.addIndex('states', ['is_active']);
+    await addIndexIfMissing(queryInterface, 'states', ['country_id']);
+    await addIndexIfMissing(queryInterface, 'states', ['is_active']);
 
     // 3. Create 'cities' table
     await queryInterface.createTable('cities', {
@@ -162,8 +171,8 @@ export default {
         allowNull: true,
       },
     });
-    await queryInterface.addIndex('cities', ['state_id']);
-    await queryInterface.addIndex('cities', ['is_active']);
+    await addIndexIfMissing(queryInterface, 'cities', ['state_id']);
+    await addIndexIfMissing(queryInterface, 'cities', ['is_active']);
 
     // 4. Create 'sites' table
     await queryInterface.createTable('sites', {
@@ -232,9 +241,9 @@ export default {
         allowNull: true,
       },
     });
-    await queryInterface.addIndex('sites', ['company_id']);
-    await queryInterface.addIndex('sites', ['city_id']);
-    await queryInterface.addIndex('sites', ['is_active']);
+    await addIndexIfMissing(queryInterface, 'sites', ['company_id']);
+    await addIndexIfMissing(queryInterface, 'sites', ['city_id']);
+    await addIndexIfMissing(queryInterface, 'sites', ['is_active']);
 
     // 5. Create 'pay_registers' table
     await queryInterface.createTable('pay_registers', {
@@ -298,9 +307,9 @@ export default {
         allowNull: true,
       },
     });
-    await queryInterface.addIndex('pay_registers', ['company_id']);
-    await queryInterface.addIndex('pay_registers', ['state_id']);
-    await queryInterface.addIndex('pay_registers', ['is_active']);
+    await addIndexIfMissing(queryInterface, 'pay_registers', ['company_id']);
+    await addIndexIfMissing(queryInterface, 'pay_registers', ['state_id']);
+    await addIndexIfMissing(queryInterface, 'pay_registers', ['is_active']);
   },
 
   down: async (queryInterface: QueryInterface) => {

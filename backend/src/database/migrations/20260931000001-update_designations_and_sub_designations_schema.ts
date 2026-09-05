@@ -1,5 +1,21 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
+// `sequelize.sync({ alter: true })` (dev boot) already created these tables
+// and indexes on many local DBs before this migration existed. createTable
+// is already safe (MySQL's CREATE TABLE IF NOT EXISTS), but addIndex must
+// tolerate "index already exists" instead of throwing — narrowly, so a real
+// schema error doesn't get silently swallowed along with it.
+async function addIndexIfMissing(
+  queryInterface: QueryInterface,
+  table: string,
+  fields: string[],
+  options: { name?: string; unique?: boolean },
+): Promise<void> {
+  await queryInterface.addIndex(table, fields, options).catch((e: any) => {
+    if (e?.parent?.code !== 'ER_DUP_KEYNAME' && e?.original?.code !== 'ER_DUP_KEYNAME') throw e;
+  });
+}
+
 export async function up(queryInterface: QueryInterface): Promise<void> {
   // ─── 1. ALTER EXISTING 'designations' TABLE ─────────────────────────────
 
@@ -28,7 +44,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   // ─── 2. CREATE NEW 'designation_departments' JUNCTION TABLE ─────────────
 
-  try {
+  {
     await queryInterface.createTable('designation_departments', {
       id: {
         type: DataTypes.INTEGER.UNSIGNED,
@@ -69,33 +85,27 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     });
 
     // Add composite unique index on [designation_id, department_id]
-    await queryInterface.addIndex('designation_departments', ['designation_id', 'department_id'], {
+    await addIndexIfMissing(queryInterface, 'designation_departments', ['designation_id', 'department_id'], {
       unique: true,
       name: 'designation_departments_designation_id_department_id_unique',
     });
-  } catch (error) {
-    // Table or index already exists
   }
 
   // ─── 3. CREATE NEW 'sub_designations' TABLE ─────────────────────────────
+  //
+  // Sub-designations are NOT tied to a single designation via an FK column —
+  // they relate to designations many-to-many through the
+  // 'sub_designation_designations' junction table below (or apply to all
+  // designations when is_all_designations is set), matching the current
+  // SubDesignation model (src/database/models/Designation.ts).
 
-  try {
+  {
     await queryInterface.createTable('sub_designations', {
       id: {
         type: DataTypes.INTEGER.UNSIGNED,
         autoIncrement: true,
         primaryKey: true,
         allowNull: false,
-      },
-      designation_id: {
-        type: DataTypes.INTEGER.UNSIGNED,
-        allowNull: false,
-        references: {
-          model: 'designations',
-          key: 'id',
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'CASCADE',
       },
       name: {
         type: DataTypes.STRING(200),
@@ -104,6 +114,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       code: {
         type: DataTypes.STRING(20),
         allowNull: true,
+      },
+      is_all_designations: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false,
       },
       is_active: {
         type: DataTypes.BOOLEAN,
@@ -126,32 +141,80 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       },
     });
 
-    // Add composite unique index for [designation_id, name]
-    await queryInterface.addIndex('sub_designations', ['designation_id', 'name'], {
-      unique: true,
-      name: 'sub_designations_designation_id_name_unique',
+    // Existing 'sub_designations' tables created before this redesign (or by
+    // an older version of this migration) may still have the old columns.
+    const existing = await queryInterface.describeTable('sub_designations');
+    if (!existing.is_all_designations) {
+      await queryInterface.addColumn('sub_designations', 'is_all_designations', {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false,
+      });
+    }
+    if (existing.designation_id) {
+      await queryInterface.removeIndex('sub_designations', 'sub_designations_designation_id_name_unique').catch(() => {});
+      await queryInterface.removeIndex('sub_designations', 'sub_designations_designation_id_index').catch(() => {});
+      await queryInterface.removeColumn('sub_designations', 'designation_id');
+    }
+  }
+
+  // ─── 4. CREATE NEW 'sub_designation_designations' JUNCTION TABLE ────────
+
+  {
+    await queryInterface.createTable('sub_designation_designations', {
+      id: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        autoIncrement: true,
+        primaryKey: true,
+        allowNull: false,
+      },
+      sub_designation_id: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: false,
+        references: {
+          model: 'sub_designations',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE',
+      },
+      designation_id: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: false,
+        references: {
+          model: 'designations',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE',
+      },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+      },
     });
 
-    // Add index for fast designation_id lookups
-    await queryInterface.addIndex('sub_designations', ['designation_id'], {
-      name: 'sub_designations_designation_id_index',
+    await addIndexIfMissing(queryInterface, 'sub_designation_designations', ['sub_designation_id', 'designation_id'], {
+      unique: true,
+      name: 'uniq_subdesig_desig',
     });
-  } catch (error) {
-    // Table or indexes already exist
   }
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
-  // ─── 1. DROP 'sub_designations' TABLE ──────────────────────────────────
+  // ─── 1. DROP 'sub_designation_designations' AND 'sub_designations' ─────
   await queryInterface.removeIndex(
-    'sub_designations',
-    'sub_designations_designation_id_name_unique'
+    'sub_designation_designations',
+    'uniq_subdesig_desig'
   ).catch(() => {});
 
-  await queryInterface.removeIndex(
-    'sub_designations',
-    'sub_designations_designation_id_index'
-  ).catch(() => {});
+  await queryInterface.dropTable('sub_designation_designations').catch(() => {});
 
   await queryInterface.dropTable('sub_designations').catch(() => {});
 

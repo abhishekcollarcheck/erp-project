@@ -302,7 +302,7 @@ export function BulkUploadModal({ open, onClose }: Props) {
             <br />• <strong>New employee</strong> → leave Employee Code blank. <strong>Existing employee</strong> → fill Employee Code; only that row&apos;s filled columns are updated
             <br />• The grey instruction row is auto-detected and skipped — you can leave it in the file
             <br />• When updating, re-enter all columns for any section you change (blank cells in that section are cleared)
-            <br />• Company is a dropdown; Department / Designation / Shift use real names. Reporting Manager Code takes an Employee Code (may be in another company)
+            <br />• Company is a dropdown; Department / Designation / Shift use real names
             <br />• Avatar accepts an image URL / data-URI — it&apos;s downloaded into the employee upload folder and linked automatically
             <br />• Personal Email &amp; Mobile must be globally unique; dates are YYYY-MM-DD
             <br />• Each row is validated and imported independently — bad rows come back in a downloadable file to fix &amp; re-upload

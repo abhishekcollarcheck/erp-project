@@ -622,6 +622,9 @@ import { Company } from './Company';
 import { Department, CompanyDepartment } from './Department';
 import { Designation, DesignationDepartment, SubDesignation, SubDesignationDesignation } from './Designation';
 import { SubDepartment, SubDepartmentDepartment } from './Subdepartment';
+import { Shift } from './Shift';
+import { State, City, Site, PayRegister } from './Location';
+import { WeeklyOffPreset } from './weeklyOffPreset';
 
 // ─── Auth (new — employee-as-identity) ───────────────────────────────────────
 
@@ -795,6 +798,18 @@ Employee.hasOne(EmployeeExit,                { foreignKey: 'employee_id', as: 'e
 // onto the root Employee table; these two stayed split) ──────────────────────
 Employee.hasOne(EmployeeLocationAttendance,  { foreignKey: 'employee_id', as: 'locationAttendance'  });
 Employee.hasOne(EmployeeManagersWorkContact, { foreignKey: 'employee_id', as: 'managersWorkContact' });
+
+// EmployeeLocationAttendance's location/shift columns were already
+// FK-shaped integers (no ENUM/STRING to migrate) but had no association —
+// the wizard's dropdowns read from the master tables now (see StepLocationAttendance),
+// so add the belongsTo wiring needed for getById()/StepReview/DetailView to
+// resolve them back to names instead of showing a bare id.
+EmployeeLocationAttendance.belongsTo(Shift,       { foreignKey: 'shift_id',              as: 'shift'       });
+EmployeeLocationAttendance.belongsTo(State,       { foreignKey: 'working_state_country', as: 'workingState' });
+EmployeeLocationAttendance.belongsTo(City,        { foreignKey: 'working_city',          as: 'workingCity' });
+EmployeeLocationAttendance.belongsTo(Site,        { foreignKey: 'working_site',          as: 'workingSite' });
+EmployeeLocationAttendance.belongsTo(PayRegister, { foreignKey: 'pay_register_location', as: 'payRegister' });
+EmployeeLocationAttendance.belongsTo(WeeklyOffPreset, { foreignKey: 'weekly_off',        as: 'weeklyOffPreset' });
 
 // l1_manager_id/l2_manager_id live on EmployeeManagersWorkContact now, not on
 // the root Employee table — so these belong there, not as a self-referential

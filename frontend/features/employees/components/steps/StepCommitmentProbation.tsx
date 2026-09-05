@@ -5,14 +5,11 @@ import { useWatch, useFormContext } from 'react-hook-form';
 import { FormToggle } from '../../../../components/form/FormToggle';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
-import {
-  toOpts,
-  COMMITMENT_TERM,
-  PROBATION_PERIOD,
-  PROBATION_STATUS,
-} from '../../constants/employee.constants';
+import { toOpts } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { FormSection } from '../../../../components/form/FormSection';
+import { useBondList } from '../../../bond/hooks/useBond';
+import { useProbationList } from '../../../probation/hooks/useProbation';
 
 interface Props {
   isEdit: boolean;
@@ -45,6 +42,10 @@ export function StepCommitmentProbation(_: Props) {
   const f = (n: string) => resolveFieldPerm(fp, n);
 
   const { setValue } = useFormContext();
+
+  const { data: bonds = [] } = useBondList();
+  const { data: probationPeriods = [] } = useProbationList('periods');
+  const { data: probationStatuses = [] } = useProbationList('statuses');
 
   const commitment = useWatch({
     name: 'commitment',
@@ -216,7 +217,7 @@ export function StepCommitmentProbation(_: Props) {
             <FormSelect
               name="commitment_term"
               label="Commitment Term"
-              options={toOpts(COMMITMENT_TERM)}
+              options={toOpts(bonds.map((b: any) => b.name))}
               placeholder="Select term"
               fieldPerm={f('commitment_term')}
             />
@@ -299,7 +300,7 @@ export function StepCommitmentProbation(_: Props) {
             <FormSelect
               name="probation_period"
               label="Probation Period"
-              options={toOpts(PROBATION_PERIOD)}
+              options={toOpts(probationPeriods.map((p: any) => p.name))}
               placeholder="Select period"
               fieldPerm={f('probation_period')}
             />
@@ -319,7 +320,7 @@ export function StepCommitmentProbation(_: Props) {
             <FormSelect
               name="probation_status"
               label="Probation Status"
-              options={toOpts(PROBATION_STATUS)}
+              options={toOpts(probationStatuses.map((p: any) => p.name))}
               placeholder="Select status"
               fieldPerm={f('probation_status')}
             />

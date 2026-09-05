@@ -1,5 +1,27 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
+// `sequelize.sync({ alter: true })` (dev boot) already applied some of these
+// column changes on many local DBs before this migration existed, so both
+// helpers must tolerate "already (not) there" instead of throwing.
+async function addColumnIfMissing(
+  queryInterface: QueryInterface,
+  table: string,
+  column: string,
+  attribute: Parameters<QueryInterface['addColumn']>[2],
+): Promise<void> {
+  const existing = await queryInterface.describeTable(table);
+  if (!existing[column]) {
+    await queryInterface.addColumn(table, column, attribute);
+  }
+}
+
+async function removeColumnIfPresent(queryInterface: QueryInterface, table: string, column: string): Promise<void> {
+  const existing = await queryInterface.describeTable(table);
+  if (existing[column]) {
+    await queryInterface.removeColumn(table, column);
+  }
+}
+
 export async function up(queryInterface: QueryInterface): Promise<void> {
   // 1. Make start_time and end_time nullable for "Full Attendance" support
   await queryInterface.changeColumn('shift', 'start_time', {
@@ -13,13 +35,13 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   });
 
   // 2. Add half_day_time
-  await queryInterface.addColumn('shift', 'half_day_time', {
+  await addColumnIfMissing(queryInterface, 'shift', 'half_day_time', {
     type: DataTypes.TIME,
     allowNull: true,
   });
 
   // 3. Add day_span
-  await queryInterface.addColumn('shift', 'day_span', {
+  await addColumnIfMissing(queryInterface, 'shift', 'day_span', {
     type: DataTypes.ENUM('1 day', '2 days'),
     allowNull: false,
     defaultValue: '1 day',
@@ -29,9 +51,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.removeIndex('shift', 'category').catch(() => {});
 
   // 5. Remove obsolete columns
-  await queryInterface.removeColumn('shift', 'category');
-  await queryInterface.removeColumn('shift', 'crosses_midnight');
-  await queryInterface.removeColumn('shift', 'duration_minutes');
+  await removeColumnIfPresent(queryInterface, 'shift', 'category');
+  await removeColumnIfPresent(queryInterface, 'shift', 'crosses_midnight');
+  await removeColumnIfPresent(queryInterface, 'shift', 'duration_minutes');
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {

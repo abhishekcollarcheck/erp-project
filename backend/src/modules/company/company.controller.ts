@@ -820,6 +820,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { body, param } from 'express-validator';
 import { Op } from 'sequelize';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 import { sequelize } from '../../config/database';
 import { Company } from '../../database/models/Company';
 import { Employee } from '../../database/models/Employee';
@@ -1148,6 +1151,7 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
       google_maps_link,
       hr_email,
       about,
+      notes,
     } = req.body;
 
     const codeValidation = validateEmployeeCodeRange(req, res, {
@@ -1206,6 +1210,7 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
         google_maps_link: google_maps_link || null,
         hr_email: hr_email || null,
         about: about || null,
+        notes: notes || null,
 
         employee_code_start: startCode
           ? String(startCode)
@@ -1633,6 +1638,35 @@ async function updateCompany(req: Request, res: Response, next: NextFunction): P
   } catch (e) { next(e); }
 }
 
+// ─── Logo upload — same in-memory-multer + write-to-/uploads pattern as
+// Employee's profile-photo upload (employee.controller.ts uploadAvatar) ──────
+export const uploadLogoMulter = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext || '')) cb(null, true);
+    else cb(new AppError('Only JPG, PNG, or WebP files allowed', 400));
+  },
+}).single('logo');
+
+async function uploadLogo(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const company = await Company.findByPk(+req.params.id);
+    if (!company) { sendError(res, 'Not found', 404); return; }
+    if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
+
+    const dir = path.join(process.cwd(), 'uploads', 'company-logos', String(company.id));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const filename = `logo-${Date.now()}${path.extname(req.file.originalname)}`;
+    fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+    const logoUrl = `/uploads/company-logos/${company.id}/${filename}`;
+
+    await company.update({ logo_url: logoUrl });
+    sendResponse(res, { data: { logo_url: logoUrl }, message: 'Logo uploaded' });
+  } catch (e) { next(e); }
+}
+
 async function suspendCompany(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const company = await Company.findByPk(+req.params.id);
@@ -1690,6 +1724,7 @@ companyRouter.get('/:id', [param('id').isInt()], validate, getCompany);
 companyRouter.put('/:id', [param('id').isInt()], validate, requireCompanyAccess, updateCompany);
 companyRouter.post('/:id/suspend', [param('id').isInt()], validate, requireCompanyAccess, suspendCompany);
 companyRouter.post('/:id/activate', [param('id').isInt()], validate, requireCompanyAccess, activateCompany);
+companyRouter.post('/:id/logo', [param('id').isInt()], validate, requireCompanyAccess, uploadLogoMulter, uploadLogo);
 
 // Managers
 companyRouter.get('/:id/managers', [param('id').isInt()], validate, requireCompanyAccess, listManagers);

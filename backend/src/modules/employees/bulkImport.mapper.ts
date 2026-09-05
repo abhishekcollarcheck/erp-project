@@ -16,6 +16,9 @@ import { SubDepartment } from '../../database/models/Subdepartment';
 // import { SubDesignation } from '../../database/models/SubDesignation';
 import { Shift } from '../../database/models/Shift';
 import { Employee } from '../../database/models/Employee';
+import { State, City, Site, PayRegister } from '../../database/models/Location';
+import { WeeklyOffPreset } from '../../database/models/weeklyOffPreset';
+import { GraceMinute } from '../../database/models/AttendanceRules';
 
 import { STEP_VALIDATORS } from './employee.validation';
 import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE, type StepKey } from './employee.constants';
@@ -23,7 +26,6 @@ import {
   FIELD_DEFS, REPEATABLE_GROUPS, BULK_STEP_ORDER, allTemplateColumns,
   type FieldDef, type FieldType,
 } from './bulkImport.fields';
-import { resolveMasterOption } from './employee.masterOptions';
 
 export interface RowError { column: string; message: string }
 
@@ -49,7 +51,6 @@ export interface MappedRow {
     reference_code: string | null;
     avatar_url: string | null;
     avatar: string | null;            // raw source (URL / data URI / /uploads path) to localise post-import
-    reporting_manager_id: number | null;
   } | null;
   steps: Partial<Record<StepKey, any>>;
   /** Lower-cased normalised identifiers for cross-row dedupe. */
@@ -66,6 +67,13 @@ export interface Resolvers {
   subDesignation:(v: string) => number | null | undefined;
   shift:         (v: string) => number | null | undefined;
   manager:       (v: string) => number | null | undefined;   // any company, by employee_code or email
+  site:          (v: string) => number | null | undefined;
+  city:          (v: string) => number | null | undefined;
+  state:         (v: string) => number | null | undefined;
+  payRegister:   (v: string) => number | null | undefined;
+  weeklyOff:     (v: string) => number | null | undefined;
+  /** Resolves to the literal minutes value (not a surrogate id) — grace_minutes stores the minute count itself. */
+  graceMinutes:  (v: string) => number | null | undefined;
   defaultCompanyId: number;
   /** id → name, for back-filling identity cells of an existing (update) row. */
   names: {
@@ -80,7 +88,7 @@ export interface Resolvers {
 const norm = (s: string) => s.trim().toLowerCase();
 
 export async function buildResolvers(companyId: number): Promise<Resolvers> {
-  const [depts, desigs, comps, subDepts, subDesigs, shifts, mgrs] = await Promise.all([
+  const [depts, desigs, comps, subDepts, subDesigs, shifts, mgrs, sites, cities, states, payRegisters, weeklyOffs, graceMinutes] = await Promise.all([
     Department.findAll({ attributes: ['id', 'department_name'], raw: true }),
     Designation.findAll({ attributes: ['id', 'name'], raw: true }),
     Company.findAll({ attributes: ['id', 'name'], raw: true }),
@@ -91,6 +99,12 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
     // "remote" (in a different company). employee_code / email are globally
     // unique, so the lookup stays unambiguous.
     Employee.findAll({ attributes: ['id', 'employee_code', 'email'], raw: true }),
+    Site.findAll({ attributes: ['id', 'name'], raw: true }),
+    City.findAll({ attributes: ['id', 'name'], raw: true }),
+    State.findAll({ attributes: ['id', 'name'], raw: true }),
+    PayRegister.findAll({ attributes: ['id', 'name'], raw: true }),
+    WeeklyOffPreset.findAll({ attributes: ['id', 'name'], raw: true }),
+    GraceMinute.findAll({ attributes: ['id', 'name', 'minutes'], raw: true }),
   ]);
 
   const map = (rows: any[], nameKey: string) => {
@@ -105,6 +119,20 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
   const subDesigMap= map(subDesigs, 'name');
   const shiftMap   = map(shifts, 'label');
   const shiftById  = new Set<number>(shifts.map((s: any) => s.id));
+  const siteMap        = map(sites, 'name');
+  const cityMap         = map(cities, 'name');
+  const stateMap        = map(states, 'name');
+  const payRegisterMap  = map(payRegisters, 'name');
+  const weeklyOffMap    = map(weeklyOffs, 'name');
+
+  // grace_minutes stores the literal minute count, not a surrogate id — resolve
+  // a spreadsheet label ("30 minutes") or a raw number (30) to that minute value.
+  const graceMinutesByName = new Map<string, number>();
+  const graceMinutesValues = new Set<number>();
+  for (const g of graceMinutes as any[]) {
+    if (g.name) graceMinutesByName.set(norm(String(g.name)), g.minutes);
+    if (g.minutes != null) graceMinutesValues.add(g.minutes);
+  }
 
   const mgrMap = new Map<string, number>();
   for (const m of mgrs as any[]) {
@@ -152,6 +180,18 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
       const asNum = Number(raw);
       if (Number.isInteger(asNum) && shiftById.has(asNum)) return asNum;
       return shiftMap.get(norm(raw)) ?? null;
+    },
+    site:        lookup(siteMap),
+    city:        lookup(cityMap),
+    state:       lookup(stateMap),
+    payRegister: lookup(payRegisterMap),
+    weeklyOff:   lookup(weeklyOffMap),
+    graceMinutes: (v: string) => {
+      const raw = String(v ?? '').trim();
+      if (!raw) return undefined;
+      const asNum = Number(raw);
+      if (Number.isInteger(asNum) && graceMinutesValues.has(asNum)) return asNum;
+      return graceMinutesByName.get(norm(raw)) ?? null;
     },
   };
 }
@@ -231,8 +271,6 @@ const HEADER_TO_COL: Map<string, string> = (() => {
   for (const c of all) { const k = canon(c.label); if (!m.has(k)) m.set(k, c.col); }
   // legacy header spellings (older downloaded templates)
   for (const [from, to] of [
-    ['reporting_manager', 'reporting_manager_code'],
-    ['reporting_manager_employee_code', 'reporting_manager_code'],
     ['l1_manager', 'l1_manager_code'],
     ['l1_manager_employee_code', 'l1_manager_code'],
     ['l2_manager', 'l2_manager_code'],
@@ -358,13 +396,6 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
   if (avatarSrc && !/^(https?:\/\/|data:image\/|\/uploads\/)/i.test(avatarSrc))
     errors.push({ column: 'avatar', message: 'Avatar must be an http(s) URL, a data:image/… URI, or an existing /uploads/… path' });
 
-  let reportingManagerId: number | null = null;
-  if (!BLANK(row['reporting_manager_code'])) {
-    const rm = resolvers.manager(String(row['reporting_manager_code']));
-    if (rm == null) errors.push({ column: 'reporting_manager_code', message: `Reporting manager "${row['reporting_manager_code']}" not found` });
-    else reportingManagerId = rm;
-  }
-
   const roleErrors = await runStepValidators('role_identity', {
     company_id: companyId,
     first_name, last_name,
@@ -396,7 +427,6 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
         reference_code: referenceCode,
         avatar_url: avatarUrl,
         avatar: avatarSrc,
-        reporting_manager_id: reportingManagerId,
       }
     : null;
 
@@ -419,15 +449,17 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
             : d.dbMaster === 'sub_department' ? resolvers.subDepartment
             : d.dbMaster === 'sub_designation' ? resolvers.subDesignation
             : d.dbMaster === 'designation' ? resolvers.designation
+            : d.dbMaster === 'site' ? resolvers.site
+            : d.dbMaster === 'city' ? resolvers.city
+            : d.dbMaster === 'state' ? resolvers.state
+            : d.dbMaster === 'pay_register' ? resolvers.payRegister
+            : d.dbMaster === 'weekly_off' ? resolvers.weeklyOff
+            : d.dbMaster === 'grace_minutes' ? resolvers.graceMinutes
             : resolvers.department;
           const r = fn(String(rawVal));
           if (r == null) { stepErrors.push({ column: d.col, message: `"${rawVal}" not found` }); val = undefined; }
           else val = r;
         }
-      } else if (d.type === 'master' && d.master) {
-        const r = resolveMasterOption(d.master, rawVal);
-        if (r === null) { stepErrors.push({ column: d.col, message: `"${rawVal}" not a valid ${d.master.replace(/_/g, ' ')}` }); val = undefined; }
-        else val = r;
       } else {
         val = coerce(d.type, rawVal, d.enumValues);
         if (val === null) stepErrors.push({ column: d.col, message: 'Invalid value' });

@@ -109,7 +109,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
-  await queryInterface.dropTable('candidate_employments');
+  await queryInterface.dropTable('candidate_employments').catch(() => {});
 
   const columns = [
     'first_name', 'middle_name', 'last_name',

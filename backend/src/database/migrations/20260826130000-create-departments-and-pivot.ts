@@ -1,5 +1,19 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
+// `sequelize.sync({ alter: true })` (dev boot) already created this pivot
+// table's index on many local DBs before this migration existed, so addIndex
+// must tolerate "index already exists" instead of throwing.
+async function addIndexIfMissing(
+  queryInterface: QueryInterface,
+  table: string,
+  fields: string[],
+  options: { name?: string; unique?: boolean; transaction?: unknown },
+): Promise<void> {
+  await queryInterface.addIndex(table, fields, options as any).catch((e: any) => {
+    if (e?.parent?.code !== 'ER_DUP_KEYNAME' && e?.original?.code !== 'ER_DUP_KEYNAME') throw e;
+  });
+}
+
 export async function up(queryInterface: QueryInterface): Promise<void> {
   const transaction = await queryInterface.sequelize.transaction();
 
@@ -110,7 +124,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     );
 
     // 3. Add composite unique constraint
-    await queryInterface.addIndex('company_departments', ['department_id', 'company_id'], {
+    await addIndexIfMissing(queryInterface, 'company_departments', ['department_id', 'company_id'], {
       unique: true,
       name: 'unique_department_company',
       transaction,

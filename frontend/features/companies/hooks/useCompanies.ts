@@ -83,3 +83,17 @@ export function useActivateCompany() {
     onError: (err: any) => showToast(err?.message || 'Failed to activate company'),
   });
 }
+
+// ─── Logo upload ──────────────────────────────────────────────────────────────
+export function useUploadLogo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) => companyService.uploadLogo(id, file),
+    onSuccess: (_res, variables) => {
+      qc.invalidateQueries({ queryKey: KEYS.all });
+      qc.invalidateQueries({ queryKey: KEYS.one(variables.id) });
+      showToast('✓ Logo updated');
+    },
+    onError: (err: any) => showToast(err?.message || 'Failed to upload logo'),
+  });
+}

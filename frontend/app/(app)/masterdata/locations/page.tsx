@@ -1,27 +1,9 @@
-// import { MasterDataLayout } from '@/components/layout/MasterDataLayout'
-// import { AppShell } from '@/layouts/AppLayout'
-// import React from 'react'
-
-// const page = () => {
-//     return (
-//         <AppShell>
-//             <MasterDataLayout>
-
-//                 <div>page</div>
-//             </MasterDataLayout>
-//         </AppShell>
-//     )
-// }
-
-// export default page
-
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
-import { GripVertical, Pencil, X, Plus, Search } from 'lucide-react';
+import { SimpleMasterList } from '@/components/masterdata/SimpleMasterList';
 import {
   useCountries, useCreateCountry, useUpdateCountry, useDeleteCountry,
   useStates, useCreateState, useUpdateState, useDeleteState,
@@ -40,12 +22,10 @@ type TabKey =
   | 'address_city'
   | 'pay_register';
 
-
-  
 export default function LocationsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('state_country');
   const [filterText, setFilterText] = useState('');
-  
+
   // New Item Input State
   const [newTitle, setNewTitle] = useState('');
   const [selectedParentId, setSelectedParentId] = useState<number | null>(null);
@@ -161,11 +141,6 @@ export default function LocationsPage() {
     setSelectedParentId(null);
   };
 
-  const startEdit = (id: number, rawName: string) => {
-    setEditingId(id);
-    setEditTitle(rawName);
-  };
-
   const handleSaveEdit = async (id: number) => {
     if (!editTitle.trim()) return;
 
@@ -198,7 +173,7 @@ export default function LocationsPage() {
   const isLoading = loadingCountries || loadingStates || loadingCities || loadingSites || loadingPayRegisters;
 
   // ─── Render Tabs Configuration ───────────────────────────────────────────
-  const tabs: { key: TabKey; label: string; count: number }[] = [
+  const tabDefs: { key: TabKey; label: string; count: number }[] = [
     { key: 'state_country', label: 'State / Country', count: states.length },
     { key: 'city', label: 'City', count: cities.length },
     { key: 'site', label: 'Site', count: sites.length },
@@ -211,186 +186,69 @@ export default function LocationsPage() {
   return (
     <AppShell>
       <MasterDataLayout>
-        <div className="flex h-full w-full flex-col bg-white p-6 font-sans text-gray-800">
-          {/* Header Bar */}
-          <div className="flex items-center justify-between pb-3">
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-gray-900">Locations</h1>
-              <p className="text-xs text-gray-400">
-                Work site hierarchy · Address country / state / city for employee forms
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="text-xs font-semibold text-red-500 hover:text-red-600">
-                Delete master
-              </button>
-              <span className="rounded bg-gray-100 px-2 py-1 text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-                AUTO-SAVE ON
-              </span>
-            </div>
-          </div>
-
-          {/* Navigation Tabs */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 pb-3">
-            {tabs.map((tab) => {
-              const active = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => {
-                    setActiveTab(tab.key);
-                    setFilterText('');
-                    setEditingId(null);
-                  }}
-                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${
-                    active
-                      ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-500/20'
-                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                  }`}
+        <SimpleMasterList
+          title="Locations"
+          subtitle="Work site hierarchy · Address country / state / city for employee forms"
+          addPlaceholder={`Add ${tabDefs.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
+          emptyText="No records found."
+          isLoading={isLoading}
+          items={listItems}
+          tabs={tabDefs.map((t) => ({
+            label: t.label,
+            count: t.count,
+            active: activeTab === t.key,
+            onClick: () => {
+              setActiveTab(t.key);
+              setFilterText('');
+              setEditingId(null);
+            },
+          }))}
+          addExtra={
+            (activeTab === 'state_country' || activeTab === 'address_state') ? (
+              <div className="fg" style={{ margin: 0, width: 160 }}>
+                <select
+                  value={selectedParentId ?? ''}
+                  onChange={(e) => setSelectedParentId(Number(e.target.value))}
                 >
-                  {tab.label}
-                  <span
-                    className={`text-[10px] ${
-                      active ? 'font-bold text-blue-600' : 'text-gray-400'
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Quick-Add Bar */}
-          <div className="flex items-center gap-2 py-4">
-            <input
-              type="text"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder={`Add ${tabs.find((t) => t.key === activeTab)?.label.toLowerCase()}...`}
-              className="h-10 flex-1 rounded-md border border-gray-200 bg-white px-3.5 text-xs text-gray-700 outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            />
-
-            {/* Parent selector conditionally shown for hierarchical entities */}
-            {(activeTab === 'state_country' || activeTab === 'address_state') && (
-              <select
-                value={selectedParentId ?? ''}
-                onChange={(e) => setSelectedParentId(Number(e.target.value))}
-                className="h-10 rounded-md border border-gray-200 bg-white px-3 text-xs text-gray-700 outline-none focus:border-blue-400"
-              >
-                <option value="">Select Country</option>
-                {countries.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {(activeTab === 'city' || activeTab === 'address_city') && (
-              <select
-                value={selectedParentId ?? ''}
-                onChange={(e) => setSelectedParentId(Number(e.target.value))}
-                className="h-10 rounded-md border border-gray-200 bg-white px-3 text-xs text-gray-700 outline-none focus:border-blue-400"
-              >
-                <option value="">Select State</option>
-                {states.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <button
-              onClick={handleAdd}
-              className="flex h-10 items-center gap-1.5 rounded-md bg-blue-600 px-5 text-xs font-semibold text-white hover:bg-blue-700 active:bg-blue-800"
-            >
-              Add
-            </button>
-          </div>
-
-          {/* Filter Bar */}
-          <div className="flex items-center justify-between py-2">
-            <div className="relative w-64">
-              <input
-                type="text"
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                placeholder="Filter..."
-                className="h-8 w-full rounded-md border border-gray-200 bg-white pl-3 pr-8 text-xs text-gray-700 outline-none placeholder:text-gray-400 focus:border-blue-400"
-              />
-            </div>
-            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-400">
-              {listItems.length}
-            </span>
-          </div>
-
-          {/* List Section */}
-          <div className="min-h-0 flex-1 overflow-y-auto pt-2">
-            {isLoading ? (
-              <div className="py-8 text-center text-xs text-gray-400">Loading location data...</div>
-            ) : listItems.length === 0 ? (
-              <div className="py-8 text-center text-xs text-gray-400">No records found.</div>
-            ) : (
-              <div className="space-y-1">
-                {listItems.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="group flex items-center justify-between rounded-md px-2 py-2 hover:bg-gray-50/80"
-                  >
-                    <div className="flex flex-1 items-center gap-3">
-                      <GripVertical size={14} className="cursor-grab text-gray-300 opacity-60 group-hover:opacity-100" />
-                      <span className="min-w-[18px] text-left text-[11px] font-semibold text-gray-300">
-                        {index + 1}
-                      </span>
-
-                      {editingId === item.id ? (
-                        <input
-                          type="text"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit(item.id)}
-                          className="h-7 w-64 rounded border border-blue-400 px-2 text-xs font-medium text-gray-800 outline-none focus:ring-1 focus:ring-blue-100"
-                          autoFocus
-                        />
-                      ) : (
-                        <span className="text-xs font-semibold text-gray-800">{item.name}</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                      {editingId === item.id ? (
-                        <button
-                          onClick={() => handleSaveEdit(item.id)}
-                          className="text-xs font-semibold text-blue-600 hover:text-blue-700"
-                        >
-                          Save
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => startEdit(item.id, item.rawName)}
-                          className="text-gray-400 hover:text-gray-600"
-                          title="Edit"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="text-gray-400 hover:text-red-600"
-                        title="Delete"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  <option value="">Select Country</option>
+                  {countries.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
               </div>
-            )}
-          </div>
-        </div>
+            ) : (activeTab === 'city' || activeTab === 'address_city') ? (
+              <div className="fg" style={{ margin: 0, width: 160 }}>
+                <select
+                  value={selectedParentId ?? ''}
+                  onChange={(e) => setSelectedParentId(Number(e.target.value))}
+                >
+                  <option value="">Select State</option>
+                  {states.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            ) : undefined
+          }
+          name={newTitle}
+          onNameChange={setNewTitle}
+          onAdd={handleAdd}
+          filterText={filterText}
+          onFilterChange={setFilterText}
+          editingId={editingId}
+          editName={editTitle}
+          onEditNameChange={setEditTitle}
+          onStartEdit={(item) => {
+            setEditingId(item.id);
+            setEditTitle(item.rawName);
+          }}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={() => {
+            setEditingId(null);
+            setEditTitle('');
+          }}
+          onDelete={handleDelete}
+        />
       </MasterDataLayout>
     </AppShell>
   );

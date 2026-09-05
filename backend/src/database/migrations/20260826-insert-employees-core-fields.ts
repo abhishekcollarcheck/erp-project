@@ -317,6 +317,56 @@ const FIELDS: FieldSeed[] = [
 export async function up(queryInterface: QueryInterface): Promise<void> {
   const now = new Date();
 
+  // This dev DB's hr_modules/form_definitions were never seeded (they're
+  // normally created via the Form Builder UI), so form_id=1 doesn't exist yet
+  // and the dynamic_fields insert below would fail its FK. Create the
+  // "Employee" module + "Employee Onboarding" form (as id=1) if missing.
+  const [existingForm] = (await queryInterface.sequelize.query(
+    'SELECT id FROM form_definitions WHERE id = :id',
+    { replacements: { id: FORM_ID } },
+  )) as unknown as [{ id: number }[], unknown];
+
+  if (existingForm.length === 0) {
+    const [existingModule] = (await queryInterface.sequelize.query(
+      "SELECT id FROM hr_modules WHERE slug = 'employee'",
+    )) as unknown as [{ id: number }[], unknown];
+
+    let moduleId: number;
+    if (existingModule.length > 0) {
+      moduleId = existingModule[0].id;
+    } else {
+      await queryInterface.bulkInsert('hr_modules', [{
+        name: 'Employee',
+        slug: 'employee',
+        icon: '👤',
+        description: 'Employee records and profile management',
+        sort_order: 1,
+        is_active: true,
+        is_system: true,
+        created_at: now,
+        updated_at: now,
+      }] as any);
+      const [[{ id }]] = (await queryInterface.sequelize.query(
+        'SELECT LAST_INSERT_ID() as id',
+      )) as unknown as [{ id: number }[], unknown];
+      moduleId = id;
+    }
+
+    await queryInterface.bulkInsert('form_definitions', [{
+      id: FORM_ID,
+      company_id: null,
+      module_id: moduleId,
+      name: 'Employee Onboarding',
+      slug: 'employee_onboarding',
+      description: 'Full employee onboarding wizard',
+      sort_order: 1,
+      is_active: true,
+      is_system: true,
+      created_at: now,
+      updated_at: now,
+    }] as any);
+  }
+
   const rows = FIELDS.map((f, i) => ({
     company_id: null,
     form_id: FORM_ID,

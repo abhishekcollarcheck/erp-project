@@ -33,18 +33,26 @@ export interface Company {
   theme_color: string | null;
   is_active: boolean;
   notes: string | null;
+  employee_code_start: string | null;
+  employee_code_end: string | null;
+  employee_code_skip: string; // JSON-stringified number[]
+  fiscal_year: string;
+  timezone: string;
+  currency: string;
+  date_format: string;
   employee_count?: number; // joined in on list/get endpoints
   created_at?: string;
   updated_at?: string;
   deleted_at?: string | null;
 }
 
-// Fields the "New company" / "Edit company" form actually sends.
-// (Company model has more columns — employee_code_start/end/skip,
-// fiscal_year, timezone, currency, date_format — that this screen doesn't
-// expose; add them here + to the form if/when you need them.)
+// Every client-editable Company model field — matches the backend's
+// `updateCompany` whitelist (company.controller.ts) exactly, so nothing on
+// the model is left unreachable from this form. employee_count/onboarding_step/
+// setup_completed_at/created_by are server-derived, never sent by the client.
 export interface CompanyFormDto {
   name: string;
+  slug?: string;
   legal_name?: string;
   tagline?: string;
   code?: string;
@@ -53,6 +61,11 @@ export interface CompanyFormDto {
   pan?: string;
   cin?: string;
   address: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  country?: string;
+  industry?: string;
   google_maps_link?: string;
   phone?: string;
   email?: string;
@@ -60,6 +73,14 @@ export interface CompanyFormDto {
   website?: string;
   about?: string;
   logo_url?: string;
+  notes?: string;
+  fiscal_year?: string;
+  timezone?: string;
+  currency?: string;
+  date_format?: string;
+  employee_code_start?: string | null;
+  employee_code_end?: string | null;
+  employee_code_skip?: string; // JSON-stringified number[] — see the create-company wizard for the comma-separated -> JSON conversion
 }
 
 export interface CompanyQueryParams {
@@ -90,12 +111,9 @@ export const companyService = {
   activate: (id: number) =>
     apiClient.post<unknown, ApiResponse<{ activated: boolean }>>(`/companies/${id}/activate`),
 
-  // NOT wired up on the backend yet — companyRouter has no logo route.
-  // Add something like:
-  //   companyRouter.post('/:id/logo', requireCompanyAccess, upload.single('logo'), uploadLogo)
-  // using multer (or your existing avatar-upload pattern from Employee), then
-  // point this at it. Left here so the frontend call site doesn't need to
-  // change later — it's just unused for now.
+  // POST /companies/:id/logo (multer, same in-memory pattern as Employee's
+  // profile-photo upload) — persists to /uploads/company-logos/:id/ and
+  // updates the company's logo_url.
   uploadLogo: (id: number, file: File) => {
     const form = new FormData();
     form.append('logo', file);
