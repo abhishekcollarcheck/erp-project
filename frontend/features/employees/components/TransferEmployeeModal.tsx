@@ -55,14 +55,32 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
   const { data: sites = [] } = useSites();
 
   const departmentOpts = (departments ?? []).map((d: any) => ({ value: d.id, label: d.department_name }));
-  const subDepartmentOpts = (subDepartments ?? []).map((d: any) => ({ value: d.id, label: d.name }));
   const designationOpts = (designations ?? []).map((d: any) => ({ value: d.id, label: d.name }));
   const siteOpts = (sites ?? []).map((s: any) => ({ value: s.id, label: s.name }));
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: { transfer_date: today },
   });
+
+  const selectedDepartmentId = watch('new_department_id');
+
+  // Same rule as the Employee wizard: a Sub Department only shows for the
+  // Department(s) it's mapped to, plus any flagged "all departments".
+  // Same rule as the Employee wizard: a Sub Department only shows for the
+  // Department(s) it's linked to (plus "all departments" ones, and ones not
+  // yet scoped to any Department). Native <select> reports its value as a
+  // string even though the zod schema coerces it to a number at submit time.
+  const deptSelected = selectedDepartmentId != null && String(selectedDepartmentId) !== '';
+  const subDepartmentOpts = (subDepartments ?? [])
+    .filter((d: any) => {
+      if (d.is_all_departments) return true;
+      const linkedIds: any[] = d.department_ids ?? [];
+      if (linkedIds.length === 0) return true;
+      if (!deptSelected) return false;
+      return linkedIds.some((id: any) => Number(id) === Number(selectedDepartmentId));
+    })
+    .map((d: any) => ({ value: d.id, label: d.name }));
 
   useEffect(() => {
     if (open) reset({ transfer_date: today, new_employee_code: '' });
@@ -152,7 +170,7 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
 
         <div className="fg">
           <label>New Department</label>
-          <select {...register('new_department_id')}>
+          <select {...register('new_department_id', { onChange: () => setValue('new_sub_department_id', undefined) })}>
             <option value="">Select department</option>
             {departmentOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>

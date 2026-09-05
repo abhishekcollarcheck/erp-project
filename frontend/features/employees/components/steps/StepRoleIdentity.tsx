@@ -27,11 +27,28 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
   const { data: subDesignations = [] } = useSubDesignations({ is_active: 'true' } as any);
 
   const departmentOpts = (departments ?? []).map((d: any) => ({ value: d.id, label: d.department_name }));
-  const subDepartmentOpts = (subDepartments ?? []).map((d: any) => ({ value: d.id, label: d.name }));
   const designationOpts = (designations ?? []).map((d: any) => ({ value: d.id, label: d.name }));
   const subDesignationOpts = (subDesignations ?? []).map((d: any) => ({ value: d.id, label: d.name }));
 
   const employeeCode = watch('employee_code');
+  const selectedDepartmentId = watch('department_id');
+
+  // A Sub Department is linked to one or more Departments through the
+  // sub_department_departments table. Once a Department is selected, show only
+  // the Sub Departments that apply to it:
+  //   • flagged "all departments"                         → always shown
+  //   • not linked to any Department yet                  → still shown (not yet scoped)
+  //   • linked and the selected Department is among them  → shown
+  const deptSelected = selectedDepartmentId != null && selectedDepartmentId !== '';
+  const subDepartmentOpts = (subDepartments ?? [])
+    .filter((d: any) => {
+      if (d.is_all_departments) return true;
+      const linkedIds: any[] = d.department_ids ?? [];
+      if (linkedIds.length === 0) return true;
+      if (!deptSelected) return false;
+      return linkedIds.some((id: any) => Number(id) === Number(selectedDepartmentId));
+    })
+    .map((d: any) => ({ value: d.id, label: d.name }));
 
   useEffect(() => {
     if (company?.id) {
@@ -119,6 +136,7 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
           placeholder='Select'
           options={departmentOpts}
           fieldPerm={f('department_id')}
+          onChange={() => setValue('sub_department_id', '', { shouldDirty: true })}
         />
         <FormSelect
           name="sub_department_id"
