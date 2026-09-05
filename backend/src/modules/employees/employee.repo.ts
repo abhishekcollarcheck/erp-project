@@ -18,7 +18,17 @@ const DETAIL_INCLUDES: any[] = [
   { association: 'designation', attributes: ['id', 'name'] },
   { association: 'subDepartment',  attributes: ['id', 'name'] },
   { association: 'subDesignation', attributes: ['id', 'name'] },
-  { association: 'locationAttendance' },
+  {
+    association: 'locationAttendance',
+    include: [
+      { association: 'shift', attributes: ['id', 'label'] },
+      { association: 'workingState', attributes: ['id', 'name'] },
+      { association: 'workingCity', attributes: ['id', 'name'] },
+      { association: 'workingSite', attributes: ['id', 'name'] },
+      { association: 'payRegister', attributes: ['id', 'name'] },
+      { association: 'weeklyOffPreset', attributes: ['id', 'name'] },
+    ],
+  },
   {
     association: 'managersWorkContact',
     include: [

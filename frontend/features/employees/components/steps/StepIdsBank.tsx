@@ -6,8 +6,9 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { FormToggle } from '../../../../components/form/FormToggle';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
-import { BANK_NAME_OPTIONS, DOC_TYPE_OPTIONS, VACCINE_OPTIONS } from '../../constants/employee.constants';
+import { DOC_TYPE_OPTIONS, VACCINE_OPTIONS } from '../../constants/employee.constants';
 import { FormSection } from '@/components/form/FormSection';
+import { useBankData } from '../../../banks/hooks/useBank';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -37,6 +38,7 @@ export function StepIdsBank(_: Props) {
   const vaccinations = useFieldArray({ control, name: 'vaccinations' });
   const documents = useFieldArray({ control, name: 'documents' });
   const yellowFever = useWatch({ name: 'yellow_fever' });
+  const { data: banks = [] } = useBankData();
 
   return (
     <FormSection fields={[f('aadhaar_number'), f('aadhaar_name'), f('aadhaar_dob'), f('aadhaar_address'), f('pan_number'), f('passport_number'), f('yellow_fever'), f('yellow_fever_date'), f('driving_license_number'), f('personal_bank_name'), f('personal_bank_account'), f('personal_ifsc'), f('personal_bank_branch')]}>
@@ -133,7 +135,7 @@ export function StepIdsBank(_: Props) {
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Bank account <span style={{ fontWeight: 400, color: 'var(--ink4)' }}>— required</span></div>
       <KycCard title="Personal bank account" hint="Required · for reimbursements (salary bank is set by HR)" required>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <FormSelect name="personal_bank_name" label="Bank Name" required options={[...BANK_NAME_OPTIONS]} placeholder="Select" fieldPerm={f('personal_bank_name')} />
+          <FormSelect name="personal_bank_name" label="Bank Name" required options={banks.map((b: any) => ({ value: b.name, label: b.name }))} placeholder="Select" fieldPerm={f('personal_bank_name')} />
           <FormInput name="personal_bank_account" label="Bank Account Number" required fieldPerm={f('personal_bank_account')} />
           <FormInput name="personal_ifsc" label="IFSC Code" required placeholder="ABCD0123456" fieldPerm={f('personal_ifsc')} />
           <FormInput name="personal_bank_branch" label="Branch Name" fieldPerm={f('personal_bank_branch')} />

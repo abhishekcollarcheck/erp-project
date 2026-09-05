@@ -7,14 +7,10 @@ import { Chip } from '../../../components/ui/Chip';
 import apiClient from '../../../services/api/client';
 import { useEmployee } from '../hooks/useEmployees';
 import { useShifts } from '../../shift/hooks/useShift';
+import { useGraceMinutesData } from '../../attendance-rule/hooks/useAttendanceRules';
 import { useEmployeeAttendance } from '../../attendance/hooks/useAttendance';
 import { usePermission } from '../../auth/hooks/usePermission';
 import { formatDate, getInitials, getTenure, statusVariant, displayStatus } from '../utils/employee.utils';
-import {
-  DEPARTMENT_OPTIONS, SUB_DEPARTMENT_OPTIONS, DESIGNATION_OPTIONS, SUB_DESIGNATION_OPTIONS,
-  WORKING_SITE_OPTIONS, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS,
-  REGISTRATION_LOCATION_OPTIONS, WEEKLY_OFF_OPTIONS, GRACE_MINUTES_OPTIONS,
-} from '../constants/employee.constants';
 
 const TABS = [
   'Overview', 'Work', 'Leave & Attendance', 'Compensation',
@@ -24,9 +20,7 @@ type Tab = typeof TABS[number];
 
 type Row = [label: string, value: any];
 
-const labelFrom = (list: readonly { value: any; label: string }[], v: any) =>
-  v == null || v === '' ? undefined : (list.find(o => String(o.value) === String(v))?.label ?? v);
-const yn = (v: any) => (v === true || v === 'Yes' ? 'Yes' : v === false || v === 'No' ? 'No' : v == null || v === '' ? undefined : v);
+const yn = (v: any) =>(v === true || v === 'Yes' ? 'Yes' : v === false || v === 'No' ? 'No' : v == null || v === '' ? undefined : v);
 const money = (n: any) => (n == null || n === '' || Number(n) === 0 || Number.isNaN(Number(n)) ? undefined : `₹${new Intl.NumberFormat('en-IN').format(Number(n))}`);
 const date = (d: any) => (d ? formatDate(d) : undefined);
 
@@ -112,12 +106,18 @@ export function EmployeeDetailView({ id }: { id: number }) {
   const router = useRouter();
   const { data: emp, isLoading, isError } = useEmployee(id);
   const { data: shifts = [] } = useShifts();
+  const { data: graceMinutesResponse } = useGraceMinutesData();
+  const graceMinutes = graceMinutesResponse?.data ?? [];
   const { canEdit } = usePermission();
   const [tab, setTab] = useState<Tab>('Overview');
 
   const shiftLabel = useMemo(
     () => (sid: any) => (sid == null ? undefined : (shifts.find((s: any) => String(s.value ?? s.id) === String(sid))?.label ?? `Shift #${sid}`)),
     [shifts],
+  );
+  const graceMinutesLabel = useMemo(
+    () => (minutes: any) => (minutes == null || minutes === '' ? undefined : (graceMinutes.find((g: any) => String(g.minutes) === String(minutes))?.name ?? `${minutes} min`)),
+    [graceMinutes],
   );
 
   const { data: attendance = [] } = useEmployeeAttendance(id) as any;
@@ -153,8 +153,8 @@ export function EmployeeDetailView({ id }: { id: number }) {
   const perm = e.addresses?.find((a: any) => a.address_type === 'permanent') ?? {};
   const docs = e.onboardingDocs ?? {};
 
-  const deptName = labelFrom(DEPARTMENT_OPTIONS, e.department_id) ?? e.department?.name;
-  const desigName = labelFrom(DESIGNATION_OPTIONS, e.designation_id) ?? e.designation?.name;
+  const deptName = e.department?.name;
+  const desigName = e.designation?.name;
   const managerName = (m: any) => (m ? (m.employee_code ?? `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()) : undefined);
   const st2 = displayStatus(e);
 
@@ -172,9 +172,9 @@ export function EmployeeDetailView({ id }: { id: number }) {
               ['Employment Type', e.employment_type],
               ['Company', e.company?.name],
               ['Department', deptName],
-              ['Sub Department', e.subDepartment?.name ?? labelFrom(SUB_DEPARTMENT_OPTIONS, e.sub_department_id)],
+              ['Sub Department', e.subDepartment?.name],
               ['Designation', desigName],
-              ['Sub Designation', e.subDesignation?.name ?? labelFrom(SUB_DESIGNATION_OPTIONS, e.sub_designation_id)],
+              ['Sub Designation', e.subDesignation?.name],
               ['Date of Joining', date(e.actual_doj)],
               ['Tenure', e.actual_doj ? getTenure(e.actual_doj) : undefined],
               ['Profile Completion', `${e.form_completion_pct ?? 0}%`],
@@ -200,16 +200,16 @@ export function EmployeeDetailView({ id }: { id: number }) {
         return (
           <>
             <InfoCard title="Location & Attendance" rows={[
-              ['State / Country', labelFrom(WORKING_STATE_COUNTRY_OPTIONS, e.working_state_country)],
-              ['Working City', labelFrom(WORKING_CITY_OPTIONS, e.working_city)],
-              ['Working Site', labelFrom(WORKING_SITE_OPTIONS, e.working_site)],
-              ['Pay Register Location', labelFrom(REGISTRATION_LOCATION_OPTIONS, e.pay_register_location)],
+              ['State / Country', (e as any).workingState?.name],
+              ['Working City', (e as any).workingCity?.name],
+              ['Working Site', (e as any).workingSite?.name],
+              ['Pay Register Location', (e as any).payRegister?.name],
               ['Date of Joining', date(e.actual_doj)],
               ['Current Joining Date', date(e.current_doj)],
-              ['Weekly Off', labelFrom(WEEKLY_OFF_OPTIONS, e.weekly_off)],
+              ['Weekly Off', (e as any).weeklyOffPreset?.name],
               ['Shift Category', e.shift_category],
               ['Working Shift', shiftLabel(e.shift_id)],
-              ['Grace Minutes', labelFrom(GRACE_MINUTES_OPTIONS, e.grace_minutes)],
+              ['Grace Minutes', graceMinutesLabel((e as any).grace_minutes)],
             ]} />
             <InfoCard title="Managers & Work Contact" rows={[
               ['L1 Manager', managerName(e.l1Manager)],

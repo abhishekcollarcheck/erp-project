@@ -26,6 +26,26 @@ async function addIndexIfMissing(
 }
 
 export async function up(queryInterface: QueryInterface) {
+  // On a genuinely fresh database (migrations run before the app has ever
+  // booted, e.g. `db:migrate` on an empty DB / CI / a new machine),
+  // `leave_requests` doesn't exist yet — it was only ever created via
+  // `sequelize.sync()` from the model, never by a `createTable` migration.
+  // This migration is a backfill for OLDER databases where the table
+  // predates these columns; the current model (LeaveModels.ts) already
+  // declares every one of them, so a table `sync()` creates fresh already
+  // has them — nothing to backfill. Skip rather than fail on
+  // `describeTable`, which throws "No description found for ... table" for
+  // a table that doesn't exist at all (not to be confused with a missing
+  // column, which `addColumnIfMissing` already tolerates).
+  const tables = await queryInterface.showAllTables();
+  if (!tables.includes('leave_requests')) {
+    console.log(
+      '[add-leave-request-fields] leave_requests does not exist yet — skipping ' +
+      '(sequelize.sync() will create it with these columns already included).',
+    );
+    return;
+  }
+
   await addColumnIfMissing(queryInterface, 'leave_requests', 'from_time', {
     type: DataTypes.STRING(5),
     allowNull: true,

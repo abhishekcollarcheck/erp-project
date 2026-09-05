@@ -2,9 +2,11 @@
 import { useWatch, useFormContext } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { toOpts, HOUSE_TYPE, PERM_ADDRESS_TYPE, WORKING_CITY_OPTIONS, WORKING_STATE_COUNTRY_OPTIONS } from '../../constants/employee.constants';
+import { toOpts, PERM_ADDRESS_TYPE } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { FormSection } from '../../../../components/form/FormSection';
+import { useHouseTypeData } from '../../../house-type/hooks/useHouseType';
+import { useCountries, useStates, useCities } from '../../../locations/hooks/uselocation';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -14,6 +16,11 @@ export function StepAddress(_: Props) {
 
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
+
+  const { data: houseTypes = [] } = useHouseTypeData();
+  const { data: countries = [] } = useCountries();
+  const { data: states = [] } = useStates();
+  const { data: cities = [] } = useCities();
 
   const copyFromPresent = () => {
     const v = getValues();
@@ -32,15 +39,15 @@ export function StepAddress(_: Props) {
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Present Address</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <FormSelect name="present_house_type" label="House Type" options={toOpts(HOUSE_TYPE)} placeholder="Select" fieldPerm={f('present_house_type')} />
+        <FormSelect name="present_house_type" label="House Type" options={toOpts(houseTypes.map((h: any) => h.name))} placeholder="Select" fieldPerm={f('present_house_type')} />
         <FormInput  name="present_house_no"   label="House No" placeholder="Flat 4B, Building XYZ" fieldPerm={f('present_house_no')} />
       </div>
       <FormInput name="present_area" label="Area / Village / Block / Street No." placeholder="Andheri West" fieldPerm={f('present_area')} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
         <FormInput name="present_district" label="District" placeholder="Mumbai" fieldPerm={f('present_district')} />
-        <FormSelect name="present_country" label="Country" options={[{ value: 'India', label: 'India' }, { value: 'Bangladesh', label: 'Bangladesh' }, { value: 'Nepal', label: 'Nepal' }, { value: 'Other', label: 'Other' }]} placeholder="Select" fieldPerm={f('present_country')} />
-        <FormSelect name="present_state" label="State" options={[...WORKING_STATE_COUNTRY_OPTIONS]} placeholder="Select" fieldPerm={f('present_state')} />
-        <FormSelect name="present_city" label="City" options={[...WORKING_CITY_OPTIONS]} placeholder="Select" fieldPerm={f('present_city')} />
+        <FormSelect name="present_country" label="Country" options={toOpts(countries.map((c: any) => c.name))} placeholder="Select" fieldPerm={f('present_country')} />
+        <FormSelect name="present_state" label="State" options={toOpts(states.map((s: any) => s.name))} placeholder="Select" fieldPerm={f('present_state')} />
+        <FormSelect name="present_city" label="City" options={toOpts(cities.map((c: any) => c.name))} placeholder="Select" fieldPerm={f('present_city')} />
       </div>
       <FormInput name="present_pincode" label="Pin Code" type="number" placeholder="400058" fieldPerm={f('present_pincode')} />
 
@@ -53,7 +60,7 @@ export function StepAddress(_: Props) {
       <FormSelect name="perm_address_type" label="Permanent Address" options={toOpts(PERM_ADDRESS_TYPE)} placeholder="Select" fieldPerm={f('perm_address_type')} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <FormSelect name="perm_house_type" label="House Type" options={toOpts(HOUSE_TYPE)} placeholder="Select" fieldPerm={f('perm_house_type')} />
+        <FormSelect name="perm_house_type" label="House Type" options={toOpts(houseTypes.map((h: any) => h.name))} placeholder="Select" fieldPerm={f('perm_house_type')} />
         <FormInput  name="perm_house_no"   label="House No." placeholder="Flat / Door No." fieldPerm={f('perm_house_no')} />
       </div>
       <FormInput name="perm_area" label="Area / Village" fieldPerm={f('perm_area')} />

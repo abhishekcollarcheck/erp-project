@@ -10,9 +10,10 @@ import { useTransferEmployee } from '../hooks/useEmployees';
 import { useCompany } from '../../company/hooks/useCompany';
 import { showToast } from '../../../utils/toast';
 import type { Employee } from '../types/employee.types';
-import {
-  DEPARTMENT_OPTIONS, SUB_DEPARTMENT_OPTIONS, DESIGNATION_OPTIONS, WORKING_SITE_OPTIONS,
-} from '../constants/employee.constants';
+import { useDepartments } from '../../departments/hooks/useDepartments';
+import { useSubDepartments } from '../../sub-departments/hooks/useSubDepartments';
+import { useDesignations } from '../../designation/hooks/useDesignations';
+import { useSites } from '../../locations/hooks/uselocation';
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -47,6 +48,16 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
   const router = useRouter();
   const { companies } = useCompany();
   const transferMutation = useTransferEmployee(Number(employee?.id ?? 0));
+
+  const { data: departments = [] } = useDepartments({ is_active: 'true' } as any);
+  const { data: subDepartments = [] } = useSubDepartments({ is_active: 'true' } as any);
+  const { data: designations = [] } = useDesignations({ is_active: 'true' } as any);
+  const { data: sites = [] } = useSites();
+
+  const departmentOpts = (departments ?? []).map((d: any) => ({ value: d.id, label: d.department_name }));
+  const subDepartmentOpts = (subDepartments ?? []).map((d: any) => ({ value: d.id, label: d.name }));
+  const designationOpts = (designations ?? []).map((d: any) => ({ value: d.id, label: d.name }));
+  const siteOpts = (sites ?? []).map((s: any) => ({ value: s.id, label: s.name }));
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
@@ -143,7 +154,7 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
           <label>New Department</label>
           <select {...register('new_department_id')}>
             <option value="">Select department</option>
-            {DEPARTMENT_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+            {departmentOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
         </div>
 
@@ -151,7 +162,7 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
           <label>New Sub Department</label>
           <select {...register('new_sub_department_id')}>
             <option value="">Select sub department</option>
-            {SUB_DEPARTMENT_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+            {subDepartmentOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
         </div>
 
@@ -159,7 +170,7 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
           <label>New Designation</label>
           <select {...register('new_designation_id')}>
             <option value="">Select designation</option>
-            {DESIGNATION_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+            {designationOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
         </div>
 
@@ -167,7 +178,7 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
           <label>New Working Site</label>
           <select {...register('new_working_site')}>
             <option value="">Select site</option>
-            {WORKING_SITE_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+            {siteOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
         </div>
 

@@ -20,10 +20,12 @@ import { usePermission } from '../../../features/auth/hooks/useAuth';
 import { formatDate, getTenure, getInitials, statusVariant, displayStatus } from '../../../features/employees/utils/employee.utils';
 import { showToast } from '../../../utils/toast';
 import type { Employee, EmployeeStatus, EmploymentType } from '../../../features/employees/types/employee.types';
-import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE, DEPARTMENT_OPTIONS } from '../../../features/employees/constants/employee.constants';
 import { BulkUploadModal } from '../../../features/employees/components/BulkUploadModal';
 import { TransferEmployeeModal } from '../../../features/employees/components/TransferEmployeeModal';
 import { PermissionGuard } from '@/utils/permissionGuard';
+import { useDepartments } from '../../../features/departments/hooks/useDepartments';
+import { useEmployeeTypes } from '../../../features/employee-type/hooks/useEmployeeType';
+import { useEmployeeStatuses } from '../../../features/employeeStatus/hooks/useEmployeeStatus';
 
 type StatusFilter     = EmployeeStatus | 'Draft' | '';
 type EmpTypeFilter    = EmploymentType | '';
@@ -42,6 +44,13 @@ export default function EmployeesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [transferTarget, setTransferTarget] = useState<Employee | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+
+  const { data: departments = [] } = useDepartments({ is_active: 'true' } as any);
+  const { data: employeeTypes = [] } = useEmployeeTypes();
+  const { data: employeeStatuses = [] } = useEmployeeStatuses();
+  const departmentOpts = (departments ?? []).map((d: any) => ({ value: d.id, label: d.department_name }));
+  const employeeTypeNames = (employeeTypes ?? []).map((t: any) => t.name);
+  const employeeStatusNames = (employeeStatuses ?? []).map((s: any) => s.name);
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -195,7 +204,7 @@ export default function EmployeesPage() {
           onChange={e => { setDeptFilter(e.target.value); setPage(1); }}
           style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
           <option value="">All Departments</option>
-          {DEPARTMENT_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+          {departmentOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
         </select>
 
         <select className="filter-select" value={statusFilter}
@@ -203,14 +212,14 @@ export default function EmployeesPage() {
           style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
           <option value="">All Status</option>
           <option value="Draft">Draft (incomplete profile)</option>
-          {EMPLOYEE_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
+          {employeeStatusNames.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
         <select className="filter-select" value={typeFilter}
           onChange={e => { setTypeFilter(e.target.value as EmpTypeFilter); setPage(1); }}
           style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
           <option value="">All Types</option>
-          {EMPLOYMENT_TYPE.map(t => <option key={t} value={t}>{t}</option>)}
+          {employeeTypeNames.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
 
         <div className="search-bar">

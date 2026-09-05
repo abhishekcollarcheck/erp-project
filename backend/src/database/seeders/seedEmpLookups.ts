@@ -46,13 +46,15 @@ import { Qualification } from '../models/qualification.model';
 import { EmergencyRelationship } from '../models/emergency-relationship.model';
 import { EmployeeStatus } from '../models/employeeStatus.model';
 import { EmployeeType } from '../models/EmployeeType';
-import { Country, State, City } from '../models/Location';
+import { ExitStatus } from '../models/exitStatus.model';
+import { Country, State, City, Site, PayRegister } from '../models/Location';
 import { AttendanceType, GraceMinute, SaturdayRule } from '../models/AttendanceRules';
 import { Department } from '../models/Department';
 import { Designation, SubDesignation } from '../models/Designation';
 import { SubDepartment } from '../models/Subdepartment';
 import { Company } from '../models/Company';
 import { WeeklyOffPreset, WeekDay, NthRule } from '../models/weeklyOffPreset';
+import { Shift } from '../models/Shift';
 
 // ─── Load the source catalog ────────────────────────────────────────────────
 
@@ -63,6 +65,7 @@ const LOOKUPS: {
   stateCountryLinks: Record<string, string[]>;
   weeklyOffDefinitions: Array<{ id: string; name: string; days: string[]; nthRules: Array<{ weekday: string; pattern: string }> }>;
   companyDefinitions: Array<Record<string, string>>;
+  shiftDefinitions: Array<{ id: string; name: string; start: string; end: string; halfAt: string; daySpan: string }>;
 } = JSON.parse(raw);
 
 // ─── Small helpers ───────────────────────────────────────────────────────────
@@ -197,6 +200,7 @@ export async function seedEmpLookups(): Promise<void> {
   results.push(await seedSimpleLookup(EmergencyRelationship, 'emergency_relationships', c.relationship.map((name) => ({ name, code: toCode(name) }))));
   results.push(await seedSimpleLookup(EmployeeStatus, 'employee_statuses', c.status.map((name) => ({ name, code: toCode(name) }))));
   results.push(await seedSimpleLookup(EmployeeType, 'employee_types', c.employeeType.map((name) => ({ name, code: toCode(name) }))));
+  results.push(await seedSimpleLookup(ExitStatus, 'exit_statuses', c.exitStatus.map((name) => ({ name, code: toCode(name) }))));
 
   // Attendance-rule tables (paranoid, name unique)
   results.push(await seedSimpleLookup(AttendanceType, 'attendance_types', c.attendanceType.map((name) => ({ name, code: toCode(name) }))));
@@ -267,6 +271,52 @@ export async function seedEmpLookups(): Promise<void> {
     }
   }
   results.push(cityResult);
+
+  // 2b. Sites & Pay Registers — dummy master data for the Employee wizard's
+  //     Working Site / Pay Register Location dropdowns (previously hardcoded
+  //     numeric-coded lists in employee.masterOptions.ts / employee.constants.ts).
+  //     No unique constraint on `name`, so dedupe by pre-fetching existing rows.
+  //     city_id/state_id are nullable ("all cities/states" scope) — best-effort
+  //     matched from the label text; left null when nothing matches.
+  const siteResult = newResult('sites');
+  const existingSiteNames = new Set((await Site.findAll({ attributes: ['name'] })).map((s) => s.name));
+  const cityRowsForMatch = await City.findAll({ attributes: ['id', 'name'] });
+  for (const label of c.workingSite) {
+    siteResult.attempted++;
+    if (existingSiteNames.has(label)) {
+      siteResult.skippedDuplicate++;
+      continue;
+    }
+    const matchedCity = cityRowsForMatch.find((city) => label.toUpperCase().includes(city.name.toUpperCase()));
+    try {
+      await Site.create({ name: label, company_id: 1, city_id: matchedCity?.id ?? null, is_active: true } as any);
+      siteResult.inserted++;
+      existingSiteNames.add(label);
+    } catch (e: any) {
+      siteResult.failed.push({ value: label, error: e.message });
+    }
+  }
+  results.push(siteResult);
+
+  const payRegisterResult = newResult('pay_registers');
+  const existingPayRegisterNames = new Set((await PayRegister.findAll({ attributes: ['name'] })).map((p) => p.name));
+  const stateRowsForMatch = await State.findAll({ attributes: ['id', 'name'] });
+  for (const label of c.payRegisterLocation) {
+    payRegisterResult.attempted++;
+    if (existingPayRegisterNames.has(label)) {
+      payRegisterResult.skippedDuplicate++;
+      continue;
+    }
+    const matchedState = stateRowsForMatch.find((state) => label.toUpperCase() === state.name.toUpperCase());
+    try {
+      await PayRegister.create({ name: label, company_id: 1, state_id: matchedState?.id ?? null, is_active: true } as any);
+      payRegisterResult.inserted++;
+      existingPayRegisterNames.add(label);
+    } catch (e: any) {
+      payRegisterResult.failed.push({ value: label, error: e.message });
+    }
+  }
+  results.push(payRegisterResult);
 
   // 3. Departments (unique department_name — DB enforces dedupe) ------------
   const deptResult = newResult('departments');
@@ -392,11 +442,36 @@ export async function seedEmpLookups(): Promise<void> {
   }
   results.push(companyResult);
 
+  // 8. Shifts — `Shift.label` has no DB-level unique constraint, so (like
+  //    states/cities) dedupe by pre-fetching existing labels rather than
+  //    relying on a unique-constraint catch.
+  const shiftResult = newResult('shift');
+  const existingShiftLabels = new Set((await Shift.findAll({ attributes: ['label'] })).map((s) => s.label));
+  for (const def of LOOKUPS.shiftDefinitions) {
+    shiftResult.attempted++;
+    if (existingShiftLabels.has(def.name)) {
+      shiftResult.skippedDuplicate++;
+      continue;
+    }
+    try {
+      await Shift.create({
+        label: def.name,
+        start_time: def.start || null,
+        end_time: def.end || null,
+        half_day_time: def.halfAt || null,
+        day_span: def.daySpan === '2 day' ? '2 days' : '1 day',
+      } as any);
+      shiftResult.inserted++;
+      existingShiftLabels.add(def.name);
+    } catch (e: any) {
+      shiftResult.failed.push({ value: def.name, error: e.message });
+    }
+  }
+  results.push(shiftResult);
+
   // ─── Tables intentionally NOT seeded, and why ────────────────────────────
   skippedTables.push(
-    { table: 'shift', reason: 'Already fully populated (64 rows) by the existing shift seeder — left unchanged to avoid duplicating/conflicting with live shift assignments.' },
     { table: 'applicability_statuses (yesNo/yesNoNa)', reason: 'Table does not exist yet — it is part of the master-data refactor plan\'s Phase 0, which has not been executed.' },
-    { table: 'sites / pay_registers (workingSite, payRegisterLocation)', reason: 'Require company_id/state_id/city_id foreign keys the source data does not provide a reliable mapping for (siteCityLinks/deptCompanyLinks are empty in the catalog).' },
     { table: 'designation_departments / company_departments / sub_department/sub_designation links', reason: 'Pivot tables — the catalog\'s link maps (desigDeptLinks, deptCompanyLinks, subDeptLinks, subDesigLinks) are all empty, so there is no reliable mapping to populate them from.' },
     { table: 'perm_address_type / address_type (addressType)', reason: 'Kept as free-text/ENUM by design (master-data plan) — no master table exists for this field.' },
     { table: 'vaccineType, attendanceDesignation', reason: 'No corresponding master table exists in this schema.' },

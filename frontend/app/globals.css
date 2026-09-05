@@ -562,6 +562,10 @@ tbody tr:hover td { background: var(--surface2); cursor: pointer; }
 }
 .master-row-actions { display: flex; gap: 2px; justify-content: flex-end; }
 
+/* Scrollable panel with no visible scrollbar (still scrolls via wheel/touch/keys) */
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
 .leave-balance-card {
   position: relative;
   overflow: hidden;

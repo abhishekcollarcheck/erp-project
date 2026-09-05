@@ -19,21 +19,20 @@ import {
   FATHER_SALUTATION, MOTHER_SALUTATION, SALARY_MODE, DEDUCTION_FROM,
   GENDER, BLOOD_GROUP, MARITAL_STATUS, SHIFT_CATEGORY,
 } from './employee.constants';
-import type { MasterOptionGroup } from './employee.masterOptions';
 
-export type FieldType = 'str' | 'int' | 'num' | 'bool' | 'date' | 'enum' | 'master' | 'dbmaster';
+export type FieldType = 'str' | 'int' | 'num' | 'bool' | 'date' | 'enum' | 'dbmaster';
 
 /** DB-backed master lookups resolved by name (see bulkImport.mapper.ts). */
 export type DbMaster =
   | 'company' | 'department' | 'designation' | 'sub_department' | 'sub_designation'
-  | 'shift' | 'manager';
+  | 'shift' | 'manager'
+  | 'site' | 'city' | 'state' | 'pay_register' | 'weekly_off' | 'grace_minutes';
 
 export interface FieldDef {
   col:      string;                 // spreadsheet header (snake_case)
   step:     StepKey | 'role_identity';
   key:      string;                 // key in the step payload / base row
   type:     FieldType;
-  master?:  MasterOptionGroup;      // for type 'master'
   dbMaster?: DbMaster;              // for type 'dbmaster'
   enumValues?: readonly string[];   // for type 'enum'
   required?: boolean;               // hard-required for every row
@@ -50,7 +49,6 @@ export const FIELD_DEFS: FieldDef[] = [
   f({ col: 'reference_code',       step: 'role_identity', key: 'reference_code',       type: 'str', label: 'Reference Code', help: 'Optional external/legacy tracking code (must be unique)' }),
   f({ col: 'avatar',               step: 'role_identity', key: 'avatar',               type: 'str', label: 'Avatar', help: 'Image URL (http/https) or data URI — downloaded and saved to the employee upload folder. An existing /uploads/… path is kept as-is' }),
   f({ col: 'avatar_url',           step: 'role_identity', key: 'avatar_url',           type: 'str', label: 'Avatar URL', help: 'Legacy — stores the given link verbatim without downloading it. Prefer the "Avatar" column' }),
-  f({ col: 'reporting_manager_code', step: 'role_identity', key: 'reporting_manager_id', type: 'dbmaster', dbMaster: 'manager', label: 'Reporting Manager Code', help: 'Employee Code (or email) of the reporting manager — may be in another company. Used for leave approvals & org chart' }),
   f({ col: 'company',           step: 'role_identity', key: 'company_id',        type: 'dbmaster', dbMaster: 'company',        label: 'Company', help: 'Pick from the dropdown (company master). Defaults to your company if blank; an unknown name is rejected' }),
   f({ col: 'first_name',        step: 'role_identity', key: 'first_name',        type: 'str',  required: true, label: 'First Name' }),
   f({ col: 'middle_name',       step: 'role_identity', key: 'middle_name',       type: 'str',  label: 'Middle Name' }),
@@ -65,16 +63,18 @@ export const FIELD_DEFS: FieldDef[] = [
   f({ col: 'sub_designation',   step: 'role_identity', key: 'sub_designation_id',type: 'dbmaster', dbMaster: 'sub_designation',label: 'Sub-designation' }),
 
   // ── Location & Attendance ──────────────────────────────────────────────────
-  f({ col: 'working_site',          step: 'location_attendance', key: 'working_site',          type: 'master', master: 'working_site',          label: 'Working Site' }),
-  f({ col: 'working_city',          step: 'location_attendance', key: 'working_city',          type: 'master', master: 'working_city',          label: 'Working City' }),
-  f({ col: 'working_state_country', step: 'location_attendance', key: 'working_state_country', type: 'master', master: 'working_state_country', label: 'Working State / Country' }),
-  f({ col: 'pay_register_location', step: 'location_attendance', key: 'pay_register_location', type: 'master', master: 'pay_register_location', label: 'Pay Register Location' }),
+  // Resolved against the real Site/City/State/PayRegister/WeeklyOffPreset/GraceMinute
+  // master tables (same ones the wizard's dropdowns read) rather than a hardcoded copy.
+  f({ col: 'working_site',          step: 'location_attendance', key: 'working_site',          type: 'dbmaster', dbMaster: 'site',          label: 'Working Site' }),
+  f({ col: 'working_city',          step: 'location_attendance', key: 'working_city',          type: 'dbmaster', dbMaster: 'city',          label: 'Working City' }),
+  f({ col: 'working_state_country', step: 'location_attendance', key: 'working_state_country', type: 'dbmaster', dbMaster: 'state',         label: 'Working State / Country' }),
+  f({ col: 'pay_register_location', step: 'location_attendance', key: 'pay_register_location', type: 'dbmaster', dbMaster: 'pay_register',  label: 'Pay Register Location' }),
   f({ col: 'date_of_joining',       step: 'location_attendance', key: 'actual_doj',            type: 'date', requiredWithStep: true, label: 'Date of Joining', help: 'Original / group joining date — YYYY-MM-DD' }),
   f({ col: 'current_joining_date',  step: 'location_attendance', key: 'current_doj',           type: 'date', label: 'Current Joining Date', help: 'Transfer field — joining date at the current company after a transfer (YYYY-MM-DD)' }),
-  f({ col: 'weekly_off',            step: 'location_attendance', key: 'weekly_off',            type: 'master', master: 'weekly_off',            label: 'Weekly Off' }),
+  f({ col: 'weekly_off',            step: 'location_attendance', key: 'weekly_off',            type: 'dbmaster', dbMaster: 'weekly_off',    label: 'Weekly Off' }),
   f({ col: 'shift_category',        step: 'location_attendance', key: 'shift_category',        type: 'enum', enumValues: SHIFT_CATEGORY, label: 'Shift Category' }),
   f({ col: 'shift',                 step: 'location_attendance', key: 'shift_id',              type: 'dbmaster', dbMaster: 'shift', label: 'Shift', help: 'Shift label' }),
-  f({ col: 'grace_minutes',         step: 'location_attendance', key: 'grace_minutes',         type: 'master', master: 'grace_minutes',         label: 'Grace Minutes' }),
+  f({ col: 'grace_minutes',         step: 'location_attendance', key: 'grace_minutes',         type: 'dbmaster', dbMaster: 'grace_minutes', label: 'Grace Minutes' }),
 
   // ── Managers & Work Contact ────────────────────────────────────────────────
   f({ col: 'l1_manager_code',  step: 'managers_work_contact', key: 'l1_manager_id',  type: 'dbmaster', dbMaster: 'manager', label: 'L1 Manager Code', help: 'Employee Code of the L1 manager (must be in the same company)' }),

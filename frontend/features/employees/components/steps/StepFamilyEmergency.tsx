@@ -4,9 +4,18 @@ import { useFieldArray, useFormContext } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
-import { toOpts, FATHER_SALUTATION, MOTHER_SALUTATION, MARITAL_STATUS, RELATIONSHIP_OPTIONS } from '../../constants/employee.constants';
+import { toOpts } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { FormSection } from '../../../../components/form/FormSection';
+import { useMaritalStatusData } from '../../../../features/maritalStatus/hooks/useMaritalStatus';
+import { useSalutationData } from '../../../../features/salutation/hooks/useSalutation';
+import { useEmergencyRelationshipData } from '../../../../features/emergency-relationship/useEmergencyRelationship';
+
+// Same subset as the old hardcoded FATHER_SALUTATION / MOTHER_SALUTATION
+// constants — the shared `salutations` master has all 5 (Mr./Mrs./Ms./Dr./Late),
+// filtered client-side per parent so a father can't be assigned "Mrs.".
+const FATHER_SALUTATION_NAMES = ['Mr.', 'Dr.', 'Late'];
+const MOTHER_SALUTATION_NAMES = ['Mrs.', 'Ms.', 'Dr.', 'Late'];
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
@@ -14,6 +23,12 @@ export function StepFamilyEmergency(_: Props) {
   const { data: fp } = useFieldPermissions();
   const f = (n: string) => resolveFieldPerm(fp, n);
   const { control, getValues } = useFormContext();
+
+  const { data: maritalStatuses = [] } = useMaritalStatusData();
+  const { data: salutations = [] } = useSalutationData();
+  const { data: relationships = [] } = useEmergencyRelationshipData();
+  const fatherSalutations = salutations.filter(s => FATHER_SALUTATION_NAMES.includes(s.name));
+  const motherSalutations = salutations.filter(s => MOTHER_SALUTATION_NAMES.includes(s.name));
 
   const familyMembers = useFieldArray({ control, name: 'family_members' });
   const emergencyContacts = useFieldArray({ control, name: 'emergency_contacts' });
@@ -41,17 +56,17 @@ export function StepFamilyEmergency(_: Props) {
     <FormSection fields={[f('marital_status'), f('father_salutation'), f('father_name'), f('father_dob'), f('father_occupation'), f('mother_salutation'), f('mother_name'), f('mother_dob'), f('mother_occupation'), f('family_members'), f('emergency_contacts')]}>
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Marital Status</div>
-      <FormSelect name="marital_status" label="Marital Status" options={toOpts(MARITAL_STATUS)} placeholder="Select" fieldPerm={f('marital_status')} />
+      <FormSelect name="marital_status" label="Marital Status" options={toOpts(maritalStatuses.map(m => m.name))} placeholder="Select" fieldPerm={f('marital_status')} />
 
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Parents</div>
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr', gap: 12 }}>
-        <FormSelect name="father_salutation" label="Salutation" options={toOpts(FATHER_SALUTATION)} placeholder="Select" fieldPerm={f('father_salutation')} />
+        <FormSelect name="father_salutation" label="Salutation" options={toOpts(fatherSalutations.map(s => s.name))} placeholder="Select" fieldPerm={f('father_salutation')} />
         <FormInput  name="father_name"       label="Father Name" placeholder="Full name" fieldPerm={f('father_name')} />
         <FormDatePicker name="father_dob"    label="Father's Age/Dob" fieldPerm={f('father_dob')} />
         <FormInput  name="father_occupation" label="Father's Occupation" fieldPerm={f('father_occupation')} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr', gap: 12 }}>
-        <FormSelect name="mother_salutation" label="Salutation" options={toOpts(MOTHER_SALUTATION)} placeholder="Select" fieldPerm={f('mother_salutation')} />
+        <FormSelect name="mother_salutation" label="Salutation" options={toOpts(motherSalutations.map(s => s.name))} placeholder="Select" fieldPerm={f('mother_salutation')} />
         <FormInput  name="mother_name"       label="Mother Name" placeholder="Full name" fieldPerm={f('mother_name')} />
         <FormDatePicker name="mother_dob"    label="Mother's Age/Dob" fieldPerm={f('mother_dob')} />
         <FormInput  name="mother_occupation" label="Mother's Occupation" fieldPerm={f('mother_occupation')} />
@@ -81,7 +96,7 @@ export function StepFamilyEmergency(_: Props) {
           <FormInput name={`emergency_contacts.${i}.contact_name`} label={i === 0 ? 'Contact person name' : 'Name'} fieldPerm={f('emergency_contacts')} />
           <FormInput name={`emergency_contacts.${i}.contact_number`} label={i === 0 ? 'Contact number' : 'Number'} fieldPerm={f('emergency_contacts')} />
           <FormInput name={`emergency_contacts.${i}.email`} label="Email" type="email" placeholder="name@email.com" fieldPerm={f('emergency_contacts')} />
-          <FormSelect name={`emergency_contacts.${i}.relationship`} label="Relationship" options={[...RELATIONSHIP_OPTIONS]} placeholder="Select" fieldPerm={f('emergency_contacts')} />
+          <FormSelect name={`emergency_contacts.${i}.relationship`} label="Relationship" options={toOpts(relationships.map(r => r.name))} placeholder="Select" fieldPerm={f('emergency_contacts')} />
           {i > 0 && <button type="button" className="btn btn-sec btn-sm" onClick={() => emergencyContacts.remove(i)}>Remove</button>}
         </div>
       ))}

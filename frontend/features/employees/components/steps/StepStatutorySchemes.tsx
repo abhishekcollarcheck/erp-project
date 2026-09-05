@@ -15,19 +15,15 @@ import {
 } from '../../constants/employee.constants';
 import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
 import { FormSection } from '../../../../components/form/FormSection';
+import { useInsuredData } from '../../../insuredAmounts/useInsuredAmount';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
-// TODO: move to employee.constants.ts alongside PF_EMPLOYER_FROM etc. for
-// consistency — kept inline here since this fixes an immediate mismatch
-// between the free-currency-input UI and the model's fixed ENUM.
-const MEDICLAIM_AMOUNT_OPTIONS = [
-  { value: '150000', label: '₹1,50,000' },
-  { value: '250000', label: '₹2,50,000' },
-  { value: '400000', label: '₹4,00,000' },
-  { value: '500000', label: '₹5,00,000' },
-  { value: 'Not Applicable', label: 'Not Applicable' },
-];
+// "150000" -> "₹1,50,000"; non-numeric names (e.g. "Not Applicable") pass through as-is.
+function formatInsuredLabel(name: string): string {
+  const n = Number(name);
+  return Number.isFinite(n) && n > 0 ? `₹${new Intl.NumberFormat('en-IN').format(n)}` : name;
+}
 
 function computeRdMaturity(
   openingDate: string | null | undefined,
@@ -63,6 +59,9 @@ export function StepStatutorySchemes(_: Props) {
   const f = (n: string) => resolveFieldPerm(fp, n);
 
   const { setValue } = useFormContext();
+
+  const { data: insuredData } = useInsuredData();
+  const insuredAmountOptions = (insuredData?.masters ?? []).map((m: any) => ({ value: m.name, label: formatInsuredLabel(m.name) }));
 
   const pfStatus   = useWatch({ name: 'pf_status' });
   const esicStatus = useWatch({ name: 'esic_status' });
@@ -137,7 +136,7 @@ export function StepStatutorySchemes(_: Props) {
         {mediStatus === 'Yes' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <FormInput name="mediclaim_number" label="Mediclaim Policy Number" fieldPerm={f('mediclaim_number')} />
-            <FormSelect name="mediclaim_amount" label="Mediclaim Amount" options={MEDICLAIM_AMOUNT_OPTIONS} placeholder="Select" fieldPerm={f('mediclaim_amount')} />
+            <FormSelect name="mediclaim_amount" label="Mediclaim Amount" options={insuredAmountOptions} placeholder="Select" fieldPerm={f('mediclaim_amount')} />
           </div>
         )}
       </div>
