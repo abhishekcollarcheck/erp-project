@@ -144,22 +144,12 @@ export function startMonthlyLeaveCron() {
     '0 * * * *',
     async () => {
 
-      console.log('');
-      console.log('==================================================');
-      console.log('       MONTHLY LEAVE CRON STARTED');
-      console.log('==================================================');
       try {
         const now = new Date();
 
         // 1. Get current year and month
         const year = now.getFullYear();
         const month = now.getMonth() + 1; // 1-12
-
-        console.log(
-          '[CRON] Processing for year/month:',
-          `${year}-${month}`
-        );
-
         // ==================================================
         // GET ACTIVE EMPLOYEES
         // ==================================================
@@ -169,12 +159,6 @@ export function startMonthlyLeaveCron() {
             // is_active: true,
           },
         });
-
-        console.log(
-          '[CRON] Employees found:',
-          employees.length
-        );
-
         // ==================================================
         // PROCESS EACH EMPLOYEE
         // ==================================================
@@ -183,11 +167,6 @@ export function startMonthlyLeaveCron() {
 
           try {
 
-            console.log('');
-            console.log(
-              `[CRON] Processing employee ${employee.id}`
-            );
-
             // Pass employeeId, year, and month as requested
             const result =
               await processMonthlyLeave(
@@ -195,15 +174,6 @@ export function startMonthlyLeaveCron() {
                 year,
                 month
               );
-
-            console.log(
-              `[CRON] Employee ${employee.id} completed`
-            );
-
-            console.log(
-              '[CRON] Posting results:',
-              result.postingResults.length
-            );
 
           } catch (error) {
 
@@ -215,18 +185,8 @@ export function startMonthlyLeaveCron() {
           }
         }
 
-        console.log('');
-        console.log('==================================================');
-        console.log('       MONTHLY LEAVE CRON COMPLETED');
-        console.log('==================================================');
-
+        
       } catch (error) {
-
-        console.error('');
-        console.error('==================================================');
-        console.error('       MONTHLY LEAVE CRON FAILED');
-        console.error('==================================================');
-
         console.error(error);
 
       }

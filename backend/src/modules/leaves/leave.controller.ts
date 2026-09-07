@@ -1450,7 +1450,6 @@ export async function getCompanyLeaveBalances(req: Request, res: Response, next:
     const overview = await leaveService.getCompanyBalancesOverview(req.user!.companyId, year);
     sendResponse(res, { data: overview, message: 'Company leave balances fetched' });
   } catch (e) { 
-    console.log(e);
     next(e); }
 }
 
@@ -1530,6 +1529,8 @@ export const processMonthlyLeaveController = async (req: Request, res: Response)
     const employeeId = Number(req.params.employeeId);
     const year = Number(req.query.year);
     const month = Number(req.query.month);
+
+    console.log("req.body", employeeId, year, month)
 
     if (!employeeId || !year || !month) {
       return res.status(400).json({

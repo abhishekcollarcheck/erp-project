@@ -1308,6 +1308,364 @@
 
 
 
+// import {
+//   EmployeeLeaveInformation,
+//   MonthlyAttendanceSummary,
+// } from "../leave.service";
+
+// import { LeaveRuleResult } from "../leaveRuleEngine.service";
+
+// /* ============================================================
+//    CONSTANTS
+// ============================================================ */
+
+// const MONTHLY_EL = 1.25;
+// const MIN_PRESENT_DAYS = 20;
+
+// /* ============================================================
+//    HELPERS
+// ============================================================ */
+
+// /**
+//  * Returns YYYY-MM for a date.
+//  */
+// function getYearMonth(dateValue: string | Date | null): string | null {
+//   if (!dateValue) {
+//     return null;
+//   }
+
+//   const date = new Date(dateValue);
+
+//   if (Number.isNaN(date.getTime())) {
+//     return null;
+//   }
+
+//   return `${date.getFullYear()}-${String(
+//     date.getMonth() + 1
+//   ).padStart(2, "0")}`;
+// }
+
+// /**
+//  * Returns YYYY-MM for the processing month.
+//  */
+// function getProcessingYearMonth(
+//   year: number,
+//   month: number
+// ): string {
+//   return `${year}-${String(month).padStart(2, "0")}`;
+// }
+
+// /* ============================================================
+//    RULE 2 — EARNED LEAVE
+// ============================================================ */
+
+// /**
+//  * EARNED LEAVE POLICY
+//  *
+//  * ------------------------------------------------------------
+//  * CASE 1 — EMPLOYEE IS ON PROBATION
+//  * ------------------------------------------------------------
+//  *
+//  * Employee earns:
+//  *
+//  *      1.25 EL / month
+//  *
+//  * This amount belongs to:
+//  *
+//  *      employee_commitment_probation.probation_el_credit
+//  *
+//  *
+//  * ------------------------------------------------------------
+//  * CASE 2 — TRANSITION MONTH
+//  * ------------------------------------------------------------
+//  *
+//  * After probation is completed, the first month after
+//  * probation is the transition month.
+//  *
+//  * Example:
+//  *
+//  * Probation ends:
+//  *      30 June 2026
+//  *
+//  * Confirmation:
+//  *      01 July 2026
+//  *
+//  * July = transition month
+//  *
+//  * In transition month:
+//  *
+//  *      Previous probation EL
+//  *             +
+//  *      1.25 EL if 20+ present days
+//  *
+//  *
+//  * Example:
+//  *
+//  *      probation_el_credit = 7.50
+//  *      presentDays = 21
+//  *
+//  *      7.50 + 1.25
+//  *      = 8.75 EL
+//  *
+//  *
+//  * If present days are below 20:
+//  *
+//  *      7.50 + 0
+//  *      = 7.50 EL
+//  *
+//  *
+//  * ------------------------------------------------------------
+//  * CASE 3 — NORMAL POST-PROBATION
+//  * ------------------------------------------------------------
+//  *
+//  * After the transition month:
+//  *
+//  *      20+ present days → 1.25 EL
+//  *      <20 present days  → 0 EL
+//  *
+//  * ------------------------------------------------------------
+//  *
+//  * IMPORTANT:
+//  *
+//  * This rule ONLY calculates the result.
+//  *
+//  * Database updates should be handled by the monthly
+//  * leave processor / cron.
+//  */
+// export function calculateEarnedLeave(
+//   employee: EmployeeLeaveInformation,
+//   attendance: MonthlyAttendanceSummary,
+//   year: number,
+//   month: number
+// ): LeaveRuleResult {
+
+//   /* ==========================================================
+//      PROBATION EL DATA
+//   ========================================================== */
+
+//   const probationElCredit = Number(
+//     employee.probation.probation_el_credit ?? 0
+//   );
+
+//   const transferredProbationElCredit = Number(
+//     employee.probation.probation_el_transferred ?? 0
+//   );
+
+//   const attendanceEligible =
+//     Number(attendance.presentDays) >= MIN_PRESENT_DAYS;
+//   /* ==========================================================
+//      PROCESSING MONTH
+//   ========================================================== */
+
+//   const processingYearMonth =
+//     getProcessingYearMonth(year, month);
+
+//   /* ==========================================================
+//      CASE 1 — CURRENTLY ON PROBATION
+//   ========================================================== */
+
+//   const isCurrentlyOnProbation =
+//     employee.probation.exists === true &&
+//     employee.probation.on_probation === true &&
+//     employee.probation_completed === false;
+
+//   if (isCurrentlyOnProbation) {
+
+//     return {
+//       leave_type_code: "EL",
+//       leave_type_name: "Earned Leave",
+//       eligible: true,
+//       earned_days: MONTHLY_EL,
+
+//       rule:
+//         "Employee on probation earns 1.25 EL per month.",
+
+//       reason:
+//         `Employee is currently on probation. ${MONTHLY_EL} EL is earned for ${processingYearMonth} and should be added to probation_el_credit.`,
+//     };
+//   }
+
+//   /* ==========================================================
+//      CASE 2 — TRANSITION MONTH
+//   ========================================================== */
+
+//   /**
+//    * The transition month is the month immediately after
+//    * probation_end_date.
+//    *
+//    * Example:
+//    *
+//    * probation_end_date = 2026-06-30
+//    *
+//    * transition month = 2026-07
+//    */
+
+//   const probationEndYearMonth =
+//     getYearMonth(
+//       employee.probation.probation_end_date
+//     );
+
+//   let transitionYearMonth: string | null = null;
+
+//   if (employee.probation.probation_end_date) {
+
+//     const probationEndDate =
+//       new Date(employee.probation.probation_end_date);
+
+//     if (!Number.isNaN(probationEndDate.getTime())) {
+
+//       const transitionDate = new Date(
+//         probationEndDate.getFullYear(),
+//         probationEndDate.getMonth() + 1,
+//         1
+//       );
+
+//       transitionYearMonth =
+//         `${transitionDate.getFullYear()}-${String(
+//           transitionDate.getMonth() + 1
+//         ).padStart(2, "0")}`;
+//     }
+//   }
+
+ 
+//   const isTransitionMonth =
+//     employee.probation_completed === true &&
+//     transitionYearMonth === processingYearMonth;
+
+//   if (isTransitionMonth) {
+
+    
+//     let currentMonthEL = 0;
+
+//     if (attendanceEligible) {
+
+//       currentMonthEL = MONTHLY_EL;
+
+//     } else {
+
+
+//     }
+
+//     const totalEL =
+//       probationElCredit + currentMonthEL;
+
+
+//     return {
+//       leave_type_code: "EL",
+//       leave_type_name: "Earned Leave",
+//       eligible: totalEL > 0,
+//       earned_days: totalEL,
+
+//       rule:
+//         "On transition month, accumulated probation EL is transferred and current month earns 1.25 EL when employee has 20+ present days.",
+
+//       reason:
+//         attendanceEligible
+//           ? `Employee completed probation and this is the transition month. ${probationElCredit} probation EL + ${MONTHLY_EL} current month EL = ${totalEL} EL.`
+//           : `Employee completed probation and this is the transition month. ${probationElCredit} probation EL is transferred, but the employee has only ${attendance.presentDays} present days, so no additional ${MONTHLY_EL} EL is earned.`,
+//     };
+//   }
+
+//   /* ==========================================================
+//      CASE 3 — NORMAL POST-PROBATION
+//   ========================================================== */
+
+
+//   if (employee.probation_completed === true) {
+
+  
+
+//     if (attendanceEligible) {
+
+    
+
+//       return {
+//         leave_type_code: "EL",
+//         leave_type_name: "Earned Leave",
+//         eligible: true,
+//         earned_days: MONTHLY_EL,
+
+//         rule:
+//           "After probation, employee earns 1.25 EL when present for 20+ days in the month.",
+
+//         reason:
+//           `Employee has completed probation and has ${attendance.presentDays} present days. Minimum requirement is ${MIN_PRESENT_DAYS}. Employee earns ${MONTHLY_EL} EL.`,
+//       };
+
+//     }
+
+//     console.log(
+//       "[EL RULE] Employee has less than 20 present days."
+//     );
+
+//     console.log(
+//       "[EL RULE] Current month EL: 0"
+//     );
+
+//     return {
+//       leave_type_code: "EL",
+//       leave_type_name: "Earned Leave",
+//       eligible: false,
+//       earned_days: 0,
+
+//       rule:
+//         "After probation, employee must have 20+ present days to earn 1.25 EL.",
+
+//       reason:
+//         `Employee has completed probation but has only ${attendance.presentDays} present days. Minimum ${MIN_PRESENT_DAYS} present days are required. No EL is earned.`,
+//     };
+//   }
+
+//   /* ==========================================================
+//      FALLBACK
+//   ========================================================== */
+
+//   console.log("");
+//   console.log("[EL RULE] FALLBACK");
+//   console.log("--------------------------------------------------");
+
+//   console.log(
+//     "[EL RULE] Employee does not satisfy any EL condition."
+//   );
+
+//   return {
+//     leave_type_code: "EL",
+//     leave_type_name: "Earned Leave",
+//     eligible: false,
+//     earned_days: 0,
+
+//     rule:
+//       "Employee does not currently satisfy the Earned Leave conditions.",
+
+//     reason:
+//       `No Earned Leave is calculated for ${processingYearMonth}.`,
+//   };
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import {
   EmployeeLeaveInformation,
   MonthlyAttendanceSummary,
@@ -1439,64 +1797,6 @@ export function calculateEarnedLeave(
   month: number
 ): LeaveRuleResult {
 
-  console.log("");
-  console.log("==================================================");
-  console.log("[EL RULE] EARNED LEAVE RULE");
-  console.log("==================================================");
-
-  console.log("[EL RULE] Employee ID:", employee.employee.id);
-  console.log("[EL RULE] Employee Name:", employee.employee.full_name);
-  console.log("[EL RULE] Processing Year:", year);
-  console.log("[EL RULE] Processing Month:", month);
-
-  /* ==========================================================
-     BASIC INFORMATION
-  ========================================================== */
-
-  console.log("");
-  console.log("[EL RULE] EMPLOYEE INFORMATION");
-  console.log("--------------------------------------------------");
-
-  console.log(
-    "[EL RULE] Employment Type:",
-    employee.employee.employment_type
-  );
-
-  console.log(
-    "[EL RULE] Joining Date:",
-    employee.joining_date
-  );
-
-  console.log(
-    "[EL RULE] Leave Status:",
-    employee.leave_status
-  );
-
-  console.log(
-    "[EL RULE] Probation Exists:",
-    employee.probation.exists
-  );
-
-  console.log(
-    "[EL RULE] On Probation:",
-    employee.probation.on_probation
-  );
-
-  console.log(
-    "[EL RULE] Probation Completed:",
-    employee.probation_completed
-  );
-
-  console.log(
-    "[EL RULE] Probation End Date:",
-    employee.probation.probation_end_date
-  );
-
-  console.log(
-    "[EL RULE] Confirmation Date:",
-    employee.probation.confirmed_on
-  );
-
   /* ==========================================================
      PROBATION EL DATA
   ========================================================== */
@@ -1505,65 +1805,34 @@ export function calculateEarnedLeave(
     employee.probation.probation_el_credit ?? 0
   );
 
+  // CORRECTED — this was reading `probation_el_transferred`, which does not
+  // exist on EmployeeLeaveInformation.probation. The model column (and the
+  // interface field that mirrors it) is spelled `probation_el_transefered`
+  // (model's own typo, kept as-is so it matches the DB column exactly).
+  // Reading the wrong name meant this always evaluated to
+  // Number(undefined ?? 0) === 0, silently.
+  //
+  // NOTE: this value still isn't used anywhere below — CASE 2 (transition
+  // month) adds the current month's EL to `probationElCredit` only, not to
+  // this transferred figure. If the intent is "don't re-add transition-month
+  // EL if it's already been transferred to the main EL pool (so re-running
+  // this for the same month doesn't double-count)", that check needs to be
+  // added explicitly — I didn't invent that logic since I don't know the
+  // exact condition you want (e.g. compare against a flag, a date, or
+  // transferredProbationElCredit > 0). Let me know the rule and I'll wire
+  // it in.
   const transferredProbationElCredit = Number(
-    employee.probation.probation_el_transferred ?? 0
-  );
-
-  console.log("");
-  console.log("[EL RULE] PROBATION EL BALANCE");
-  console.log("--------------------------------------------------");
-
-  console.log(
-    "[EL RULE] Current Probation EL Credit:",
-    probationElCredit
-  );
-
-  console.log(
-    "[EL RULE] Already Transferred Probation EL:",
-    transferredProbationElCredit
-  );
-
-  /* ==========================================================
-     ATTENDANCE
-  ========================================================== */
-
-  console.log("");
-  console.log("[EL RULE] ATTENDANCE");
-  console.log("--------------------------------------------------");
-
-  console.log(
-    "[EL RULE] Present Days:",
-    attendance.presentDays
-  );
-
-  console.log(
-    "[EL RULE] Required Present Days:",
-    MIN_PRESENT_DAYS
+    employee.probation.probation_el_transefered ?? 0
   );
 
   const attendanceEligible =
     Number(attendance.presentDays) >= MIN_PRESENT_DAYS;
-
-  console.log(
-    "[EL RULE] Attendance Eligible:",
-    attendanceEligible
-  );
-
   /* ==========================================================
      PROCESSING MONTH
   ========================================================== */
 
   const processingYearMonth =
     getProcessingYearMonth(year, month);
-
-  console.log("");
-  console.log("[EL RULE] PROCESSING MONTH");
-  console.log("--------------------------------------------------");
-
-  console.log(
-    "[EL RULE] Processing Year-Month:",
-    processingYearMonth
-  );
 
   /* ==========================================================
      CASE 1 — CURRENTLY ON PROBATION
@@ -1575,24 +1844,6 @@ export function calculateEarnedLeave(
     employee.probation_completed === false;
 
   if (isCurrentlyOnProbation) {
-
-    console.log("");
-    console.log("==================================================");
-    console.log("[EL RULE] CASE 1 — ACTIVE PROBATION");
-    console.log("==================================================");
-
-    console.log(
-      "[EL RULE] Employee is currently on probation."
-    );
-
-    console.log(
-      "[EL RULE] Monthly probation EL:",
-      MONTHLY_EL
-    );
-
-    console.log(
-      "[EL RULE] Destination: probation_el_credit"
-    );
 
     return {
       leave_type_code: "EL",
@@ -1623,6 +1874,11 @@ export function calculateEarnedLeave(
    * transition month = 2026-07
    */
 
+  // NOTE: computed but not currently used below — `transitionYearMonth`
+  // (derived the same way, a few lines down) is what actually drives the
+  // CASE 2 check. Left as-is since removing it wasn't asked for, but
+  // flagging it as dead code in case it was meant to be part of the
+  // isTransitionMonth condition.
   const probationEndYearMonth =
     getYearMonth(
       employee.probation.probation_end_date
@@ -1650,111 +1906,28 @@ export function calculateEarnedLeave(
     }
   }
 
-  console.log("");
-  console.log("[EL RULE] TRANSITION MONTH CHECK");
-  console.log("--------------------------------------------------");
-
-  console.log(
-    "[EL RULE] Probation End Month:",
-    probationEndYearMonth
-  );
-
-  console.log(
-    "[EL RULE] Transition Month:",
-    transitionYearMonth
-  );
-
-  console.log(
-    "[EL RULE] Current Processing Month:",
-    processingYearMonth
-  );
-
+ 
   const isTransitionMonth =
     employee.probation_completed === true &&
     transitionYearMonth === processingYearMonth;
 
-  console.log(
-    "[EL RULE] Is Transition Month:",
-    isTransitionMonth
-  );
-
   if (isTransitionMonth) {
 
-    console.log("");
-    console.log("==================================================");
-    console.log("[EL RULE] CASE 2 — TRANSITION MONTH");
-    console.log("==================================================");
-
-    console.log(
-      "[EL RULE] Employee has completed probation."
-    );
-
-    console.log(
-      "[EL RULE] This is the first month after probation."
-    );
-
-    console.log(
-      "[EL RULE] Accumulated Probation EL:",
-      probationElCredit
-    );
-
-    console.log(
-      "[EL RULE] Present Days:",
-      attendance.presentDays
-    );
-
+    
     let currentMonthEL = 0;
 
     if (attendanceEligible) {
 
       currentMonthEL = MONTHLY_EL;
 
-      console.log(
-        "[EL RULE] Employee has 20+ present days."
-      );
-
-      console.log(
-        "[EL RULE] Current month EL:",
-        currentMonthEL
-      );
-
     } else {
 
-      console.log(
-        "[EL RULE] Employee has less than 20 present days."
-      );
 
-      console.log(
-        "[EL RULE] Current month EL: 0"
-      );
     }
 
     const totalEL =
       probationElCredit + currentMonthEL;
 
-    console.log("");
-    console.log("[EL RULE] TRANSITION CALCULATION");
-    console.log("--------------------------------------------------");
-
-    console.log(
-      "[EL RULE] Probation EL:",
-      probationElCredit
-    );
-
-    console.log(
-      "[EL RULE] Current Month EL:",
-      currentMonthEL
-    );
-
-    console.log(
-      "[EL RULE] Total EL:",
-      totalEL
-    );
-
-    console.log(
-      "[EL RULE] Destination:",
-      "Regular Earned Leave"
-    );
 
     return {
       leave_type_code: "EL",
@@ -1776,31 +1949,14 @@ export function calculateEarnedLeave(
      CASE 3 — NORMAL POST-PROBATION
   ========================================================== */
 
-  console.log("");
-  console.log("==================================================");
-  console.log("[EL RULE] CASE 3 — NORMAL POST-PROBATION");
-  console.log("==================================================");
 
   if (employee.probation_completed === true) {
 
-    console.log(
-      "[EL RULE] Employee completed probation."
-    );
-
-    console.log(
-      "[EL RULE] This is NOT the transition month."
-    );
+  
 
     if (attendanceEligible) {
 
-      console.log(
-        "[EL RULE] Employee has 20+ present days."
-      );
-
-      console.log(
-        "[EL RULE] Current month EL:",
-        MONTHLY_EL
-      );
+    
 
       return {
         leave_type_code: "EL",

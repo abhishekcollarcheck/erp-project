@@ -13,6 +13,7 @@ import {
   getMyRegularizations,
   getPendingRegularizations,
   reviewRegularization,
+  runMonthlyAttendanceForAllEmployees,
 } from './attendance.controller';
 
 const router = Router();
@@ -20,6 +21,8 @@ router.use(authenticate);
 
 // GET /api/attendance/today-summary
 router.get('/today-summary', getTodaySummary);
+
+router.get('/monthly-attendance',runMonthlyAttendanceForAllEmployees);
 
 // GET /api/attendance/employee/:employeeId?month=5&year=2026
 router.get(
@@ -111,5 +114,7 @@ router.put(
   validate,
   updateAttendance,
 );
+
+
 
 export default router;

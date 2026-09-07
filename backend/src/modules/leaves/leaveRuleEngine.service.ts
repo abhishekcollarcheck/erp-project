@@ -256,22 +256,9 @@ export async function calculateMonthlyLeave(
   year: number,
   month: number
 ): Promise<MonthlyLeaveCalculation> {
-
-  console.log("");
-  console.log("==================================================");
-  console.log("          MONTHLY LEAVE RULE ENGINE");
-  console.log("==================================================");
-  console.log("[ENGINE] Starting monthly leave calculation");
-  console.log("[ENGINE] Employee ID :", employeeId);
-  console.log("[ENGINE] Year        :", year);
-  console.log("[ENGINE] Month       :", month);
-  console.log("==================================================");
   // ==================================================
   // VALIDATION
   // ==================================================
-  console.log("");
-  console.log("[ENGINE] STEP 0 - VALIDATION");
-  console.log("--------------------------------------------------");
   if (!employeeId || employeeId <= 0) {
     console.error(
       "[ENGINE ERROR] Invalid employee ID:",
@@ -293,13 +280,6 @@ export async function calculateMonthlyLeave(
     );
     throw new Error("Invalid month");
   }
-  console.log("[ENGINE] Validation successful");
-  // ==================================================
-  // PROCESSING DATE
-  // ==================================================
-  console.log("");
-  console.log("[ENGINE] STEP 1 - PROCESSING DATE");
-  console.log("--------------------------------------------------");
   /*
    * Last day of the month.
    *
@@ -314,95 +294,12 @@ export async function calculateMonthlyLeave(
     month,
     0
   );
-  console.log(
-    "[ENGINE] Processing Date:",
-    processingDate
-  );
-  // ==================================================
-  // GET EMPLOYEE INFORMATION
-  // ==================================================
-  console.log("");
-  console.log("[ENGINE] STEP 2 - EMPLOYEE INFORMATION");
-  console.log("--------------------------------------------------");
-  console.log(
-    "[ENGINE] Fetching employee information..."
-  );
   const employee =
     await getEmployeeLeaveInformation(
       employeeId,
       processingDate
     );
-  console.log(
-    "[ENGINE] Employee information fetched successfully"
-  );
-  console.log(
-    "[ENGINE] Employee:"
-  );
-  console.dir(
-    employee,
-    {
-      depth: null
-    }
-  );
-  // ==================================================
-  // EMPLOYEE STATUS DEBUG
-  // ==================================================
-  console.log("");
-  console.log("[ENGINE] EMPLOYEE STATUS");
-  console.log("--------------------------------------------------");
-  console.log(
-    "[ENGINE] Employee ID:",
-    employee.employee.id
-  );
-  console.log(
-    "[ENGINE] Employee Code:",
-    employee.employee.employee_code
-  );
-  console.log(
-    "[ENGINE] Employee Name:",
-    employee.employee.full_name
-  );
-  console.log(
-    "[ENGINE] Employment Type:",
-    employee.employee.employment_type
-  );
-  console.log(
-    "[ENGINE] Joining Date:",
-    employee.joining_date
-  );
-  console.log(
-    "[ENGINE] Leave Status:",
-    employee.leave_status
-  );
-  console.log(
-    "[ENGINE] Probation Exists:",
-    employee.probation.exists
-  );
-  console.log(
-    "[ENGINE] On Probation:",
-    employee.probation.on_probation
-  );
-  console.log(
-    "[ENGINE] Probation End Date:",
-    employee.probation.probation_end_date
-  );
-  console.log(
-    "[ENGINE] Probation Completed:",
-    employee.probation_completed
-  );
-  console.log(
-    "[ENGINE] Confirmation Status:",
-    employee.probation.confirmation_status
-  );
-  // ==================================================
-  // GET ATTENDANCE
-  // ==================================================
-  console.log("");
-  console.log("[ENGINE] STEP 3 - MONTHLY ATTENDANCE");
-  console.log("--------------------------------------------------");
-  console.log(
-    "[ENGINE] Fetching attendance summary..."
-  );
+  
   /*
    * TEMPORARY STATIC ATTENDANCE
    *
@@ -415,86 +312,16 @@ export async function calculateMonthlyLeave(
       year,
       month
     );
-  console.log(
-    "[ENGINE] Attendance summary fetched"
-  );
-  console.log("");
-  console.log("[ENGINE] ATTENDANCE SUMMARY");
-  console.log("--------------------------------------------------");
-  console.log(
-    "[ENGINE] Employee ID:",
-    attendance.employeeId
-  );
-  console.log(
-    "[ENGINE] Year:",
-    attendance.year
-  );
-  console.log(
-    "[ENGINE] Month:",
-    attendance.month
-  );
-  console.log(
-    "[ENGINE] Calendar Days:",
-    attendance.totalCalendarDays
-  );
-  console.log(
-    "[ENGINE] Working Days:",
-    attendance.workingDays
-  );
-  console.log(
-    "[ENGINE] Present Days:",
-    attendance.presentDays
-  );
-  console.log(
-    "[ENGINE] Absent Days:",
-    attendance.absentDays
-  );
-  console.log(
-    "[ENGINE] Half Days:",
-    attendance.halfDays
-  );
-  console.log(
-    "[ENGINE] WFH Days:",
-    attendance.wfhDays
-  );
-  console.log(
-    "[ENGINE] Leave Days:",
-    attendance.leaveDays
-  );
-  console.log(
-    "[ENGINE] Holiday Worked:",
-    attendance.holidayWorkedDays
-  );
-  console.log(
-    "[ENGINE] Weekly Off Worked:",
-    attendance.weeklyOffWorkedDays
-  );
-  console.log(
-    "[ENGINE] Total Working Hours:",
-    attendance.totalWorkingHours
-  );
-  // ==================================================
-  // CALCULATE RULES
-  // ==================================================
-
-  console.log("");
-  console.log("[ENGINE] STEP 4 - RULE CALCULATION");
-  console.log("--------------------------------------------------");
+  
 
   const leaves: LeaveRuleResult[] = [];
 
   // ==================================================
   // RULE 1 - CASUAL LEAVE
-  // ==================================================
-
-  console.log("");
-  console.log("[ENGINE] Executing Rule 1: Casual Leave");
-  console.log("--------------------------------------------------");
+  // =================================================
 
   const casualLeave =
     calculateCasualLeave(attendance);
-
-  console.log("[ENGINE] CL Rule Result:");
 
   console.dir(casualLeave, {
     depth: null,
@@ -506,10 +333,6 @@ export async function calculateMonthlyLeave(
   // RULE 2 - EARNED LEAVE
   // ==================================================
 
-  console.log("");
-  console.log("[ENGINE] Executing Rule 2: Earned Leave");
-  console.log("--------------------------------------------------");
-
   const earnedLeave =
     calculateEarnedLeave(
       employee,
@@ -518,81 +341,16 @@ export async function calculateMonthlyLeave(
       month
     );
 
-  console.log("[ENGINE] EL Rule Result:");
-
-  console.dir(earnedLeave, {
-    depth: null,
-  });
-
   leaves.push(earnedLeave);
-  // ==================================================
-  // RULE SUMMARY
-  // ==================================================
-  console.log("");
-  console.log("==================================================");
-  console.log("             LEAVE RULE RESULTS");
-  console.log("==================================================");
-  console.log(
-    "[ENGINE] Total Rules Executed:",
-    leaves.length
-  );
-  for (const leave of leaves) {
-    console.log("");
-    console.log(
-      "--------------------------------------------------"
-    );
-    console.log(
-      "Leave Type     :",
-      leave.leave_type_name
-    );
-    console.log(
-      "Code           :",
-      leave.leave_type_code
-    );
-    console.log(
-      "Eligible       :",
-      leave.eligible
-    );
-    console.log(
-      "Earned Days    :",
-      leave.earned_days
-    );
-    console.log(
-      "Rule           :",
-      leave.rule
-    );
-    console.log(
-      "Reason         :",
-      leave.reason
-    );
-  }
   // ==================================================
   // FINAL SUMMARY
   // ==================================================
-  console.log("");
-  console.log("==================================================");
-  console.log("             FINAL CALCULATION");
-  console.log("==================================================");
   const totalEarnedDays =
     leaves.reduce(
       (total, leave) =>
         total + Number(leave.earned_days || 0),
       0
     );
-  console.log(
-    "[ENGINE] Total Leave Types Calculated:",
-    leaves.length
-  );
-  console.log(
-    "[ENGINE] Total Earned Leave:",
-    totalEarnedDays
-  );
-  console.log(
-    "[ENGINE] Calculation Status: SUCCESS"
-  );
-  console.log("==================================================");
-  console.log("       MONTHLY CALCULATION COMPLETE");
-  console.log("==================================================");
   // ==================================================
   // RETURN
   // ==================================================

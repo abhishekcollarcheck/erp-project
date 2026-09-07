@@ -264,12 +264,214 @@
 
 
 
+// import { Router } from 'express';
+
+// // import { authenticate } from '../../middleware/auth.middleware';
+
+// import {
+//   // Leave requests
+//   getLeaves,
+//   getPendingLeaves,
+//   getLeaveById,
+//   getLeaveRequestBreakdown,
+//   applyLeave,
+//   approveLeave,
+//   rejectLeave,
+//   cancelLeave,
+
+//   // Leave types
+//   getLeaveTypes,
+//   getLeaveTypeById,
+//   createLeaveType,
+//   updateLeaveType,
+//   setLeaveTypeActive,
+
+//   // Leave policy
+//   getLeavePolicy,
+//   updateLeavePolicy,
+
+//   // Weekly-off assignment
+//   getEmployeeWeeklyOff,
+//   assignEmployeeWeeklyOff,
+
+//   // Balances
+//   getLeaveBalances,
+//   getCompanyLeaveBalances,
+//   getShortLeaveBalance,
+
+//   // Accruals
+//   getLeaveAccruals,
+
+//   // Special leave credits
+//   creditSpecialLeave,
+//   getLeaveCredits,
+
+//   // Monthly processing
+//   processMonthlyLeaveController,
+
+//   // Manager / Reporting employees
+//   getMyManagedEmployees,
+//   getMyManagers,
+// } from './leave.controller';
+
+// import { authenticate } from '../auth/auth.middleware';
+
+// const router = Router();
+
+// /* ============================================================================
+//  * AUTHENTICATION
+//  * ==========================================================================*/
+
+// router.use(authenticate);
+
+// /* ============================================================================
+//  * ROUTE ORDER MATTERS
+//  *
+//  * Literal routes must come before /:id routes.
+//  * ==========================================================================*/
+
+
+// /* ============================================================================
+//  * MANAGER / REPORTING EMPLOYEES
+//  * ----------------------------------------------------------------------------
+//  * These MUST be before /:id because otherwise "my-managed-employees" and
+//  * "my-managers" could be captured by /:id.
+//  * ==========================================================================*/
+
+// // Get employees where logged-in employee is L1 or L2 manager
+// // GET /api/leaves/my-managed-employees
+// router.get('/my-managed-employees', getMyManagedEmployees);
+
+// // Get L1 and L2 managers of logged-in employee
+// // GET /api/leaves/my-managers
+// router.get('/my-managers', getMyManagers);
+
+
+// /* ============================================================================
+//  * LEAVE TYPES
+//  * ==========================================================================*/
+
+// router.get('/types', getLeaveTypes);
+// router.get('/types/:id', getLeaveTypeById);
+
+// router.post('/types', createLeaveType);
+
+// router.put('/types/:id', updateLeaveType);
+// router.put('/types/:id/active', setLeaveTypeActive);
+
+
+// /* ============================================================================
+//  * LEAVE POLICY
+//  * ==========================================================================*/
+
+// router.get('/policy', getLeavePolicy);
+// router.put('/policy', updateLeavePolicy);
+
+
+// /* ============================================================================
+//  * WEEKLY-OFF ASSIGNMENT
+//  * ==========================================================================*/
+
+// router.get('/weekly-off', getEmployeeWeeklyOff);
+// router.put('/weekly-off', assignEmployeeWeeklyOff);
+
+
+// /* ============================================================================
+//  * BALANCES
+//  * ==========================================================================*/
+
+// router.get('/balance', getLeaveBalances);
+// router.get('/balances/overview', getCompanyLeaveBalances);
+// router.get('/short-balance', getShortLeaveBalance);
+
+
+// /* ============================================================================
+//  * ACCRUALS
+//  * ==========================================================================*/
+
+// router.get('/accruals', getLeaveAccruals);
+
+
+// /* ============================================================================
+//  * SPECIAL LEAVE CREDITS
+//  * ==========================================================================*/
+
+// router.get('/credits', getLeaveCredits);
+// router.post('/credits', creditSpecialLeave);
+
+
+// /* ============================================================================
+//  * PENDING APPROVALS
+//  * ==========================================================================*/
+
+// router.get('/pending', getPendingLeaves);
+
+
+// /* ============================================================================
+//  * MONTHLY PROCESSING
+//  * ==========================================================================*/
+
+// router.post(
+//   '/monthly-process/:employeeId',
+//   processMonthlyLeaveController,
+// );
+
+
+// /* ============================================================================
+//  * LEAVE REQUESTS
+//  * ==========================================================================*/
+
+// // Get all leave requests
+// router.get('/', getLeaves);
+
+// // Apply leave
+// router.post('/', applyLeave);
+
+
+// /* ============================================================================
+//  * LEAVE REQUEST BY ID
+//  *
+//  * Keep these routes at the bottom because /:id is dynamic.
+//  * ==========================================================================*/
+
+// router.get('/:id', getLeaveById);
+
+// router.get(
+//   '/:id/breakdown',
+//   getLeaveRequestBreakdown,
+// );
+
+// router.put(
+//   '/:id/approve',
+//   approveLeave,
+// );
+
+// router.put(
+//   '/:id/reject',
+//   rejectLeave,
+// );
+
+// router.put(
+//   '/:id/cancel',
+//   cancelLeave,
+// );
+
+
+// export default router;
+
+
+
+
+
 import { Router } from 'express';
 
-// import { authenticate } from '../../middleware/auth.middleware';
+// Authentication
+import { authenticate } from '../auth/auth.middleware';
 
 import {
-  // Leave requests
+  // ==========================================================================
+  // LEAVE REQUESTS
+  // ==========================================================================
   getLeaves,
   getPendingLeaves,
   getLeaveById,
@@ -279,138 +481,243 @@ import {
   rejectLeave,
   cancelLeave,
 
-  // Leave types
+  // ==========================================================================
+  // LEAVE TYPES
+  // ==========================================================================
   getLeaveTypes,
   getLeaveTypeById,
   createLeaveType,
   updateLeaveType,
   setLeaveTypeActive,
 
-  // Leave policy
+  // ==========================================================================
+  // LEAVE POLICY
+  // ==========================================================================
   getLeavePolicy,
   updateLeavePolicy,
 
-  // Weekly-off assignment
+  // ==========================================================================
+  // WEEKLY-OFF ASSIGNMENT
+  // ==========================================================================
   getEmployeeWeeklyOff,
   assignEmployeeWeeklyOff,
 
-  // Balances
+  // ==========================================================================
+  // BALANCES
+  // ==========================================================================
   getLeaveBalances,
   getCompanyLeaveBalances,
   getShortLeaveBalance,
 
-  // Accruals
+  // ==========================================================================
+  // ACCRUALS
+  // ==========================================================================
   getLeaveAccruals,
 
-  // Special leave credits
+  // ==========================================================================
+  // SPECIAL LEAVE CREDITS
+  // ==========================================================================
   creditSpecialLeave,
   getLeaveCredits,
 
-  // Monthly processing
+  // ==========================================================================
+  // MONTHLY PROCESSING
+  // ==========================================================================
   processMonthlyLeaveController,
 
-  // Manager / Reporting employees
+  // ==========================================================================
+  // MANAGER / REPORTING EMPLOYEES
+  // ==========================================================================
   getMyManagedEmployees,
   getMyManagers,
 } from './leave.controller';
-
-import { authenticate } from '../auth/auth.middleware';
 
 const router = Router();
 
 /* ============================================================================
  * AUTHENTICATION
- * ==========================================================================*/
+ * ========================================================================== */
 
 router.use(authenticate);
 
 /* ============================================================================
- * ROUTE ORDER MATTERS
+ * IMPORTANT ROUTE ORDER
  *
- * Literal routes must come before /:id routes.
- * ==========================================================================*/
+ * 1. Static routes first
+ * 2. Nested dynamic routes second
+ * 3. /:id LAST
+ *
+ * Never put /:id before routes such as:
+ *
+ *   /pending
+ *   /types
+ *   /policy
+ *   /balance
+ *   /balances/overview
+ *   /short-balance
+ *   /accruals
+ *   /credits
+ *   /weekly-off
+ *   /my-managed-employees
+ *   /my-managers
+ *
+ * Otherwise Express can interpret those strings as an :id.
+ * ========================================================================== */
 
 
 /* ============================================================================
  * MANAGER / REPORTING EMPLOYEES
- * ----------------------------------------------------------------------------
- * These MUST be before /:id because otherwise "my-managed-employees" and
- * "my-managers" could be captured by /:id.
- * ==========================================================================*/
+ * ========================================================================== */
 
-// Get employees where logged-in employee is L1 or L2 manager
 // GET /api/leaves/my-managed-employees
-router.get('/my-managed-employees', getMyManagedEmployees);
+router.get(
+  '/my-managed-employees',
+  getMyManagedEmployees,
+);
 
-// Get L1 and L2 managers of logged-in employee
 // GET /api/leaves/my-managers
-router.get('/my-managers', getMyManagers);
+router.get(
+  '/my-managers',
+  getMyManagers,
+);
 
 
 /* ============================================================================
  * LEAVE TYPES
- * ==========================================================================*/
+ * ========================================================================== */
 
-router.get('/types', getLeaveTypes);
-router.get('/types/:id', getLeaveTypeById);
+// GET /api/leaves/types
+router.get(
+  '/types',
+  getLeaveTypes,
+);
 
-router.post('/types', createLeaveType);
+// GET /api/leaves/types/:id
+router.get(
+  '/types/:id',
+  getLeaveTypeById,
+);
 
-router.put('/types/:id', updateLeaveType);
-router.put('/types/:id/active', setLeaveTypeActive);
+// POST /api/leaves/types
+router.post(
+  '/types',
+  createLeaveType,
+);
+
+// PUT /api/leaves/types/:id
+router.put(
+  '/types/:id',
+  updateLeaveType,
+);
+
+// PUT /api/leaves/types/:id/active
+router.put(
+  '/types/:id/active',
+  setLeaveTypeActive,
+);
 
 
 /* ============================================================================
  * LEAVE POLICY
- * ==========================================================================*/
+ * ========================================================================== */
 
-router.get('/policy', getLeavePolicy);
-router.put('/policy', updateLeavePolicy);
+// GET /api/leaves/policy
+router.get(
+  '/policy',
+  getLeavePolicy,
+);
+
+// PUT /api/leaves/policy
+router.put(
+  '/policy',
+  updateLeavePolicy,
+);
 
 
 /* ============================================================================
  * WEEKLY-OFF ASSIGNMENT
- * ==========================================================================*/
+ * ========================================================================== */
 
-router.get('/weekly-off', getEmployeeWeeklyOff);
-router.put('/weekly-off', assignEmployeeWeeklyOff);
+// GET /api/leaves/weekly-off
+router.get(
+  '/weekly-off',
+  getEmployeeWeeklyOff,
+);
+
+// PUT /api/leaves/weekly-off
+router.put(
+  '/weekly-off',
+  assignEmployeeWeeklyOff,
+);
 
 
 /* ============================================================================
  * BALANCES
- * ==========================================================================*/
+ * ========================================================================== */
 
-router.get('/balance', getLeaveBalances);
-router.get('/balances/overview', getCompanyLeaveBalances);
-router.get('/short-balance', getShortLeaveBalance);
+// GET /api/leaves/balance
+router.get(
+  '/balance',
+  getLeaveBalances,
+);
+
+// GET /api/leaves/balances/overview
+router.get(
+  '/balances/overview',
+  getCompanyLeaveBalances,
+);
+
+// GET /api/leaves/short-balance
+router.get(
+  '/short-balance',
+  getShortLeaveBalance,
+);
 
 
 /* ============================================================================
  * ACCRUALS
- * ==========================================================================*/
+ * ========================================================================== */
 
-router.get('/accruals', getLeaveAccruals);
+// GET /api/leaves/accruals
+router.get(
+  '/accruals',
+  getLeaveAccruals,
+);
 
 
 /* ============================================================================
  * SPECIAL LEAVE CREDITS
- * ==========================================================================*/
+ * ========================================================================== */
 
-router.get('/credits', getLeaveCredits);
-router.post('/credits', creditSpecialLeave);
+// GET /api/leaves/credits
+router.get(
+  '/credits',
+  getLeaveCredits,
+);
+
+// POST /api/leaves/credits
+router.post(
+  '/credits',
+  creditSpecialLeave,
+);
 
 
 /* ============================================================================
  * PENDING APPROVALS
- * ==========================================================================*/
+ * ========================================================================== */
 
-router.get('/pending', getPendingLeaves);
+// GET /api/leaves/pending
+router.get(
+  '/pending',
+  getPendingLeaves,
+);
 
 
 /* ============================================================================
  * MONTHLY PROCESSING
- * ==========================================================================*/
+ * ========================================================================== */
 
+// POST /api/leaves/monthly-process/:employeeId
 router.post(
   '/monthly-process/:employeeId',
   processMonthlyLeaveController,
@@ -418,43 +725,86 @@ router.post(
 
 
 /* ============================================================================
- * LEAVE REQUESTS
- * ==========================================================================*/
+ * LEAVE REQUEST COLLECTION
+ * ========================================================================== */
 
-// Get all leave requests
-router.get('/', getLeaves);
+// GET /api/leaves
+router.get(
+  '/',
+  getLeaves,
+);
 
-// Apply leave
-router.post('/', applyLeave);
+// POST /api/leaves
+router.post(
+  '/',
+  applyLeave,
+);
 
 
 /* ============================================================================
- * LEAVE REQUEST BY ID
+ * LEAVE REQUEST ACTIONS BY ID
  *
- * Keep these routes at the bottom because /:id is dynamic.
- * ==========================================================================*/
+ * IMPORTANT:
+ * These MUST come before /:id.
+ *
+ * Example:
+ *
+ *   GET /api/leaves/15/breakdown
+ *
+ * If /:id were above this route, Express would match:
+ *
+ *   "15"
+ *
+ * against :id and stop there.
+ * ========================================================================== */
 
-router.get('/:id', getLeaveById);
-
+// GET /api/leaves/:id/breakdown
 router.get(
   '/:id/breakdown',
   getLeaveRequestBreakdown,
 );
 
+// PUT /api/leaves/:id/approve
 router.put(
   '/:id/approve',
   approveLeave,
 );
 
+// PUT /api/leaves/:id/reject
 router.put(
   '/:id/reject',
   rejectLeave,
 );
 
+// PUT /api/leaves/:id/cancel
 router.put(
   '/:id/cancel',
   cancelLeave,
 );
 
+
+/* ============================================================================
+ * LEAVE REQUEST BY ID
+ *
+ * THIS MUST BE THE VERY LAST DYNAMIC ROUTE.
+ *
+ * GET /api/leaves/:id
+ *
+ * Example:
+ *
+ *   GET /api/leaves/15
+ *
+ * This catches any single-segment value that was not matched above.
+ * ========================================================================== */
+
+router.get(
+  '/:id',
+  getLeaveById,
+);
+
+
+/* ============================================================================
+ * EXPORT
+ * ========================================================================== */
 
 export default router;

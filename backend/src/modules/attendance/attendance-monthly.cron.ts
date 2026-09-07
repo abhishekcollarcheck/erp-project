@@ -27,7 +27,6 @@ async function runMonthlyAttendanceJob(dateOverride?: string): Promise<{
   failed: number;
 }> {
   const endDate = dateOverride ?? getYesterdayDateString();
-  console.log(`[attendance-cron] Starting run for ${endDate}`);
 
   // FIX: Employee has no `is_active` boolean — status is an enum
   // ('Active' | 'Left' | 'Retired'). Filter on that instead.
@@ -56,10 +55,6 @@ async function runMonthlyAttendanceJob(dateOverride?: string): Promise<{
   );
 
   const failed = results.filter((r) => r.status === "rejected");
-
-  console.log(
-    `[attendance-cron] Done. ${results.length - failed.length} succeeded, ${failed.length} failed.`,
-  );
 
   failed.forEach((f, i) => {
     if (f.status === "rejected") {
@@ -99,7 +94,6 @@ async function runMonthlyAttendanceJob(dateOverride?: string): Promise<{
 //     },
 //   );
 
-//   console.log("[attendance-cron] Scheduled for 20:00 Asia/Kolkata daily");
 // }
 
 
@@ -116,7 +110,6 @@ export function scheduleAttendanceMonthlyCron(): void {
     },
   );
 
-  console.log("[attendance-cron] Scheduled to run hourly in Asia/Kolkata");
 }
 
 // Exported for manual/CLI triggering or a startup catch-up check.

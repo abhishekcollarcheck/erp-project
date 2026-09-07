@@ -248,13 +248,6 @@ const LEAVE_TYPE_DEFS = [
     min_advance_days: 0, max_backdate_days: 0, sandwich_applies: false, allow_half_day: false,
     requires_approval: true, is_earned: true,
   },
-  {
-    code: "HALF", name: "Half Day", unit: "day" as const,
-    days_per_year: 0, monthly_quota_minutes: 0, split_chunk_minutes: 0, allow_split: false,
-    is_paid: true, carry_forward: false, max_carry_days: 0,
-    min_advance_days: 0, max_backdate_days: 1, sandwich_applies: true, allow_half_day: true,
-    requires_approval: true, is_earned: false,
-  },
 ] as const;
 
 // =========================================================
