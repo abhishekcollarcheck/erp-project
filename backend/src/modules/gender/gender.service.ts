@@ -1,4 +1,7 @@
 import { Gender } from '../../database/models/gender.model';
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
+
+const toCode = (name: string) => name.toUpperCase().replace(/\s+/g, '_');
 
 export class GenderService {
   public async getAllGenders(): Promise<Gender[]> {
@@ -6,25 +9,23 @@ export class GenderService {
   }
 
   public async createGender(name: string): Promise<Gender> {
+    const cleanName = requireName(name, 'Gender');
+    const code = toCode(cleanName);
+    await assertUniqueMaster(Gender, { name: cleanName, code }, 'Gender');
     const count = await Gender.count();
-    const cleanName = name.trim();
-    return Gender.create({
-      name: cleanName,
-      code: cleanName.toUpperCase().replace(/\s+/g, '_'),
-      display_order: count + 1,
-    });
+    return Gender.create({ name: cleanName, code, display_order: count + 1 });
   }
 
   public async updateGender(id: number, name: string): Promise<Gender> {
-    const item = await Gender.findByPk(id);
-    if (!item) throw new Error('Gender not found');
-    const cleanName = name.trim();
-    return item.update({ name: cleanName, code: cleanName.toUpperCase().replace(/\s+/g, '_') });
+    const cleanName = requireName(name, 'Gender');
+    const item = assertFound(await Gender.findByPk(id), 'Gender');
+    const code = toCode(cleanName);
+    await assertUniqueMaster(Gender, { name: cleanName, code }, 'Gender', id);
+    return item.update({ name: cleanName, code });
   }
 
   public async deleteGender(id: number): Promise<void> {
-    const item = await Gender.findByPk(id);
-    if (!item) throw new Error('Gender not found');
+    const item = assertFound(await Gender.findByPk(id), 'Gender');
     await item.destroy();
   }
 }

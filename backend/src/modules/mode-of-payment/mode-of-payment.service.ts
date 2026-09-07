@@ -1,4 +1,7 @@
 import { ModeOfPayment } from '../../database/models/mode-of-payment.model';
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
+
+const toCode = (name: string) => name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 
 export class ModeOfPaymentService {
   public async getAllModesOfPayment(): Promise<ModeOfPayment[]> {
@@ -6,28 +9,23 @@ export class ModeOfPaymentService {
   }
 
   public async createModeOfPayment(name: string): Promise<ModeOfPayment> {
+    const cleanName = requireName(name, 'Mode of payment');
+    const code = toCode(cleanName);
+    await assertUniqueMaster(ModeOfPayment, { name: cleanName, code }, 'Mode of payment');
     const count = await ModeOfPayment.count();
-    const cleanName = name.trim();
-    return ModeOfPayment.create({
-      name: cleanName,
-      code: cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
-      display_order: count + 1,
-    });
+    return ModeOfPayment.create({ name: cleanName, code, display_order: count + 1 });
   }
 
   public async updateModeOfPayment(id: number, name: string): Promise<ModeOfPayment> {
-    const item = await ModeOfPayment.findByPk(id);
-    if (!item) throw new Error('Mode of payment not found');
-    const cleanName = name.trim();
-    return item.update({
-      name: cleanName,
-      code: cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
-    });
+    const cleanName = requireName(name, 'Mode of payment');
+    const item = assertFound(await ModeOfPayment.findByPk(id), 'Mode of payment');
+    const code = toCode(cleanName);
+    await assertUniqueMaster(ModeOfPayment, { name: cleanName, code }, 'Mode of payment', id);
+    return item.update({ name: cleanName, code });
   }
 
   public async deleteModeOfPayment(id: number): Promise<void> {
-    const item = await ModeOfPayment.findByPk(id);
-    if (!item) throw new Error('Mode of payment not found');
+    const item = assertFound(await ModeOfPayment.findByPk(id), 'Mode of payment');
     await item.destroy();
   }
 }

@@ -13,7 +13,7 @@ function MagicVerify() {
     mutationFn: () => portalService.verifyMagic(token),
     onSuccess: (res) => {
       localStorage.setItem('portal_token', res.data.token);
-      router.replace('/portal/dashboard');
+      router.replace('/portal/home');
     },
   });
 

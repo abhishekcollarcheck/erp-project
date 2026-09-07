@@ -1,4 +1,7 @@
 import { HouseType } from '../../database/models/house-type.model';
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
+
+const toCode = (name: string) => name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 
 export class HouseTypeService {
   public async getAllHouseTypes(): Promise<HouseType[]> {
@@ -6,28 +9,23 @@ export class HouseTypeService {
   }
 
   public async createHouseType(name: string): Promise<HouseType> {
+    const cleanName = requireName(name, 'House type');
+    const code = toCode(cleanName);
+    await assertUniqueMaster(HouseType, { name: cleanName, code }, 'House type');
     const count = await HouseType.count();
-    const cleanName = name.trim();
-    return HouseType.create({
-      name: cleanName,
-      code: cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
-      display_order: count + 1,
-    });
+    return HouseType.create({ name: cleanName, code, display_order: count + 1 });
   }
 
   public async updateHouseType(id: number, name: string): Promise<HouseType> {
-    const item = await HouseType.findByPk(id);
-    if (!item) throw new Error('House type not found');
-    const cleanName = name.trim();
-    return item.update({
-      name: cleanName,
-      code: cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
-    });
+    const cleanName = requireName(name, 'House type');
+    const item = assertFound(await HouseType.findByPk(id), 'House type');
+    const code = toCode(cleanName);
+    await assertUniqueMaster(HouseType, { name: cleanName, code }, 'House type', id);
+    return item.update({ name: cleanName, code });
   }
 
   public async deleteHouseType(id: number): Promise<void> {
-    const item = await HouseType.findByPk(id);
-    if (!item) throw new Error('House type not found');
+    const item = assertFound(await HouseType.findByPk(id), 'House type');
     await item.destroy();
   }
 }

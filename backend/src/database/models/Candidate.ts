@@ -11,9 +11,11 @@ const jsonGet = (field: string) =>
     try { return JSON.parse(raw); } catch { return raw; }
   };
 
+// Ordered pipeline: Sourced → Screened → Shortlisted → Interview → Offered → Hired
+// Outcomes (reachable from any active stage): Rejected, Withdrawn, On_Hold
 export type CandidateStatus =
-  | 'Applied' | 'Shortlisted' | 'Interview_Scheduled' | 'Technical'
-  | 'HR_Round' | 'Interview_Result' | 'Offered' | 'Hired' | 'Rejected' | 'Withdrawn' | 'On_Hold';
+  | 'Sourced' | 'Screened' | 'Shortlisted' | 'Interview'
+  | 'Offered' | 'Hired' | 'Rejected' | 'Withdrawn' | 'On_Hold';
 
 export type CandidateSource =
   | 'Naukri' | 'LinkedIn' | 'CollarCheck' | 'Referral'
@@ -62,6 +64,13 @@ export interface CandidateAttributes {
   relevant_experience?: number | null;
   apply_department?: string | null;
   apply_designation?: string | null;
+
+  // ── Role you applied for (JD — shown on the Candidate Portal) ──────────────
+  job_title?: string | null;
+  job_location?: string | null;
+  job_type?: string | null;
+  job_code?: string | null;
+  job_description?: string | null;
 
   // ── Compensation ──────────────────────────────────────────────────────────
   current_salary?: number | null;
@@ -211,6 +220,11 @@ export class Candidate
   public relevant_experience!: number | null;
   public apply_department!: string | null;
   public apply_designation!: string | null;
+  public job_title!: string | null;
+  public job_location!: string | null;
+  public job_type!: string | null;
+  public job_code!: string | null;
+  public job_description!: string | null;
   public current_salary!: number | null;
   public expected_salary!: number | null;
   public currently_working!: boolean | null;
@@ -332,6 +346,11 @@ Candidate.init(
     expected_salary: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
     apply_department: { type: DataTypes.STRING(200), allowNull: true },
     apply_designation: { type: DataTypes.STRING(200), allowNull: true },
+    job_title: { type: DataTypes.STRING(200), allowNull: true },
+    job_location: { type: DataTypes.STRING(200), allowNull: true },
+    job_type: { type: DataTypes.STRING(40), allowNull: true },
+    job_code: { type: DataTypes.STRING(40), allowNull: true },
+    job_description: { type: DataTypes.TEXT, allowNull: true },
 
     currently_working: { type: DataTypes.BOOLEAN, allowNull: true },
     notice_period: { type: DataTypes.INTEGER, allowNull: true },
@@ -353,8 +372,8 @@ Candidate.init(
     resume_url: { type: DataTypes.STRING(500), allowNull: true },
 
     status: {
-      type: DataTypes.ENUM('Applied', 'Shortlisted', 'Interview_Scheduled', 'Technical', 'HR_Round', 'Interview_Result', 'Offered', 'Hired', 'Rejected', 'Withdrawn', 'On_Hold'),
-      defaultValue: 'Applied',
+      type: DataTypes.ENUM('Sourced', 'Screened', 'Shortlisted', 'Interview', 'Offered', 'Hired', 'Rejected', 'Withdrawn', 'On_Hold'),
+      defaultValue: 'Sourced',
       allowNull: false,
     },
 

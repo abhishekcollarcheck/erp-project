@@ -15,7 +15,7 @@ export interface Candidate {
   current_ctc?: number | null;
   notice_period?: number | null;
   source?: string | null;
-  status: 'Applied' | 'Shortlisted' | 'Interview' | 'Offered' | 'Hired' | 'Rejected' | 'Withdrawn';
+  status: 'Sourced' | 'Screened' | 'Shortlisted' | 'Interview' | 'Offered' | 'Hired' | 'Rejected' | 'Withdrawn' | 'On_Hold';
   resume_url?: string | null;
   created_at: string;
 }

@@ -1153,7 +1153,9 @@ export class LeaveRequest
 LeaveRequest.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-    ref_no: { type: DataTypes.STRING(30), allowNull: false, unique: true },
+    // Uniqueness is enforced by the NAMED index below — never `unique: true` on
+    // the column, which makes `sync({ alter: true })` pile up ref_no_2, ref_no_3…
+    ref_no: { type: DataTypes.STRING(30), allowNull: false },
     employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     leave_type_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     leave_application_type: {
@@ -1200,6 +1202,7 @@ LeaveRequest.init(
     timestamps: true,
     underscored: true,
     indexes: [
+      { unique: true, fields: ['ref_no'], name: 'leave_requests_ref_no_unique' },
       { fields: ['employee_id'] },
       { fields: ['status'] },
       { fields: ['applied_by'] },

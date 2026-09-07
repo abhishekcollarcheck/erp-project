@@ -85,6 +85,83 @@ export async function deleteCandidate(req: Request, res: Response, next: NextFun
 
 
 
+// ─── Candidate documents (HR ↔ candidate exchange) ───────────────────────────
+export async function listCandidateDocuments(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await candidateService.listDocuments(parseInt(req.params.id, 10), req.user!.companyId);
+    sendResponse(res, { data, message: 'Documents fetched' });
+  } catch (e) { next(e); }
+}
+
+export async function shareCandidateDocument(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const file_url = req.file
+      ? `/uploads/candidate-docs/${req.file.filename}`
+      : (req.body.file_url || null);
+    const data = await candidateService.shareDocument(
+      parseInt(req.params.id, 10),
+      req.user!.companyId,
+      { ...req.body, file_url },
+      req.user!.employeeId,
+    );
+    sendResponse(res, { data, message: 'Document shared with candidate', statusCode: 201 });
+  } catch (e) { next(e); }
+}
+
+export async function updateCandidateDocument(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await candidateService.updateDocument(
+      parseInt(req.params.id, 10),
+      req.user!.companyId,
+      parseInt(req.params.docId, 10),
+      req.body,
+    );
+    sendResponse(res, { data, message: 'Document updated' });
+  } catch (e) { next(e); }
+}
+
+export async function deleteCandidateDocument(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await candidateService.deleteDocument(
+      parseInt(req.params.id, 10),
+      req.user!.companyId,
+      parseInt(req.params.docId, 10),
+    );
+    sendResponse(res, { data: null, message: 'Document removed' });
+  } catch (e) { next(e); }
+}
+
+export async function portalListDocuments(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { candidateId, companyId } = (req as any).portalCandidate;
+    const data = await candidateService.portalListDocuments(candidateId, companyId);
+    sendResponse(res, { data, message: 'Documents fetched' });
+  } catch (e) { next(e); }
+}
+
+export async function portalMarkDocument(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { candidateId, companyId } = (req as any).portalCandidate;
+    const action = req.body.action === 'complete' ? 'complete' : 'read';
+    const data = await candidateService.portalMarkDocument(
+      candidateId, companyId, parseInt(req.params.docId, 10), action,
+    );
+    sendResponse(res, { data, message: action === 'complete' ? 'Marked as provided' : 'Marked as read' });
+  } catch (e) { next(e); }
+}
+
+export async function portalUploadDocument(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
+    const { candidateId, companyId } = (req as any).portalCandidate;
+    const fileUrl = `/uploads/candidate-docs/${req.file.filename}`;
+    const data = await candidateService.portalUploadDocument(
+      candidateId, companyId, parseInt(req.params.docId, 10), fileUrl,
+    );
+    sendResponse(res, { data, message: 'Submission uploaded' });
+  } catch (e) { next(e); }
+}
+
 // ─── Send offer letter ────────────────────────────────────────────────────────
 export async function sendAptitudeTestLink(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

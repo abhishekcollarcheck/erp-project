@@ -3,12 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useForm, useFieldArray, type UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Check, Loader2, Sparkles, Plus, Trash2 } from 'lucide-react';
+import { Check, Loader2, Sparkles } from 'lucide-react';
 import { Modal } from '../../../components/ui/Modal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { candidateService } from '../../../services/api/candidate.service';
 import { useCandidate } from '../hooks/useCandidates';
 import { useEmployees } from '../../employees/hooks/useEmployees';
+import { useStates, useCities } from '../../locations/hooks/uselocation';
 import { showToast } from '../../../utils/toast';
 import type { Candidate } from '../types/candidate.types';
 import { ALL_SOURCES } from '../types/candidate.types';
@@ -103,8 +104,6 @@ const schema = z.object({
 
   // ── Professional / experience ──────────────────────────────────────────
   fresher: z.boolean().optional(),
-  current_company_name: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
-  current_company_designation: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
   location: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
   total_experience: z.preprocess(
     numberOrUndefined,
@@ -124,6 +123,11 @@ const schema = z.object({
 
   apply_department: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
   apply_designation: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
+  job_title: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
+  job_location: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
+  job_type: z.preprocess(emptyToUndefined, z.string().trim().max(40).optional()),
+  job_code: z.preprocess(emptyToUndefined, z.string().trim().max(40).optional()),
+  job_description: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
 
   current_salary: z.preprocess(
     numberOrUndefined,
@@ -221,16 +225,18 @@ const STEPS: { key: string; label: string; sub: string; fields: FieldName[] }[] 
   {
     key: 'profile', label: 'Profile', sub: 'Contact & location',
     fields: ['first_name', 'middle_name', 'last_name', 'email', 'phone_number', 'gender', 'date_of_birth',
-      'current_state_id', 'current_city_id', 'ready_to_relocate', 'perm_address_same_as_present', 'perm_state_id', 'perm_city_id'],
+      'current_state_id', 'current_city_id', 'location', 'ready_to_relocate', 'perm_address_same_as_present', 'perm_state_id', 'perm_city_id'],
   },
   {
     key: 'background', label: 'Background', sub: 'Education & work',
     fields: ['qualification', 'course', 'institute', 'edu_mode', 'edu_start_date', 'edu_end_date', 'edu_currently_pursuing',
-      'fresher', 'current_company_name', 'current_company_designation', 'location', 'total_experience', 'relevant_experience', 'employments'],
+      'fresher', 'total_experience', 'relevant_experience', 'employments'],
   },
   {
     key: 'opportunity', label: 'Opportunity', sub: 'Role & pay',
-    fields: ['apply_department', 'apply_designation', 'current_salary', 'expected_salary',
+    fields: ['apply_department', 'apply_designation',
+      'job_title', 'job_location', 'job_type', 'job_code', 'job_description',
+      'current_salary', 'expected_salary',
       'currently_working', 'notice_period', 'serving_notice_period', 'last_working_day',
       'immediate_joiner', 'expected_joining_date', 'own_vehicle', 'vehicle_car', 'vehicle_bike', 'vehicle_scooty'],
   },
@@ -297,6 +303,16 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
   const { data: empData } = useEmployees({ limit: 200, status: 'Active' as any });
   const employees = empData?.data ?? [];
 
+  // ── Location master data (State master → City master, cascading) ─────────
+  const { data: states = [] } = useStates();
+  const currentStateId = watch('current_state_id');
+  const permStateId = watch('perm_state_id');
+  const { data: currentCities = [] } = useCities(currentStateId ? { state_id: currentStateId } : undefined);
+  const { data: permCities = [] } = useCities(permStateId ? { state_id: permStateId } : undefined);
+
+  const currentStateReg = register('current_state_id', { valueAsNumber: true });
+  const permStateReg = register('perm_state_id', { valueAsNumber: true });
+
   useEffect(() => {
     if (!open) return;
     setStep(0);
@@ -331,8 +347,6 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
       edu_currently_pursuing: src.edu_currently_pursuing ?? false,
 
       fresher: src.fresher ?? false,
-      current_company_name: src.current_company_name || '',
-      current_company_designation: src.current_company_designation || '',
       location: src.location || '',
       total_experience: src.total_experience ?? undefined,
       relevant_experience: src.relevant_experience ?? undefined,
@@ -346,6 +360,11 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
 
       apply_department: src.apply_department ?? undefined,
       apply_designation: src.apply_designation ?? undefined,
+      job_title: src.job_title ?? undefined,
+      job_location: src.job_location ?? undefined,
+      job_type: src.job_type ?? undefined,
+      job_code: src.job_code ?? undefined,
+      job_description: src.job_description ?? undefined,
       current_salary: src.current_salary ?? undefined,
       expected_salary: src.expected_salary ?? undefined,
 
@@ -468,14 +487,17 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         edu_currently_pursuing: data.edu_currently_pursuing ?? false,
 
         fresher: data.fresher ?? false,
-        current_company_name: data.fresher ? null : (data.current_company_name || null),
-        current_company_designation: data.fresher ? null : (data.current_company_designation || null),
         location: data.location || null,
         total_experience: data.total_experience ?? null,
         relevant_experience: data.relevant_experience ?? null,
 
         apply_department: data.apply_department || null,
         apply_designation: data.apply_designation || null,
+        job_title: data.job_title || null,
+        job_location: data.job_location || null,
+        job_type: data.job_type || null,
+        job_code: data.job_code || null,
+        job_description: data.job_description || null,
         current_salary: data.current_salary ?? null,
         expected_salary: data.expected_salary ?? null,
 
@@ -501,13 +523,19 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
       // Otherwise omit the key so the server leaves existing rows untouched
       // rather than replace-all wiping them.
       if (!isEdit || fetchedCandidate) {
-        payload.employments = data.fresher ? [] : (data.employments ?? []).map(e => ({
+        const emps = data.fresher ? [] : (data.employments ?? []);
+        payload.employments = emps.map(e => ({
           company: e.company,
           designation: e.designation || null,
           joining_date: e.joining_date || null,
           leaving_date: e.currently_working ? null : (e.leaving_date || null),
           currently_working: e.currently_working ?? false,
         }));
+        // "Current company / designation" is the employment row flagged as
+        // presently working — no separate input for it any more.
+        const cur = emps.find(e => e.currently_working);
+        payload.current_company_name = cur?.company?.trim() || null;
+        payload.current_company_designation = cur?.designation?.trim() || null;
       }
 
       return isEdit
@@ -669,24 +697,34 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
           <>
             <Section title="Personal" />
             <div className="cfm-full cfm-row3">
-              <div className="fg"><label>First Name <i className="cfm-req">*</i></label><input placeholder="Priya" {...register('first_name')} autoFocus /><Err f="first_name" /></div>
-              <div className="fg"><label>Middle Name</label><input placeholder="Optional" {...register('middle_name')} /></div>
-              <div className="fg"><label>Last Name <i className="cfm-req">*</i></label><input placeholder="Sharma" {...register('last_name')} /><Err f="last_name" /></div>
+              <div className="fg"><label>First Name <i className="cfm-req">*</i></label><input placeholder="e.g. Priya" {...register('first_name')} autoFocus /><Err f="first_name" /></div>
+              <div className="fg"><label>Middle Name</label><input placeholder="e.g. Optional" {...register('middle_name')} /></div>
+              <div className="fg"><label>Last Name <i className="cfm-req">*</i></label><input placeholder="e.g. Sharma" {...register('last_name')} /><Err f="last_name" /></div>
             </div>
-            <div className="fg"><label>Email <i className="cfm-req">*</i></label><input type="email" placeholder="priya@gmail.com" {...register('email')} /><Err f="email" /></div>
-            <div className="fg"><label>Phone <i className="cfm-req">*</i></label><input type="tel" placeholder="+91 98765 43210" {...register('phone_number')} /><Err f="phone_number" /></div>
+            <div className="fg"><label>Email <i className="cfm-req">*</i></label><input type="email" placeholder="e.g. priya@gmail.com" {...register('email')} /><Err f="email" /></div>
+            <div className="fg"><label>Phone <i className="cfm-req">*</i></label><input type="tel" placeholder="e.g. +91 98765 43210" {...register('phone_number')} /><Err f="phone_number" /></div>
             <div className="fg"><label>Gender</label><select {...register('gender')}><option value="">— Select —</option><option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option></select></div>
             <div className="fg"><label>Date of Birth</label><input type="date" {...register('date_of_birth')} /></div>
 
-            <Section title="Location" hint="State / city dropdowns coming soon — enter IDs for now" />
+            <Section title="Location" />
             <div className="fg">
-              <label>Current State (ID)</label>
-              <input type="number" placeholder="State ID" {...register('current_state_id', { valueAsNumber: true })} />
+              <label>Current State</label>
+              <select
+                {...currentStateReg}
+                onChange={e => { currentStateReg.onChange(e); setValue('current_city_id', undefined, { shouldDirty: true, shouldValidate: true }); }}
+              >
+                <option value="">— Select —</option>
+                {states.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             </div>
             <div className="fg">
-              <label>Current City (ID)</label>
-              <input type="number" placeholder="City ID" {...register('current_city_id', { valueAsNumber: true })} />
+              <label>Current City</label>
+              <select {...register('current_city_id', { valueAsNumber: true })} disabled={!currentStateId}>
+                <option value="">{currentStateId ? '— Select —' : 'Select a state first'}</option>
+                {currentCities.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
+            <div className="fg cfm-full"><label>Area / Locality</label><input placeholder="e.g. Whitefield, Bengaluru" {...register('location')} /></div>
             <div className="fg">
               <label>Ready to Relocate</label>
               <SegYesNo value={watch('ready_to_relocate')} onChange={v => setValue('ready_to_relocate', v, { shouldDirty: true })} />
@@ -696,8 +734,23 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
             </div>
             {!sameAsPresent && (
               <>
-                <div className="fg"><label>Permanent State (ID)</label><input type="number" placeholder="State ID" {...register('perm_state_id', { valueAsNumber: true })} /></div>
-                <div className="fg"><label>Permanent City (ID)</label><input type="number" placeholder="City ID" {...register('perm_city_id', { valueAsNumber: true })} /></div>
+                <div className="fg">
+                  <label>Permanent State</label>
+                  <select
+                    {...permStateReg}
+                    onChange={e => { permStateReg.onChange(e); setValue('perm_city_id', undefined, { shouldDirty: true, shouldValidate: true }); }}
+                  >
+                    <option value="">— Select —</option>
+                    {states.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label>Permanent City</label>
+                  <select {...register('perm_city_id', { valueAsNumber: true })} disabled={!permStateId}>
+                    <option value="">{permStateId ? '— Select —' : 'Select a state first'}</option>
+                    {permCities.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
               </>
             )}
           </>
@@ -707,9 +760,9 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         {step === 1 && (
           <>
             <Section title="Education" />
-            <div className="fg"><label>Qualification</label><input placeholder="Bachelor's" {...register('qualification')} /></div>
-            <div className="fg"><label>Course</label><input placeholder="B.E. Computer Science" {...register('course')} /></div>
-            <div className="fg"><label>Institute</label><input placeholder="ABC Engineering College" {...register('institute')} /></div>
+            <div className="fg"><label>Qualification</label><input placeholder="e.g. e.g. Bachelor's" {...register('qualification')} /></div>
+            <div className="fg"><label>Course</label><input placeholder="e.g. e.g. B.E. Computer Science" {...register('course')} /></div>
+            <div className="fg"><label>Institute</label><input placeholder="e.g. e.g. ABC Engineering College" {...register('institute')} /></div>
             <div className="fg"><label>Mode</label><select {...register('edu_mode')}><option value="">— Select —</option><option>Regular</option><option>Non Regular</option><option>Not Applicable</option></select></div>
             <div className="fg"><label>Start Date</label><input type="date" {...register('edu_start_date')} /></div>
             <div className="fg">
@@ -720,48 +773,46 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
               <Check2 reg={register('edu_currently_pursuing')} label="Currently pursuing" />
             </div>
 
-            <Section title="Work Experience" />
-            <div className="fg cfm-full">
-              <Check2 reg={register('fresher')} label="Fresher" hint="— no prior work experience" />
+            <div className="cfm-exp-head cfm-full">
+              <div>
+                <div className="cfm-exp-head__t">Experience</div>
+                <div className="cfm-exp-head__s">Most recent role first</div>
+              </div>
+              <label className="cfm-pillcheck" data-on={isFresher || undefined}>
+                <input type="checkbox" {...register('fresher')} />
+                <span>Fresher</span>
+              </label>
             </div>
-            <div className="fg"><label>Total Experience (yrs)</label><input type="number" step="0.5" min="0" max="60" placeholder="4.5" disabled={isFresher} {...register('total_experience', { valueAsNumber: true })} /><Err f="total_experience" /></div>
-            <div className="fg"><label>Relevant Experience (yrs)</label><input type="number" step="0.5" min="0" max="60" placeholder="3.0" disabled={isFresher} {...register('relevant_experience', { valueAsNumber: true })} /></div>
-            <div className="fg"><label>Location</label><input placeholder="Bengaluru, Karnataka" {...register('location')} /></div>
+
+            <div className="fg"><label>Total Experience (yrs)</label><input type="number" step="0.5" min="0" max="60" placeholder="0" disabled={isFresher} {...register('total_experience', { valueAsNumber: true })} /><Err f="total_experience" /></div>
+            <div className="fg"><label>Relevant Experience (yrs)</label><input type="number" step="0.5" min="0" max="60" placeholder="0" disabled={isFresher} {...register('relevant_experience', { valueAsNumber: true })} /></div>
 
             {!isFresher && (
-              <>
-                <div className="fg"><label>Current Company</label><input placeholder="Infosys, TCS…" {...register('current_company_name')} /></div>
-                <div className="fg"><label>Current Designation</label><input placeholder="Senior Engineer" {...register('current_company_designation')} /></div>
-
-                <div className="fg cfm-full">
-                  <div className="cfm-eh__head">
-                    <label style={{ margin: 0 }}>Employment History</label>
-                    <span className="cfm-eh__count">{employmentFields.length ? `${employmentFields.length} added` : 'None yet'}</span>
-                  </div>
-                  {employmentFields.map((field, idx) => (
-                    <div key={field.id} className="cfm-eh__card">
-                      <div className="cfm-eh__card-top">
-                        <span className="cfm-eh__badge">{idx + 1}</span>
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeEmployment(idx)}>
-                          <Trash2 size={12} /> Remove
-                        </button>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
-                        <div className="fg"><label>Company</label><input placeholder="e.g. Infosys" {...register(`employments.${idx}.company` as const)} />{errors.employments?.[idx]?.company && <span className="err">{errors.employments[idx]?.company?.message}</span>}</div>
-                        <div className="fg"><label>Designation</label><input placeholder="e.g. Software Engineer" {...register(`employments.${idx}.designation` as const)} /></div>
-                        <div className="fg"><label>Joining Date</label><input type="date" {...register(`employments.${idx}.joining_date` as const)} /></div>
-                        <div className="fg"><label>Leaving Date</label><input type="date" disabled={!!watch(`employments.${idx}.currently_working` as const)} {...register(`employments.${idx}.leaving_date` as const)} /></div>
-                        <div className="fg cfm-full" style={{ marginBottom: 0 }}>
-                          <Check2 reg={register(`employments.${idx}.currently_working` as const)} label="Presently working here" />
-                        </div>
-                      </div>
+              <div className="cfm-full">
+                {employmentFields.map((field, idx) => (
+                  <div key={field.id} className="cfm-eh__card">
+                    <div className="cfm-eh__card-top">
+                      <span className="cfm-eh__title">Employment {idx + 1}</span>
+                      <button type="button" className="cfm-eh__remove" onClick={() => removeEmployment(idx)}>Remove</button>
                     </div>
-                  ))}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+                      <div className="fg"><label>Company</label><input placeholder="e.g. Infosys" {...register(`employments.${idx}.company` as const)} />{errors.employments?.[idx]?.company && <span className="err">{errors.employments[idx]?.company?.message}</span>}</div>
+                      <div className="fg"><label>Designation</label><input placeholder="e.g. Software Engineer" {...register(`employments.${idx}.designation` as const)} /></div>
+                      <div className="fg"><label>Joining Date</label><input type="date" {...register(`employments.${idx}.joining_date` as const)} /></div>
+                      <div className="fg"><label>Leaving Date</label><input type="date" disabled={!!watch(`employments.${idx}.currently_working` as const)} {...register(`employments.${idx}.leaving_date` as const)} /></div>
+                      <label className="cfm-minicheck cfm-full">
+                        <input type="checkbox" {...register(`employments.${idx}.currently_working` as const)} />
+                        <span>Presently working here</span>
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button type="button" className="btn btn-sec btn-sm" onClick={() => appendEmployment({ company: '', designation: '', joining_date: '', leaving_date: '', currently_working: false })}>
-                    <Plus size={12} /> Add employment
+                    + Add employment
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </>
         )}
@@ -770,12 +821,27 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         {step === 2 && (
           <>
             <Section title="Applying For" />
-            <div className="fg"><label>Apply Department</label><input type="text" placeholder="IT" {...register('apply_department')} /></div>
-            <div className="fg"><label>Apply Designation</label><input type="text" placeholder="Backend Developer" {...register('apply_designation')} /></div>
+            <div className="fg"><label>Apply Department</label><input type="text" placeholder="e.g. IT" {...register('apply_department')} /></div>
+            <div className="fg"><label>Apply Designation</label><input type="text" placeholder="e.g. Backend Developer" {...register('apply_designation')} /></div>
+
+            <Section title="Role / JD (shown on the candidate portal)" />
+            <div className="fg"><label>Job Title</label><input type="text" placeholder="e.g. Senior Designer" {...register('job_title')} /></div>
+            <div className="fg"><label>Job Code</label><input type="text" placeholder="e.g. JD-2026-0003" {...register('job_code')} /></div>
+            <div className="fg"><label>Job Location</label><input type="text" placeholder="e.g. Gurugram" {...register('job_location')} /></div>
+            <div className="fg">
+              <label>Job Type</label>
+              <select {...register('job_type')}>
+                <option value="">—</option>
+                <option value="On-site">On-site</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="Remote">Remote</option>
+              </select>
+            </div>
+            <div className="fg cfm-full"><label>Job Description</label><textarea rows={3} placeholder="What the role involves…" {...register('job_description')} /></div>
 
             <Section title="Compensation & Availability" />
-            <div className="fg"><label>Current Salary (₹/mo)</label><input type="number" min="0" placeholder="75000" {...register('current_salary', { valueAsNumber: true })} /></div>
-            <div className="fg"><label>Expected Salary (₹/mo)</label><input type="number" min="0" placeholder="90000" {...register('expected_salary', { valueAsNumber: true })} /></div>
+            <div className="fg"><label>Current Salary (₹/mo)</label><input type="number" min="0" placeholder="e.g. 75000" {...register('current_salary', { valueAsNumber: true })} /></div>
+            <div className="fg"><label>Expected Salary (₹/mo)</label><input type="number" min="0" placeholder="e.g. 90000" {...register('expected_salary', { valueAsNumber: true })} /></div>
 
             {hike !== null && (
               <div className="cfm-hike cfm-full">
@@ -799,7 +865,7 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
                 {isServingNotice === 'Yes' && (
                   <div className="fg"><label>Last Working Day</label><input type="date" {...register('last_working_day')} /></div>
                 )}
-                <div className="fg"><label>Notice Period (days)</label><input type="number" min="0" placeholder="30" {...register('notice_period', { valueAsNumber: true })} /></div>
+                <div className="fg"><label>Notice Period (days)</label><input type="number" min="0" placeholder="e.g. 30" {...register('notice_period', { valueAsNumber: true })} /></div>
               </>
             )}
 
@@ -842,11 +908,11 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
             {isInternalReferral === 'No' && (
               <div className="fg cfm-full">
                 <label>Referee Name</label>
-                <input placeholder="Who referred or which posting" {...register('reference_source')} />
+                <input placeholder="e.g. Who referred or which posting" {...register('reference_source')} />
               </div>
             )}
 
-            <div className="fg cfm-full"><label>Remarks</label><textarea rows={3} placeholder="Notes about this candidate…" {...register('remarks')} /><Err f="remarks" /></div>
+            <div className="fg cfm-full"><label>Remarks</label><textarea rows={3} placeholder="e.g. Notes about this candidate…" {...register('remarks')} /><Err f="remarks" /></div>
 
             {isEdit && (
               <>
@@ -1016,7 +1082,7 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         }
         .cfm-check input:checked { background: var(--blue); border-color: var(--blue); }
         .cfm-check input:checked::after {
-          content: ""; position: absolute; left: 4.5px; top: 1px;
+          content: ""; position: absolute; left: 7.5px; top: 3.5px;
           width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0;
           transform: rotate(45deg);
         }
@@ -1061,20 +1127,50 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         .cfm-hike__item strong { font-size: 14px; font-family: var(--mono); color: var(--ink); }
         .cfm-hike__sep { width: 1px; align-self: stretch; background: var(--border); }
 
-        /* ── Employment history ──────────────────────────────────── */
-        .cfm-eh__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        .cfm-eh__count { font-size: 10.5px; color: var(--ink4); font-weight: 600; }
+        /* ── Experience section header + Fresher pill ────────────── */
+        .cfm-exp-head {
+          grid-column: 1 / -1; display: flex; align-items: flex-start;
+          justify-content: space-between; gap: 12px; margin: 4px 0 14px;
+        }
+        .cfm-exp-head__t { font-size: 14px; font-weight: 700; color: var(--ink); }
+        .cfm-exp-head__s { font-size: 11px; color: var(--ink4); margin-top: 2px; }
+        .cfm-pillcheck {
+          display: inline-flex; align-items: center; gap: 8px; padding: 6px 13px;
+          border: 1px solid var(--border2); border-radius: 99px; cursor: pointer;
+          font-size: 12px; font-weight: 600; color: var(--ink3); white-space: nowrap;
+          user-select: none; transition: all .12s; flex-shrink: 0;
+        }
+        .cfm-pillcheck:hover { border-color: var(--blue-md); }
+        .cfm-pillcheck[data-on] { border-color: var(--blue); background: var(--blue-lt); color: var(--blue); }
+        .cfm-pillcheck input, .cfm-minicheck input {
+          appearance: none; -webkit-appearance: none; margin: 0; flex-shrink: 0;
+          width: 15px; height: 15px; border: 1.5px solid var(--border2); border-radius: 4px;
+          background: var(--surface); cursor: pointer; position: relative; transition: all .12s;
+        }
+        .cfm-pillcheck input:checked, .cfm-minicheck input:checked { background: var(--blue); border-color: var(--blue); }
+        .cfm-pillcheck input:checked::after, .cfm-minicheck input:checked::after {
+          content: ""; position: absolute; left: 4.5px; top: 1.5px;
+          width: 4px; height: 7px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+        }
+
+        /* ── Employment cards ────────────────────────────────────── */
         .cfm-eh__card {
           border: 1px solid var(--border); border-radius: var(--r2);
-          background: var(--surface2); padding: 12px; margin-bottom: 10px;
+          background: var(--surface); padding: 14px 14px 4px; margin-bottom: 12px;
         }
-        .cfm-eh__card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        .cfm-eh__badge {
-          width: 20px; height: 20px; border-radius: 6px; background: var(--blue-lt);
-          color: var(--blue); font-size: 11px; font-weight: 700; font-family: var(--mono);
-          display: flex; align-items: center; justify-content: center;
+        .cfm-eh__card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .cfm-eh__title { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+        .cfm-eh__remove {
+          background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+          font-size: 12px; font-weight: 600; color: var(--red);
         }
-        .cfm-eh__card .fg input { background: var(--surface); }
+        .cfm-eh__remove:hover { text-decoration: underline; }
+        .cfm-eh__card .fg input { background: var(--surface2); }
+        .cfm-minicheck {
+          display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+          font-size: 12px; font-weight: 600; color: var(--ink3); user-select: none;
+          margin: 2px 0 10px;
+        }
 
         /* ── Resume file row ─────────────────────────────────────── */
         .cfm-file { display: flex; align-items: center; gap: 12px; }

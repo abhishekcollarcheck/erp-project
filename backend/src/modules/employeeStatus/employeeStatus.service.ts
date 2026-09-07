@@ -1,4 +1,5 @@
 import { EmployeeStatus } from "../../database/models/employeeStatus.model";
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
 
 
 export interface CreateEmployeeStatusInput {
@@ -27,12 +28,13 @@ export class EmployeeStatusService {
   }
 
   public async create(data: CreateEmployeeStatusInput): Promise<EmployeeStatus> {
+    const name = requireName(data.name, 'Employee status');
+    const generatedCode = data.code || name.toUpperCase().replace(/\s+/g, '_');
+    await assertUniqueMaster(EmployeeStatus, { name, code: generatedCode }, 'Employee status');
     const count = await EmployeeStatus.count();
-    const generatedCode =
-      data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_');
 
     return EmployeeStatus.create({
-      name: data.name.trim(),
+      name,
       code: generatedCode,
       display_order: count + 1,
       is_active: true,
@@ -43,13 +45,13 @@ export class EmployeeStatusService {
     id: number,
     data: UpdateEmployeeStatusInput
   ): Promise<EmployeeStatus> {
-    const item = await EmployeeStatus.findByPk(id);
-    if (!item) throw new Error('Employee status not found');
+    const item = assertFound(await EmployeeStatus.findByPk(id), 'Employee status');
 
     const updatePayload: Partial<UpdateEmployeeStatusInput> = {};
     if (data.name !== undefined) {
-      updatePayload.name = data.name.trim();
-      updatePayload.code = data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_');
+      updatePayload.name = requireName(data.name, 'Employee status');
+      updatePayload.code = data.code || updatePayload.name.toUpperCase().replace(/\s+/g, '_');
+      await assertUniqueMaster(EmployeeStatus, { name: updatePayload.name, code: updatePayload.code }, 'Employee status', id);
     }
     if (data.is_active !== undefined) {
       updatePayload.is_active = data.is_active;
@@ -66,8 +68,7 @@ export class EmployeeStatusService {
   }
 
   public async delete(id: number): Promise<void> {
-    const item = await EmployeeStatus.findByPk(id);
-    if (!item) throw new Error('Employee status not found');
+    const item = assertFound(await EmployeeStatus.findByPk(id), 'Employee status');
     await item.destroy();
   }
 }

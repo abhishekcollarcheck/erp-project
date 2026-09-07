@@ -7,7 +7,7 @@ export const bankController = {
       const data = await bankService.getAllBanks();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -16,7 +16,7 @@ export const bankController = {
       const data = await bankService.createBank(req.body.name);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -25,7 +25,7 @@ export const bankController = {
       const data = await bankService.updateBank(Number(req.params.id), req.body.name);
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -34,7 +34,7 @@ export const bankController = {
       await bankService.deleteBank(Number(req.params.id));
       res.status(200).json({ success: true, message: 'Deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

@@ -1,4 +1,5 @@
 import { ExitStatus } from '../../database/models/exitStatus.model';
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
 
 export interface CreateExitStatusInput {
   name: string;
@@ -26,12 +27,13 @@ export class ExitStatusService {
   }
 
   public async create(data: CreateExitStatusInput): Promise<ExitStatus> {
+    const name = requireName(data.name, 'Exit status');
+    const generatedCode = data.code || name.toUpperCase().replace(/\s+/g, '_');
+    await assertUniqueMaster(ExitStatus, { name, code: generatedCode }, 'Exit status');
     const count = await ExitStatus.count();
-    const generatedCode =
-      data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_');
 
     return ExitStatus.create({
-      name: data.name.trim(),
+      name,
       code: generatedCode,
       display_order: count + 1,
       is_active: true,
@@ -42,13 +44,13 @@ export class ExitStatusService {
     id: number,
     data: UpdateExitStatusInput
   ): Promise<ExitStatus> {
-    const item = await ExitStatus.findByPk(id);
-    if (!item) throw new Error('Exit status not found');
+    const item = assertFound(await ExitStatus.findByPk(id), 'Exit status');
 
     const updatePayload: Partial<UpdateExitStatusInput> = {};
     if (data.name !== undefined) {
-      updatePayload.name = data.name.trim();
-      updatePayload.code = data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_');
+      updatePayload.name = requireName(data.name, 'Exit status');
+      updatePayload.code = data.code || updatePayload.name.toUpperCase().replace(/\s+/g, '_');
+      await assertUniqueMaster(ExitStatus, { name: updatePayload.name, code: updatePayload.code }, 'Exit status', id);
     }
     if (data.is_active !== undefined) {
       updatePayload.is_active = data.is_active;
@@ -65,8 +67,7 @@ export class ExitStatusService {
   }
 
   public async delete(id: number): Promise<void> {
-    const item = await ExitStatus.findByPk(id);
-    if (!item) throw new Error('Exit status not found');
+    const item = assertFound(await ExitStatus.findByPk(id), 'Exit status');
     await item.destroy();
   }
 }

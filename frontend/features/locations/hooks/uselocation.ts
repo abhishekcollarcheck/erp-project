@@ -55,7 +55,7 @@ export function useUpdateCountry() {
       qc.setQueryData(KEYS.countries.detail(variables.id), res);
       showToast(`✓ Country "${res.data.name}" updated`);
     },
-    onError: (err: any) => showToast(err?.response?.data?.message || 'Update failed'),
+    onError: (err: any) => showToast(err?.response?.data?.message || err?.message || 'Update failed'),
   });
 }
 export function useDeleteCountry() {
@@ -78,7 +78,7 @@ export function useUpdateState() {
       qc.setQueryData(KEYS.states.detail(variables.id), res);
       showToast(`✓ State "${res.data.name}" updated`);
     },
-    onError: (err: any) => showToast(err?.response?.data?.message || 'Update failed'),
+    onError: (err: any) => showToast(err?.response?.data?.message || err?.message || 'Update failed'),
   });
 }
 export function useDeleteState() {
@@ -101,7 +101,7 @@ export function useUpdateCity() {
       qc.setQueryData(KEYS.cities.detail(variables.id), res);
       showToast(`✓ City "${res.data.name}" updated`);
     },
-    onError: (err: any) => showToast(err?.response?.data?.message || 'Update failed'),
+    onError: (err: any) => showToast(err?.response?.data?.message || err?.message || 'Update failed'),
   });
 }
 export function useDeleteCity() {
@@ -124,7 +124,7 @@ export function useUpdateSite() {
       qc.setQueryData(KEYS.sites.detail(variables.id), res);
       showToast(`✓ Site "${res.data.name}" updated`);
     },
-    onError: (err: any) => showToast(err?.response?.data?.message || 'Update failed'),
+    onError: (err: any) => showToast(err?.response?.data?.message || err?.message || 'Update failed'),
   });
 }
 export function useDeleteSite() {
@@ -147,7 +147,7 @@ export function useUpdatePayRegister() {
       qc.setQueryData(KEYS.payRegisters.detail(variables.id), res);
       showToast(`✓ Pay Register "${res.data.name}" updated`);
     },
-    onError: (err: any) => showToast(err?.response?.data?.message || 'Update failed'),
+    onError: (err: any) => showToast(err?.response?.data?.message || err?.message || 'Update failed'),
   });
 }
 export function useDeletePayRegister() {

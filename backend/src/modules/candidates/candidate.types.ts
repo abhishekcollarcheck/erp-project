@@ -42,6 +42,11 @@ export interface CreateCandidateDto {
 
   apply_department?: string | null;
   apply_designation?: string | null;
+  job_title?: string | null;
+  job_location?: string | null;
+  job_type?: string | null;
+  job_code?: string | null;
+  job_description?: string | null;
   current_salary?: number | null;
   expected_salary?: number | null;
   currently_working?: boolean | null;
@@ -141,6 +146,21 @@ export interface BulkCandidateRow {
   referred_by_employee_id?: string | number;
   reference_source?: string;
   remarks?: string;
+}
+
+export interface ShareDocumentDto {
+  kind?: 'Share' | 'Request';
+  title: string;
+  category?: string | null;
+  file_url?: string | null;
+  note?: string | null;
+}
+
+export interface UpdateDocumentDto {
+  title?: string;
+  category?: string | null;
+  note?: string | null;
+  status?: 'Pending' | 'Read' | 'Completed';
 }
 
 export interface BulkUploadResult {

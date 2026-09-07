@@ -1,4 +1,8 @@
 import { BloodGroup } from '../../database/models/bloodGroup';
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
+
+const toCode = (name: string) =>
+  name.toUpperCase().replace(/\s+/g, '_').replace('+', '_POS').replace('-', '_NEG');
 
 export class BloodGroupService {
   public async getAllBloodGroups(): Promise<BloodGroup[]> {
@@ -6,28 +10,23 @@ export class BloodGroupService {
   }
 
   public async createBloodGroup(name: string): Promise<BloodGroup> {
+    const cleanName = requireName(name, 'Blood group');
+    const code = toCode(cleanName);
+    await assertUniqueMaster(BloodGroup, { name: cleanName, code }, 'Blood group');
     const count = await BloodGroup.count();
-    const cleanName = name.trim();
-    return BloodGroup.create({
-      name: cleanName,
-      code: cleanName.toUpperCase().replace(/\s+/g, '_').replace('+', '_POS').replace('-', '_NEG'),
-      display_order: count + 1,
-    });
+    return BloodGroup.create({ name: cleanName, code, display_order: count + 1 });
   }
 
   public async updateBloodGroup(id: number, name: string): Promise<BloodGroup> {
-    const item = await BloodGroup.findByPk(id);
-    if (!item) throw new Error('Blood group not found');
-    const cleanName = name.trim();
-    return item.update({
-      name: cleanName,
-      code: cleanName.toUpperCase().replace(/\s+/g, '_').replace('+', '_POS').replace('-', '_NEG'),
-    });
+    const cleanName = requireName(name, 'Blood group');
+    const item = assertFound(await BloodGroup.findByPk(id), 'Blood group');
+    const code = toCode(cleanName);
+    await assertUniqueMaster(BloodGroup, { name: cleanName, code }, 'Blood group', id);
+    return item.update({ name: cleanName, code });
   }
 
   public async deleteBloodGroup(id: number): Promise<void> {
-    const item = await BloodGroup.findByPk(id);
-    if (!item) throw new Error('Blood group not found');
+    const item = assertFound(await BloodGroup.findByPk(id), 'Blood group');
     await item.destroy();
   }
 }

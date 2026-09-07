@@ -1,6 +1,5 @@
 import { SaturdayRule, GraceMinute, AttendanceType } from '../../database/models/AttendanceRules';
-
-// import { SaturdayRule } from "@/database/models/AttendanceRules";
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
 
 export const attendanceRulesService = {
   // ─── SATURDAY RULES ────────────────────────────────────────────────────────
@@ -9,18 +8,20 @@ export const attendanceRulesService = {
   },
 
   async createSaturdayRule(name: string) {
-    return await SaturdayRule.create({ name });
+    const cleanName = requireName(name, 'Saturday rule');
+    await assertUniqueMaster(SaturdayRule, { name: cleanName }, 'Saturday rule');
+    return await SaturdayRule.create({ name: cleanName });
   },
 
   async updateSaturdayRule(id: number, name: string) {
-    const record = await SaturdayRule.findByPk(id);
-    if (!record) throw new Error('Saturday rule not found');
-    return await record.update({ name });
+    const cleanName = requireName(name, 'Saturday rule');
+    const record = assertFound(await SaturdayRule.findByPk(id), 'Saturday rule');
+    await assertUniqueMaster(SaturdayRule, { name: cleanName }, 'Saturday rule', id);
+    return await record.update({ name: cleanName });
   },
 
   async deleteSaturdayRule(id: number) {
-    const record = await SaturdayRule.findByPk(id);
-    if (!record) throw new Error('Saturday rule not found');
+    const record = assertFound(await SaturdayRule.findByPk(id), 'Saturday rule');
     await record.destroy();
     return true;
   },
@@ -36,18 +37,20 @@ export const attendanceRulesService = {
   },
 
   async createGraceMinute(name: string, minutes?: number) {
-    return await GraceMinute.create({ name, minutes });
+    const cleanName = requireName(name, 'Grace minute');
+    await assertUniqueMaster(GraceMinute, { name: cleanName }, 'Grace minute');
+    return await GraceMinute.create({ name: cleanName, minutes });
   },
 
   async updateGraceMinute(id: number, name: string, minutes?: number) {
-    const record = await GraceMinute.findByPk(id);
-    if (!record) throw new Error('Grace minute not found');
-    return await record.update({ name, minutes });
+    const cleanName = requireName(name, 'Grace minute');
+    const record = assertFound(await GraceMinute.findByPk(id), 'Grace minute');
+    await assertUniqueMaster(GraceMinute, { name: cleanName }, 'Grace minute', id);
+    return await record.update({ name: cleanName, minutes });
   },
 
   async deleteGraceMinute(id: number) {
-    const record = await GraceMinute.findByPk(id);
-    if (!record) throw new Error('Grace minute not found');
+    const record = assertFound(await GraceMinute.findByPk(id), 'Grace minute');
     await record.destroy();
     return true;
   },
@@ -63,18 +66,20 @@ export const attendanceRulesService = {
   },
 
   async createAttendanceType(name: string, code?: string) {
-    return await AttendanceType.create({ name, code });
+    const cleanName = requireName(name, 'Attendance type');
+    await assertUniqueMaster(AttendanceType, { name: cleanName }, 'Attendance type');
+    return await AttendanceType.create({ name: cleanName, code });
   },
 
   async updateAttendanceType(id: number, name: string, code?: string) {
-    const record = await AttendanceType.findByPk(id);
-    if (!record) throw new Error('Attendance type not found');
-    return await record.update({ name, code });
+    const cleanName = requireName(name, 'Attendance type');
+    const record = assertFound(await AttendanceType.findByPk(id), 'Attendance type');
+    await assertUniqueMaster(AttendanceType, { name: cleanName }, 'Attendance type', id);
+    return await record.update({ name: cleanName, code });
   },
 
   async deleteAttendanceType(id: number) {
-    const record = await AttendanceType.findByPk(id);
-    if (!record) throw new Error('Attendance type not found');
+    const record = assertFound(await AttendanceType.findByPk(id), 'Attendance type');
     await record.destroy();
     return true;
   },

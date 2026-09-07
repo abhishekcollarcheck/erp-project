@@ -22,7 +22,11 @@ const DETAIL_INCLUDES: any[] = [
     association: 'locationAttendance',
     include: [
       { association: 'shift', attributes: ['id', 'label'] },
-      { association: 'workingState', attributes: ['id', 'name'] },
+      {
+        association: 'workingState',
+        attributes: ['id', 'name'],
+        include: [{ association: 'country', attributes: ['id', 'name'] }],
+      },
       { association: 'workingCity', attributes: ['id', 'name'] },
       { association: 'workingSite', attributes: ['id', 'name'] },
       { association: 'payRegister', attributes: ['id', 'name'] },
@@ -68,7 +72,15 @@ const LIST_INCLUDES: any[] = [
     association: 'managersWorkContact',
     include: [{ association: 'l1Manager', attributes: MGR_ATTRS }],
   },
-  { association: 'locationAttendance' },
+  {
+    association: 'locationAttendance',
+    include: [
+      { association: 'workingState', attributes: ['id', 'name'] },
+      { association: 'workingCity',  attributes: ['id', 'name'] },
+      { association: 'workingSite',  attributes: ['id', 'name'] },
+      { association: 'payRegister',  attributes: ['id', 'name'] },
+    ],
+  },
 ];
 
 const ALWAYS_EXCLUDE = [
