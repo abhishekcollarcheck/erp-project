@@ -7,7 +7,7 @@ export const modeOfPaymentController = {
       const data = await modeOfPaymentService.getAllModesOfPayment();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -16,7 +16,7 @@ export const modeOfPaymentController = {
       const data = await modeOfPaymentService.createModeOfPayment(req.body.name);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -28,7 +28,7 @@ export const modeOfPaymentController = {
       );
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -37,7 +37,7 @@ export const modeOfPaymentController = {
       await modeOfPaymentService.deleteModeOfPayment(Number(req.params.id));
       res.status(200).json({ success: true, message: 'Deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

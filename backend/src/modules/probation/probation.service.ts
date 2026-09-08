@@ -1,5 +1,6 @@
 import { ProbationPeriod } from '../../database/models/probationPeriod.model';
 import { ProbationStatus } from '../../database/models/probationStatus.model';
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
 
 export type ProbationType = 'periods' | 'statuses';
 
@@ -35,13 +36,15 @@ export class ProbationService {
   }
 
   public async create(type: ProbationType, data: CreateProbationInput) {
+    const label = `Probation ${type === 'periods' ? 'period' : 'status'}`;
     const ModelClass = this.getModel(type);
+    const name = requireName(data.name, label);
+    const generatedCode = data.code || name.toUpperCase().replace(/\s+/g, '_');
+    await assertUniqueMaster(ModelClass, { name, code: generatedCode }, label);
     const count = await ModelClass.count();
-    const generatedCode =
-      data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_');
 
     return ModelClass.create({
-      name: data.name.trim(),
+      name,
       code: generatedCode,
       display_order: count + 1,
       is_active: true,
@@ -53,14 +56,15 @@ export class ProbationService {
     id: number,
     data: UpdateProbationInput
   ) {
+    const label = `Probation ${type === 'periods' ? 'period' : 'status'}`;
     const ModelClass = this.getModel(type);
-    const item = await ModelClass.findByPk(id);
-    if (!item) throw new Error(`Probation ${type === 'periods' ? 'period' : 'status'} not found`);
+    const item = assertFound(await ModelClass.findByPk(id), label);
 
     const updatePayload: Partial<UpdateProbationInput> = {};
     if (data.name !== undefined) {
-      updatePayload.name = data.name.trim();
-      updatePayload.code = data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_');
+      updatePayload.name = requireName(data.name, label);
+      updatePayload.code = data.code || updatePayload.name.toUpperCase().replace(/\s+/g, '_');
+      await assertUniqueMaster(ModelClass, { name: updatePayload.name, code: updatePayload.code }, label, id);
     }
     if (data.is_active !== undefined) {
       updatePayload.is_active = data.is_active;
@@ -78,9 +82,9 @@ export class ProbationService {
   }
 
   public async delete(type: ProbationType, id: number): Promise<void> {
+    const label = `Probation ${type === 'periods' ? 'period' : 'status'}`;
     const ModelClass = this.getModel(type);
-    const item = await ModelClass.findByPk(id);
-    if (!item) throw new Error(`Probation ${type === 'periods' ? 'period' : 'status'} not found`);
+    const item = assertFound(await ModelClass.findByPk(id), label);
     await item.destroy();
   }
 }

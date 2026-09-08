@@ -4,6 +4,7 @@ import type { ApiResponse } from '../../types/api.types';
 import type {
   Candidate, CandidateStats, CreateCandidateDto, CandidateActivityEntry,
   UpdateCandidateDto, CandidateQueryParams, BulkUploadResult, CandidateStatus,
+  CandidateDocument,
 } from '../../features/candidates/types/candidate.types';
 
 // ─── HR API service ────────────────────────────────────────────────────────────
@@ -20,6 +21,21 @@ export const candidateService = {
 
   getActivity: (id: number) =>
     apiClient.get<unknown, ApiResponse<CandidateActivityEntry[]>>(`/candidates/${id}/activity`),
+
+  // ─── Candidate documents (HR ↔ candidate exchange) ──────────────────────────
+  listDocuments: (id: number) =>
+    apiClient.get<unknown, ApiResponse<CandidateDocument[]>>(`/candidates/${id}/documents`),
+
+  shareDocument: (id: number, form: FormData) =>
+    apiClient.post<unknown, ApiResponse<CandidateDocument>>(`/candidates/${id}/documents`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
+  updateDocument: (id: number, docId: number, body: Partial<Pick<CandidateDocument, 'title' | 'category' | 'note' | 'status'>>) =>
+    apiClient.patch<unknown, ApiResponse<CandidateDocument>>(`/candidates/${id}/documents/${docId}`, body),
+
+  deleteDocument: (id: number, docId: number) =>
+    apiClient.delete<unknown, ApiResponse<null>>(`/candidates/${id}/documents/${docId}`),
 
   create: (data: CreateCandidateDto) =>
     apiClient.post<unknown, ApiResponse<Candidate>>('/candidates', data),
@@ -203,6 +219,25 @@ export const portalService = {
       '/candidates/portal/prejoining',
       { form_data, is_draft },
     ),
+
+  listDocuments: () =>
+    portalClient.get<unknown, ApiResponse<CandidateDocument[]>>('/candidates/portal/documents'),
+
+  markDocument: (docId: number, action: 'read' | 'complete') =>
+    portalClient.patch<unknown, ApiResponse<CandidateDocument>>(
+      `/candidates/portal/documents/${docId}/read`,
+      { action },
+    ),
+
+  submitAssignment: (docId: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return portalClient.post<unknown, ApiResponse<CandidateDocument>>(
+      `/candidates/portal/documents/${docId}/upload`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+  },
 
   savePreinterview: (
     form_data: Record<string, unknown>,

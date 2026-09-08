@@ -7,7 +7,7 @@ export const shiftController = {
       const data = await shiftService.getAllShifts();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -21,7 +21,7 @@ export const shiftController = {
       }
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -44,7 +44,7 @@ export const shiftController = {
 
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -54,8 +54,7 @@ export const shiftController = {
       const data = await shiftService.updateShift(id, req.body);
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      const statusCode = error.message === 'Shift not found' ? 404 : 500;
-      res.status(statusCode).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -65,8 +64,7 @@ export const shiftController = {
       await shiftService.deleteShift(id);
       res.status(200).json({ success: true, message: 'Shift deleted successfully' });
     } catch (error: any) {
-      const statusCode = error.message === 'Shift not found' ? 404 : 500;
-      res.status(statusCode).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

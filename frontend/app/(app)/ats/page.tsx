@@ -261,11 +261,11 @@ export default function ATSPage() {
                       {c.total_experience != null && <span style={{ fontSize: 10, color: 'var(--ink4)' }}>{c.total_experience}yr</span>}
                       {c.source && <span style={{ fontSize: 10 }}>{SOURCE_EMOJI[c.source] || ''}</span>}
                       {c.resume_url && <span style={{ fontSize: 10 }} title="Resume available">📄</span>}
-                      {c.status === 'Interview_Scheduled' && c.interview_date && (
+                      {c.status === 'Interview' && c.interview_date && (
                         <span style={{ fontSize: 9, color: 'var(--purple)', fontWeight: 700 }}>📅 {formatDate(c.interview_date)}</span>
                       )}
                     </div>
-                    {c.status === 'Interview_Result' && canEdit('recruitment') && (
+                    {c.status === 'Interview' && canEdit('recruitment') && (
                       <button type="button" onClick={e => { e.stopPropagation(); setResultTarget(c); }}
                         style={{ marginTop: 6, width: '100%', padding: '4px 0', background: 'var(--teal-lt)', border: '1px solid var(--teal-bd)', borderRadius: 5, fontSize: 10, color: 'var(--teal)', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
                         🎯 Record Result
@@ -777,7 +777,6 @@ export default function ATSPage() {
         open={!!moveTarget}
         onClose={() => setMoveTarget(null)}
         candidate={moveTarget}
-        onInterviewResult={() => { if (moveTarget) setResultTarget(moveTarget); setMoveTarget(null); }}
       />
 
       <InterviewSchedulerModal

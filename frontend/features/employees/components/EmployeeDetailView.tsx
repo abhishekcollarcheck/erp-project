@@ -200,7 +200,9 @@ export function EmployeeDetailView({ id }: { id: number }) {
         return (
           <>
             <InfoCard title="Location & Attendance" rows={[
-              ['State / Country', (e as any).workingState?.name],
+              ['State / Country', (e as any).workingState?.name
+                ? `${(e as any).workingState.name}${(e as any).workingState.country?.name ? `, ${(e as any).workingState.country.name}` : ''}`
+                : undefined],
               ['Working City', (e as any).workingCity?.name],
               ['Working Site', (e as any).workingSite?.name],
               ['Pay Register Location', (e as any).payRegister?.name],

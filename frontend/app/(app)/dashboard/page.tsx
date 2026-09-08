@@ -106,9 +106,9 @@ export default function DashboardPage() {
           <div className="card cp">
             <div className="ct">Hiring Funnel</div>
             {[
-              { label: 'Applied', value: 248, pct: 100, color: 'var(--blue)' },
+              { label: 'Sourced', value: 248, pct: 100, color: 'var(--blue)' },
               { label: 'Shortlisted', value: 89, pct: 36, color: 'var(--teal)' },
-              { label: 'Interviewed', value: 41, pct: 16, color: 'var(--amber)' },
+              { label: 'Interview', value: 41, pct: 16, color: 'var(--amber)' },
               { label: 'Offered', value: 12, pct: 5, color: 'var(--green)' },
             ].map((item) => (
               <div key={item.label} style={{ marginBottom: 8 }}>

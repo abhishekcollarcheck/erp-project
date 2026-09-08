@@ -148,7 +148,7 @@ export default function EmployeesPage() {
     {
       key: 'location',
       header: 'Location',
-      render: row => <span style={{ fontSize: 11, color: 'var(--ink4)' }}>{row.working_site || '—'}</span>,
+      render: row => <span style={{ fontSize: 11, color: 'var(--ink4)' }}>{row.workingSite?.name || '—'}</span>,
     },
     {
       key: 'status',

@@ -7,7 +7,7 @@ export const bondController = {
       const data = await bondService.getAll();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -20,7 +20,7 @@ export const bondController = {
       }
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -33,7 +33,7 @@ export const bondController = {
       const data = await bondService.create(req.body);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -43,7 +43,7 @@ export const bondController = {
       const data = await bondService.update(id, req.body);
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -57,7 +57,7 @@ export const bondController = {
       await bondService.updateOrder(ordered_ids);
       res.status(200).json({ success: true, message: 'Order updated successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -66,7 +66,7 @@ export const bondController = {
       await bondService.delete(Number(req.params.id));
       res.status(200).json({ success: true, message: 'Bond option deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

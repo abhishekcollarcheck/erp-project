@@ -1219,7 +1219,8 @@ export class DesignationService {
   // ─── 3. CREATE DESIGNATION ─────────────────────────────────────────────────
 
   async create(dto: CreateDesignationDto) {
-    const name = dto.name.trim();
+    const name = String(dto.name ?? '').trim();
+    if (!name) throw new AppError('Designation name is required', 400);
 
     const existing = await Designation.findOne({
       where: { name, is_active: true },
@@ -1420,7 +1421,8 @@ export class DesignationService {
   // ─── 7. CREATE SUB-DESIGNATION ─────────────────────────────────────────────
 
   async createSubDesignation(dto: CreateSubDesignationDto) {
-    const name = dto.name.trim();
+    const name = String(dto.name ?? '').trim();
+    if (!name) throw new AppError('Sub-Designation name is required', 400);
 
     const existing = await SubDesignation.findOne({
       where: { name, is_active: true },

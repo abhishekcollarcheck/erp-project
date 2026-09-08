@@ -1,11 +1,29 @@
 // import { Country, State, City, Site, PayRegister } from '../models';
 import { City, Country, PayRegister, Site, State } from '../../database/models/Location';
-import { FindOptions, WhereOptions } from 'sequelize';
+import { FindOptions, Op, WhereOptions } from 'sequelize';
+import { requireName, assertUniqueMaster } from '../../utils/masterCrud';
+import { AppError } from '../../middleware/errorHandler.middleware';
+
+/**
+ * A location name only has to be unique within its parent, not globally:
+ * a State within its Country, a City within its State, a Site / Pay Register
+ * within its Company. `scope` carries that parent key/value.
+ */
+async function assertUniqueWithin(
+  Model: any, name: string, scope: Record<string, unknown>, label: string, excludeId?: number,
+) {
+  const where: any = { name };
+  for (const [k, v] of Object.entries(scope)) if (v != null) where[k] = v;
+  if (excludeId != null) where.id = { [Op.ne]: excludeId };
+  if (await Model.findOne({ where })) throw new AppError(`${label} "${name}" already exists`, 409);
+}
 
 // ─── COUNTRY SERVICE ────────────────────────────────────────────────────────
 export class CountryService {
   async create(data: any, userId?: number) {
-    return await Country.create({ ...data, created_by: userId });
+    const name = requireName(data.name, 'Country');
+    await assertUniqueMaster(Country, { name }, 'Country');
+    return await Country.create({ ...data, name, created_by: userId });
   }
 
   async findAll(options: FindOptions = {}) {
@@ -21,6 +39,10 @@ export class CountryService {
   async update(id: number, data: any, userId?: number) {
     const item = await Country.findByPk(id);
     if (!item) return null;
+    if (data.name !== undefined) {
+      data.name = requireName(data.name, 'Country');
+      await assertUniqueMaster(Country, { name: data.name }, 'Country', id);
+    }
     return await item.update({ ...data, updated_by: userId });
   }
 
@@ -36,7 +58,9 @@ export class CountryService {
 // ─── STATE SERVICE ──────────────────────────────────────────────────────────
 export class StateService {
   async create(data: any, userId?: number) {
-    return await State.create({ ...data, created_by: userId });
+    const name = requireName(data.name, 'State');
+    await assertUniqueWithin(State, name, { country_id: data.country_id }, 'State');
+    return await State.create({ ...data, name, created_by: userId });
   }
 
   async findAll(options: FindOptions = {}) {
@@ -59,6 +83,10 @@ export class StateService {
   async update(id: number, data: any, userId?: number) {
     const item = await State.findByPk(id);
     if (!item) return null;
+    if (data.name !== undefined) {
+      data.name = requireName(data.name, 'State');
+      await assertUniqueWithin(State, data.name, { country_id: data.country_id ?? (item as any).country_id }, 'State', id);
+    }
     return await item.update({ ...data, updated_by: userId });
   }
 
@@ -74,7 +102,9 @@ export class StateService {
 // ─── CITY SERVICE ───────────────────────────────────────────────────────────
 export class CityService {
   async create(data: any, userId?: number) {
-    return await City.create({ ...data, created_by: userId });
+    const name = requireName(data.name, 'City');
+    await assertUniqueWithin(City, name, { state_id: data.state_id }, 'City');
+    return await City.create({ ...data, name, created_by: userId });
   }
 
   async findAll(options: FindOptions = {}) {
@@ -96,6 +126,10 @@ export class CityService {
   async update(id: number, data: any, userId?: number) {
     const item = await City.findByPk(id);
     if (!item) return null;
+    if (data.name !== undefined) {
+      data.name = requireName(data.name, 'City');
+      await assertUniqueWithin(City, data.name, { state_id: data.state_id ?? (item as any).state_id }, 'City', id);
+    }
     return await item.update({ ...data, updated_by: userId });
   }
 
@@ -111,7 +145,9 @@ export class CityService {
 // ─── SITE SERVICE ───────────────────────────────────────────────────────────
 export class SiteService {
   async create(data: any, userId?: number) {
-    return await Site.create({ ...data, created_by: userId });
+    const name = requireName(data.name, 'Site');
+    await assertUniqueWithin(Site, name, { company_id: data.company_id }, 'Site');
+    return await Site.create({ ...data, name, created_by: userId });
   }
 
   async findAll(options: FindOptions = {}) {
@@ -130,6 +166,10 @@ export class SiteService {
   async update(id: number, data: any, userId?: number) {
     const item = await Site.findByPk(id);
     if (!item) return null;
+    if (data.name !== undefined) {
+      data.name = requireName(data.name, 'Site');
+      await assertUniqueWithin(Site, data.name, { company_id: data.company_id ?? (item as any).company_id }, 'Site', id);
+    }
     return await item.update({ ...data, updated_by: userId });
   }
 
@@ -145,7 +185,9 @@ export class SiteService {
 // ─── PAY REGISTER SERVICE ────────────────────────────────────────────────────
 export class PayRegisterService {
   async create(data: any, userId?: number) {
-    return await PayRegister.create({ ...data, created_by: userId });
+    const name = requireName(data.name, 'Pay register');
+    await assertUniqueWithin(PayRegister, name, { company_id: data.company_id }, 'Pay register');
+    return await PayRegister.create({ ...data, name, created_by: userId });
   }
 
   async findAll(options: FindOptions = {}) {
@@ -164,6 +206,10 @@ export class PayRegisterService {
   async update(id: number, data: any, userId?: number) {
     const item = await PayRegister.findByPk(id);
     if (!item) return null;
+    if (data.name !== undefined) {
+      data.name = requireName(data.name, 'Pay register');
+      await assertUniqueWithin(PayRegister, data.name, { company_id: data.company_id ?? (item as any).company_id }, 'Pay register', id);
+    }
     return await item.update({ ...data, updated_by: userId });
   }
 

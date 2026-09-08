@@ -7,7 +7,7 @@ export const weeklyOffPresetController = {
       const data = await weeklyOffPresetService.getAllPresets();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -21,7 +21,7 @@ export const weeklyOffPresetController = {
       }
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -42,7 +42,7 @@ export const weeklyOffPresetController = {
 
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -52,8 +52,7 @@ export const weeklyOffPresetController = {
       const data = await weeklyOffPresetService.updatePreset(id, req.body);
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      const statusCode = error.message === 'Weekly off preset not found' ? 404 : 500;
-      res.status(statusCode).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -63,8 +62,7 @@ export const weeklyOffPresetController = {
       await weeklyOffPresetService.deletePreset(id);
       res.status(200).json({ success: true, message: 'Preset deleted successfully' });
     } catch (error: any) {
-      const statusCode = error.message === 'Weekly off preset not found' ? 404 : 500;
-      res.status(statusCode).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

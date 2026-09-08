@@ -84,7 +84,7 @@ export default function AptitudeTestPage() {
             Results will be reviewed by HR and you will be notified.<br/>
             <strong>Scores are not visible to candidates.</strong>
           </div>
-          <button className="btn btn-pri" onClick={() => router.push('/portal/dashboard')}>← Back to Dashboard</button>
+          <button className="btn btn-pri" onClick={() => router.push('/portal/home')}>← Back to Dashboard</button>
         </div>
       </div>
     );
@@ -109,7 +109,7 @@ export default function AptitudeTestPage() {
             ⚠ Once started, the timer cannot be paused. Ensure you have a stable connection.
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-sec" onClick={() => router.push('/portal/dashboard')}>← Back</button>
+            <button className="btn btn-sec" onClick={() => router.push('/portal/home')}>← Back</button>
             <button className="btn btn-pri" style={{ flex: 1 }} onClick={() => setStarted(true)}>Start Test →</button>
           </div>
         </div>

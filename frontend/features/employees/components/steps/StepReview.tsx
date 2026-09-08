@@ -50,6 +50,11 @@ export function StepReview({ employeeId, onEdit }: Props) {
   const ad: any = emp.assetDeduction ?? {};
   const isExperienced = (emp as any).experienceFlag?.is_experienced;
 
+  const ws: any = (emp as any).workingState;
+  const stateCountry = ws?.name
+    ? `${ws.name}${ws.country?.name ? `, ${ws.country.name}` : ''}`
+    : undefined;
+
   const SECTIONS: Record<string, Field[]> = {
     role_identity: [
       ['First Name', emp.first_name], ['Middle Name', emp.middle_name], ['Last Name', emp.last_name],
@@ -61,7 +66,7 @@ export function StepReview({ employeeId, onEdit }: Props) {
       ['Personal Email', emp.email], ['Personal Mobile', emp.phone],
     ],
     location_attendance: [
-      ['State / Country', (emp as any).workingState?.name],
+      ['State / Country', stateCountry],
       ['Working City', (emp as any).workingCity?.name],
       ['Working Site', (emp as any).workingSite?.name],
       ['Pay Register Location', (emp as any).payRegister?.name],

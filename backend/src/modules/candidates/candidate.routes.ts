@@ -13,6 +13,8 @@ import {
   scheduleInterview, handleReschedule, grantPortalAccess, submitInterviewResult,
   sendOffer, hireCandidate, withdrawCandidate, sendPreInterviewForm, sendAptitudeTestLink,
   getPreInterviewForm, getPreJoiningForm,
+  listCandidateDocuments, shareCandidateDocument, updateCandidateDocument, deleteCandidateDocument,
+  portalListDocuments, portalMarkDocument, portalUploadDocument,
   portalLogin, portalMagicLink, portalVerifyMagic,
   portalAuthenticate, portalGetProfile, portalGetCompanyInfo, portalSavePreJoining,
   portalRespondInterview, portalRequestReschedule, portalSavePreinterview,sendPreJoiningFormLink
@@ -23,6 +25,7 @@ import {
   moveStatusValidation, interviewResultValidation, idValidation,
   sendOfferValidation, hireCandidateValidation, withdrawValidation,
   portalLoginValidation, rescheduleValidation, handleRescheduleValidation,
+  shareDocumentValidation, updateDocumentValidation,
 } from './candidate.validation';
 import { env } from '../../config/env';
 
@@ -39,6 +42,25 @@ const resumeUpload = multer({
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, ['.pdf','.doc','.docx'].includes(ext));
+  },
+});
+
+// ─── Multer: Candidate documents (HR shares a file with the candidate) ───────
+const candidateDocsDir = path.join(process.cwd(), env.upload.dir, 'candidate-docs');
+if (!fs.existsSync(candidateDocsDir)) fs.mkdirSync(candidateDocsDir, { recursive: true });
+
+const candidateDocsUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, candidateDocsDir),
+    filename:    (_req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, [
+      '.pdf', '.doc', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.webp',
+      '.xlsx', '.xls', '.ppt', '.pptx', '.txt', '.csv', '.zip', '.fig',
+    ].includes(ext));
   },
 });
 
@@ -110,6 +132,17 @@ router.get('/stats', authenticate,  getCandidateStats);
 router.get('/',      authenticate, listCandidateValidation, validate,  getCandidates);
 router.get('/:id',   authenticate, idValidation, validate,  getCandidate);
 router.get('/:id/activity', authenticate, idValidation, validate, getCandidateActivity);
+
+// ─── Candidate documents (HR ↔ candidate exchange) ──────────────────────────
+// Portal routes first — `/portal/documents` must not be shadowed by `/:id/documents`.
+router.get  ('/portal/documents',                portalAuthenticate, portalListDocuments);
+router.patch('/portal/documents/:docId/read',    portalAuthenticate, portalMarkDocument);
+router.post ('/portal/documents/:docId/upload',  portalAuthenticate, candidateDocsUpload.single('file'), portalUploadDocument);
+
+router.get   ('/:id/documents',        authenticate, idValidation, validate, listCandidateDocuments);
+router.post  ('/:id/documents',        authenticate, candidateDocsUpload.single('file'), shareDocumentValidation, validate, shareCandidateDocument);
+router.patch ('/:id/documents/:docId', authenticate, updateDocumentValidation, validate, updateCandidateDocument);
+router.delete('/:id/documents/:docId', authenticate, deleteCandidateDocument);
 
 router.post('/',     authenticate, createCandidateValidation, validate, createCandidate);
 router.post('/bulk', authenticate, bulkUpload.single('file'), bulkUploadCandidates);

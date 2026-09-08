@@ -1,9 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { useMoveStatus } from '../hooks/useCandidates';
 import {
-  ALL_STATUSES, STATUS_COLORS, STATUS_LABEL, STATUS_ORDER, TERMINAL_STATUSES,
+  ALL_STATUSES, OUTCOME_STATUSES, STATUS_COLORS, STATUS_LABEL, STATUS_ORDER, TERMINAL_STATUSES,
   type CandidateStatus, type Candidate,
 } from '../types/candidate.types';
 
@@ -11,30 +11,34 @@ interface Props {
   open: boolean;
   onClose: () => void;
   candidate: Candidate | null;
-  /** Called when HR selects Interview_Result so the result form can open */
+  /** Pre-select a stage when the modal opens (e.g. a dedicated "Reject" action). */
+  preselect?: CandidateStatus;
+  /** Retained for callers; no longer triggered (Interview_Result stage was removed). */
   onInterviewResult?: () => void;
 }
 
-export function StatusMoveModal({ open, onClose, candidate, onInterviewResult }: Props) {
+export function StatusMoveModal({ open, onClose, candidate, preselect }: Props) {
   const [selectedStatus, setSelectedStatus] = useState<CandidateStatus | ''>('');
   const [remarks, setRemarks] = useState('');
   const moveMutation = useMoveStatus();
 
+  useEffect(() => {
+    if (open) {
+      setSelectedStatus(preselect ?? '');
+      setRemarks('');
+    }
+  }, [open, preselect]);
+
   const handleMove = async () => {
     if (!candidate || !selectedStatus) return;
-
     await moveMutation.mutateAsync({ id: candidate.id, status: selectedStatus, remarks: remarks || undefined });
     setSelectedStatus('');
     setRemarks('');
     onClose();
-
-    // If moved to Interview_Result, trigger the result form immediately
-    if (selectedStatus === 'Interview_Result') {
-      setTimeout(() => onInterviewResult?.(), 150);
-    }
   };
 
   const currentStatus = candidate?.status;
+  const isOutcome = selectedStatus && OUTCOME_STATUSES.includes(selectedStatus);
 
   return (
     <Modal
@@ -47,15 +51,11 @@ export function StatusMoveModal({ open, onClose, candidate, onInterviewResult }:
         <>
           <button className="btn btn-sec" onClick={onClose}>Cancel</button>
           <button
-            className="btn btn-pri"
+            className={`btn ${isOutcome && selectedStatus !== 'On_Hold' ? 'btn-danger' : 'btn-pri'}`}
             onClick={handleMove}
             disabled={!selectedStatus || moveMutation.isPending}
           >
-            {moveMutation.isPending
-              ? 'Moving…'
-              : selectedStatus === 'Interview_Result'
-                ? '→ Move & Record Result'
-                : '→ Move'}
+            {moveMutation.isPending ? 'Moving…' : '→ Move'}
           </button>
         </>
       }
@@ -70,16 +70,14 @@ export function StatusMoveModal({ open, onClose, candidate, onInterviewResult }:
             const currentOrder = currentStatus ? STATUS_ORDER[currentStatus] : 0;
             const statusOrder = STATUS_ORDER[s];
             const isCurrent = s === currentStatus;
-            const isPreviousStage = statusOrder < currentOrder && !['Rejected', 'Withdrawn', 'On_Hold'].includes(s);
+            const isPreviousStage = statusOrder < currentOrder && !OUTCOME_STATUSES.includes(s);
             const isTerminalCurrent =
-              currentStatus &&
-              TERMINAL_STATUSES.includes(currentStatus);
+              currentStatus && TERMINAL_STATUSES.includes(currentStatus);
             const disabled =
               isTerminalCurrent
                 ? s !== currentStatus
                 : isCurrent || isPreviousStage;
             const isSelected = s === selectedStatus;
-            const isResult = s === 'Interview_Result';
 
             return (
               <button
@@ -99,8 +97,6 @@ export function StatusMoveModal({ open, onClose, candidate, onInterviewResult }:
                   border: `1px solid ${isSelected ? c.text : isCurrent ? 'var(--border)' : c.border}`,
                   background: isSelected ? c.text : isCurrent ? 'var(--surface2)' : c.bg,
                   color: isSelected ? '#fff' : isCurrent ? 'var(--ink4)' : c.text,
-                  // Highlight Interview_Result with a subtle glow
-                  boxShadow: isResult && isSelected ? `0 0 0 3px ${c.border}` : undefined,
                 }}
               >
                 {
@@ -110,19 +106,14 @@ export function StatusMoveModal({ open, onClose, candidate, onInterviewResult }:
                       ? `✓ ${STATUS_LABEL[s]}`
                       : STATUS_LABEL[s]
                 }
-                {isResult && !isCurrent && ' 🎯'}
               </button>
             );
           })}
         </div>
-      </div>
-
-      {/* Interview_Result hint */}
-      {selectedStatus === 'Interview_Result' && (
-        <div style={{ background: 'var(--teal-lt)', border: '1px solid var(--teal-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--teal)', marginBottom: 12 }}>
-          ℹ Moving to <strong>Interview Result</strong> will immediately open the result form so you can record the interviewer details and decision.
+        <div style={{ fontSize: 10.5, color: 'var(--ink4)', marginTop: 8 }}>
+          Rejected, Withdrawn and On&nbsp;Hold can be set from any active stage.
         </div>
-      )}
+      </div>
 
       <div className="fg">
         <label>Remarks <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--ink4)' }}>— optional</span></label>

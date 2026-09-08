@@ -1,4 +1,5 @@
 import { Bond } from '../../database/models/bond.model';
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
 
 export interface CreateBondInput {
   name: string;
@@ -26,12 +27,13 @@ export class BondService {
   }
 
   public async create(data: CreateBondInput): Promise<Bond> {
+    const name = requireName(data.name, 'Bond option');
+    const generatedCode = data.code || name.toUpperCase().replace(/\s+/g, '_');
+    await assertUniqueMaster(Bond, { name, code: generatedCode }, 'Bond option');
     const count = await Bond.count();
-    const generatedCode =
-      data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_');
 
     return Bond.create({
-      name: data.name.trim(),
+      name,
       code: generatedCode,
       display_order: count + 1,
       is_active: true,
@@ -42,13 +44,13 @@ export class BondService {
     id: number,
     data: UpdateBondInput
   ): Promise<Bond> {
-    const item = await Bond.findByPk(id);
-    if (!item) throw new Error('Bond option not found');
+    const item = assertFound(await Bond.findByPk(id), 'Bond option');
 
     const updatePayload: Partial<UpdateBondInput> = {};
     if (data.name !== undefined) {
-      updatePayload.name = data.name.trim();
-      updatePayload.code = data.code || data.name.trim().toUpperCase().replace(/\s+/g, '_');
+      updatePayload.name = requireName(data.name, 'Bond option');
+      updatePayload.code = data.code || updatePayload.name.toUpperCase().replace(/\s+/g, '_');
+      await assertUniqueMaster(Bond, { name: updatePayload.name, code: updatePayload.code }, 'Bond option', id);
     }
     if (data.is_active !== undefined) {
       updatePayload.is_active = data.is_active;
@@ -65,8 +67,7 @@ export class BondService {
   }
 
   public async delete(id: number): Promise<void> {
-    const item = await Bond.findByPk(id);
-    if (!item) throw new Error('Bond option not found');
+    const item = assertFound(await Bond.findByPk(id), 'Bond option');
     await item.destroy();
   }
 }

@@ -2,6 +2,7 @@ import { Op, WhereOptions, fn, col, DATE } from 'sequelize';
 import crypto from 'crypto';
 import { Candidate, CandidateStatus } from '../../database/models/Candidate';
 import { CandidateEmployment } from '../../database/models/CandidateEmployment';
+import { CandidateDocument } from '../../database/models/CandidateDocument';
 import { AppError }    from '../../middleware/errorHandler.middleware';
 import { Employee }     from '../../database/models/Employee';
 import { parsePaginationParams, buildPaginationMeta } from '../../utils/response';
@@ -11,11 +12,15 @@ import { mailer }      from '../../utils/mailer';
 import type {
   CreateCandidateDto, UpdateCandidateDto,
   CandidateQueryParams, BulkCandidateRow, BulkUploadResult,
-  CandidateEmploymentDto,
+  CandidateEmploymentDto, ShareDocumentDto, UpdateDocumentDto,
 } from './candidate.types';
 
 const VALID_SOURCES  = ['Naukri','LinkedIn','CollarCheck','Referral','Walk-in','Indeed','Direct','Other'];
-const VALID_STATUSES = ['Applied','Shortlisted','Interview_Scheduled','Technical','HR_Round','Interview_Result','Offered','Hired','Rejected','Withdrawn','On_Hold'];
+// Ordered pipeline stages + outcome statuses.
+const PIPELINE_STAGES = ['Sourced','Screened','Shortlisted','Interview','Offered','Hired'];
+const VALID_STATUSES  = [...PIPELINE_STAGES, 'Rejected','Withdrawn','On_Hold'];
+// "Active" = in the pipeline but not yet hired, plus On_Hold.
+const ACTIVE_STATUSES = ['Sourced','Screened','Shortlisted','Interview','Offered','On_Hold'];
 const VALID_GENDERS  = ['Male','Female','Other','Prefer not to say'];
 const VALID_EDU_MODES = ['Regular','Non Regular','Not Applicable'];
 const VALID_VEHICLE_TYPES = ['Car','Bike','Scooty'];
@@ -30,7 +35,9 @@ const UPDATABLE_FIELDS: readonly (keyof UpdateCandidateDto)[] = [
   'current_company_name', 'current_company_designation',
   'qualification', 'course', 'institute', 'edu_mode', 'edu_start_date', 'edu_end_date',
   'edu_currently_pursuing', 'fresher', 'location', 'total_experience', 'relevant_experience',
-  'apply_department', 'apply_designation', 'current_salary', 'expected_salary',
+  'apply_department', 'apply_designation',
+  'job_title', 'job_location', 'job_type', 'job_code', 'job_description',
+  'current_salary', 'expected_salary',
   'currently_working', 'notice_period', 'serving_notice_period', 'last_working_day',
   'immediate_joiner', 'expected_joining_date', 'own_vehicle', 'vehicle_types',
   'source', 'is_internal_referral', 'referred_by_employee_id', 'reference_source',
@@ -89,7 +96,7 @@ export class CandidateService {
     const [total, hired, active, thisMonth] = await Promise.all([
       Candidate.count({ where: { company_id: companyId } }),
       Candidate.count({ where: { company_id: companyId, status: 'Hired' } }),
-      Candidate.count({ where: { company_id: companyId, status: ['Applied','Shortlisted','Interview_Scheduled','Technical','HR_Round','Offered','On_Hold'] } }),
+      Candidate.count({ where: { company_id: companyId, status: ACTIVE_STATUSES } }),
       Candidate.count({ where: { company_id: companyId, created_at: { [Op.gte]: new Date(new Date().setDate(1)) } } }),
     ]);
     const conversionRate = total > 0 ? Math.round((hired / total) * 100) : 0;
@@ -147,6 +154,28 @@ export class CandidateService {
     return dto;
   }
 
+  // ─── Location master-table reference check ───────────────────────────────
+  // State/city are stored as master-table IDs (states.id / cities.id). Verify
+  // any provided IDs exist and that a city actually belongs to its state, so
+  // only valid combinations ever land in the candidate record.
+  private async validateLocationRefs(dto: Partial<CreateCandidateDto>) {
+    const { State, City } = await import('../../database/models/Location');
+    const pairs: [number | null | undefined, number | null | undefined, string][] = [
+      [dto.current_state_id, dto.current_city_id, 'Current'],
+      [dto.perm_state_id,    dto.perm_city_id,    'Permanent'],
+    ];
+    for (const [stateId, cityId, label] of pairs) {
+      if (stateId != null && !(await State.findByPk(stateId)))
+        throw new AppError(`${label} state is not a valid master record`, 400);
+      if (cityId != null) {
+        const city = await City.findByPk(cityId);
+        if (!city) throw new AppError(`${label} city is not a valid master record`, 400);
+        if (stateId != null && city.state_id !== stateId)
+          throw new AppError(`${label} city does not belong to the selected state`, 400);
+      }
+    }
+  }
+
   // ─── Employment rows sync (replace-all on write) ──────────────────────────
   private async syncEmployments(candidateId: number, employments: CandidateEmploymentDto[] | undefined, transaction?: any) {
     if (employments === undefined) return;
@@ -185,6 +214,7 @@ export class CandidateService {
 
   async create(companyId: number, dto: CreateCandidateDto, createdBy?: number) {
     dto = this.cleanConditionalFields(dto);
+    await this.validateLocationRefs(dto);
     // Uniqueness check: email AND phone
     if (dto.email) {
       const dup = await Candidate.findOne({ where: { company_id: companyId, email: dto.email.toLowerCase().trim() } });
@@ -259,7 +289,7 @@ export class CandidateService {
       reference_source:         dto.reference_source?.trim() || null,
       remarks:                  dto.remarks?.trim()           || null,
       job_id:                   dto.job_id                ?? null,
-      status:                   'Applied',
+      status:                   'Sourced',
       preinterview_form_status: 'Not_Started',
       created_by:               createdBy                 ?? null,
         } as any);
@@ -300,6 +330,15 @@ export class CandidateService {
 
     dto = this.cleanConditionalFields(dto);
 
+    // Validate the *effective* state/city combination (incoming values falling
+    // back to what's already stored) against the master tables.
+    await this.validateLocationRefs({
+      current_state_id: 'current_state_id' in dto ? dto.current_state_id : candidate.current_state_id,
+      current_city_id:  'current_city_id'  in dto ? dto.current_city_id  : candidate.current_city_id,
+      perm_state_id:    'perm_state_id'    in dto ? dto.perm_state_id    : candidate.perm_state_id,
+      perm_city_id:     'perm_city_id'     in dto ? dto.perm_city_id     : candidate.perm_city_id,
+    });
+
     // Whitelist: copy only known, client-writable fields onto the update payload.
     const candidateFields: Record<string, unknown> = {};
     for (const key of UPDATABLE_FIELDS) {
@@ -325,7 +364,105 @@ export class CandidateService {
       where: { candidate_id: id },
       order: [['sort_order', 'ASC']],
     });
-    return { ...candidate.get({ plain: true }), employments };
+    const documents = await CandidateDocument.findAll({
+      where: { candidate_id: id },
+      order: [['shared_at', 'DESC']],
+    });
+    return { ...candidate.get({ plain: true }), employments, documents };
+  }
+
+  // ─── Candidate documents (HR ↔ candidate exchange) ───────────────────────
+  async listDocuments(id: number, companyId: number) {
+    await this.getById(id, companyId);
+    return CandidateDocument.findAll({
+      where: { candidate_id: id, company_id: companyId },
+      order: [['shared_at', 'DESC']],
+    });
+  }
+
+  async shareDocument(id: number, companyId: number, dto: ShareDocumentDto, sharedBy?: number) {
+    await this.getById(id, companyId);
+    const title = (dto.title || '').trim();
+    if (!title) throw new AppError('Document title is required', 400);
+
+    const doc = await CandidateDocument.create({
+      company_id:   companyId,
+      candidate_id: id,
+      kind:         dto.kind === 'Request' ? 'Request' : 'Share',
+      title,
+      category:     dto.category?.toString().trim() || null,
+      file_url:     dto.file_url?.toString().trim() || null,
+      note:         dto.note?.toString().trim() || null,
+      status:       'Pending',
+      shared_by:    sharedBy ?? null,
+      shared_at:    new Date(),
+    });
+
+    await logActivity({
+      companyId, employeeId: sharedBy,
+      action: 'CANDIDATE_DOC_SHARED', module: 'candidates', entityId: id,
+      newValues: { title: doc.title, kind: doc.kind },
+    });
+    return doc;
+  }
+
+  async updateDocument(id: number, companyId: number, docId: number, dto: UpdateDocumentDto) {
+    await this.getById(id, companyId);
+    const doc = await CandidateDocument.findOne({ where: { id: docId, candidate_id: id, company_id: companyId } });
+    if (!doc) throw new AppError('Document not found', 404);
+
+    const patch: Partial<UpdateDocumentDto> & { responded_at?: Date | null } = {};
+    if (dto.title !== undefined)    patch.title = dto.title.toString().trim();
+    if (dto.category !== undefined) patch.category = dto.category?.toString().trim() || null;
+    if (dto.note !== undefined)     patch.note = dto.note?.toString().trim() || null;
+    if (dto.status !== undefined) {
+      patch.status = dto.status;
+      patch.responded_at = dto.status === 'Pending' ? null : (doc.responded_at || new Date());
+    }
+    await doc.update(patch);
+    return doc;
+  }
+
+  async deleteDocument(id: number, companyId: number, docId: number) {
+    await this.getById(id, companyId);
+    const doc = await CandidateDocument.findOne({ where: { id: docId, candidate_id: id, company_id: companyId } });
+    if (!doc) throw new AppError('Document not found', 404);
+    await doc.destroy();
+  }
+
+  async portalListDocuments(id: number, companyId: number) {
+    return CandidateDocument.findAll({
+      where: { candidate_id: id, company_id: companyId },
+      order: [['shared_at', 'DESC']],
+      attributes: ['id', 'kind', 'title', 'category', 'file_url', 'note', 'status', 'shared_at', 'responded_at'],
+    });
+  }
+
+  async portalMarkDocument(id: number, companyId: number, docId: number, action: 'read' | 'complete') {
+    const doc = await CandidateDocument.findOne({ where: { id: docId, candidate_id: id, company_id: companyId } });
+    if (!doc) throw new AppError('Document not found', 404);
+    await doc.update({
+      status:       action === 'complete' ? 'Completed' : 'Read',
+      responded_at: new Date(),
+    });
+    await logActivity({
+      companyId, employeeId: null,
+      action: 'CANDIDATE_DOC_RESPONDED', module: 'candidates', entityId: id,
+      newValues: { title: doc.title, status: doc.status },
+    });
+    return doc;
+  }
+
+  async portalUploadDocument(id: number, companyId: number, docId: number, fileUrl: string) {
+    const doc = await CandidateDocument.findOne({ where: { id: docId, candidate_id: id, company_id: companyId } });
+    if (!doc) throw new AppError('Document not found', 404);
+    await doc.update({ file_url: fileUrl, status: 'Completed', responded_at: new Date() });
+    await logActivity({
+      companyId, employeeId: null,
+      action: 'CANDIDATE_DOC_RESPONDED', module: 'candidates', entityId: id,
+      newValues: { title: doc.title, status: 'Completed' },
+    });
+    return doc;
   }
 
   // ─── Activity feed for one candidate (HR detail view → Activity tab) ──────
@@ -406,7 +543,7 @@ export class CandidateService {
       interview_accepted:    null,   // reset response
       reschedule_requested:  false,
       reschedule_status:     null,
-      status:                'Interview_Scheduled',
+      status:                'Interview',
       updated_by:            scheduledBy,
     });
 
@@ -432,7 +569,7 @@ export class CandidateService {
   // ─── Candidate respond to interview (accept/reject) ───────────────────────
   async respondToInterview(id: number, companyId: number, accepted: boolean) {
     const candidate = await this.getById(id, companyId);
-    if (candidate.status !== 'Interview_Scheduled')
+    if (candidate.status !== 'Interview' || !candidate.interview_date)
       throw new AppError('No interview scheduled for this candidate', 400);
 
     await candidate.update({
@@ -451,7 +588,7 @@ export class CandidateService {
     proposed_time?: string,
   ) {
     const candidate = await this.getById(id, companyId);
-    if (candidate.status !== 'Interview_Scheduled')
+    if (candidate.status !== 'Interview' || !candidate.interview_date)
       throw new AppError('No interview scheduled', 400);
 
     await candidate.update({

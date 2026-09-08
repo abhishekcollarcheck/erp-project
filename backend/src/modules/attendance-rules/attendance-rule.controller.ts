@@ -8,7 +8,7 @@ export const attendanceRulesController = {
       const data = await attendanceRulesService.getAllSaturdayRules();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -17,7 +17,7 @@ export const attendanceRulesController = {
       const data = await attendanceRulesService.createSaturdayRule(req.body.name);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -29,7 +29,7 @@ export const attendanceRulesController = {
       );
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -38,7 +38,7 @@ export const attendanceRulesController = {
       await attendanceRulesService.deleteSaturdayRule(Number(req.params.id));
       res.status(200).json({ success: true, message: 'Deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -47,7 +47,7 @@ export const attendanceRulesController = {
       await attendanceRulesService.deleteAllSaturdayRules();
       res.status(200).json({ success: true, message: 'All Saturday rules deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -57,7 +57,7 @@ export const attendanceRulesController = {
       const data = await attendanceRulesService.getAllGraceMinutes();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -67,7 +67,7 @@ export const attendanceRulesController = {
       const data = await attendanceRulesService.createGraceMinute(name, minutes);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -81,7 +81,7 @@ export const attendanceRulesController = {
       );
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -90,7 +90,7 @@ export const attendanceRulesController = {
       await attendanceRulesService.deleteGraceMinute(Number(req.params.id));
       res.status(200).json({ success: true, message: 'Deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -99,7 +99,7 @@ export const attendanceRulesController = {
       await attendanceRulesService.deleteAllGraceMinutes();
       res.status(200).json({ success: true, message: 'All Grace minutes deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -109,7 +109,7 @@ export const attendanceRulesController = {
       const data = await attendanceRulesService.getAllAttendanceTypes();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -119,7 +119,7 @@ export const attendanceRulesController = {
       const data = await attendanceRulesService.createAttendanceType(name, code);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -133,7 +133,7 @@ export const attendanceRulesController = {
       );
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -142,7 +142,7 @@ export const attendanceRulesController = {
       await attendanceRulesService.deleteAttendanceType(Number(req.params.id));
       res.status(200).json({ success: true, message: 'Deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -151,7 +151,7 @@ export const attendanceRulesController = {
       await attendanceRulesService.deleteAllAttendanceTypes();
       res.status(200).json({ success: true, message: 'All Attendance types deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

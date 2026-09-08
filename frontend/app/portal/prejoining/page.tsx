@@ -571,7 +571,7 @@ export default function PreJoiningForm() {
             <p className="done-sub">Thank you for completing the Employee Pre-Joining & Personal Data Form. HR will review your information and contact you before your joining date.</p>
             <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
               <button className="btn btn-sec" onClick={() => setSubmitted(false)}>View Submitted Form</button>
-              <button className="btn btn-pri" onClick={() => router.push('/portal/dashboard')}>← Dashboard</button>
+              <button className="btn btn-pri" onClick={() => router.push('/portal/home')}>← Dashboard</button>
             </div>
           </div>
         </div>
@@ -594,7 +594,7 @@ export default function PreJoiningForm() {
             <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => saveMutation.mutate(true)} disabled={saveMutation.isPending}>
               {saveMutation.isPending ? '…' : '↑ Save Draft'}
             </button>
-            <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => router.push('/portal/dashboard')}>← Dashboard</button>
+            <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => router.push('/portal/home')}>← Dashboard</button>
           </div>
         </div>
 

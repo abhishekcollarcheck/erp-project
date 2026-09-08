@@ -55,6 +55,56 @@ export function useCandidateActivity(id: number, enabled = true) {
   });
 }
 
+// ─── Candidate documents (HR ↔ candidate exchange) ───────────────────────────
+export function useCandidateDocuments(id: number) {
+  return useQuery({
+    queryKey: ['candidates', id, 'documents'],
+    queryFn:  () => candidateService.listDocuments(id),
+    enabled:  !!id && id > 0,
+    staleTime: 15_000,
+    select:   (res) => res.data,
+  });
+}
+
+export function useShareDocument(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (form: FormData) => candidateService.shareDocument(id, form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['candidates', id, 'documents'] });
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) });
+      showToast('✓ Document shared with candidate');
+    },
+    onError: (err: any) => showToast(err?.message || 'Failed to share document'),
+  });
+}
+
+export function useUpdateDocument(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ docId, body }: { docId: number; body: Parameters<typeof candidateService.updateDocument>[2] }) =>
+      candidateService.updateDocument(id, docId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['candidates', id, 'documents'] });
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) });
+    },
+    onError: (err: any) => showToast(err?.message || 'Failed to update document'),
+  });
+}
+
+export function useDeleteDocument(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (docId: number) => candidateService.deleteDocument(id, docId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['candidates', id, 'documents'] });
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) });
+      showToast('Document removed');
+    },
+    onError: (err: any) => showToast(err?.message || 'Failed to remove document'),
+  });
+}
+
 // ─── Create ───────────────────────────────────────────────────────────────────
 export function useCreateCandidate() {
   const qc = useQueryClient();

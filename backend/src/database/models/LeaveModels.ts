@@ -1698,36 +1698,12 @@ export class LeaveRequest
 
 LeaveRequest.init(
   {
-    id: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-
-    /*
-     * IMPORTANT:
-     * Do NOT put `unique: true` here.
-     *
-     * The unique constraint is defined below in `indexes`.
-     * This prevents Sequelize from repeatedly generating
-     * unnamed/duplicate indexes when schema synchronization
-     * is used incorrectly.
-     */
-    ref_no: {
-      type: DataTypes.STRING(30),
-      allowNull: false,
-    },
-
-    employee_id: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      allowNull: false,
-    },
-
-    leave_type_id: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      allowNull: false,
-    },
-
+    id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    // Uniqueness is enforced by the NAMED index below — never `unique: true` on
+    // the column, which makes `sync({ alter: true })` pile up ref_no_2, ref_no_3…
+    ref_no: { type: DataTypes.STRING(30), allowNull: false },
+    employee_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    leave_type_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     leave_application_type: {
       type: DataTypes.ENUM(
         'arrival_late',
@@ -1875,39 +1851,12 @@ LeaveRequest.init(
     underscored: true,
 
     indexes: [
-      /*
-       * ONE and ONLY ONE unique index for ref_no.
-       */
-      {
-        name: 'leave_request_ref_no_unique',
-        unique: true,
-        fields: ['ref_no'],
-      },
-
-      {
-        name: 'leave_request_employee',
-        fields: ['employee_id'],
-      },
-
-      {
-        name: 'leave_request_status',
-        fields: ['status'],
-      },
-
-      {
-        name: 'leave_request_applied_by',
-        fields: ['applied_by'],
-      },
-
-      {
-        name: 'leave_request_leave_type',
-        fields: ['leave_type_id'],
-      },
-
-      {
-        name: 'leave_request_date_range',
-        fields: ['from_date', 'to_date'],
-      },
+      { unique: true, fields: ['ref_no'], name: 'leave_requests_ref_no_unique' },
+      { fields: ['employee_id'] },
+      { fields: ['status'] },
+      { fields: ['applied_by'] },
+      { fields: ['leave_type_id'] },
+      { fields: ['from_date', 'to_date'] },
     ],
   },
 );

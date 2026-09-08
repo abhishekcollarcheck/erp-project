@@ -280,6 +280,9 @@ export async function calculateMonthlyLeave(
     );
     throw new Error("Invalid month");
   }
+  // ==================================================
+  // PROCESSING DATE
+  // ==================================================
   /*
    * Last day of the month.
    *
@@ -312,20 +315,11 @@ export async function calculateMonthlyLeave(
       year,
       month
     );
-  
 
   const leaves: LeaveRuleResult[] = [];
 
-  // ==================================================
-  // RULE 1 - CASUAL LEAVE
-  // =================================================
-
   const casualLeave =
     calculateCasualLeave(attendance);
-
-  console.dir(casualLeave, {
-    depth: null,
-  });
 
   leaves.push(casualLeave);
 
@@ -342,9 +336,6 @@ export async function calculateMonthlyLeave(
     );
 
   leaves.push(earnedLeave);
-  // ==================================================
-  // FINAL SUMMARY
-  // ==================================================
   const totalEarnedDays =
     leaves.reduce(
       (total, leave) =>

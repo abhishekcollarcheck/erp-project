@@ -1,4 +1,5 @@
 import { WeeklyOffPreset, WeekDay, NthRule } from '../../database/models/weeklyOffPreset';
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
 
 // import { WeekDay } from "@/database/models/weeklyOffPreset";
 
@@ -27,8 +28,10 @@ export class WeeklyOffPresetService {
   }
 
   public async createPreset(data: CreateWeeklyOffPresetInput): Promise<WeeklyOffPreset> {
+    const name = requireName(data.name, 'Preset name');
+    await assertUniqueMaster(WeeklyOffPreset, { name }, 'Weekly off preset');
     return WeeklyOffPreset.create({
-      name: data.name,
+      name,
       always_off: data.always_off ?? [],
       nth_off_rules: data.nth_off_rules ?? [],
     });
@@ -38,20 +41,16 @@ export class WeeklyOffPresetService {
     id: number,
     data: UpdateWeeklyOffPresetInput
   ): Promise<WeeklyOffPreset> {
-    const preset = await WeeklyOffPreset.findByPk(id);
-    if (!preset) {
-      throw new Error('Weekly off preset not found');
+    const preset = assertFound(await WeeklyOffPreset.findByPk(id), 'Weekly off preset');
+    if (data.name !== undefined) {
+      data.name = requireName(data.name, 'Preset name');
+      await assertUniqueMaster(WeeklyOffPreset, { name: data.name }, 'Weekly off preset', id);
     }
-
     return preset.update(data);
   }
 
   public async deletePreset(id: number): Promise<void> {
-    const preset = await WeeklyOffPreset.findByPk(id);
-    if (!preset) {
-      throw new Error('Weekly off preset not found');
-    }
-
+    const preset = assertFound(await WeeklyOffPreset.findByPk(id), 'Weekly off preset');
     await preset.destroy();
   }
 }

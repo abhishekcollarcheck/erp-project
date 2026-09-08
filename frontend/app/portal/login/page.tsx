@@ -19,7 +19,7 @@ function LoginContent() {
     onSuccess: (res) => {
       localStorage.setItem('portal_token', res.data.token);
       localStorage.setItem('portal_name', res.data.candidateId.toString());
-      router.push('/portal/dashboard');
+      router.push('/portal/home');
     },
     onError: (err: any) => setError(err?.message || 'Invalid credentials'),
   });

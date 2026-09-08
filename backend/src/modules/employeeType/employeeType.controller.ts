@@ -7,7 +7,7 @@
 //       const data = await employeeTypeService.getAll();
 //       res.status(200).json({ success: true, data });
 //     } catch (error: any) {
-//       res.status(500).json({ success: false, message: error.message });
+//       res.status(error.statusCode || 500).json({ success: false, message: error.message });
 //     }
 //   },
 
@@ -20,7 +20,7 @@
 //       }
 //       res.status(200).json({ success: true, data });
 //     } catch (error: any) {
-//       res.status(500).json({ success: false, message: error.message });
+//       res.status(error.statusCode || 500).json({ success: false, message: error.message });
 //     }
 //   },
 
@@ -33,7 +33,7 @@
 //       const data = await employeeTypeService.create(req.body);
 //       res.status(201).json({ success: true, data });
 //     } catch (error: any) {
-//       res.status(500).json({ success: false, message: error.message });
+//       res.status(error.statusCode || 500).json({ success: false, message: error.message });
 //     }
 //   },
 
@@ -42,7 +42,7 @@
 //       const data = await employeeTypeService.update(Number(req.params.id), req.body);
 //       res.status(200).json({ success: true, data });
 //     } catch (error: any) {
-//       res.status(500).json({ success: false, message: error.message });
+//       res.status(error.statusCode || 500).json({ success: false, message: error.message });
 //     }
 //   },
 
@@ -56,7 +56,7 @@
 //       await employeeTypeService.updateOrder(ordered_ids);
 //       res.status(200).json({ success: true, message: 'Order updated successfully' });
 //     } catch (error: any) {
-//       res.status(500).json({ success: false, message: error.message });
+//       res.status(error.statusCode || 500).json({ success: false, message: error.message });
 //     }
 //   },
 
@@ -65,7 +65,7 @@
 //       await employeeTypeService.delete(Number(req.params.id));
 //       res.status(200).json({ success: true, message: 'Employee type deleted successfully' });
 //     } catch (error: any) {
-//       res.status(500).json({ success: false, message: error.message });
+//       res.status(error.statusCode || 500).json({ success: false, message: error.message });
 //     }
 //   },
 // };
@@ -84,7 +84,7 @@ export const employeeTypeController = {
       const data = await employeeTypeService.getAll();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -97,7 +97,7 @@ export const employeeTypeController = {
       }
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -110,7 +110,7 @@ export const employeeTypeController = {
       const data = await employeeTypeService.create(req.body);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -120,7 +120,7 @@ export const employeeTypeController = {
       const data = await employeeTypeService.update(id, req.body);
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -134,7 +134,7 @@ export const employeeTypeController = {
       await employeeTypeService.updateOrder(ordered_ids);
       res.status(200).json({ success: true, message: 'Order updated successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -143,7 +143,7 @@ export const employeeTypeController = {
       await employeeTypeService.delete(Number(req.params.id));
       res.status(200).json({ success: true, message: 'Employee type deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

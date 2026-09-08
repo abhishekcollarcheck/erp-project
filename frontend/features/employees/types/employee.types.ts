@@ -388,6 +388,10 @@ export interface Employee {
   company?:               { id: number; name: string } | null;
   department?:            { id: number; name: string } | null;
   designation?:           { id: number; name: string } | null;
+  workingState?:          { id: number; name: string } | null;
+  workingCity?:           { id: number; name: string } | null;
+  workingSite?:           { id: number; name: string } | null;
+  payRegister?:           { id: number; name: string } | null;
   l2Manager?:             ManagerRef | null;
   commitmentProbation?:   CommitmentProbation | null;
   schemes?:               EmployeeSchemes | null;

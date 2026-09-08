@@ -30,7 +30,12 @@ export function StepLocationAttendance({ }: Props) {
   const { data: graceMinutesResponse } = useGraceMinutesData();
   const graceMinutes = graceMinutesResponse?.data ?? [];
 
-  const stateOpts = (states ?? []).map((s: any) => ({ value: s.id, label: s.name }));
+  // Same combined "State, Country" label as the Location master list; value is
+  // the state id stored in employee.working_state_country.
+  const stateOpts = (states ?? []).map((s: any) => ({
+    value: s.id,
+    label: s.country ? `${s.name}, ${s.country.name}` : s.name,
+  }));
   const cityOpts = (cities ?? []).map((c: any) => ({ value: c.id, label: c.name }));
   const siteOpts = (sites ?? []).map((s: any) => ({ value: s.id, label: s.name }));
   const payRegisterOpts = (payRegisters ?? []).map((p: any) => ({ value: p.id, label: p.name }));

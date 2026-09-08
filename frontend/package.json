@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/free-port.js",
     "dev": "next dev",
     "build": "next build",
+    "prestart": "node scripts/free-port.js",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit"

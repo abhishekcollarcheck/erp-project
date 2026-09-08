@@ -8,7 +8,7 @@ export const probationController = {
       const data = await probationService.getAll(type);
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -22,7 +22,7 @@ export const probationController = {
       }
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -36,7 +36,7 @@ export const probationController = {
       const data = await probationService.create(type, req.body);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -47,7 +47,7 @@ export const probationController = {
       const data = await probationService.update(type, id, req.body);
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -62,7 +62,7 @@ export const probationController = {
       await probationService.updateOrder(type, ordered_ids);
       res.status(200).json({ success: true, message: 'Order updated successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -72,7 +72,7 @@ export const probationController = {
       await probationService.delete(type, Number(req.params.id));
       res.status(200).json({ success: true, message: 'Item deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

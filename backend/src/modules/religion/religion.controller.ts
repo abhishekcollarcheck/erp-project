@@ -7,7 +7,7 @@ export const religionController = {
       const data = await religionService.getAllReligions();
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -16,7 +16,7 @@ export const religionController = {
       const data = await religionService.createReligion(req.body.name);
       res.status(201).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -25,7 +25,7 @@ export const religionController = {
       const data = await religionService.updateReligion(Number(req.params.id), req.body.name);
       res.status(200).json({ success: true, data });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 
@@ -34,7 +34,7 @@ export const religionController = {
       await religionService.deleteReligion(Number(req.params.id));
       res.status(200).json({ success: true, message: 'Deleted successfully' });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   },
 };

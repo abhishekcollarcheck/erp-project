@@ -1,6 +1,7 @@
 // import { Shift, DaySpan } from './shift.model';
 
 import { DaySpan, Shift } from "../../database/models/Shift";
+import { requireName, assertFound, assertUniqueMaster } from '../../utils/masterCrud';
 
 export interface CreateShiftInput {
   label: string;
@@ -31,8 +32,10 @@ export class ShiftService {
   }
 
   public async createShift(data: CreateShiftInput): Promise<Shift> {
+    const label = requireName(data.label, 'Shift label');
+    await assertUniqueMaster(Shift, { label }, 'Shift');
     return Shift.create({
-      label: data.label,
+      label,
       start_time: data.start_time ?? null,
       end_time: data.end_time ?? null,
       half_day_time: data.half_day_time ?? null,
@@ -41,20 +44,16 @@ export class ShiftService {
   }
 
   public async updateShift(id: number, data: UpdateShiftInput): Promise<Shift> {
-    const shift = await Shift.findByPk(id);
-    if (!shift) {
-      throw new Error('Shift not found');
+    const shift = assertFound(await Shift.findByPk(id), 'Shift');
+    if (data.label !== undefined) {
+      data.label = requireName(data.label, 'Shift label');
+      await assertUniqueMaster(Shift, { label: data.label }, 'Shift', id);
     }
-
     return shift.update(data);
   }
 
   public async deleteShift(id: number): Promise<void> {
-    const shift = await Shift.findByPk(id);
-    if (!shift) {
-      throw new Error('Shift not found');
-    }
-
+    const shift = assertFound(await Shift.findByPk(id), 'Shift');
     await shift.destroy();
   }
 }

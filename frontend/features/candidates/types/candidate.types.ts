@@ -1,6 +1,8 @@
+// Ordered pipeline: Sourced → Screened → Shortlisted → Interview → Offered → Hired
+// Outcomes (reachable from any active stage): Rejected, Withdrawn, On_Hold
 export type CandidateStatus =
-  | 'Applied' | 'Shortlisted' | 'Interview_Scheduled' | 'Technical'
-  | 'HR_Round' | 'Interview_Result' | 'Offered' | 'Hired' | 'Rejected' | 'Withdrawn' | 'On_Hold';
+  | 'Sourced' | 'Screened' | 'Shortlisted' | 'Interview'
+  | 'Offered' | 'Hired' | 'Rejected' | 'Withdrawn' | 'On_Hold';
 
 export type CandidateSource =
   | 'Naukri' | 'LinkedIn' | 'CollarCheck' | 'Referral'
@@ -9,24 +11,25 @@ export type CandidateSource =
 export type CandidateGender = 'Male' | 'Female' | 'Other' | 'Prefer not to say';
 
 export const STATUS_ORDER: Record<CandidateStatus, number> = {
-  Applied: 1,
-  Shortlisted: 2,
-  Interview_Scheduled: 3,
-  Technical: 4,
-  HR_Round: 5,
-  Interview_Result: 6,
-  Offered: 7,
-  Hired: 8,
+  Sourced: 1,
+  Screened: 2,
+  Shortlisted: 3,
+  Interview: 4,
+  Offered: 5,
+  Hired: 6,
+  On_Hold: 50,
   Rejected: 99,
   Withdrawn: 99,
-  On_Hold: 50,
 };
- 
+
 export const TERMINAL_STATUSES: CandidateStatus[] = [
   'Hired',
   'Rejected',
   'Withdrawn',
 ];
+
+/** Outcome statuses that can be set from any active stage (not part of the linear sequence). */
+export const OUTCOME_STATUSES: CandidateStatus[] = ['Rejected', 'Withdrawn', 'On_Hold'];
 
 
 export interface CandidateEmployment {
@@ -37,6 +40,19 @@ export interface CandidateEmployment {
   joining_date?: string | null;
   leaving_date?: string | null;
   currently_working?: boolean;
+}
+
+export interface CandidateDocument {
+  id: number;
+  candidate_id?: number;
+  kind: 'Share' | 'Request';
+  title: string;
+  category?: string | null;
+  file_url?: string | null;
+  note?: string | null;
+  status: 'Pending' | 'Read' | 'Completed';
+  shared_at?: string | null;
+  responded_at?: string | null;
 }
 
 export interface Candidate {
@@ -78,23 +94,29 @@ export interface Candidate {
 
   apply_department?: string | null;
   apply_designation?: string | null;
-  current_salary?: number | null; 
+  job_title?: string | null;
+  job_location?: string | null;
+  job_type?: string | null;
+  job_code?: string | null;
+  job_description?: string | null;
+  current_salary?: number | null;
   expected_salary?: number | null;
   currently_working?: boolean | null;
-  notice_period?: number | null; 
+  notice_period?: number | null;
   serving_notice_period?: boolean | null;
   last_working_day?: string | null;
   immediate_joiner?: boolean;
-  expected_joining_date?: string | null; 
+  expected_joining_date?: string | null;
   own_vehicle?: boolean;
   vehicle_types?: string[] | null;
   source?: CandidateSource | null; 
   is_internal_referral?: boolean | null;
   referred_by_employee_id?: number | null;
   reference_source?: string | null;
-  status: CandidateStatus; 
-  remarks?: string | null; 
+  status: CandidateStatus;
+  remarks?: string | null;
   resume_url?: string | null;
+  documents?: CandidateDocument[];
 
   interview_date?: string | null; 
   interview_time?: string | null;
@@ -203,7 +225,12 @@ export interface CreateCandidateDto {
 
   apply_department?: string | null;
   apply_designation?: string | null;
-  current_salary?: number | null; 
+  job_title?: string | null;
+  job_location?: string | null;
+  job_type?: string | null;
+  job_code?: string | null;
+  job_description?: string | null;
+  current_salary?: number | null;
   expected_salary?: number | null;
   currently_working?: boolean | null;
   notice_period?: number | null;
@@ -244,12 +271,10 @@ export const ALL_SOURCES = [
 ] as const;
 
 export const ALL_STATUSES = [
-  'Applied',
+  'Sourced',
+  'Screened',
   'Shortlisted',
-  'Interview_Scheduled',
-  'Technical',
-  'HR_Round',
-  'Interview_Result',
+  'Interview',
   'Offered',
   'Hired',
   'Rejected',
@@ -258,23 +283,20 @@ export const ALL_STATUSES = [
 ] as const;
 
 export const STATUS_LABEL: Record<CandidateStatus, string> = {
-  Applied:'Applied', Shortlisted:'Shortlisted', Interview_Scheduled:'Interview Scheduled',
-  Technical:'Technical', HR_Round:'HR Round',Interview_Result: 'Interview Result', Offered:'Offered',
-  Hired:'Hired', Rejected:'Rejected', Withdrawn:'Withdrawn', On_Hold:'On Hold',
+  Sourced:'Sourced', Screened:'Screened', Shortlisted:'Shortlisted', Interview:'Interview',
+  Offered:'Offered', Hired:'Hired', Rejected:'Rejected', Withdrawn:'Withdrawn', On_Hold:'On Hold',
 };
 
 export const STATUS_COLORS: Record<CandidateStatus, { bg: string; text: string; border: string }> = {
-  Applied:             { bg: 'var(--blue-lt)',   text: 'var(--blue)',   border: 'var(--blue-md)'   },
-  Shortlisted:         { bg: 'var(--teal-lt)',   text: 'var(--teal)',   border: 'var(--teal-bd)'   },
-  Interview_Scheduled: { bg: 'var(--purple-lt)', text: 'var(--purple)', border: 'var(--purple-bd)' },
-  Technical:           { bg: 'var(--amber-lt)',  text: 'var(--amber)',  border: 'var(--amber-bd)'  },
-  HR_Round:            { bg: 'var(--pink-lt)',   text: 'var(--pink)',   border: 'var(--pink-bd)'   },
-  Interview_Result:    { bg: 'var(--teal-lt)',   text: 'var(--teal)',   border: 'var(--teal-bd)'   },
-  Offered:             { bg: 'var(--green-lt)',  text: 'var(--green)',  border: 'var(--green-bd)'  },
-  Hired:               { bg: 'var(--green-lt)',  text: 'var(--green)',  border: 'var(--green-bd)'  },
-  Rejected:            { bg: 'var(--red-lt)',    text: 'var(--red)',    border: 'var(--red-bd)'    },
-  Withdrawn:           { bg: 'var(--surface2)',  text: 'var(--ink4)',   border: 'var(--border)'    },
-  On_Hold:             { bg: 'var(--amber-lt)',  text: 'var(--amber)',  border: 'var(--amber-bd)'  },
+  Sourced:     { bg: 'var(--blue-lt)',   text: 'var(--blue)',   border: 'var(--blue-md)'   },
+  Screened:    { bg: 'var(--teal-lt)',   text: 'var(--teal)',   border: 'var(--teal-bd)'   },
+  Shortlisted: { bg: 'var(--purple-lt)', text: 'var(--purple)', border: 'var(--purple-bd)' },
+  Interview:   { bg: 'var(--amber-lt)',  text: 'var(--amber)',  border: 'var(--amber-bd)'  },
+  Offered:     { bg: 'var(--green-lt)',  text: 'var(--green)',  border: 'var(--green-bd)'  },
+  Hired:       { bg: 'var(--green-lt)',  text: 'var(--green)',  border: 'var(--green-bd)'  },
+  Rejected:    { bg: 'var(--red-lt)',    text: 'var(--red)',    border: 'var(--red-bd)'    },
+  Withdrawn:   { bg: 'var(--surface2)',  text: 'var(--ink4)',   border: 'var(--border)'    },
+  On_Hold:     { bg: 'var(--amber-lt)',  text: 'var(--amber)',  border: 'var(--amber-bd)'  },
 };
 
 export const SOURCE_EMOJI: Record<string, string> = {
@@ -282,4 +304,19 @@ export const SOURCE_EMOJI: Record<string, string> = {
   'Walk-in':'🚶', Indeed:'🔍', Direct:'📧', Other:'➕',
 };
 
-export const PIPELINE_STAGES: CandidateStatus[] = ['Applied','Shortlisted','Interview_Scheduled','Technical','HR_Round','Interview_Result','Offered','Hired'];
+export const PIPELINE_STAGES: CandidateStatus[] = ['Sourced','Screened','Shortlisted','Interview','Offered','Hired'];
+
+// ── Candidate View stage stepper ──────────────────────────────────────────────
+// The detail page shows a condensed 5-step stepper (screenshot labels). Sourced
+// and Screened both surface as "Applied"; Offered surfaces as "Offer".
+export const VIEW_STAGE_STEPS = ['Applied', 'Shortlisted', 'Interview', 'Offer', 'Hired'] as const;
+
+export const STATUS_TO_VIEW_STEP: Record<CandidateStatus, number> = {
+  Sourced: 0, Screened: 0, Shortlisted: 1, Interview: 2, Offered: 3, Hired: 4,
+  On_Hold: -1, Rejected: -1, Withdrawn: -1,
+};
+
+export const DOC_CATEGORIES = [
+  'Job Description', 'Company Policy', 'Assignment Brief', 'Offer Letter',
+  'ID Proof', 'Bank Details', 'Educational Certificate', 'Experience Letter', 'Other',
+] as const;

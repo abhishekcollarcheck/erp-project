@@ -1,7 +1,8 @@
 import { body, param, query, ValidationChain } from 'express-validator';
 
 const SOURCES  = ['Naukri','LinkedIn','CollarCheck','Referral','Walk-in','Indeed','Direct','Other'];
-const STATUSES = ['Applied','Shortlisted','Interview_Scheduled','Technical','HR_Round','Interview_Result','Offered','Hired','Rejected','Withdrawn','On_Hold'];
+// Pipeline: Sourced → Screened → Shortlisted → Interview → Offered → Hired · outcomes: Rejected / Withdrawn / On_Hold
+const STATUSES = ['Sourced','Screened','Shortlisted','Interview','Offered','Hired','Rejected','Withdrawn','On_Hold'];
 
 export const listCandidateValidation: ValidationChain[] = [
   query('page').optional().toInt().isInt({ min: 1 }),
@@ -57,6 +58,11 @@ export const createCandidateValidation: ValidationChain[] = [
 
   body('apply_department').optional({nullable: true, checkFalsy: true}).isString().isLength({max: 200}),
   body('apply_designation').optional({nullable: true, checkFalsy: true}).isString().isLength({max: 200}),
+  body('job_title').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('job_location').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('job_type').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 40 }),
+  body('job_code').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 40 }),
+  body('job_description').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 5000 }),
   body('current_salary').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0 }),
   body('expected_salary').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0 }),
   body('currently_working').optional({ nullable: true }).toBoolean().isBoolean(),
@@ -118,6 +124,11 @@ export const updateCandidateValidation: ValidationChain[] = [
 
   body('apply_department').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
   body('apply_designation').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('job_title').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('job_location').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 200 }),
+  body('job_type').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 40 }),
+  body('job_code').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 40 }),
+  body('job_description').optional({ nullable: true, checkFalsy: true }).isString().isLength({ max: 5000 }),
   body('current_salary').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0 }),
   body('expected_salary').optional({ nullable: true, checkFalsy: true }).toFloat().isFloat({ min: 0 }),
   body('currently_working').optional({ nullable: true }).toBoolean().isBoolean(),
@@ -233,4 +244,24 @@ export const withdrawValidation: ValidationChain[] = [
   body('reason')
     .trim().notEmpty().withMessage('Withdrawal reason is required')
     .isLength({ min: 5, max: 1000 }).withMessage('Reason must be between 5 and 1000 characters'),
+];
+
+const DOC_STATUSES = ['Pending', 'Read', 'Completed'];
+
+export const shareDocumentValidation: ValidationChain[] = [
+  param('id').toInt().isInt({ min: 1 }),
+  body('kind').optional().isIn(['Share', 'Request']),
+  body('title').trim().notEmpty().withMessage('Document title is required').isLength({ max: 200 }),
+  body('category').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 60 }),
+  body('note').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 2000 }),
+  body('file_url').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 500 }),
+];
+
+export const updateDocumentValidation: ValidationChain[] = [
+  param('id').toInt().isInt({ min: 1 }),
+  param('docId').toInt().isInt({ min: 1 }),
+  body('title').optional().trim().isLength({ min: 1, max: 200 }),
+  body('category').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 60 }),
+  body('note').optional({ nullable: true }).trim().isLength({ max: 2000 }),
+  body('status').optional().isIn(DOC_STATUSES),
 ];
