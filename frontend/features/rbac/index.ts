@@ -2,7 +2,7 @@
 export * from './types/rbac.types';
 
 // Validation engine
-export { buildZodSchema, validateForm, buildDefaultValues, maskValue } from '../../utils/validationEngine';
+export { buildZodSchema, validateForm, buildDefaultValues, maskValue, maskPartial } from '../../utils/validationEngine';
 
 // Service
 export { rbacService } from '../../services/api/rbac.service';

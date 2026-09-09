@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useState, useMemo, useRef } from 'react';
 import { useAppSelector } from '../../../store';
 import { selectActiveCompanyId } from '../../../store/slices/authSlice';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -108,6 +108,25 @@ export function FieldPermissionsPanel({
   const { data: matrixData, refetch } = useGroupFieldPermissionMatrix(selectedFormId || 0, matrixCompanyId || 0);
   const fields = matrixData?.fields || [];
 
+  // Group fields by their dynamic_fields.section column, preserving the field
+  // order (backend returns them by sort_order) and first-occurrence section
+  // order — i.e. the exact section structure of the Employee form/wizard.
+  const sectionGroups = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const f of fields) {
+      const s = (f.section && String(f.section).trim()) || 'Other';
+      if (!map.has(s)) map.set(s, []);
+      map.get(s)!.push(f);
+    }
+    return [...map.entries()].map(([section, sectionFields]) => ({ section, fields: sectionFields }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields.map((f: any) => `${f.id}:${f.section}`).join(',')]);
+
+  const scrollToSection = (section: string) => {
+    document.getElementById(`fp-sec-${section.replace(/[^a-z0-9]+/gi, '-')}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const fieldSaveCompanyIds: number[] =
     moduleCompanies.length ? moduleCompanies : (matrixCompanyId ? [matrixCompanyId] : []);
 
@@ -162,8 +181,8 @@ export function FieldPermissionsPanel({
         if (!saved) {
           // Never configured at all — always follows the live module state.
           merged[f.id] = moduleView
-            ? { can_view: true, can_edit: moduleEdit, can_copy: false, can_download: moduleDownload, is_masked: !!f.is_hidden }
-            : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+            ? { can_view: true, can_add: false, can_edit: moduleEdit, can_copy: false, can_download: moduleDownload, is_masked: !!f.is_hidden, is_partial_masked: false }
+            : { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
         } else if (viewChanged || editChanged || downloadChanged) {
           // A saved row exists, but the admin just changed the module grant
           // THIS session — apply that change on top of the saved baseline,
@@ -202,14 +221,16 @@ export function FieldPermissionsPanel({
       const groupBase =
         groupPermsData?.perms?.[f.id] ||
         matrixData?.matrix?.[groupId]?.[f.id] ||
-        { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+        { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
       const ov = overrideData?.[f.field_key] || {};
       merged[f.id] = {
         can_view: ov.view !== undefined ? ov.view : groupBase.can_view,
+        can_add: ov.add !== undefined ? ov.add : groupBase.can_add,
         can_edit: ov.edit !== undefined ? ov.edit : groupBase.can_edit,
         can_copy: ov.copy !== undefined ? ov.copy : groupBase.can_copy,
         can_download: ov.download !== undefined ? ov.download : groupBase.can_download,
         is_masked: ov.mask !== undefined ? ov.mask : groupBase.is_masked,
+        is_partial_masked: ov.partial_mask !== undefined ? ov.partial_mask : groupBase.is_partial_masked,
       };
     }
     setLocalPerms(merged);
@@ -220,12 +241,42 @@ export function FieldPermissionsPanel({
   // saves a field-level Edit grant the runtime would ignore anyway.
   const effectiveCanEdit = (fp: any) => moduleEditGranted && !!fp?.can_edit;
 
+  // Boolean toggle columns (masking is a separate 3-way dropdown).
+  const TOGGLE_COLS = ['can_view', 'can_add', 'can_edit', 'can_copy', 'can_download'] as const;
+  const colLabel = (p: string) => p.replace('can_', '');
+  const maskModeOf = (fp: any): 'none' | 'partial' | 'full' =>
+    fp?.is_masked ? 'full' : fp?.is_partial_masked ? 'partial' : 'none';
+  const isMaskLocked = (fp: any) => !!fp?.is_masked || !!fp?.is_partial_masked;
+
+  const EMPTY_FP = { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
+  const grantedFP = () => ({ can_view: true, can_add: true, can_edit: moduleEditGranted, can_copy: true, can_download: true, is_masked: false, is_partial_masked: false });
+
+  // Masking takes precedence over every other field permission: a masked field
+  // can't be added / edited / copied / downloaded. View stays on so the mask
+  // (•••• or first-2/last-2) can actually render. Setting mode 'none' only
+  // clears the mask flags and leaves the rest untouched.
+  const applyMask = (cur: any, mode: 'none' | 'partial' | 'full') => {
+    const base = cur || EMPTY_FP;
+    if (mode === 'none') return { ...base, is_masked: false, is_partial_masked: false };
+    return {
+      ...base,
+      can_view: true,
+      can_add: false, can_edit: false, can_copy: false, can_download: false,
+      is_masked: mode === 'full',
+      is_partial_masked: mode === 'partial',
+    };
+  };
+
+  const markTouched = (ids: number[]) =>
+    setTouchedFieldIds(prev => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; });
+
   const toggleFP = (
     fieldId: number,
-    perm: 'can_view' | 'can_edit' | 'can_copy' | 'can_download' | 'is_masked'
+    perm: 'can_view' | 'can_add' | 'can_edit' | 'can_copy' | 'can_download'
   ) => {
     setLocalPerms(prev => {
       const current = prev[fieldId] || {};
+      if (perm !== 'can_view' && isMaskLocked(current)) return prev; // masking wins — toggle is inert
       const next: Record<string, boolean> = { ...current, [perm]: !current[perm] };
 
       // Any permission except View requires View
@@ -233,66 +284,58 @@ export function FieldPermissionsPanel({
         next.can_view = true;
       }
 
-      // Turning View OFF clears all dependent permissions
+      // Turning View OFF clears all dependent permissions (and any mask)
       if (perm === 'can_view' && !next.can_view) {
+        next.can_add = false;
         next.can_edit = false;
         next.can_copy = false;
         next.can_download = false;
         next.is_masked = false;
+        next.is_partial_masked = false;
       }
 
       return { ...prev, [fieldId]: next };
     });
-    setTouchedFieldIds(prev => new Set(prev).add(fieldId));
+    markTouched([fieldId]);
     setDirty(true);
   };
 
-  // "All" covers the four grants — masking is an independent concern and is
-  // deliberately left out, otherwise granting everything would also hide it.
+  // Mask is a 3-way choice (none / partial / full) — mutually exclusive flags.
+  const setMaskMode = (fieldId: number, mode: 'none' | 'partial' | 'full') => {
+    setLocalPerms(prev => ({ ...prev, [fieldId]: applyMask(prev[fieldId], mode) }));
+    markTouched([fieldId]);
+    setDirty(true);
+  };
+
+  // Per-field "All" — grants the full set INCLUDING Add. Masking is left out
+  // (granting everything shouldn't also hide the value); a masked field's All
+  // toggle is inert.
   const toggleFieldRow = (fieldId: number) => {
     setLocalPerms(prev => {
       const current = prev[fieldId] || {};
-      const allEnabled = current.can_view && effectiveCanEdit(current) && current.can_copy && current.can_download;
-      const next = allEnabled
-        ? { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false }
-        : { can_view: true, can_edit: moduleEditGranted, can_copy: true, can_download: true, is_masked: !!current.is_masked };
-      return { ...prev, [fieldId]: next };
+      if (isMaskLocked(current)) return prev;
+      const allEnabled = current.can_view && current.can_add && effectiveCanEdit(current) && current.can_copy && current.can_download;
+      return { ...prev, [fieldId]: allEnabled ? { ...EMPTY_FP } : grantedFP() };
     });
-    setTouchedFieldIds(prev => new Set(prev).add(fieldId));
+    markTouched([fieldId]);
     setDirty(true);
   };
 
-  const grantAll = () => {
+  const applyToFields = (fieldList: any[], fn: (cur: any) => any) => {
+    const ids = fieldList.map(f => f.id);
     setLocalPerms(prev => {
       const n = { ...prev };
-      for (const f of fields) {
-        n[f.id] = { can_view: true, can_edit: moduleEditGranted, can_copy: true, can_download: true, is_masked: false };
-      }
+      for (const id of ids) n[id] = fn(n[id]);
       return n;
     });
-    setTouchedFieldIds(prev => {
-      const next = new Set(prev);
-      for (const f of fields) next.add(f.id);
-      return next;
-    });
+    markTouched(ids);
     setDirty(true);
   };
 
-  const revokeAll = () => {
-    setLocalPerms(prev => {
-      const n = { ...prev };
-      for (const f of fields) {
-        n[f.id] = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-      }
-      return n;
-    });
-    setTouchedFieldIds(prev => {
-      const next = new Set(prev);
-      for (const f of fields) next.add(f.id);
-      return next;
-    });
-    setDirty(true);
-  };
+  // Header + per-section bulk actions.
+  const grantAll   = (list = fields) => applyToFields(list, () => grantedFP());
+  const revokeAll  = (list = fields) => applyToFields(list, () => ({ ...EMPTY_FP }));
+  const maskAll    = (mode: 'none' | 'partial' | 'full', list = fields) => applyToFields(list, cur => applyMask(cur, mode));
 
   // Switching sections used to just call setSelectedFormId directly — with
   // no save in between, any unsaved edits on the OUTGOING form were either
@@ -334,26 +377,38 @@ export function FieldPermissionsPanel({
         for (const f of fields) {
           const groupBase = groupPermsData?.perms?.[f.id] || {};
           const cur = localPerms[f.id] || {};
-          (['view', 'edit', 'copy', 'download'] as const).forEach(p => {
+          const locked = isMaskLocked(cur);
+          (['view', 'add', 'edit', 'copy', 'download'] as const).forEach(p => {
             const key = `can_${p}` as const;
-            const curVal = p === 'edit' ? effectiveCanEdit(cur) : !!cur[key];
+            // Masking wins — a masked field grants nothing but view.
+            const curVal = p === 'view' ? !!cur.can_view : locked ? false : (p === 'edit' ? effectiveCanEdit(cur) : !!cur[key]);
             if (curVal !== !!groupBase[key]) overrides.push({ field_name: f.field_key, permission: p, granted: curVal });
           });
           if (!!cur.is_masked !== !!groupBase.is_masked) overrides.push({ field_name: f.field_key, permission: 'mask', granted: !!cur.is_masked });
+          if (!!cur.is_partial_masked !== !!groupBase.is_partial_masked) overrides.push({ field_name: f.field_key, permission: 'partial_mask', granted: !!cur.is_partial_masked });
         }
 
         await pgApi.setFieldOverrides(targetGroupId, overrideMemberId, selectedOverrideCompanyIds, selectedModuleKey, overrides);
       } else {
         if (companyFilterMismatch) throw new Error('Selected company does not have this module enabled — pick a different company or "All companies"');
         if (!fieldSaveCompanyIds.length) throw new Error('No company in scope for this group');
-        const permissions = fields.map((f: any) => ({
-          field_id: f.id,
-          can_view: !!localPerms[f.id]?.can_view,
-          can_edit: effectiveCanEdit(localPerms[f.id]),
-          can_copy: !!localPerms[f.id]?.can_copy,
-          can_download: !!localPerms[f.id]?.can_download,
-          is_masked: !!localPerms[f.id]?.is_masked,
-        }));
+        const permissions = fields.map((f: any) => {
+          const fp = localPerms[f.id] || {};
+          const is_masked = !!fp.is_masked;
+          const is_partial_masked = !is_masked && !!fp.is_partial_masked;
+          const locked = is_masked || is_partial_masked;
+          return {
+            field_id: f.id,
+            // Masking takes precedence — a masked field keeps only View.
+            can_view: !!fp.can_view || locked,
+            can_add: locked ? false : !!fp.can_add,
+            can_edit: locked ? false : effectiveCanEdit(fp),
+            can_copy: locked ? false : !!fp.can_copy,
+            can_download: locked ? false : !!fp.can_download,
+            is_masked,
+            is_partial_masked,
+          };
+        });
         // Writes to every company that has this module enabled for the
         // group — matches what the Module Permissions matrix shows for
         // this module's company badges, so field rules stay consistent
@@ -428,16 +483,31 @@ export function FieldPermissionsPanel({
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 220px', gap: 14 }}>
 
-            <div className="card" style={{ overflow: 'hidden' }}>
-              <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)' }}>Sections</div>
+            <div className="card" style={{ overflow: 'hidden', maxHeight: '66vh', overflowY: 'auto' }}>
+              <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink4)' }}>Forms &amp; Sections</div>
               <div style={{ padding: '6px 0' }}>
                 {visibleForms.map((f: any) => (
-                  <div key={`${f.moduleId}-${f.id}`} onClick={() => switchForm(f.id)}
-                    style={{ padding: '9px 14px', cursor: 'pointer', fontSize: 12, fontWeight: selectedFormId === f.id ? 600 : 400, color: selectedFormId === f.id ? 'var(--blue)' : 'var(--ink3)', background: selectedFormId === f.id ? 'var(--blue-lt)' : 'transparent', borderLeft: `3px solid ${selectedFormId === f.id ? 'var(--blue)' : 'transparent'}` }}>
-                    {f.name}
-                    <div style={{ fontSize: 10, color: 'var(--ink4)', fontWeight: 400 }}>
-                      {f.moduleName} • {f.fields?.length || 0} fields
+                  <div key={`${f.moduleId}-${f.id}`}>
+                    <div onClick={() => switchForm(f.id)}
+                      style={{ padding: '9px 14px', cursor: 'pointer', fontSize: 12, fontWeight: selectedFormId === f.id ? 600 : 400, color: selectedFormId === f.id ? 'var(--blue)' : 'var(--ink3)', background: selectedFormId === f.id ? 'var(--blue-lt)' : 'transparent', borderLeft: `3px solid ${selectedFormId === f.id ? 'var(--blue)' : 'transparent'}` }}>
+                      {f.name}
+                      <div style={{ fontSize: 10, color: 'var(--ink4)', fontWeight: 400 }}>
+                        {f.moduleName} • {f.fields?.length || 0} fields
+                      </div>
                     </div>
+                    {selectedFormId === f.id && sectionGroups.length > 0 && (
+                      <div style={{ padding: '2px 0 6px' }}>
+                        {sectionGroups.map(({ section, fields: sf }) => (
+                          <div key={section} onClick={() => scrollToSection(section)}
+                            style={{ padding: '5px 14px 5px 22px', cursor: 'pointer', fontSize: 11, color: 'var(--ink4)', display: 'flex', justifyContent: 'space-between', gap: 6 }}
+                            onMouseEnter={e => (e.currentTarget.style.color = 'var(--blue)')}
+                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink4)')}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{section}</span>
+                            <span style={{ fontFamily: 'var(--mono)', flexShrink: 0 }}>{sf.length}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -446,78 +516,156 @@ export function FieldPermissionsPanel({
             <div className="card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--ink3)' }}>{selectedForm?.name || '...'}</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={grantAll}>Grant all</button>
-                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={revokeAll}>Revoke all</button>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={() => grantAll()}>Grant all</button>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={() => revokeAll()}>Revoke all</button>
+                  <span style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, color: 'var(--amber)' }} onClick={() => maskAll('partial')} title="Partial-mask every field (first 2 + last 2 chars visible)">Partial mask all</button>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 10, color: 'var(--amber)' }} onClick={() => maskAll('full')} title="Full-mask every field (value hidden)">Full mask all</button>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={() => maskAll('none')} title="Clear masking on every field">Clear masks</button>
                 </div>
               </div>
+              <div style={{ maxHeight: '58vh', overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr>
-                  <th style={{ textAlign: 'left', padding: '7px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)' }}>
+                <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '7px 14px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 3 }}>
                     Field
                   </th>
-                  <th style={{ padding: '7px 8px', textAlign: 'center', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '7px 8px', textAlign: 'center', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 3 }}>
                     All
                   </th>
-                  {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
+                  {TOGGLE_COLS.map(p => {
                     const editGated = p === 'can_edit' && !moduleEditGranted;
                     return (
                       <th
                         key={p}
-                        title={editGated ? 'Module-level Edit is off — enable it above to allow field-level Edit' : undefined}
+                        title={
+                          editGated ? 'Module-level Edit is off — enable it above to allow field-level Edit'
+                          : p === 'can_add' ? 'Add: can edit this field only while the employee profile is under 100% complete'
+                          : undefined
+                        }
                         style={{
                           padding: '7px 8px', fontSize: 10, fontWeight: 700,
                           textTransform: 'uppercase', color: editGated ? 'var(--ink5, var(--ink4))' : 'var(--ink4)',
                           borderBottom: '1px solid var(--border)', textAlign: 'center',
                           opacity: editGated ? 0.6 : 1,
+                          position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 3,
                         }}
                       >
-                        {p.replace('can_', '').replace('is_', '')}
+                        {colLabel(p)}
                       </th>
                     );
                   })}
-                </tr></thead>
+                  <th style={{ padding: '7px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--ink4)', borderBottom: '1px solid var(--border)', textAlign: 'center', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 3 }}>
+                    Mask
+                  </th>
+                </tr>
+                </thead>
                 <tbody>
-                  {fields.map((f: any) => {
-                    const fp = localPerms[f.id] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-                    const allOn = fp.can_view && effectiveCanEdit(fp) && fp.can_copy && fp.can_download;
-                    return (
-                      <tr key={f.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
-                          {f.label}
+                  {sectionGroups.map(({ section, fields: sFields }) => (
+                    <Fragment key={section}>
+                      <tr id={`fp-sec-${section.replace(/[^a-z0-9]+/gi, '-')}`}>
+                        <td colSpan={8} style={{
+                          padding: '6px 14px', background: 'var(--surface2)',
+                          borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
+                          position: 'sticky', top: 28, zIndex: 2,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink3)' }}>{section}</span>
+                            <span style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>{sFields.length}</span>
+                            <span style={{ flex: 1 }} />
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, padding: '1px 6px' }} onClick={() => grantAll(sFields)}>Grant</button>
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize: 9, padding: '1px 6px' }} onClick={() => revokeAll(sFields)}>Revoke</button>
+                            <select
+                              value=""
+                              onChange={e => { if (e.target.value) maskAll(e.target.value as 'none' | 'partial' | 'full', sFields); e.currentTarget.value = ''; }}
+                              style={{ fontSize: 9, padding: '1px 3px', borderRadius: 3, border: '1px solid var(--border2)', background: 'var(--surface)', color: 'var(--amber)' }}
+                              title="Set masking for every field in this section"
+                            >
+                              <option value="">Mask…</option>
+                              <option value="partial">Partial</option>
+                              <option value="full">Full</option>
+                              <option value="none">Clear</option>
+                            </select>
+                          </div>
                         </td>
-                        <td style={{ padding: '7px 6px', textAlign: 'center' }}>
-                          <PermToggle on={allOn} onClick={() => toggleFieldRow(f.id)} />
-                        </td>
-                        {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
-                          const editGated = p === 'can_edit' && !moduleEditGranted;
-                          const on = p === 'can_edit' ? effectiveCanEdit(fp) : !!fp[p];
-                          return (
-                            <td key={p} style={{ padding: '7px 6px', textAlign: 'center', opacity: editGated ? 0.45 : 1 }}
-                              title={editGated ? 'Module-level Edit is off — enable it above to allow field-level Edit' : undefined}>
-                              <PermToggle on={on} onClick={editGated ? undefined : () => toggleFP(f.id, p)} />
-                            </td>
-                          );
-                        })}
                       </tr>
-                    );
-                  })}
-                  {fields.length === 0 && <tr><td colSpan={7} style={{ padding: 20, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>No fields found for this form.</td></tr>}
+                      {sFields.map((f: any) => {
+                        const fp = localPerms[f.id] || { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
+                        const maskLocked = isMaskLocked(fp);
+                        const allOn = fp.can_view && fp.can_add && effectiveCanEdit(fp) && fp.can_copy && fp.can_download;
+                        return (
+                          <tr key={f.id} style={{ borderBottom: '1px solid var(--border)', background: maskLocked ? 'var(--amber-lt)' : undefined }}>
+                            <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
+                              {f.label}
+                            </td>
+                            <td style={{ padding: '7px 6px', textAlign: 'center', opacity: maskLocked ? 0.35 : 1 }}>
+                              <PermToggle on={allOn} onClick={maskLocked ? undefined : () => toggleFieldRow(f.id)} />
+                            </td>
+                            {TOGGLE_COLS.map(p => {
+                              const editGated = p === 'can_edit' && !moduleEditGranted;
+                              const gated = editGated || (maskLocked && p !== 'can_view');
+                              const on = p === 'can_edit' ? effectiveCanEdit(fp) : !!fp[p];
+                              return (
+                                <td key={p} style={{ padding: '7px 6px', textAlign: 'center', opacity: gated ? 0.35 : 1 }}
+                                  title={
+                                    maskLocked && p !== 'can_view' ? 'Masking takes precedence — clear the mask to grant this'
+                                    : editGated ? 'Module-level Edit is off — enable it above to allow field-level Edit'
+                                    : undefined
+                                  }>
+                                  <PermToggle on={on} onClick={gated ? undefined : () => toggleFP(f.id, p)} />
+                                </td>
+                              );
+                            })}
+                            <td style={{ padding: '7px 6px', textAlign: 'center' }}>
+                              <select
+                                value={maskModeOf(fp)}
+                                disabled={!fp.can_view && !maskLocked}
+                                onChange={e => setMaskMode(f.id, e.target.value as 'none' | 'partial' | 'full')}
+                                style={{
+                                  fontSize: 11, padding: '3px 4px', borderRadius: 4,
+                                  border: `1px solid ${maskLocked ? 'var(--amber)' : 'var(--border2)'}`, background: 'var(--surface)',
+                                  color: maskModeOf(fp) === 'none' ? 'var(--ink4)' : 'var(--amber)',
+                                  fontWeight: maskLocked ? 700 : 400,
+                                }}
+                              >
+                                <option value="none">—</option>
+                                <option value="partial">Partial</option>
+                                <option value="full">Full</option>
+                              </select>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                  {fields.length === 0 && <tr><td colSpan={8} style={{ padding: 20, textAlign: 'center', color: 'var(--ink4)', fontSize: 12 }}>No fields found for this form.</td></tr>}
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div className="card cp">
               <div className="ct" style={{ marginBottom: 10 }}>Stats</div>
-              {(['can_view', 'can_edit', 'can_copy', 'can_download', 'is_masked'] as const).map(p => {
+              {TOGGLE_COLS.map(p => {
                 const on = fields.filter((f: any) => p === 'can_edit' ? effectiveCanEdit(localPerms[f.id]) : localPerms[f.id]?.[p]).length;
                 return (
                   <div key={p} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 11 }}>
-                    <span style={{ color: 'var(--ink3)' }}>{p.replace('can_', '').replace('is_', '')}</span>
+                    <span style={{ color: 'var(--ink3)' }}>{colLabel(p)}</span>
                     <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: on > 0 ? 'var(--blue)' : 'var(--ink4)' }}>{on}/{fields.length}</span>
                   </div>
                 );
               })}
+              {(() => {
+                const masked = fields.filter((f: any) => localPerms[f.id]?.is_masked || localPerms[f.id]?.is_partial_masked).length;
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 11 }}>
+                    <span style={{ color: 'var(--ink3)' }}>masked</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: masked > 0 ? 'var(--amber)' : 'var(--ink4)' }}>{masked}/{fields.length}</span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -526,13 +674,14 @@ export function FieldPermissionsPanel({
               <>
                 <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: 5 }}>🔒 Member overrides</strong>
                 Choose which companies this override applies to above. You can set different overrides per company or apply one rule to all assigned companies.<br /><br />
-                <strong style={{ color: 'var(--amber)' }}>Mask</strong> shows the value as •••• — useful for salary &amp; ID numbers.
+                <strong style={{ color: 'var(--amber)' }}>Partial</strong> shows first 2 + last 2 chars; <strong style={{ color: 'var(--amber)' }}>Full</strong> hides the value. Masking a field disables its other permissions.
               </>
             ) : (
               <>
                 <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: 5 }}>🔒 How it works</strong>
-                Field rules sit under module rules. A field blocked here won&apos;t show even if the module is visible, and no field is visible without module view access. The <strong>Edit</strong> column follows the same rule — it&apos;s greyed out here whenever the module&apos;s own Edit permission is off.<br /><br />
-                <strong style={{ color: 'var(--amber)' }}>Mask</strong> shows the value as •••• — useful for salary &amp; ID numbers.
+                Field rules sit under module rules. A field blocked here won&apos;t show even if the module is visible, and no field is visible without module view access. The <strong>Edit</strong> column follows the same rule — it&apos;s greyed out here whenever the module&apos;s own Edit permission is off.<br />
+                <strong>Add</strong> lets the field be edited only while the employee profile is under 100% complete. <strong>Grant all</strong> turns on View · Add · Edit · Copy · Download.<br /><br />
+                <strong style={{ color: 'var(--amber)' }}>Mask takes precedence.</strong> <strong>Partial</strong> shows the first 2 and last 2 characters (<code>AB••••••4F</code>); <strong>Full</strong> hides the value entirely (••••). Choosing either disables Add / Edit / Copy / Download for that field. Use <strong>Partial mask all</strong> / <strong>Full mask all</strong> in the header to apply it to every field.
               </>
             )}
           </div>

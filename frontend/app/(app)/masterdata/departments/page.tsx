@@ -2898,6 +2898,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { Chip } from '@/components/ui/Chip';
+import { Select } from '@/components/ui/Select';
 import {
   GripVertical,
   Pencil,
@@ -3534,30 +3535,14 @@ export default function DepartmentsPage() {
           <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
             {tab === 'subdepartment' && (
-              <div className="fg" style={{ margin: 0, width: 200 }}>
-                <select
+              <div className="fg" style={{ margin: 0, width: 220 }}>
+                <Select
                   value={quickAddDeptId}
-                  onChange={(e) =>
-                    setQuickAddDeptId(
-                      e.target.value
-                        ? Number(e.target.value)
-                        : '',
-                    )
-                  }
-                >
-                  <option value="">
-                    Select Department...
-                  </option>
-
-                  {activeDepartments.map((dept) => (
-                    <option
-                      key={dept.id}
-                      value={dept.id}
-                    >
-                      {dept.department_name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setQuickAddDeptId(v ? Number(v) : '')}
+                  options={activeDepartments.map((dept) => ({ value: dept.id, label: dept.department_name }))}
+                  placeholder="Select Department..."
+                  filter
+                />
               </div>
             )}
 

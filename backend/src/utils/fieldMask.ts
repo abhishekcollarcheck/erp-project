@@ -24,3 +24,15 @@ export function maskValue(value: string, fieldKey: string): string {
   }
   return value.length > 4 ? '•'.repeat(value.length - 4) + value.slice(-4) : '••••';
 }
+
+/**
+ * Partial mask — reveal only the first 2 and last 2 characters, mask the middle.
+ * Values of 4 characters or fewer are fully masked so nothing meaningful leaks.
+ * Mirrors the frontend maskPartial() in validationEngine.ts.
+ */
+export function maskPartial(value: string): string {
+  if (!value) return value;
+  const s = String(value);
+  if (s.length <= 4) return '••••';
+  return s.slice(0, 2) + '•'.repeat(s.length - 4) + s.slice(-2);
+}

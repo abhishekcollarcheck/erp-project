@@ -5,6 +5,8 @@ import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { Pencil, Trash2, Check, X, Plus } from 'lucide-react';
 import { Chip } from '@/components/ui/Chip';
+import { DataTable, type Column } from '@/components/ui/DataTable';
+import { Select } from '@/components/ui/Select';
 import {
   useShifts,
   useCreateShift,
@@ -110,6 +112,82 @@ export default function ShiftsPage() {
     );
   }, [shifts, filterText]);
 
+  const shiftColumns: Column<Shift>[] = [
+    {
+      key: 'label', header: 'Shift',
+      render: (shift) => editingId === shift.id ? (
+        <div className="fg" style={{ margin: 0 }}>
+          <input type="text" value={editLabel} onChange={(e) => setEditLabel(e.target.value)} />
+        </div>
+      ) : <strong>{shift.label}</strong>,
+    },
+    {
+      key: 'start', header: 'Start', align: 'center',
+      render: (shift) => editingId === shift.id ? (
+        <div className="fg" style={{ margin: 0 }}>
+          <input type="time" value={editStartTime} onChange={(e) => setEditStartTime(e.target.value)} />
+        </div>
+      ) : <Chip variant="blue">{formatTimeDisplay(shift.start_time)}</Chip>,
+    },
+    {
+      key: 'end', header: 'End', align: 'center',
+      render: (shift) => editingId === shift.id ? (
+        <div className="fg" style={{ margin: 0 }}>
+          <input type="time" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} />
+        </div>
+      ) : <Chip variant="blue">{formatTimeDisplay(shift.end_time)}</Chip>,
+    },
+    {
+      key: 'half', header: 'Half', align: 'center',
+      render: (shift) => editingId === shift.id ? (
+        <div className="fg" style={{ margin: 0 }}>
+          <input type="time" value={editHalfDayTime} onChange={(e) => setEditHalfDayTime(e.target.value)} />
+        </div>
+      ) : <Chip variant="blue">{formatTimeDisplay(shift.half_day_time)}</Chip>,
+    },
+    {
+      key: 'span', header: 'Span', align: 'center',
+      render: (shift) => editingId === shift.id ? (
+        <div className="fg" style={{ margin: 0 }}>
+          <Select
+            value={editDaySpan}
+            onChange={(v) => setEditDaySpan(v as '1 day' | '2 days')}
+            options={[
+              { value: '1 day', label: '1 day' },
+              { value: '2 days', label: '2 days' },
+            ]}
+          />
+        </div>
+      ) : <>{shift.day_span}</>,
+    },
+    {
+      key: 'actions', header: 'Actions', align: 'right',
+      render: (shift) => (
+        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+          {editingId === shift.id ? (
+            <>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--blue)' }} onClick={() => handleSaveEdit(shift.id)}>
+                <Check size={14} /> Save
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={handleCancelEdit}>
+                <X size={14} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn btn-ghost btn-sm" title="Edit Shift" onClick={() => startEdit(shift)}>
+                <Pencil size={13} />
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} title="Delete Shift" onClick={() => handleDelete(shift.id)}>
+                <Trash2 size={13} />
+              </button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <AppShell>
       <MasterDataLayout>
@@ -151,12 +229,16 @@ export default function ShiftsPage() {
                 <input type="time" value={halfDayTime} onChange={(e) => setHalfDayTime(e.target.value)} />
               </div>
 
-              <div className="fg" style={{ width: 110 }}>
+              <div className="fg" style={{ width: 120 }}>
                 <label>Day Span</label>
-                <select value={daySpan} onChange={(e) => setDaySpan(e.target.value as '1 day' | '2 days')}>
-                  <option value="1 day">1 day</option>
-                  <option value="2 days">2 days</option>
-                </select>
+                <Select
+                  value={daySpan}
+                  onChange={(v) => setDaySpan(v as '1 day' | '2 days')}
+                  options={[
+                    { value: '1 day', label: '1 day' },
+                    { value: '2 days', label: '2 days' },
+                  ]}
+                />
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -171,121 +253,23 @@ export default function ShiftsPage() {
             </div>
           </div>
 
-          <div className="card cp">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
-              <div className="search-bar" style={{ maxWidth: 240 }}>
-                <span style={{ color: 'var(--ink4)' }}>⌕</span>
-                <input type="text" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter shifts..." />
-              </div>
-              <Chip variant="gray">{filteredShifts.length}</Chip>
-            </div>
-
-            <div className="tw">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Shift</th>
-                    <th style={{ textAlign: 'center' }}>Start</th>
-                    <th style={{ textAlign: 'center' }}>End</th>
-                    <th style={{ textAlign: 'center' }}>Half</th>
-                    <th style={{ textAlign: 'center' }}>Span</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--ink4)' }}>Loading shifts...</td></tr>
-                  ) : filteredShifts.length === 0 ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--ink4)' }}>No shifts found.</td></tr>
-                  ) : (
-                    filteredShifts.map((shift) => {
-                      const isEditing = editingId === shift.id;
-                      return (
-                        <tr key={shift.id}>
-                          <td>
-                            {isEditing ? (
-                              <div className="fg" style={{ margin: 0 }}>
-                                <input type="text" value={editLabel} onChange={(e) => setEditLabel(e.target.value)} />
-                              </div>
-                            ) : (
-                              <strong>{shift.label}</strong>
-                            )}
-                          </td>
-
-                          <td style={{ textAlign: 'center' }}>
-                            {isEditing ? (
-                              <div className="fg" style={{ margin: 0 }}>
-                                <input type="time" value={editStartTime} onChange={(e) => setEditStartTime(e.target.value)} />
-                              </div>
-                            ) : (
-                              <Chip variant="blue">{formatTimeDisplay(shift.start_time)}</Chip>
-                            )}
-                          </td>
-
-                          <td style={{ textAlign: 'center' }}>
-                            {isEditing ? (
-                              <div className="fg" style={{ margin: 0 }}>
-                                <input type="time" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} />
-                              </div>
-                            ) : (
-                              <Chip variant="blue">{formatTimeDisplay(shift.end_time)}</Chip>
-                            )}
-                          </td>
-
-                          <td style={{ textAlign: 'center' }}>
-                            {isEditing ? (
-                              <div className="fg" style={{ margin: 0 }}>
-                                <input type="time" value={editHalfDayTime} onChange={(e) => setEditHalfDayTime(e.target.value)} />
-                              </div>
-                            ) : (
-                              <Chip variant="blue">{formatTimeDisplay(shift.half_day_time)}</Chip>
-                            )}
-                          </td>
-
-                          <td style={{ textAlign: 'center' }}>
-                            {isEditing ? (
-                              <div className="fg" style={{ margin: 0 }}>
-                                <select value={editDaySpan} onChange={(e) => setEditDaySpan(e.target.value as '1 day' | '2 days')}>
-                                  <option value="1 day">1 day</option>
-                                  <option value="2 days">2 days</option>
-                                </select>
-                              </div>
-                            ) : (
-                              shift.day_span
-                            )}
-                          </td>
-
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                              {isEditing ? (
-                                <>
-                                  <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--blue)' }} onClick={() => handleSaveEdit(shift.id)}>
-                                    <Check size={14} /> Save
-                                  </button>
-                                  <button type="button" className="btn btn-ghost btn-sm" onClick={handleCancelEdit}>
-                                    <X size={14} />
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button type="button" className="btn btn-ghost btn-sm" title="Edit Shift" onClick={() => startEdit(shift)}>
-                                    <Pencil size={13} />
-                                  </button>
-                                  <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} title="Delete Shift" onClick={() => handleDelete(shift.id)}>
-                                    <Trash2 size={13} />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            columns={shiftColumns}
+            data={filteredShifts}
+            isLoading={isLoading}
+            rowKey={(s) => s.id}
+            minWidth="720px"
+            emptyText="No shifts found."
+            toolbar={
+              <>
+                <div className="search-bar" style={{ maxWidth: 240 }}>
+                  <span style={{ color: 'var(--ink4)' }}>⌕</span>
+                  <input type="text" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter shifts..." />
+                </div>
+                <Chip variant="gray">{filteredShifts.length}</Chip>
+              </>
+            }
+          />
         </div>
       </MasterDataLayout>
     </AppShell>

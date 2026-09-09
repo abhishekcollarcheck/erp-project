@@ -3,7 +3,7 @@ import { useWatch, useFormContext } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { toOpts, PERM_ADDRESS_TYPE } from '../../constants/employee.constants';
-import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useHouseTypeData } from '../../../house-type/hooks/useHouseType';
 import { useCountries, useStates, useCities } from '../../../locations/hooks/uselocation';
@@ -14,8 +14,7 @@ export function StepAddress(_: Props) {
   const { setValue, getValues } = useFormContext();
   const permType = useWatch({ name: 'perm_address_type' });
 
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
 
   const { data: houseTypes = [] } = useHouseTypeData();
   const { data: countries = [] } = useCountries();

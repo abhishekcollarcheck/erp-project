@@ -1,10 +1,7 @@
 'use client';
 import { useFormContext, Controller } from 'react-hook-form';
-
-interface FieldPerm {
-  can_view?: boolean;
-  can_edit?: boolean;
-}
+import type { FieldPerm } from './maskField';
+import { maskPartial } from '../../utils/validationEngine';
 
 interface Props {
   name:           string;
@@ -49,7 +46,9 @@ export function FormDatePicker({
   const today      = toISO(new Date());
   const effectiveMin = disablePast  ? today : min;
   const effectiveMax = disableFuture ? today : max;
-  const isReadOnly   = fieldPerm?.can_edit === false;
+  const isFullMask    = fieldPerm?.is_masked === true;
+  const isPartialMask = !isFullMask && fieldPerm?.is_partial_masked === true;
+  const isReadOnly   = fieldPerm?.can_edit === false || isFullMask || isPartialMask;
   const isDisabled   = disabled;
   const hintId       = `${name}-hint`;
   const errorId      = `${name}-error`;
@@ -74,7 +73,7 @@ export function FormDatePicker({
           <input
             {...field}
             id={name}
-            type="date"
+            type={isFullMask ? 'password' : isPartialMask ? 'text' : 'date'}
             min={effectiveMin}
             max={effectiveMax}
             disabled={isDisabled}
@@ -82,8 +81,8 @@ export function FormDatePicker({
             aria-invalid={!!error}
             aria-describedby={describedBy}
             aria-required={required}
-            value={field.value ?? ''}
-            className={['form-input', isReadOnly ? 'readonly' : ''].filter(Boolean).join(' ')}
+            value={isPartialMask ? maskPartial(field.value ?? '') : isFullMask ? '••••••' : (field.value ?? '')}
+            className={['form-input', isReadOnly ? 'readonly' : '', (isFullMask || isPartialMask) ? 'masked' : ''].filter(Boolean).join(' ')}
             onChange={e => {
               if (isReadOnly) return;
               field.onChange(e.target.value);

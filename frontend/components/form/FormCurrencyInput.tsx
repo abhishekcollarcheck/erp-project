@@ -10,12 +10,8 @@
  */
 
 import { useFormContext, Controller } from 'react-hook-form';
-
-interface FieldPerm {
-  can_view?: boolean;
-  can_edit?: boolean;
-  is_masked?: boolean;
-}
+import type { FieldPerm } from './maskField';
+import { maskPartial } from '../../utils/validationEngine';
 
 interface Props {
   name:       string;
@@ -44,23 +40,25 @@ function fmtShort(n: number): string {
 export function FormCurrencyInput({
   name, label, required, disabled, min = 0, max, hint, fieldPerm, onChange,
 }: Props) {
-  const { control, formState: { errors } } = useFormContext();
+  const { control, getValues, formState: { errors } } = useFormContext();
   const error = (errors as any)[name]?.message as string | undefined;
 
   // Field-level visibility gate
   if (fieldPerm?.can_view === false) return null;
 
-  // Masked view — role cannot see value
-  if (fieldPerm?.is_masked) {
+  // Masked view — role cannot see the value (full) or sees first-2/last-2 (partial)
+  if (fieldPerm?.is_masked || fieldPerm?.is_partial_masked) {
+    const rawVal = getValues(name);
+    const partial = !fieldPerm?.is_masked && fieldPerm?.is_partial_masked;
     return (
       <div className="form-field fg">
         <label className="field-label">
           {label}
-          <span style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 5 }} title="Masked by role">🔒</span>
+          <span style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 5 }} title={partial ? 'Partially masked by role' : 'Masked by role'}>🔒</span>
         </label>
         <input
-          type="password"
-          value="••••••"
+          type={partial ? 'text' : 'password'}
+          value={partial ? maskPartial(rawVal ?? '') : '••••••'}
           readOnly
           className="form-input masked"
           aria-label={`${label} — masked`}

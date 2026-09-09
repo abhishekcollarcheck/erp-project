@@ -447,11 +447,16 @@ export interface EmployeeFullResponse {
 
 // ─── Field permission types ───────────────────────────────────────────────────
 export interface FieldPermEntry {
-  can_view:     boolean;
-  can_edit:     boolean;
-  can_copy:     boolean;
-  can_download: boolean;
-  is_masked:    boolean;
+  can_view:          boolean;
+  // Onboarding-only edit grant. In getFieldPermissions() with a target
+  // employee, can_edit is already resolved to (can_edit || can_add && pct<100);
+  // can_add stays as the raw grant for the frontend to reason about.
+  can_add:           boolean;
+  can_edit:          boolean;
+  can_copy:          boolean;
+  can_download:      boolean;
+  is_masked:         boolean;
+  is_partial_masked: boolean;
 }
 
 export type FieldPermissionMap = Record<string, FieldPermEntry>;

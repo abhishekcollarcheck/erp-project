@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAppDispatch }    from '../../../../store';
 import { setPageTitle }      from '../../../../store/slices/uiSlice';
 import { AppShell }          from '../../../../layouts/AppLayout';
+import { Select }            from '../../../../components/ui/Select';
 import {
   useModules, useForms, usePermissionMatrix, useBulkSetPermissions,
 } from '../../../../hooks/useRbac';
@@ -97,9 +98,9 @@ export default function PermissionsPage() {
   const applyPreset = (roleId: number, preset: 'full'|'view_only'|'none') => {
     if (!matrixData) return;
     const map: Record<'full'|'view_only'|'none', FieldPermissionEntry> = {
-      full:      { can_view:true,  can_edit:true,  can_copy:true,  can_download:true,  is_masked:false },
-      view_only: { can_view:true,  can_edit:false, can_copy:false, can_download:false, is_masked:false },
-      none:      { can_view:false, can_edit:false, can_copy:false, can_download:false, is_masked:false },
+      full:      { can_view:true,  can_add:true,  can_edit:true,  can_copy:true,  can_download:true,  is_masked:false, is_partial_masked:false },
+      view_only: { can_view:true,  can_add:false, can_edit:false, can_copy:false, can_download:false, is_masked:false, is_partial_masked:false },
+      none:      { can_view:false, can_add:false, can_edit:false, can_copy:false, can_download:false, is_masked:false, is_partial_masked:false },
     };
     const perms = map[preset];
     setLocalMatrix(prev => {
@@ -127,17 +128,26 @@ export default function PermissionsPage() {
         <div style={{ display:'flex', gap:12, marginBottom:20, flexWrap:'wrap' }}>
           <div className="fg" style={{ marginBottom:0, minWidth:200 }}>
             <label>Module</label>
-            <select value={selModuleId} onChange={e => { setSelModuleId(Number(e.target.value)); setSelFormId(0); }}>
-              <option value="0">— Select module —</option>
-              {modules.map(m => <option key={m.id} value={m.id}>{m.icon} {m.name}</option>)}
-            </select>
+            <Select
+              value={selModuleId}
+              onChange={(v) => { setSelModuleId(Number(v) || 0); setSelFormId(0); }}
+              options={[
+                { value: 0, label: '— Select module —' },
+                ...modules.map(m => ({ value: m.id, label: `${m.icon} ${m.name}` })),
+              ]}
+            />
           </div>
           <div className="fg" style={{ marginBottom:0, minWidth:200 }}>
             <label>Form</label>
-            <select value={selFormId} onChange={e => setSelFormId(Number(e.target.value))} disabled={!selModuleId || forms.length===0}>
-              <option value="0">— Select form —</option>
-              {forms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
+            <Select
+              value={selFormId}
+              onChange={(v) => setSelFormId(Number(v) || 0)}
+              disabled={!selModuleId || forms.length === 0}
+              options={[
+                { value: 0, label: '— Select form —' },
+                ...forms.map(f => ({ value: f.id, label: f.name })),
+              ]}
+            />
           </div>
           {dirty && (
             <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:14 }}>

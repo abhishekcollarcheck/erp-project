@@ -125,6 +125,7 @@ export async function loadPermissions(
       if (p.can_create) slugs.add(`${p.module}:create`);
       if (p.can_edit) slugs.add(`${p.module}:edit`);
       if (p.can_delete) slugs.add(`${p.module}:delete`);
+      if (p.can_download) slugs.add(`${p.module}:download`);
       if (p.can_approve) slugs.add(`${p.module}:approve`);
       if (p.can_export) slugs.add(`${p.module}:export`);
     }

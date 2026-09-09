@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { toOpts } from '../../constants/employee.constants';
 import { useCompany } from '../../../company/hooks/useCompany';
 import { FormSection } from '../../../../components/form/FormSection';
@@ -15,8 +15,7 @@ import { useDesignations, useSubDesignations } from '../../../designation/hooks/
 interface Props { isEdit: boolean; employeeId: number | null; avatarUrl?: string | null; onPhotoSelected?: (file: File) => void }
 
 export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
   const { setValue, watch } = useFormContext();
   const { company } = useCompany();
 

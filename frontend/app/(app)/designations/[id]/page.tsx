@@ -274,6 +274,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { AppShell } from '@/layouts/AppLayout';
+import { Select } from '@/components/ui/Select';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import {
   GripVertical,
@@ -462,18 +463,15 @@ export default function DesignationsPage() {
           {/* Inline Quick Creation Panel */}
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
             {tab === 'subdesignation' && (
-              <select
-                className="h-9 w-52 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 outline-none focus:border-blue-500"
-                value={quickAddParentId}
-                onChange={(e) => setQuickAddParentId(e.target.value ? Number(e.target.value) : '')}
-              >
-                <option value="">Select Parent Designation...</option>
-                {designations.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+              <div style={{ width: 220 }}>
+                <Select
+                  value={quickAddParentId}
+                  onChange={(v) => setQuickAddParentId(v ? Number(v) : '')}
+                  placeholder="Select Parent Designation..."
+                  filter
+                  options={designations.map((d) => ({ value: d.id, label: d.name }))}
+                />
+              </div>
             )}
 
             <input

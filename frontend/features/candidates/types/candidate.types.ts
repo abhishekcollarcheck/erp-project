@@ -99,6 +99,7 @@ export interface Candidate {
   job_type?: string | null;
   job_code?: string | null;
   job_description?: string | null;
+  skills?: string[] | null;
   current_salary?: number | null;
   expected_salary?: number | null;
   currently_working?: boolean | null;
@@ -230,6 +231,7 @@ export interface CreateCandidateDto {
   job_type?: string | null;
   job_code?: string | null;
   job_description?: string | null;
+  skills?: string[] | null;
   current_salary?: number | null;
   expected_salary?: number | null;
   currently_working?: boolean | null;
@@ -250,7 +252,7 @@ export interface CreateCandidateDto {
 export type UpdateCandidateDto = Partial<CreateCandidateDto> & { status?: CandidateStatus };
 
 export interface CandidateQueryParams {
-  page?: number; limit?: number; search?: string; status?: string; source?: string;
+  page?: number; limit?: number; search?: string; status?: string; source?: string; role?: string;
   min_experience?: number; max_experience?: number; sort?: string; order?: 'ASC' | 'DESC';
 }
 

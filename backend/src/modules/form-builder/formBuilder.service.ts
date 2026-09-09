@@ -427,8 +427,8 @@ export class FormBuilderService {
     });
 
     const matrix: Record<number, Record<number, {
-      can_view: boolean; can_edit: boolean; can_copy: boolean;
-      can_download: boolean; is_masked: boolean;
+      can_view: boolean; can_add: boolean; can_edit: boolean; can_copy: boolean;
+      can_download: boolean; is_masked: boolean; is_partial_masked: boolean;
     }>> = {};
 
     for (const group of groups) {
@@ -436,8 +436,8 @@ export class FormBuilderService {
       for (const field of fields) {
         const existing = perms.find(p => p.group_id === group.id && p.field_id === field.id);
         matrix[group.id][field.id] = existing
-          ? { can_view: existing.can_view, can_edit: existing.can_edit, can_copy: existing.can_copy, can_download: existing.can_download, is_masked: existing.is_masked }
-          : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+          ? { can_view: existing.can_view, can_add: existing.can_add, can_edit: existing.can_edit, can_copy: existing.can_copy, can_download: existing.can_download, is_masked: existing.is_masked, is_partial_masked: existing.is_partial_masked }
+          : { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
       }
     }
     return { groups, fields, matrix };
@@ -460,17 +460,20 @@ export class FormBuilderService {
   // }
 
   async setFieldPermission(companyIds: number[], groupId: number, fieldId: number, dto: {
-    can_view?: boolean; can_edit?: boolean; can_copy?: boolean;
-    can_download?: boolean; is_masked?: boolean;
+    can_view?: boolean; can_add?: boolean; can_edit?: boolean; can_copy?: boolean;
+    can_download?: boolean; is_masked?: boolean; is_partial_masked?: boolean;
   }, updatedBy?: number) {
     if (!companyIds.length) throw new AppError('At least one company_id is required', 400);
+    // Full mask wins over partial — never persist both true.
+    const normalized = { ...dto };
+    if (normalized.is_masked) normalized.is_partial_masked = false;
     const results = [];
     for (const companyId of companyIds) {
       const [perm, created] = await FieldPermissionV2.findOrCreate({
         where: { company_id: companyId, group_id: groupId, field_id: fieldId },
-        defaults: { company_id: companyId, group_id: groupId, field_id: fieldId, ...dto },
+        defaults: { company_id: companyId, group_id: groupId, field_id: fieldId, ...normalized },
       });
-      if (!created) await perm.update(dto as any);
+      if (!created) await perm.update(normalized as any);
       results.push(perm);
     }
 
@@ -516,18 +519,21 @@ export class FormBuilderService {
   // }
 
   async bulkSetFieldPermissions(companyIds: number[], groupId: number, permissions: {
-    field_id: number; can_view: boolean; can_edit: boolean; can_copy: boolean;
-    can_download: boolean; is_masked: boolean;
+    field_id: number; can_view: boolean; can_add?: boolean; can_edit: boolean; can_copy: boolean;
+    can_download: boolean; is_masked: boolean; is_partial_masked?: boolean;
   }[], updatedBy?: number) {
     if (!companyIds.length) throw new AppError('At least one company_id is required', 400);
     const t = await sequelize.transaction();
     try {
       for (const companyId of companyIds) {
         for (const p of permissions) {
+          // Full mask wins over partial — never persist both true.
+          const is_masked = !!p.is_masked;
+          const is_partial_masked = !is_masked && !!p.is_partial_masked;
           await FieldPermissionV2.upsert({
             company_id: companyId, group_id: groupId, field_id: p.field_id,
-            can_view: p.can_view, can_edit: p.can_edit, can_copy: p.can_copy,
-            can_download: p.can_download, is_masked: p.is_masked,
+            can_view: p.can_view, can_add: !!p.can_add, can_edit: p.can_edit, can_copy: p.can_copy,
+            can_download: p.can_download, is_masked, is_partial_masked,
           }, { transaction: t });
         }
       }
@@ -634,8 +640,8 @@ export class FormBuilderService {
           if (existingFieldIds.has(f.id)) continue;
           toCreate.push({
             company_id: companyId, group_id: groupId, field_id: f.id,
-            can_view: true, can_edit: edit, can_copy: false,
-            can_download: down, is_masked: !!f.is_hidden,
+            can_view: true, can_add: false, can_edit: edit, can_copy: false,
+            can_download: down, is_masked: !!f.is_hidden, is_partial_masked: false,
           });
         }
       }
@@ -663,7 +669,7 @@ export class FormBuilderService {
 
   // ─── Runtime: resolve permissions for a user role on a form ──────────────────
 async resolveFormPermissions(formId: number, employeeId: number, companyId: number) {
-    const DENY = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+    const DENY = { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
 
     const form = await FormDefinition.findOne({ where: { id: formId }, attributes: ['id', 'module_id'] });
     if (!form) throw new AppError('Form not found', 404);
@@ -707,19 +713,23 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
     return fields.map(field => {
       const rows = perms.filter(p => p.field_id === field.id);
       let can_view     = rows.some(r => r.can_view);
+      let can_add      = rows.some(r => r.can_add);
       let can_edit     = rows.some(r => r.can_edit);
       let can_copy     = rows.some(r => r.can_copy);
       let can_download = rows.some(r => r.can_download);
       const viewGranting = rows.filter(r => r.can_view);
-      let is_masked = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
+      let is_masked         = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
+      let is_partial_masked = viewGranting.length > 0 ? viewGranting.every(r => r.is_partial_masked) : false;
 
       // ── Employee overrides on top of the group baseline ──
       const ov = fieldOv[field.field_key] || {};
-      if (ov.view     !== undefined) can_view     = ov.view;
-      if (ov.edit     !== undefined) can_edit     = ov.edit;
-      if (ov.copy     !== undefined) can_copy     = ov.copy;
-      if (ov.download !== undefined) can_download = ov.download;
-      if (ov.mask     !== undefined) is_masked    = ov.mask;
+      if (ov.view          !== undefined) can_view          = ov.view;
+      if (ov.add           !== undefined) can_add           = ov.add;
+      if (ov.edit          !== undefined) can_edit          = ov.edit;
+      if (ov.copy          !== undefined) can_copy          = ov.copy;
+      if (ov.download      !== undefined) can_download      = ov.download;
+      if (ov.mask          !== undefined) is_masked         = ov.mask;
+      if (ov.partial_mask  !== undefined) is_partial_masked = ov.partial_mask;
 
       // ── Module ceiling ──
       // Only can_edit is capped by its module-level counterpart. can_copy
@@ -732,11 +742,23 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
       // checkbox was also on — confusing for an admin who'd already saved
       // the field-level grant successfully.
       can_edit = can_edit && moduleEdit;
+      // can_add is an onboarding grant, not capped by module Edit — but like
+      // every field grant it still requires module view (already gated above)
+      // and field view (dependency rule below).
+
+      // Full mask wins over partial.
+      if (is_masked) is_partial_masked = false;
+
+      // Masking takes precedence over every other field grant — a masked field
+      // keeps only View so the mask (•••• or first-2/last-2) can render.
+      if (is_masked || is_partial_masked) {
+        can_add = false; can_edit = false; can_copy = false; can_download = false;
+      }
 
       // ── Dependency rule (mirrors the UI's toggle logic) ──
-      if (!can_view) { can_edit = false; can_copy = false; can_download = false; is_masked = false; }
+      if (!can_view) { can_add = false; can_edit = false; can_copy = false; can_download = false; is_masked = false; is_partial_masked = false; }
 
-      return { ...field.toJSON(), resolved: { can_view, can_edit, can_copy, can_download, is_masked } };
+      return { ...field.toJSON(), resolved: { can_view, can_add, can_edit, can_copy, can_download, is_masked, is_partial_masked } };
     });
   }
 
@@ -754,8 +776,8 @@ async resolveFormPermissions(formId: number, employeeId: number, companyId: numb
     for (const field of fields) {
       const row = rows.find(r => r.field_id === field.id);
       perms[field.id] = row
-        ? { can_view: row.can_view, can_edit: row.can_edit, can_copy: row.can_copy, can_download: row.can_download, is_masked: row.is_masked }
-        : { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+        ? { can_view: row.can_view, can_add: row.can_add, can_edit: row.can_edit, can_copy: row.can_copy, can_download: row.can_download, is_masked: row.is_masked, is_partial_masked: row.is_partial_masked }
+        : { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
     }
     return { fields, perms };
   }

@@ -2,6 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useFormContext, Controller }               from 'react-hook-form';
+import { Dropdown }                                  from 'primereact/dropdown';
+import type { FieldPerm }                            from './maskField';
+import { maskPartial }                               from '../../utils/validationEngine';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface Option {
@@ -15,13 +18,6 @@ export interface OptGroup {
   options: Option[];
 }
 
-interface FieldPerm {
-  can_view?: boolean;
-  can_edit?: boolean;
-  can_copy?: boolean;
-  is_masked?: boolean;
-}
-
 interface Props {
   name:         string;
   label:        string;
@@ -31,7 +27,7 @@ interface Props {
   placeholder?: string;
   hint?:        string;
   fieldPerm?:   FieldPerm;
-  clearable?:   boolean;  
+  clearable?:   boolean;
   blockContextMenu?: boolean;
   onChange?:    (value: string) => void;
   /** Fired on a blocked copy/cut/drag attempt. Useful for audit logging. */
@@ -45,7 +41,6 @@ function isOptGroup(o: Option | OptGroup): o is OptGroup {
   return 'group' in o;
 }
 
-// Flatten options/groups into a searchable list while preserving group label
 interface FlatOption extends Option {
   groupLabel?: string;
 }
@@ -62,14 +57,8 @@ function flatten(options: Option[] | OptGroup[]): FlatOption[] {
   return out;
 }
 
-function filterOptions(flat: FlatOption[], query: string): FlatOption[] {
-  if (!query) return flat;
-  const q = query.toLowerCase();
-  return flat.filter(o =>
-    o.label.toLowerCase().includes(q) ||
-    (o.groupLabel ?? '').toLowerCase().includes(q)
-  );
-}
+const hasGroups = (options: Option[] | OptGroup[]) =>
+  (options as any[]).some(isOptGroup);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function FormSelect({
@@ -96,29 +85,62 @@ export function FormSelect({
   // Field-level visibility gate
   if (fieldPerm?.can_view === false) return null;
 
-  const isMasked   = fieldPerm?.is_masked === true;
+  const isFullMask    = fieldPerm?.is_masked === true;
+  const isPartialMask = !isFullMask && fieldPerm?.is_partial_masked === true;
+  const isMasked   = isFullMask || isPartialMask;
   // A masked selection must never reach the clipboard, whatever can_copy says.
   const noCopy     = fieldPerm?.can_copy === false || isMasked;
   const isDisabled = disabled === true;
-  // Locked = cannot change the value. Unlike `disabled`, the control stays
-  // focusable and selectable so a user with copy rights can still read/copy it.
+  // Locked = cannot change the value (permission or masking).
   const isLocked   = isDisabled || fieldPerm?.can_edit === false || isMasked;
   const allowClear = (clearable ?? !required) && !isLocked;
 
-  const flat = flatten(options);
+  const flat    = flatten(options);
+  const grouped = hasGroups(options);
+
+  // Options shaped for PrimeReact. When grouped we pass OptGroup[] straight
+  // through with optionGroupLabel/optionGroupChildren; otherwise the flat list.
+  const pOptions = grouped ? (options as OptGroup[]) : flat;
+
+  // Copy-guard handlers for the wrapper — only the resolved label / option list
+  // is protected; text the user types into the filter is their own.
+  const handleClipboard = (e: React.ClipboardEvent) => {
+    if (!noCopy) return;
+    e.preventDefault();
+    e.clipboardData?.setData('text/plain', '');
+    flagBlocked();
+  };
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!noCopy) return;
+    e.preventDefault();
+    flagBlocked();
+  };
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (!noCopy || !blockContextMenu) return;
+    e.preventDefault();
+    flagBlocked();
+  };
 
   return (
     <Controller
       name={name}
       control={control}
       render={({ field, fieldState }) => {
-        const error     = fieldState.error?.message;
-        const hintId    = `${name}-hint`;
-        const errorId   = `${name}-error`;
-        const noticeId  = `${name}-copy-notice`;
-        const selected  = flat.find(o => String(o.value) === String(field.value ?? '')) ?? null;
+        const error    = fieldState.error?.message;
+        const hintId   = `${name}-hint`;
+        const errorId  = `${name}-error`;
+        const noticeId = `${name}-copy-notice`;
+        const selected = flat.find(o => String(o.value) === String(field.value ?? '')) ?? null;
+
         return (
-          <div className={['form-field fg', error ? 'err' : '', required ? 'req' : ''].filter(Boolean).join(' ')}>
+          <div
+            className={['form-field fg', error ? 'err' : '', required ? 'req' : ''].filter(Boolean).join(' ')}
+            data-nocopy={noCopy || undefined}
+            onCopy={noCopy ? handleClipboard : undefined}
+            onCut={noCopy ? handleClipboard : undefined}
+            onDragStart={noCopy ? handleDragStart : undefined}
+            onContextMenu={noCopy && blockContextMenu ? handleContextMenu : undefined}
+          >
             <label htmlFor={`${name}-input`} className="field-label">
               {label}
               {required && <span className="req-mark" aria-hidden="true">*</span>}
@@ -137,35 +159,55 @@ export function FormSelect({
               )}
             </label>
 
-            <SearchableSelect
-              inputId={`${name}-input`}
-              flat={flat}
-              options={options}
-              selected={selected}
-              placeholder={placeholder ?? 'Select…'}
-              disabled={isDisabled}
-              locked={isLocked}
-              masked={isMasked}
-              noCopy={noCopy}
-              blockContextMenu={blockContextMenu}
-              onCopyBlocked={flagBlocked}
-              allowClear={allowClear}
-              hasError={!!error}
-              aria-describedby={[error ? errorId : '', hint && !error ? hintId : ''].filter(Boolean).join(' ') || undefined}
-              onSelect={opt => {
-                const v = opt ? opt.value : '';
-                field.onChange(v);
-                field.onBlur();
-                onChange?.(String(v));
-              }}
-              onClear={() => {
-                field.onChange('');
-                field.onBlur();
-                onChange?.('');
-              }}
-            />
+            {isLocked ? (
+              // Locked / masked: render a static control-styled value — no listbox
+              // is ever mounted, so a restricted label can't be opened or navigated.
+              <div
+                id={`${name}-input`}
+                aria-readonly="true"
+                style={{
+                  display: 'flex', alignItems: 'center', minHeight: 38,
+                  border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+                  background: 'var(--surface2)', padding: '0 10px',
+                  fontSize: 13, color: selected ? 'var(--ink)' : 'var(--ink4)',
+                  ...(noCopy ? { userSelect: 'none' as const, WebkitUserSelect: 'none' as const } : {}),
+                }}
+              >
+                {isFullMask
+                  ? (selected ? MASK : (placeholder ?? 'Select…'))
+                  : isPartialMask
+                    ? (selected ? maskPartial(selected.label) : (placeholder ?? 'Select…'))
+                    : (selected?.label ?? (placeholder ?? 'Select…'))}
+              </div>
+            ) : (
+              <Dropdown
+                inputId={`${name}-input`}
+                value={field.value ?? ''}
+                options={pOptions as any}
+                optionLabel="label"
+                optionValue="value"
+                optionDisabled="disabled"
+                {...(grouped
+                  ? { optionGroupLabel: 'group', optionGroupChildren: 'options' }
+                  : {})}
+                placeholder={placeholder ?? 'Select…'}
+                filter
+                showClear={allowClear && !!field.value}
+                disabled={isDisabled}
+                className="w-full"
+                style={{ width: '100%' }}
+                aria-describedby={[error ? errorId : '', hint && !error ? hintId : ''].filter(Boolean).join(' ') || undefined}
+                onChange={(e) => {
+                  const v = e.value ?? '';
+                  field.onChange(v);
+                  field.onBlur();
+                  onChange?.(String(v));
+                }}
+                onBlur={field.onBlur}
+              />
+            )}
 
-            {hint  && !error && <p id={hintId}  className="field-hint">{hint}</p>}
+            {hint  && !error && <p id={hintId} className="field-hint">{hint}</p>}
             {copyBlocked && (
               <p id={noticeId} className="field-hint" role="status" aria-live="polite">
                 Copying is disabled for this field.
@@ -176,347 +218,5 @@ export function FormSelect({
         );
       }}
     />
-  );
-}
-
-// ─── SearchableSelect (internal, stateful) ─────────────────────────────────────
-interface SSProps {
-  inputId:    string;
-  flat:       FlatOption[];
-  options:    Option[] | OptGroup[];
-  selected:   FlatOption | null;
-  placeholder:string;
-  disabled:   boolean;
-  locked:     boolean;
-  masked:     boolean;
-  noCopy:     boolean;
-  blockContextMenu: boolean;
-  onCopyBlocked: () => void;
-  allowClear: boolean;
-  hasError:   boolean;
-  'aria-describedby'?: string;
-  onSelect:   (opt: FlatOption | null) => void;
-  onClear:    () => void;
-}
-
-function SearchableSelect({
-  inputId, flat, options, selected, placeholder, disabled, locked, masked,
-  noCopy, blockContextMenu, onCopyBlocked,
-  allowClear, hasError, onSelect, onClear, ...rest
-}: SSProps) {
-  const [open,    setOpen]    = useState(false);
-  const [query,   setQuery]   = useState('');
-  const [focused, setFocused] = useState<number>(-1);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef     = useRef<HTMLInputElement>(null);
-  const listRef      = useRef<HTMLUListElement>(null);
-
-  const filtered = filterOptions(flat, query);
-
-  // Close on outside click
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery('');
-      }
-    };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  // A locked field must never be left open (e.g. permissions arriving late)
-  useEffect(() => {
-    if (locked && open) { setOpen(false); setQuery(''); setFocused(-1); }
-  }, [locked, open]);
-
-  // Scroll focused item into view
-  useEffect(() => {
-    if (focused < 0 || !listRef.current) return;
-    const item = listRef.current.querySelectorAll<HTMLLIElement>('[role="option"]')[focused];
-    item?.scrollIntoView({ block: 'nearest' });
-  }, [focused]);
-
-  const openDropdown = useCallback(() => {
-    if (disabled || locked) return;
-    setOpen(true);
-    setQuery('');
-    setFocused(-1);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  }, [disabled, locked]);
-
-  const selectOpt = useCallback((opt: FlatOption) => {
-    if (opt.disabled || locked) return;
-    onSelect(opt);
-    setOpen(false);
-    setQuery('');
-    setFocused(-1);
-  }, [onSelect, locked]);
-
-  // ── Copy guards ────────────────────────────────────────────────────────────
-  // The query the user typed themselves is their own text — only the selected
-  // label (shown when closed) and the option list are restricted.
-  const guardActive = noCopy && !open;
-
-  const handleClipboard = useCallback((e: React.ClipboardEvent) => {
-    if (!noCopy) return;
-    e.preventDefault();
-    e.clipboardData?.setData('text/plain', '');
-    onCopyBlocked();
-  }, [noCopy, onCopyBlocked]);
-
-  const handleDragStart = useCallback((e: React.DragEvent) => {
-    if (!noCopy) return;
-    e.preventDefault();
-    onCopyBlocked();
-  }, [noCopy, onCopyBlocked]);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (!noCopy || !blockContextMenu) return;
-    e.preventDefault();
-    onCopyBlocked();
-  }, [noCopy, blockContextMenu, onCopyBlocked]);
-
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (locked) return;
-    const navigable = filtered.filter(o => !o.disabled);
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (!open) { openDropdown(); return; }
-      setFocused(p => Math.min(p + 1, navigable.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setFocused(p => Math.max(p - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (open && focused >= 0 && navigable[focused]) selectOpt(navigable[focused]);
-      else if (!open) openDropdown();
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-      setQuery('');
-    } else if (e.key === 'Tab') {
-      setOpen(false);
-      setQuery('');
-    }
-  };
-
-  // What the closed control displays. Masked fields never put the real label
-  // in the DOM at all.
-  const displayLabel = masked
-    ? (selected ? MASK : '')
-    : (selected?.label ?? '');
-
-  // ── Styles (match existing design system exactly) ──────────────────────────
-  const controlStyle: React.CSSProperties = {
-    display:        'flex',
-    alignItems:     'center',
-    gap:            6,
-    border:         '1px solid var(--border2)',
-    borderRadius:   'var(--r)',
-    background:     (disabled || locked) ? 'var(--surface2)' : 'var(--surface)',
-    padding:        '0 8px 0 10px',
-    height:         36,
-    cursor:         disabled ? 'not-allowed' : locked ? 'default' : 'pointer',
-    transition:     'border-color .12s',
-    boxShadow:      open ? '0 0 0 2px var(--blue-md)' : 'none',
-    position:       'relative',
-  };
-
-  const inputStyle: React.CSSProperties = {
-    flex:           1,
-    border:         'none',
-    outline:        'none',
-    background:     'transparent',
-    fontSize:       13,
-    fontFamily:     'var(--font)',
-    color:          'var(--ink)',
-    cursor:         disabled ? 'not-allowed' : locked ? 'default' : 'text',
-    minWidth:       0,
-    padding:        0,
-    // Suppress selection only while the control shows a restricted value.
-    // While open the field holds the user's own query, so selection stays on.
-    ...(guardActive ? { userSelect: 'none' as const, WebkitUserSelect: 'none' as const } : {}),
-  };
-
-  const dropdownStyle: React.CSSProperties = {
-    position:       'absolute',
-    top:            'calc(100% + 3px)',
-    left:           0,
-    right:          0,
-    zIndex:         300,
-    background:     'var(--surface)',
-    border:         '1px solid var(--border2)',
-    borderRadius:   'var(--r)',
-    boxShadow:      'var(--sh2)',
-    maxHeight:      240,
-    overflowY:      'auto',
-    padding:        '4px 0',
-  };
-
-  const optionBase: React.CSSProperties = {
-    display:        'flex',
-    alignItems:     'center',
-    padding:        '8px 12px',
-    fontSize:       12,
-    cursor:         'pointer',
-    userSelect:     'none',
-    transition:     'background .08s',
-  };
-
-  const groupHeaderStyle: React.CSSProperties = {
-    padding:        '6px 12px 2px',
-    fontSize:       10,
-    fontWeight:     700,
-    textTransform:  'uppercase',
-    letterSpacing:  '0.07em',
-    color:          'var(--ink4)',
-  };
-
-  // Render the flat filtered list, re-inserting group headers inline
-  function renderOptions() {
-    if (filtered.length === 0) {
-      return (
-        <li style={{ ...optionBase, color: 'var(--ink4)', cursor: 'default', justifyContent: 'center' }}>
-          No options found
-        </li>
-      );
-    }
-
-    const items: React.ReactNode[] = [];
-    let lastGroup: string | undefined = undefined;
-    let navIdx = 0; // tracks index among non-disabled items for keyboard focus
-
-    for (const opt of filtered) {
-      // Insert group header when group changes
-      if (opt.groupLabel !== undefined && opt.groupLabel !== lastGroup) {
-        lastGroup = opt.groupLabel;
-        items.push(
-          <li key={`grp-${opt.groupLabel}`} aria-hidden="true" style={groupHeaderStyle}>
-            {opt.groupLabel}
-          </li>
-        );
-      }
-
-      const isSelected  = selected?.value === opt.value;
-      const myNavIdx    = opt.disabled ? -1 : navIdx;
-      if (!opt.disabled) navIdx++;
-      const isFocused   = myNavIdx >= 0 && focused === myNavIdx;
-
-      items.push(
-        <li
-          key={opt.value}
-          role="option"
-          aria-selected={isSelected}
-          aria-disabled={opt.disabled}
-          onMouseDown={e => { e.preventDefault(); if (!opt.disabled) selectOpt(opt); }}
-          onMouseEnter={() => !opt.disabled && setFocused(myNavIdx)}
-          style={{
-            ...optionBase,
-            background:  isFocused ? 'var(--blue-lt)' : isSelected ? 'var(--surface2)' : 'transparent',
-            color:       opt.disabled ? 'var(--ink4)'
-                          : isSelected ? 'var(--blue)'
-                          : 'var(--ink2)',
-            fontWeight:  isSelected ? 600 : 400,
-            opacity:     opt.disabled ? 0.5 : 1,
-            cursor:      opt.disabled ? 'not-allowed' : 'pointer',
-            paddingLeft: opt.groupLabel ? 20 : 12,
-          }}
-        >
-          {isSelected && <span style={{ marginRight: 6, fontSize: 10, color: 'var(--blue)' }}>✓</span>}
-          {opt.label}
-        </li>
-      );
-    }
-
-    return items;
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ position: 'relative' }}
-      data-nocopy={noCopy || undefined}
-      onCopy={noCopy ? handleClipboard : undefined}
-      onCut={noCopy ? handleClipboard : undefined}
-      onDragStart={noCopy ? handleDragStart : undefined}
-      onContextMenu={noCopy && blockContextMenu ? handleContextMenu : undefined}
-    >
-      {/* ── Control row ── */}
-      <div
-        style={controlStyle}
-        onClick={() => { if (!open && !locked) openDropdown(); }}
-        onKeyDown={handleKey}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-      >
-        {/* Search input — always present, shows selected label when closed */}
-        <input
-          ref={inputRef}
-          id={inputId}
-          type="text"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={open}
-          aria-controls={`${inputId}-list`}
-          aria-readonly={locked || undefined}
-          disabled={disabled}
-          readOnly={locked}
-          style={inputStyle}
-          placeholder={open ? 'Search…' : (selected ? '' : placeholder)}
-          value={open ? query : displayLabel}
-          onFocus={() => { if (!open && !locked) openDropdown(); }}
-          onChange={e => {
-            if (locked) return;
-            setQuery(e.target.value);
-            setFocused(-1);
-            if (!open) setOpen(true);
-          }}
-          autoComplete="off"
-        />
-
-        {/* Clear button */}
-        {allowClear && selected && !disabled && !locked && (
-          <button
-            type="button"
-            tabIndex={-1}
-            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onClear(); }}
-            aria-label="Clear selection"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
-          >
-            ✕
-          </button>
-        )}
-
-        {/* Chevron */}
-        {!locked && (
-          <span
-            aria-hidden="true"
-            style={{
-              fontSize:    9,
-              color:       'var(--ink4)',
-              flexShrink:  0,
-              transform:   open ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition:  'transform .15s',
-              lineHeight:  1,
-            }}
-          >
-            ▼
-          </span>
-        )}
-      </div>
-
-      {/* ── Dropdown ── */}
-      {open && !locked && (
-        <ul
-          ref={listRef}
-          id={`${inputId}-list`}
-          role="listbox"
-          style={dropdownStyle}
-        >
-          {renderOptions()}
-        </ul>
-      )}
-    </div>
   );
 }

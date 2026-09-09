@@ -1812,6 +1812,8 @@ import { AppShell } from '../../../layouts/AppLayout';
 import { StatCard } from '../../../components/ui/StatCard';
 import { Chip, statusToVariant } from '../../../components/ui/Chip';
 import { Modal } from '../../../components/ui/Modal';
+import { DataTable } from '../../../components/ui/DataTable';
+import { Select as UISelect } from '../../../components/ui/Select';
 import { usePermission } from '../../../features/auth/hooks/usePermission';
 import {
   usePendingLeaves,
@@ -1952,8 +1954,25 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} style={{ ...inputBaseStyle, ...props.style }} />;
 }
 
-function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} style={{ ...inputBaseStyle, ...props.style }} />;
+// Backed by the shared PrimeReact <Select>. Keeps the native-select call
+// signature (value + onChange({target:{value}}) + <option> children) so the
+// existing call sites don't change.
+function Select({ value, onChange, style, disabled, children }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  const options = React.Children.toArray(children)
+    .filter((c: any) => c && c.type === 'option')
+    .map((c: any) => ({
+      value: c.props.value ?? '',
+      label: Array.isArray(c.props.children) ? c.props.children.join('') : String(c.props.children ?? ''),
+    }));
+  return (
+    <UISelect
+      value={(value as any) ?? ''}
+      onChange={(v) => onChange?.({ target: { value: v } } as any)}
+      options={options}
+      disabled={disabled}
+      style={style as any}
+    />
+  );
 }
 
 function CheckboxRow({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -2210,38 +2229,32 @@ function OverviewTab({
           ) : pendingCount === 0 ? (
             <div style={{ padding: 24, fontSize: 12, color: 'var(--ink4)' }}>No pending leave requests.</div>
           ) : (
-            <div className="tw">
-              <table>
-                <thead>
-                  <tr>
-                    {['Employee', 'Type', 'Dates', 'Days', 'Reason', ''].map((h) => (
-                      <th key={h} style={{ fontWeight: 500, color: 'var(--ink4)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '0.03em' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingLeaves.map((req: any) => {
+            <DataTable
+              bare
+              minWidth="640px"
+              data={pendingLeaves}
+              rowKey={(req: any) => req.id}
+              columns={[
+                { key: 'employee', header: 'Employee', render: (req: any) => <strong style={{ fontWeight: 500 }}>{[req.employee?.first_name, req.employee?.last_name].filter(Boolean).join(' ') || '—'}</strong> },
+                { key: 'type', header: 'Type', render: (req: any) => <Chip variant={LEAVE_TYPE_VARIANT[req.leaveType?.code ?? ''] ?? 'blue'}>{req.leaveType?.code ?? '—'}</Chip> },
+                { key: 'dates', header: 'Dates', render: (req: any) => <span style={{ color: 'var(--ink3)' }}>{formatDateRange(req.from_date, req.to_date)}</span> },
+                { key: 'days', header: 'Days', render: (req: any) => <span style={{ color: 'var(--ink3)' }}>{req.days}</span> },
+                { key: 'reason', header: 'Reason', render: (req: any) => <span style={{ color: 'var(--ink3)' }}>{req.reason || '—'}</span> },
+                {
+                  key: 'actions', header: '', align: 'right',
+                  render: (req: any) => {
                     const approvingThis = approveLeave.isPending && approveLeave.variables === req.id;
                     const rowBusy = approvingThis || rejectTargetId === req.id;
                     return (
-                      <tr key={req.id}>
-                        <td><strong style={{ fontWeight: 500 }}>{[req.employee?.first_name, req.employee?.last_name].filter(Boolean).join(' ') || '—'}</strong></td>
-                        <td><Chip variant={LEAVE_TYPE_VARIANT[req.leaveType?.code ?? ''] ?? 'blue'}>{req.leaveType?.code ?? '—'}</Chip></td>
-                        <td style={{ color: 'var(--ink3)' }}>{formatDateRange(req.from_date, req.to_date)}</td>
-                        <td style={{ color: 'var(--ink3)' }}>{req.days}</td>
-                        <td style={{ color: 'var(--ink3)' }}>{req.reason || '—'}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 4, opacity: rowBusy ? 0.55 : 1, justifyContent: 'flex-end' }}>
-                            <Chip variant="green" onClick={() => { if (!rowBusy) approveLeave.mutate(req.id); }}>{approvingThis ? '…' : 'Approve'}</Chip>
-                            <Chip variant="red" onClick={() => { if (!rowBusy) setRejectTargetId(req.id); }}>Reject</Chip>
-                          </div>
-                        </td>
-                      </tr>
+                      <div style={{ display: 'flex', gap: 4, opacity: rowBusy ? 0.55 : 1, justifyContent: 'flex-end' }}>
+                        <Chip variant="green" onClick={() => { if (!rowBusy) approveLeave.mutate(req.id); }}>{approvingThis ? '…' : 'Approve'}</Chip>
+                        <Chip variant="red" onClick={() => { if (!rowBusy) setRejectTargetId(req.id); }}>Reject</Chip>
+                      </div>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  },
+                },
+              ]}
+            />
           )}
         </div>
 
@@ -2350,56 +2363,60 @@ function AllRequestsTab({ canApprove, approveLeave, setRejectTargetId }: any) {
       ) : !leaves?.length ? (
         <div style={{ padding: 24, fontSize: 12, color: 'var(--ink4)' }}>No leave requests match.</div>
       ) : (
-        <div className="tw">
-          <table>
-            <thead>
-              <tr>
-                {['Employee', 'Type', 'Dates', 'Days', 'Reason', 'Status', 'Applied', 'Action'].map((h) => (
-                  <th key={h} style={{ fontWeight: 500, color: 'var(--ink4)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '0.03em' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {leaves.map((req: any) => {
+        <DataTable
+          bare
+          minWidth="900px"
+          data={leaves}
+          rowKey={(req: any) => req.id}
+          columns={[
+            {
+              key: 'employee', header: 'Employee',
+              render: (req: any) => (
+                <>
+                  <strong style={{ fontWeight: 500 }}>{[req.employee?.first_name, req.employee?.last_name].filter(Boolean).join(' ') || '—'}</strong>
+                  <div style={{ fontSize: 10.5, color: 'var(--ink4)' }}>{req.ref_no}</div>
+                </>
+              ),
+            },
+            { key: 'type', header: 'Type', render: (req: any) => <Chip variant={LEAVE_TYPE_VARIANT[req.leaveType?.code ?? ''] ?? 'blue'}>{req.leaveType?.code ?? '—'}</Chip> },
+            { key: 'dates', header: 'Dates', render: (req: any) => <span style={{ color: 'var(--ink3)' }}>{formatDateRange(req.from_date, req.to_date)}</span> },
+            {
+              key: 'days', header: 'Days',
+              render: (req: any) => (
+                <span style={{ color: 'var(--ink3)' }}>
+                  {req.leaveType?.unit === 'minutes' ? `${req.minutes} min` : req.days}
+                  {req.sandwich_days > 0 && <span style={{ color: 'var(--amber)', marginLeft: 6, fontSize: 11 }}>sandwich {req.sandwich_days}</span>}
+                </span>
+              ),
+            },
+            { key: 'reason', header: 'Reason', render: (req: any) => <span style={{ color: 'var(--ink3)' }}>{req.reason || '—'}</span> },
+            { key: 'status', header: 'Status', render: (req: any) => <Chip variant={statusToVariant(req.status)}>{req.status}</Chip> },
+            { key: 'applied', header: 'Applied', render: (req: any) => <span style={{ color: 'var(--ink3)' }}>{req.applied_at ? formatDateRange(req.applied_at, req.applied_at) : '—'}</span> },
+            {
+              key: 'action', header: 'Action',
+              render: (req: any) => {
                 const approvingThis = approveLeave.isPending && approveLeave.variables === req.id;
                 const cancellingThis = cancelLeave.isPending && cancelLeave.variables === req.id;
                 return (
-                  <tr key={req.id}>
-                    <td>
-                      <strong style={{ fontWeight: 500 }}>{[req.employee?.first_name, req.employee?.last_name].filter(Boolean).join(' ') || '—'}</strong>
-                      <div style={{ fontSize: 10.5, color: 'var(--ink4)' }}>{req.ref_no}</div>
-                    </td>
-                    <td><Chip variant={LEAVE_TYPE_VARIANT[req.leaveType?.code ?? ''] ?? 'blue'}>{req.leaveType?.code ?? '—'}</Chip></td>
-                    <td style={{ color: 'var(--ink3)' }}>{formatDateRange(req.from_date, req.to_date)}</td>
-                    <td style={{ color: 'var(--ink3)' }}>
-                      {req.leaveType?.unit === 'minutes' ? `${req.minutes} min` : req.days}
-                      {req.sandwich_days > 0 && <span style={{ color: 'var(--amber)', marginLeft: 6, fontSize: 11 }}>sandwich {req.sandwich_days}</span>}
-                    </td>
-                    <td style={{ color: 'var(--ink3)' }}>{req.reason || '—'}</td>
-                    <td><Chip variant={statusToVariant(req.status)}>{req.status}</Chip></td>
-                    <td style={{ color: 'var(--ink3)' }}>{req.applied_at ? formatDateRange(req.applied_at, req.applied_at) : '—'}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        {req.status === 'Pending' && canApprove && (
-                          <>
-                            <a href="#" onClick={(e) => { e.preventDefault(); approveLeave.mutate(req.id); }} style={{ fontSize: 11.5, color: 'var(--blue)' }}>{approvingThis ? '…' : 'Approve'}</a>
-                            <a href="#" onClick={(e) => { e.preventDefault(); setRejectTargetId(req.id); }} style={{ fontSize: 11.5, color: 'var(--blue)' }}>Reject</a>
-                          </>
-                        )}
-                        {['Pending', 'Approved'].includes(req.status) && (
-                          <a href="#" onClick={(e) => { e.preventDefault(); if (!cancellingThis) cancelLeave.mutate(req.id); }} style={{ fontSize: 11.5, color: 'var(--blue)' }}>
-                            {cancellingThis ? '…' : 'Cancel'}
-                          </a>
-                        )}
-                        {!(req.status === 'Pending' || req.status === 'Approved') && <span style={{ color: 'var(--ink4)' }}>—</span>}
-                      </div>
-                    </td>
-                  </tr>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {req.status === 'Pending' && canApprove && (
+                      <>
+                        <a href="#" onClick={(e) => { e.preventDefault(); approveLeave.mutate(req.id); }} style={{ fontSize: 11.5, color: 'var(--blue)' }}>{approvingThis ? '…' : 'Approve'}</a>
+                        <a href="#" onClick={(e) => { e.preventDefault(); setRejectTargetId(req.id); }} style={{ fontSize: 11.5, color: 'var(--blue)' }}>Reject</a>
+                      </>
+                    )}
+                    {['Pending', 'Approved'].includes(req.status) && (
+                      <a href="#" onClick={(e) => { e.preventDefault(); if (!cancellingThis) cancelLeave.mutate(req.id); }} style={{ fontSize: 11.5, color: 'var(--blue)' }}>
+                        {cancellingThis ? '…' : 'Cancel'}
+                      </a>
+                    )}
+                    {!(req.status === 'Pending' || req.status === 'Approved') && <span style={{ color: 'var(--ink4)' }}>—</span>}
+                  </div>
                 );
-              })}
-            </tbody>
-          </table>
-        </div>
+              },
+            },
+          ]}
+        />
       )}
     </div>
   );
@@ -2436,31 +2453,27 @@ function BalancesTab({ hasApprovePermission, myBalances }: any) {
       ) : !companyBalances?.length ? (
         <div style={{ padding: 24, fontSize: 12, color: 'var(--ink4)' }}>No employees found.</div>
       ) : (
-        <div className="tw">
-          <table>
-            <thead>
-              <tr>
-                {['Employee', 'EL', 'CL', 'Special', 'Short Leave (this month)'].map((h) => (
-                  <th key={h} style={{ fontWeight: 500, color: 'var(--ink4)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '0.03em' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {companyBalances.map((row: any) => (
-                <tr key={row.employee_id}>
-                  <td>
-                    <strong style={{ fontWeight: 500 }}>{row.name}</strong>
-                    <div style={{ fontSize: 10.5, color: 'var(--ink4)' }}>{row.employee_code}</div>
-                  </td>
-                  <td>{row.EL}</td>
-                  <td>{row.CL}</td>
-                  <td style={{ color: row.SPECIAL > 0 ? 'var(--blue)' : undefined }}>{row.SPECIAL}</td>
-                  <td>{Math.max(0, row.short_allocated_minutes - row.short_used_minutes)} / {row.short_allocated_minutes} min</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          bare
+          minWidth="640px"
+          data={companyBalances}
+          rowKey={(row: any) => row.employee_id}
+          columns={[
+            {
+              key: 'employee', header: 'Employee',
+              render: (row: any) => (
+                <>
+                  <strong style={{ fontWeight: 500 }}>{row.name}</strong>
+                  <div style={{ fontSize: 10.5, color: 'var(--ink4)' }}>{row.employee_code}</div>
+                </>
+              ),
+            },
+            { key: 'EL', header: 'EL', render: (row: any) => <>{row.EL}</> },
+            { key: 'CL', header: 'CL', render: (row: any) => <>{row.CL}</> },
+            { key: 'special', header: 'Special', render: (row: any) => <span style={{ color: row.SPECIAL > 0 ? 'var(--blue)' : undefined }}>{row.SPECIAL}</span> },
+            { key: 'short', header: 'Short Leave (this month)', render: (row: any) => <>{Math.max(0, row.short_allocated_minutes - row.short_used_minutes)} / {row.short_allocated_minutes} min</> },
+          ]}
+        />
       )}
     </div>
   );
@@ -2526,50 +2539,34 @@ function HolidaysSpecialTab({ canManage, holidays, holidaysLoading, managedEmplo
             </button>
           </div>
         )}
-        <div className="tw">
-          <table>
-            <thead>
-              <tr>
-                <th style={{ fontWeight: 500, color: 'var(--ink4)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '0.03em' }}>Date</th>
-                <th style={{ fontWeight: 500, color: 'var(--ink4)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '0.03em' }}>Name</th>
-                <th style={{ fontWeight: 500, color: 'var(--ink4)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '0.03em' }}>Status</th>
-                {canManage && <th style={{ fontWeight: 500, color: 'var(--ink4)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '0.03em' }}></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedHolidays.map((h: Holiday) => {
+        <DataTable
+          bare
+          minWidth="440px"
+          data={sortedHolidays}
+          isLoading={holidaysLoading && !sortedHolidays.length}
+          rowKey={(h: Holiday) => h.id}
+          emptyText="No holidays configured."
+          columns={[
+            { key: 'date', header: 'Date', render: (h: Holiday) => <>{formatDateRange(h.date, h.date)}</> },
+            { key: 'name', header: 'Name', render: (h: Holiday) => <strong style={{ fontWeight: 500 }}>{h.name}</strong> },
+            { key: 'status', header: 'Status', render: (h: Holiday) => <Chip variant={h.date >= todayIso ? 'green' : 'gray'}>{h.date >= todayIso ? 'Upcoming' : 'Past'}</Chip> },
+            ...(canManage ? [{
+              key: 'action', header: '',
+              render: (h: Holiday) => {
                 const removingThis = deleteHoliday.isPending && deleteHoliday.variables === h.id;
                 return (
-                  <tr key={h.id} style={{ opacity: removingThis ? 0.5 : 1 }}>
-                    <td>{formatDateRange(h.date, h.date)}</td>
-                    <td><strong style={{ fontWeight: 500 }}>{h.name}</strong></td>
-                    <td>
-                      <Chip variant={h.date >= todayIso ? 'green' : 'gray'}>{h.date >= todayIso ? 'Upcoming' : 'Past'}</Chip>
-                    </td>
-                    {canManage && (
-                      <td>
-                        <a
-                          href="#"
-                          onClick={(e) => { e.preventDefault(); if (!removingThis) deleteHoliday.mutate(h.id); }}
-                          style={{ fontSize: 11.5, color: 'var(--blue)', pointerEvents: removingThis ? 'none' : 'auto' }}
-                        >
-                          {removingThis ? 'Removing…' : 'Remove'}
-                        </a>
-                      </td>
-                    )}
-                  </tr>
+                  <a
+                    href="#"
+                    onClick={(e) => { e.preventDefault(); if (!removingThis) deleteHoliday.mutate(h.id); }}
+                    style={{ fontSize: 11.5, color: 'var(--blue)', pointerEvents: removingThis ? 'none' : 'auto' }}
+                  >
+                    {removingThis ? 'Removing…' : 'Remove'}
+                  </a>
                 );
-              })}
-              {!sortedHolidays.length && (
-                <tr>
-                  <td colSpan={canManage ? 4 : 3} style={{ padding: 20, color: 'var(--ink4)', fontSize: 12 }}>
-                    {holidaysLoading ? 'Loading…' : 'No holidays configured.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              },
+            }] : []),
+          ]}
+        />
       </div>
 
       <div className="card">
@@ -2675,43 +2672,27 @@ function HolidaysSpecialTab({ canManage, holidays, holidaysLoading, managedEmplo
         <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', fontSize: 12.5, fontWeight: 600, color: 'var(--ink2)' }}>
           Credit history
         </div>
-        <div className="tw">
-          <table>
-            <thead>
-              <tr>
-                {['Employee', 'Holiday', 'Days', 'Note'].map((h) => (
-                  <th key={h} style={{ fontWeight: 500, color: 'var(--ink4)', textTransform: 'uppercase', fontSize: 10.5, letterSpacing: '0.03em' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(credits ?? []).map((c: any) => {
+        <DataTable
+          bare
+          minWidth="480px"
+          data={credits ?? []}
+          rowKey={(c: any) => c.id}
+          emptyText="No special leave credits yet."
+          columns={[
+            {
+              key: 'employee', header: 'Employee',
+              render: (c: any) => {
                 const emp = managedEmployees.find((e: any) => e.id === c.employee_id);
-                return (
-                  <tr key={c.id}>
-                    <td>
-                      {emp
-                        ? [
-                          emp.first_name,
-                          emp.middle_name,
-                          emp.last_name,
-                        ]
-                          .filter(Boolean)
-                          .join(' ')
-                        : `#${c.employee_id}`}
-                    </td>
-                    <td>{formatDateRange(c.credit_date, c.credit_date)}{c.holiday_name ? ` · ${c.holiday_name}` : ''}</td>
-                    <td>{c.days}</td>
-                    <td style={{ color: 'var(--ink3)' }}>{c.note || '—'}</td>
-                  </tr>
-                );
-              })}
-              {!credits?.length && (
-                <tr><td colSpan={4} style={{ padding: 20, color: 'var(--ink4)', fontSize: 12 }}>No special leave credits yet.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                return emp
+                  ? [emp.first_name, emp.middle_name, emp.last_name].filter(Boolean).join(' ')
+                  : `#${c.employee_id}`;
+              },
+            },
+            { key: 'holiday', header: 'Holiday', render: (c: any) => <>{formatDateRange(c.credit_date, c.credit_date)}{c.holiday_name ? ` · ${c.holiday_name}` : ''}</> },
+            { key: 'days', header: 'Days', render: (c: any) => <>{c.days}</> },
+            { key: 'note', header: 'Note', render: (c: any) => <span style={{ color: 'var(--ink3)' }}>{c.note || '—'}</span> },
+          ]}
+        />
       </div>
     </div>
   );

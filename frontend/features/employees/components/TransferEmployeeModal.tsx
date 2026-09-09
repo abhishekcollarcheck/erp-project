@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import { useTransferEmployee } from '../hooks/useEmployees';
 import { useCompany } from '../../company/hooks/useCompany';
 import { showToast } from '../../../utils/toast';
@@ -64,6 +65,13 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
   });
 
   const selectedDepartmentId = watch('new_department_id');
+
+  // Bridge react-hook-form onto the PrimeReact <Select>. The zod schema already
+  // coerces '' → undefined and strings → numbers at submit time.
+  const bindSelect = (name: keyof FormData) => ({
+    value: (watch(name) as any) ?? '',
+    onChange: (v: any) => setValue(name, v as any, { shouldValidate: true, shouldDirty: true }),
+  });
 
   // Same rule as the Employee wizard: a Sub Department only shows for the
   // Department(s) it's mapped to, plus any flagged "all departments".
@@ -153,12 +161,11 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
 
         <div className="fg">
           <label>New Company *</label>
-          <select {...register('new_company_id')}>
-            <option value="">Select company</option>
-            {destCompanies.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <Select
+            {...bindSelect('new_company_id')}
+            options={destCompanies.map((c: any) => ({ value: c.id, label: c.name }))}
+            placeholder="Select company"
+          />
           {errors.new_company_id && <span className="err">{errors.new_company_id.message as string}</span>}
         </div>
 
@@ -170,34 +177,50 @@ export function TransferEmployeeModal({ open, onClose, employee }: Props) {
 
         <div className="fg">
           <label>New Department</label>
-          <select {...register('new_department_id', { onChange: () => setValue('new_sub_department_id', undefined) })}>
-            <option value="">Select department</option>
-            {departmentOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-          </select>
+          <Select
+            value={(watch('new_department_id') as any) ?? ''}
+            onChange={(v) => {
+              setValue('new_department_id', v as any, { shouldValidate: true, shouldDirty: true });
+              setValue('new_sub_department_id', undefined);
+            }}
+            options={departmentOpts}
+            placeholder="Select department"
+            filter
+            showClear
+          />
         </div>
 
         <div className="fg">
           <label>New Sub Department</label>
-          <select {...register('new_sub_department_id')}>
-            <option value="">Select sub department</option>
-            {subDepartmentOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-          </select>
+          <Select
+            {...bindSelect('new_sub_department_id')}
+            options={subDepartmentOpts}
+            placeholder="Select sub department"
+            filter
+            showClear
+          />
         </div>
 
         <div className="fg">
           <label>New Designation</label>
-          <select {...register('new_designation_id')}>
-            <option value="">Select designation</option>
-            {designationOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-          </select>
+          <Select
+            {...bindSelect('new_designation_id')}
+            options={designationOpts}
+            placeholder="Select designation"
+            filter
+            showClear
+          />
         </div>
 
         <div className="fg">
           <label>New Working Site</label>
-          <select {...register('new_working_site')}>
-            <option value="">Select site</option>
-            {siteOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-          </select>
+          <Select
+            {...bindSelect('new_working_site')}
+            options={siteOpts}
+            placeholder="Select site"
+            filter
+            showClear
+          />
         </div>
 
       </div>

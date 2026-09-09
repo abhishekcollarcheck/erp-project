@@ -5,6 +5,8 @@ import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { Pencil, X, Plus } from 'lucide-react';
 import { Chip } from '@/components/ui/Chip';
+import { DataTable, type Column } from '@/components/ui/DataTable';
+import { Select } from '@/components/ui/Select';
 import {
   useWeeklyOffs,
   useCreateWeeklyOff,
@@ -168,6 +170,25 @@ export default function WeeklyOffsPage() {
     );
   }, [rawPresets, filterText]);
 
+  const presetColumns: Column<WeeklyOffPreset>[] = [
+    { key: 'name', header: 'Preset', render: (p) => <strong>{p.name}</strong> },
+    { key: 'always', header: 'Always Off', render: (p) => <>{formatAlwaysOff(p.always_off)}</> },
+    { key: 'nth', header: 'Nth-of-Month', render: (p) => <>{formatNthRules(p.nth_off_rules)}</> },
+    {
+      key: 'actions', header: 'Actions', align: 'right',
+      render: (preset) => (
+        <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleStartEdit(preset)}>
+            <Pencil size={13} />
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => handleDelete(preset.id)}>
+            <X size={14} />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <AppShell>
       <MasterDataLayout>
@@ -248,9 +269,11 @@ export default function WeeklyOffsPage() {
                     </div>
 
                     <div className="fg" style={{ margin: 0 }}>
-                      <select value={rule.day} onChange={(e) => handleUpdateNthRuleDay(idx, e.target.value as WeekDay)}>
-                        {DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
-                      </select>
+                      <Select
+                        value={rule.day}
+                        onChange={(v) => handleUpdateNthRuleDay(idx, v as WeekDay)}
+                        options={DAYS.map((d) => ({ value: d, label: d }))}
+                      />
                     </div>
 
                     <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => handleRemoveNthRule(idx)}>
@@ -275,53 +298,23 @@ export default function WeeklyOffsPage() {
             </div>
           </div>
 
-          <div className="card cp">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
-              <div className="search-bar" style={{ maxWidth: 220 }}>
-                <span style={{ color: 'var(--ink4)' }}>⌕</span>
-                <input type="text" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter presets..." />
-              </div>
-              <Chip variant="gray">{filteredPresets.length}</Chip>
-            </div>
-
-            <div className="tw">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Preset</th>
-                    <th>Always Off</th>
-                    <th>Nth-of-Month</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--ink4)' }}>Loading presets...</td></tr>
-                  ) : filteredPresets.length === 0 ? (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--ink4)' }}>No presets found.</td></tr>
-                  ) : (
-                    filteredPresets.map((preset) => (
-                      <tr key={preset.id}>
-                        <td><strong>{preset.name}</strong></td>
-                        <td>{formatAlwaysOff(preset.always_off)}</td>
-                        <td>{formatNthRules(preset.nth_off_rules)}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleStartEdit(preset)}>
-                              <Pencil size={13} />
-                            </button>
-                            <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => handleDelete(preset.id)}>
-                              <X size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            columns={presetColumns}
+            data={filteredPresets}
+            isLoading={isLoading}
+            rowKey={(p) => p.id}
+            minWidth="560px"
+            emptyText="No presets found."
+            toolbar={
+              <>
+                <div className="search-bar" style={{ maxWidth: 220 }}>
+                  <span style={{ color: 'var(--ink4)' }}>⌕</span>
+                  <input type="text" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter presets..." />
+                </div>
+                <Chip variant="gray">{filteredPresets.length}</Chip>
+              </>
+            }
+          />
         </div>
       </MasterDataLayout>
     </AppShell>

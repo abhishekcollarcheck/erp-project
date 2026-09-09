@@ -517,6 +517,7 @@ import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import { useHireCandidate } from '../hooks/useCandidates';
 import { useDepartments } from '../../departments/hooks/useDepartments';
 import { useDesignations } from '../../designation/hooks/useDesignations';
@@ -569,6 +570,15 @@ export function HireCandidateModal({ open, onClose, candidate }: Props) {
   });
 
   const selectedDeptId = watch('department_id');
+
+  // react-hook-form → PrimeReact <Select> bridge
+  const sel = (name: keyof FormData) => ({
+    value: (watch(name) as any) ?? '',
+    onChange: (v: any) =>
+      setValue(name, (v === '' || v == null ? undefined : v) as any, {
+        shouldValidate: true, shouldDirty: true,
+      }),
+  });
 
   // ─── Data Queries ───────────────────────────────────────────────────────
   // Fetch active departments using your actual hook
@@ -700,55 +710,46 @@ export function HireCandidateModal({ open, onClose, candidate }: Props) {
         {/* Department Select */}
         <div className="fg">
           <label>Department *</label>
-          <select
-            {...register('department_id', { valueAsNumber: true })}
+          <Select
+            value={(watch('department_id') as any) ?? ''}
+            onChange={(v) => {
+              setValue('department_id', (v === '' || v == null ? undefined : v) as any, { shouldValidate: true, shouldDirty: true });
+              setValue('designation_id', undefined as any, { shouldDirty: true });
+            }}
             disabled={loadingDepartments}
-          >
-            <option value="">
-              {loadingDepartments ? 'Loading departments…' : '— Select department —'}
-            </option>
-            {deptOptions.map((d) => (
-              <option key={d.value} value={d.value}>
-                {d.label}
-              </option>
-            ))}
-          </select>
+            filter
+            placeholder={loadingDepartments ? 'Loading departments…' : '— Select department —'}
+            options={deptOptions.map((d) => ({ value: d.value, label: d.label }))}
+          />
           {errors.department_id && <span className="err">{errors.department_id.message}</span>}
         </div>
 
         {/* Designation Select */}
         <div className="fg">
           <label>Designation *</label>
-          <select
-            {...register('designation_id', { valueAsNumber: true })}
+          <Select
+            {...sel('designation_id')}
             disabled={!selectedDeptId || loadingDesignations}
-          >
-            <option value="">
-              {!selectedDeptId
+            filter
+            placeholder={
+              !selectedDeptId
                 ? '— Select department first —'
                 : loadingDesignations
                 ? 'Loading designations…'
-                : '— Select designation —'}
-            </option>
-            {filteredDesignations.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+                : '— Select designation —'
+            }
+            options={filteredDesignations.map((d) => ({ value: d.id, label: d.name }))}
+          />
           {errors.designation_id && <span className="err">{errors.designation_id.message}</span>}
         </div>
 
         {/* Employment Type */}
         <div className="fg">
           <label>Employment Type *</label>
-          <select {...register('employment_type')}>
-            {['Full-time', 'Part-time', 'Contract', 'Intern'].map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          <Select
+            {...sel('employment_type')}
+            options={['Full-time', 'Part-time', 'Contract', 'Intern'].map((t) => ({ value: t, label: t }))}
+          />
           {errors.employment_type && <span className="err">{errors.employment_type.message}</span>}
         </div>
 
@@ -767,14 +768,16 @@ export function HireCandidateModal({ open, onClose, candidate }: Props) {
               — optional
             </span>
           </label>
-          <select {...register('reporting_manager_id', { valueAsNumber: true })}>
-            <option value="">— None —</option>
-            {managers.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.first_name} {m.last_name} · {m.email || m.employee_code}
-              </option>
-            ))}
-          </select>
+          <Select
+            {...sel('reporting_manager_id')}
+            filter
+            showClear
+            placeholder="— None —"
+            options={managers.map((m) => ({
+              value: m.id,
+              label: `${m.first_name} ${m.last_name} · ${m.email || m.employee_code}`,
+            }))}
+          />
         </div>
       </div>
 

@@ -11,6 +11,7 @@ import { useAppDispatch } from '../../../store';
 import { setPageTitle } from '../../../store/slices/uiSlice';
 import { AppShell } from '../../../layouts/AppLayout';
 import { DataTable, type Column } from '../../../components/ui/DataTable';
+import { Select } from '../../../components/ui/Select';
 import { Chip } from '../../../components/ui/Chip';
 import { StatCard } from '../../../components/ui/StatCard';
 import { Modal } from '../../../components/ui/Modal';
@@ -44,6 +45,9 @@ export default function EmployeesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [transferTarget, setTransferTarget] = useState<Employee | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [selected, setSelected] = useState<Employee[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const { data: departments = [] } = useDepartments({ is_active: 'true' } as any);
   const { data: employeeTypes = [] } = useEmployeeTypes();
@@ -87,6 +91,19 @@ export default function EmployeesPage() {
     } catch (err: any) {
       showToast(err?.message || 'Failed to remove employee');
     }
+  };
+
+  // ── Bulk delete (loops the existing single-delete mutation) ────────────────
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    let ok = 0;
+    for (const emp of selected) {
+      try { await deleteMutation.mutateAsync(Number(emp.id)); ok++; } catch { /* keep going */ }
+    }
+    setBulkDeleting(false);
+    setBulkDeleteOpen(false);
+    setSelected([]);
+    showToast(`Removed ${ok} of ${selected.length} employee${selected.length === 1 ? '' : 's'}`);
   };
 
   // ── Completion badge ──────────────────────────────────────────────────────
@@ -200,27 +217,33 @@ export default function EmployeesPage() {
         </span>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select className="filter-select" value={deptFilter}
-          onChange={e => { setDeptFilter(e.target.value); setPage(1); }}
-          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
-          <option value="">All Departments</option>
-          {departmentOpts.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-        </select>
+        <Select
+          value={deptFilter}
+          onChange={v => { setDeptFilter(String(v)); setPage(1); }}
+          options={departmentOpts}
+          allLabel="All Departments"
+          filter
+          ariaLabel="Filter by department"
+        />
 
-        <select className="filter-select" value={statusFilter}
-          onChange={e => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
-          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
-          <option value="">All Status</option>
-          <option value="Draft">Draft (incomplete profile)</option>
-          {employeeStatusNames.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <Select
+          value={statusFilter}
+          onChange={v => { setStatusFilter(v as StatusFilter); setPage(1); }}
+          options={[
+            { value: 'Draft', label: 'Draft (incomplete profile)' },
+            ...employeeStatusNames.map((s: string) => ({ value: s, label: s })),
+          ]}
+          allLabel="All Status"
+          ariaLabel="Filter by status"
+        />
 
-        <select className="filter-select" value={typeFilter}
-          onChange={e => { setTypeFilter(e.target.value as EmpTypeFilter); setPage(1); }}
-          style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}>
-          <option value="">All Types</option>
-          {employeeTypeNames.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <Select
+          value={typeFilter}
+          onChange={v => { setTypeFilter(v as EmpTypeFilter); setPage(1); }}
+          options={employeeTypeNames.map((t: string) => ({ value: t, label: t }))}
+          allLabel="All Types"
+          ariaLabel="Filter by type"
+        />
 
         <div className="search-bar">
           <span style={{ color: 'var(--ink4)' }}>⌕</span>
@@ -293,6 +316,21 @@ export default function EmployeesPage() {
           total={data?.meta?.total}
           limit={20}
           onPageChange={setPage}
+          minWidth="1000px"
+          selectable={canDelete('employees')}
+          selection={selected}
+          onSelectionChange={setSelected}
+          selectionBar={(rows, clear) => (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10,
+              background: 'var(--surface2)', border: '1px solid var(--border)',
+              borderRadius: 'var(--r)', padding: '7px 12px',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{rows.length} selected</span>
+              <button className="btn btn-danger btn-sm" onClick={() => setBulkDeleteOpen(true)}>Remove</button>
+              <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
+            </div>
+          )}
           // onRowClick={row => router.push(`/employees/${row.id}`)}
           emptyText="No employees found. Add your first employee to get started."
         />
@@ -316,6 +354,25 @@ export default function EmployeesPage() {
         <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)' }}>
           ⚠ Soft delete — record is preserved in audit logs and can be restored by an Admin.
           Portal access will be revoked immediately.
+        </div>
+      </Modal>
+
+      <Modal
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        title="Remove Employees"
+        subtitle={`Remove ${selected.length} selected employee${selected.length === 1 ? '' : 's'}?`}
+        footer={
+          <>
+            <button className="btn btn-sec" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>Cancel</button>
+            <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkDeleting}>
+              {bulkDeleting ? 'Removing…' : `Yes, Remove ${selected.length}`}
+            </button>
+          </>
+        }
+      >
+        <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)' }}>
+          ⚠ Soft delete — records are preserved in audit logs and can be restored by an Admin.
         </div>
       </Modal>
 

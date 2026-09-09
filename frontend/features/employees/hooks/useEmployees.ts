@@ -10,25 +10,10 @@ import { selectActiveCompanyId } from '../../../store/slices/authSlice';
 import { useAppSelector } from '../../../store';
 import { StepSchemaKey } from '../validations/employee.schema';
 
-// const DENY_ALL = { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
-
-const FULL_ACCESS = {
-  can_view: true,
-  can_edit: true,
-  can_copy: true,
-  can_download: true,
-  is_masked: false,
-};
-
-const DENY_ALL = {
-  can_view: false,
-  can_edit: false,
-  can_copy: false,
-  can_download: false,
-  is_masked: false,
-};
-
-
+// Field-permission resolution now lives in ./useFieldPerm. Re-exported here so
+// existing `import { resolveFieldPerm } from '../../hooks/useEmployees'` keep
+// working; new code should pull useFieldPerm() from ./useFieldPerm directly.
+export { resolveFieldPerm, useFieldPerm, FieldPermProvider } from './useFieldPerm';
 
 
 // ─── Query key factory ────────────────────────────────────────────────────────
@@ -241,21 +226,3 @@ export function useUploadExtraDocument(employeeId: number) {
   });
 }
 
-export function resolveFieldPerm(
-  fp: Record<string, {
-    can_view: boolean;
-    can_edit: boolean;
-    can_copy: boolean;
-    can_download: boolean;
-    is_masked: boolean;
-  }> | undefined,
-  fieldName: string,
-) {
-  const TEMP_FULL_ACCESS = true;
-
-  if (TEMP_FULL_ACCESS) {
-    return FULL_ACCESS;
-  }
-
-  return fp?.[fieldName] ?? DENY_ALL;
-}

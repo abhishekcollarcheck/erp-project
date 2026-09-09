@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Check, Loader2, Sparkles } from 'lucide-react';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { candidateService } from '../../../services/api/candidate.service';
 import { useCandidate } from '../hooks/useCandidates';
@@ -128,6 +129,7 @@ const schema = z.object({
   job_type: z.preprocess(emptyToUndefined, z.string().trim().max(40).optional()),
   job_code: z.preprocess(emptyToUndefined, z.string().trim().max(40).optional()),
   job_description: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
+  skills_csv: z.preprocess(emptyToUndefined, z.string().trim().max(600).optional()),
 
   current_salary: z.preprocess(
     numberOrUndefined,
@@ -235,7 +237,7 @@ const STEPS: { key: string; label: string; sub: string; fields: FieldName[] }[] 
   {
     key: 'opportunity', label: 'Opportunity', sub: 'Role & pay',
     fields: ['apply_department', 'apply_designation',
-      'job_title', 'job_location', 'job_type', 'job_code', 'job_description',
+      'job_title', 'job_location', 'job_type', 'job_code', 'job_description', 'skills_csv',
       'current_salary', 'expected_salary',
       'currently_working', 'notice_period', 'serving_notice_period', 'last_working_day',
       'immediate_joiner', 'expected_joining_date', 'own_vehicle', 'vehicle_car', 'vehicle_bike', 'vehicle_scooty'],
@@ -310,8 +312,15 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
   const { data: currentCities = [] } = useCities(currentStateId ? { state_id: currentStateId } : undefined);
   const { data: permCities = [] } = useCities(permStateId ? { state_id: permStateId } : undefined);
 
-  const currentStateReg = register('current_state_id', { valueAsNumber: true });
-  const permStateReg = register('perm_state_id', { valueAsNumber: true });
+  // react-hook-form → PrimeReact <Select> bridge (mirrors register + valueAsNumber
+  // behavior: option values carry the correct primitive type already).
+  const sel = (name: any) => ({
+    value: (watch(name) as any) ?? '',
+    onChange: (v: any) =>
+      setValue(name, (v === '' || v == null ? undefined : v) as any, {
+        shouldValidate: true, shouldDirty: true,
+      }),
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -365,6 +374,7 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
       job_type: src.job_type ?? undefined,
       job_code: src.job_code ?? undefined,
       job_description: src.job_description ?? undefined,
+      skills_csv: toStringArray(src?.skills).join(', ') || undefined,
       current_salary: src.current_salary ?? undefined,
       expected_salary: src.expected_salary ?? undefined,
 
@@ -498,6 +508,10 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         job_type: data.job_type || null,
         job_code: data.job_code || null,
         job_description: data.job_description || null,
+        skills: (() => {
+          const s = (data.skills_csv || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 30);
+          return s.length ? s : null;
+        })(),
         current_salary: data.current_salary ?? null,
         expected_salary: data.expected_salary ?? null,
 
@@ -703,26 +717,38 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
             </div>
             <div className="fg"><label>Email <i className="cfm-req">*</i></label><input type="email" placeholder="e.g. priya@gmail.com" {...register('email')} /><Err f="email" /></div>
             <div className="fg"><label>Phone <i className="cfm-req">*</i></label><input type="tel" placeholder="e.g. +91 98765 43210" {...register('phone_number')} /><Err f="phone_number" /></div>
-            <div className="fg"><label>Gender</label><select {...register('gender')}><option value="">— Select —</option><option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option></select></div>
+            <div className="fg"><label>Gender</label>
+              <Select
+                {...sel('gender')}
+                placeholder="— Select —"
+                options={['Male', 'Female', 'Other', 'Prefer not to say'].map(g => ({ value: g, label: g }))}
+              />
+            </div>
             <div className="fg"><label>Date of Birth</label><input type="date" {...register('date_of_birth')} /></div>
 
             <Section title="Location" />
             <div className="fg">
               <label>Current State</label>
-              <select
-                {...currentStateReg}
-                onChange={e => { currentStateReg.onChange(e); setValue('current_city_id', undefined, { shouldDirty: true, shouldValidate: true }); }}
-              >
-                <option value="">— Select —</option>
-                {states.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <Select
+                value={(watch('current_state_id') as any) ?? ''}
+                onChange={(v) => {
+                  setValue('current_state_id', (v === '' || v == null ? undefined : v) as any, { shouldDirty: true, shouldValidate: true });
+                  setValue('current_city_id', undefined, { shouldDirty: true, shouldValidate: true });
+                }}
+                placeholder="— Select —"
+                filter
+                options={states.map((s: any) => ({ value: s.id, label: s.name }))}
+              />
             </div>
             <div className="fg">
               <label>Current City</label>
-              <select {...register('current_city_id', { valueAsNumber: true })} disabled={!currentStateId}>
-                <option value="">{currentStateId ? '— Select —' : 'Select a state first'}</option>
-                {currentCities.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <Select
+                {...sel('current_city_id')}
+                disabled={!currentStateId}
+                filter
+                placeholder={currentStateId ? '— Select —' : 'Select a state first'}
+                options={currentCities.map((c: any) => ({ value: c.id, label: c.name }))}
+              />
             </div>
             <div className="fg cfm-full"><label>Area / Locality</label><input placeholder="e.g. Whitefield, Bengaluru" {...register('location')} /></div>
             <div className="fg">
@@ -736,20 +762,26 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
               <>
                 <div className="fg">
                   <label>Permanent State</label>
-                  <select
-                    {...permStateReg}
-                    onChange={e => { permStateReg.onChange(e); setValue('perm_city_id', undefined, { shouldDirty: true, shouldValidate: true }); }}
-                  >
-                    <option value="">— Select —</option>
-                    {states.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                  <Select
+                    value={(watch('perm_state_id') as any) ?? ''}
+                    onChange={(v) => {
+                      setValue('perm_state_id', (v === '' || v == null ? undefined : v) as any, { shouldDirty: true, shouldValidate: true });
+                      setValue('perm_city_id', undefined, { shouldDirty: true, shouldValidate: true });
+                    }}
+                    placeholder="— Select —"
+                    filter
+                    options={states.map((s: any) => ({ value: s.id, label: s.name }))}
+                  />
                 </div>
                 <div className="fg">
                   <label>Permanent City</label>
-                  <select {...register('perm_city_id', { valueAsNumber: true })} disabled={!permStateId}>
-                    <option value="">{permStateId ? '— Select —' : 'Select a state first'}</option>
-                    {permCities.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <Select
+                    {...sel('perm_city_id')}
+                    disabled={!permStateId}
+                    filter
+                    placeholder={permStateId ? '— Select —' : 'Select a state first'}
+                    options={permCities.map((c: any) => ({ value: c.id, label: c.name }))}
+                  />
                 </div>
               </>
             )}
@@ -763,7 +795,13 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
             <div className="fg"><label>Qualification</label><input placeholder="e.g. e.g. Bachelor's" {...register('qualification')} /></div>
             <div className="fg"><label>Course</label><input placeholder="e.g. e.g. B.E. Computer Science" {...register('course')} /></div>
             <div className="fg"><label>Institute</label><input placeholder="e.g. e.g. ABC Engineering College" {...register('institute')} /></div>
-            <div className="fg"><label>Mode</label><select {...register('edu_mode')}><option value="">— Select —</option><option>Regular</option><option>Non Regular</option><option>Not Applicable</option></select></div>
+            <div className="fg"><label>Mode</label>
+              <Select
+                {...sel('edu_mode')}
+                placeholder="— Select —"
+                options={['Regular', 'Non Regular', 'Not Applicable'].map(m => ({ value: m, label: m }))}
+              />
+            </div>
             <div className="fg"><label>Start Date</label><input type="date" {...register('edu_start_date')} /></div>
             <div className="fg">
               <label>End Date</label>
@@ -830,14 +868,14 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
             <div className="fg"><label>Job Location</label><input type="text" placeholder="e.g. Gurugram" {...register('job_location')} /></div>
             <div className="fg">
               <label>Job Type</label>
-              <select {...register('job_type')}>
-                <option value="">—</option>
-                <option value="On-site">On-site</option>
-                <option value="Hybrid">Hybrid</option>
-                <option value="Remote">Remote</option>
-              </select>
+              <Select
+                {...sel('job_type')}
+                placeholder="—"
+                options={['On-site', 'Hybrid', 'Remote'].map(t => ({ value: t, label: t }))}
+              />
             </div>
             <div className="fg cfm-full"><label>Job Description</label><textarea rows={3} placeholder="What the role involves…" {...register('job_description')} /></div>
+            <div className="fg cfm-full"><label>Skills <span style={{ color: 'var(--ink4)', fontWeight: 400 }}>(comma-separated)</span></label><input type="text" placeholder="e.g. Figma, UX, Prototyping" {...register('skills_csv')} /></div>
 
             <Section title="Compensation & Availability" />
             <div className="fg"><label>Current Salary (₹/mo)</label><input type="number" min="0" placeholder="e.g. 75000" {...register('current_salary', { valueAsNumber: true })} /></div>
@@ -891,18 +929,27 @@ export function CandidateFormModal({ open, onClose, candidate }: Props) {
         {step === 3 && (
           <>
             <Section title="Source" />
-            <div className="fg"><label>Source</label><select {...register('source')}><option value="">— Select —</option>{ALL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+            <div className="fg"><label>Source</label>
+              <Select
+                {...sel('source')}
+                placeholder="— Select —"
+                options={ALL_SOURCES.map(s => ({ value: s, label: s }))}
+              />
+            </div>
             <div className="fg"><label>Internal Employee Referral?</label><SegYesNo value={watch('is_internal_referral')} onChange={v => setValue('is_internal_referral', v, { shouldDirty: true })} /></div>
 
             {isInternalReferral === 'Yes' && (
               <div className="fg cfm-full">
                 <label>Referred By</label>
-                <select {...register('referred_by_employee_id', { valueAsNumber: true })}>
-                  <option value="">— Select employee —</option>
-                  {employees.map((e: any) => (
-                    <option key={e.id} value={e.id}>{e.first_name} {e.last_name} · {e.email || e.employee_code}</option>
-                  ))}
-                </select>
+                <Select
+                  {...sel('referred_by_employee_id')}
+                  filter
+                  placeholder="— Select employee —"
+                  options={employees.map((e: any) => ({
+                    value: e.id,
+                    label: `${e.first_name} ${e.last_name} · ${e.email || e.employee_code}`,
+                  }))}
+                />
               </div>
             )}
             {isInternalReferral === 'No' && (

@@ -47,6 +47,7 @@ export interface CreateCandidateDto {
   job_type?: string | null;
   job_code?: string | null;
   job_description?: string | null;
+  skills?: string[] | null;
   current_salary?: number | null;
   expected_salary?: number | null;
   currently_working?: boolean | null;
@@ -74,6 +75,7 @@ export interface CandidateQueryParams {
   search?: string;
   status?: string;
   source?: string;
+  role?: string;
   min_experience?: number | string;
   max_experience?: number | string;
   sort?: string;

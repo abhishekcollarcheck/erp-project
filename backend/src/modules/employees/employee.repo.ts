@@ -299,10 +299,13 @@ export class EmployeeRepository {
     return Employee.update({ form_completion_pct: pct }, { where: { id }, transaction: t });
   }
 
-  /** Correct a drifted form_completion_pct outside any transaction, without
-   *  bumping updated_at (used by getById's self-heal on read). */
-  async updateCompletionPctSilent(id: number, pct: number) {
-    return Employee.update({ form_completion_pct: pct }, { where: { id }, silent: true });
+  /** Correct a drifted form_completion_pct (and optionally record_status)
+   *  outside any transaction, without bumping updated_at
+   *  (used by getById's self-heal on read). */
+  async updateCompletionPctSilent(id: number, pct: number, recordStatus?: 'Draft' | 'Final') {
+    const patch: Record<string, unknown> = { form_completion_pct: pct };
+    if (recordStatus) patch.record_status = recordStatus;
+    return Employee.update(patch, { where: { id }, silent: true });
   }
 
   /**

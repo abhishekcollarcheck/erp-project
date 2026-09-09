@@ -8,25 +8,26 @@ import {
   computeProbationEndDate, computeRdMaturity, computeAssetDeduction,
   computeCompletionPct, parseDdMmYyyy,
 } from './employee.helper';
-import { FieldPermissionV2, DynamicField } from '../../database/models/FormBuilder';
+import { FieldPermissionV2, DynamicField, FormDefinition, HrModule } from '../../database/models/FormBuilder';
 import { UserGroup } from '../../database/models/PermissionGroups';
 import type {
   EmployeeQueryParams, RoleIdentityDto, LocationAttendanceDto, ManagersWorkContactDto,
   CommitmentProbationDto, SchemesDto, PersonalDto, AddressDto,
   FamilyDto, FamilyMemberDto, EmergencyContactDto, StatutoryDto, BankDto,
   VaccinationDto, DocumentDto, ExperienceEducationDto, SalaryDto, OnboardingDocsDto,
-  FieldPermissionMap, BulkUploadRow, BulkUploadResult,
+  FieldPermissionMap, FieldPermEntry, BulkUploadRow, BulkUploadResult,
 } from './employee.types';
 import type { StepKey } from './employee.constants';
 import { WIZARD_STEPS } from './employee.constants';
 import { SENSITIVE_FIELDS } from './employee.constants';
 import { Transaction } from 'sequelize';
 import { normalizePhone } from '../../utils/normalizeNumber';
+import { maskPartial } from '../../utils/fieldMask';
 import { getEmployeeFieldOverrides } from '../permission-groups/permissionGroupOverrides';
 import { Company } from '../../database/models/Company';
 import { Department } from '../../database/models/Department';
 import { Designation } from '../../database/models/Designation';
-import { FormBuilderService } from '../form-builder/formBuilder.service';
+import { FormBuilderService, permKeyForModule } from '../form-builder/formBuilder.service';
 import { EmployeeLocationAttendance, EmployeeCommitmentProbation } from '../../database/models/Employee';
 
 const fbSvc = new FormBuilderService();
@@ -64,12 +65,14 @@ async function loadFieldPerms(groupIds: number[], companyId: number): Promise<Fi
 
   for (const [fieldKey, rows] of byFieldKey) {
     const can_view = rows.some(r => r.can_view);
+    const can_add = rows.some(r => r.can_add);
     const can_edit = rows.some(r => r.can_edit);
     const can_copy = rows.some(r => r.can_copy);
     const can_download = rows.some(r => r.can_download);
     const viewGranting = rows.filter(r => r.can_view);
     const is_masked = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
-    map[fieldKey] = { can_view, can_edit, can_copy, can_download, is_masked };
+    const is_partial_masked = !is_masked && viewGranting.length > 0 ? viewGranting.every(r => r.is_partial_masked) : false;
+    map[fieldKey] = { can_view, can_add, can_edit, can_copy, can_download, is_masked, is_partial_masked };
   }
 
   fpCache.set(cacheKey, { data: map, ts: Date.now() });
@@ -91,6 +94,9 @@ function applyMasking<T extends Record<string, unknown>>(
       const v = result[field as keyof T];
       if (typeof v === 'string' && v.length > 4) (result as any)[field] = '•'.repeat(v.length - 4) + v.slice(-4);
       else if (typeof v === 'string') (result as any)[field] = '••••';
+    } else if (p.is_partial_masked) {
+      const v = result[field as keyof T];
+      if (typeof v === 'string' || typeof v === 'number') (result as any)[field] = maskPartial(String(v));
     }
   }
   return result;
@@ -152,8 +158,21 @@ export class EmployeeService {
       const breakdown = computeCompletionPct(raw);
       json.form_completion_pct = breakdown.overallPct;
       json.completion = breakdown;
-      if ((emp.get('form_completion_pct') ?? 0) !== breakdown.overallPct) {
-        try { await repo.updateCompletionPctSilent(id, breakdown.overallPct); } catch { /* non-fatal on a read */ }
+
+      const storedPct    = emp.get('form_completion_pct') ?? 0;
+      const storedStatus = emp.get('record_status') as 'Draft' | 'Final';
+      // A record can only be 'Final' at a genuine 100% (same rule as
+      // employee_code generation). Downgrade a wrongly-'Final' row — e.g. a
+      // seeded admin marked Final at 13% — so status matches the real profile.
+      // Never auto-upgrade Draft→Final on a read; that path (with code
+      // generation) belongs to the wizard save flow.
+      const healedStatus: 'Draft' | 'Final' | undefined =
+        (storedStatus === 'Final' && breakdown.overallPct < 100) ? 'Draft' : undefined;
+      if (healedStatus) json.record_status = healedStatus;
+
+      if (storedPct !== breakdown.overallPct || healedStatus) {
+        try { await repo.updateCompletionPctSilent(id, breakdown.overallPct, healedStatus); }
+        catch { /* non-fatal on a read */ }
       }
     }
     return json;
@@ -205,10 +224,24 @@ export class EmployeeService {
     });
   }
 
-  async updateStep(id: number, companyId: number, step: StepKey, dto: any, actorId: number, ipAddress?: string) {
+  async updateStep(id: number, companyId: number, step: StepKey, dto: any, actorId: number, ipAddress?: string, isSuperAdmin = false) {
     const emp = await repo.findById(id, companyId);
     if (!emp) throw new AppError('Employee not found', 404);
 
+    // Write-side field-permission guard (defense in depth — the wizard already
+    // disables these inputs). Drops only top-level keys that are BOTH a known
+    // registered field_key AND not currently editable by this actor for this
+    // record (completion-folded). Structural/array keys and anything not in the
+    // field registry pass through untouched. Never blocks a save on error.
+    try {
+      const editable = isSuperAdmin ? null : await this.editableFieldKeys(actorId, companyId, id);
+      if (editable) {
+        const allKeys = new Set(await this.allModuleFieldKeys('employees'));
+        for (const k of Object.keys(dto)) {
+          if (allKeys.has(k) && !editable.has(k)) delete dto[k];
+        }
+      }
+    } catch { /* resolution failed — fall through, don't block the save */ }
 
     return sequelize.transaction(async (t) => {
       await this.routeStep(id, companyId, step, dto, actorId, t);
@@ -807,44 +840,145 @@ export class EmployeeService {
   async getDraft(sessionId: string, actorId: number) { return repo.getDraft(sessionId, actorId); }
   async discardDraft(sessionId: string, actorId: number) { return repo.deleteDraft(sessionId, actorId); }
 
-  async getFieldPermissions(employeeId: number, moduleKey: string = 'employees') {
+  /** Every active field_key belonging to the form(s) of `moduleKey`. */
+  private async allModuleFieldKeys(moduleKey: string): Promise<string[]> {
+    const mods = await HrModule.findAll({ attributes: ['id', 'slug'] });
+    const modIds = mods.filter(m => permKeyForModule(m.slug) === moduleKey).map(m => m.id);
+    if (!modIds.length) return [];
+    const forms = await FormDefinition.findAll({ where: { module_id: modIds }, attributes: ['id'] });
+    if (!forms.length) return [];
+    const fields = await DynamicField.findAll({
+      where: { form_id: forms.map(f => f.id), is_active: true },
+      attributes: ['field_key'],
+    });
+    return [...new Set(fields.map(f => f.field_key))];
+  }
+
+  /**
+   * Resolves the caller's field-level permissions for `moduleKey`, keyed by
+   * company. Each entry carries the raw grants — `can_add` is the raw
+   * onboarding grant; `can_edit` is the raw edit grant UNLESS `targetEmployeeId`
+   * is supplied, in which case it is folded to
+   * `can_edit || (can_add && completion_pct < 100)` for that specific record
+   * and a top-level `completion_pct` is added to the result.
+   *
+   * The wizard fetches without `targetEmployeeId` (it folds client-side against
+   * the live, in-progress completion %); other API consumers pass it to get a
+   * directly-usable answer.
+   *
+   * Short-circuits to full access when the caller is a super admin, or has
+   * module view but no field rows configured for any of their groups (so
+   * turning on wizard enforcement never locks out an existing privileged user).
+   */
+  async getFieldPermissions(
+    employeeId: number,
+    moduleKey: string = 'employees',
+    opts: { targetEmployeeId?: number; companyId?: number; isSuperAdmin?: boolean } = {},
+  ) {
+    const FULL: FieldPermEntry = {
+      can_view: true, can_add: true, can_edit: true, can_copy: true,
+      can_download: true, is_masked: false, is_partial_masked: false,
+    };
+    const fullMap = async (): Promise<FieldPermissionMap> => {
+      const keys = await this.allModuleFieldKeys(moduleKey);
+      const m: FieldPermissionMap = {};
+      for (const k of keys) m[k] = { ...FULL };
+      return m;
+    };
+
     const memberships = await UserGroup.findAll({ where: { employee_id: employeeId } });
     const byCompany: Record<number, number[]> = {};
     for (const m of memberships) {
       (byCompany[m.company_id] ??= []).push(m.group_id);
     }
 
-    const DENY_ALL_FIELDS: FieldPermissionMap = {};
+    // Target completion % — only loaded when a specific record is named.
+    let completionPct: number | undefined;
+    if (opts.targetEmployeeId) {
+      const cid = opts.companyId ?? Object.keys(byCompany).map(Number)[0];
+      const target = cid
+        ? await repo.findById(opts.targetEmployeeId, cid, true).catch(() => null)
+        : null;
+      completionPct = target ? computeCompletionPct(target.toJSON() as any).overallPct : 0;
+    }
 
-    const result: Record<number, FieldPermissionMap> = {};
+    // Super admin — never field-restricted, and not necessarily in any group.
+    if (opts.isSuperAdmin) {
+      const out: Record<number, FieldPermissionMap> & { completion_pct?: number } = {};
+      const companyIds = opts.companyId
+        ? [opts.companyId]
+        : [...new Set(Object.keys(byCompany).map(Number))];
+      const m = await fullMap();
+      for (const cid of (companyIds.length ? companyIds : [0])) if (cid) out[cid] = m;
+      if (completionPct !== undefined) out.completion_pct = completionPct;
+      return out;
+    }
+    const foldEdit = (e: FieldPermEntry): FieldPermEntry =>
+      completionPct === undefined
+        ? e
+        : { ...e, can_edit: e.can_edit || (e.can_add && completionPct < 100) };
+
+    const result: Record<number, FieldPermissionMap> & { completion_pct?: number } = {};
+
     for (const [companyIdStr, groupIds] of Object.entries(byCompany)) {
       const companyId = +companyIdStr;
 
       const moduleSlugs = await fbSvc.resolveModuleSlugs(employeeId, companyId, groupIds);
       if (!moduleSlugs.has(`${moduleKey}:view`)) {
-        result[companyId] = DENY_ALL_FIELDS;
+        result[companyId] = {};
         continue;
       }
 
       const groupPerms = await loadFieldPerms(groupIds, companyId);
+      // Module view but zero configured field rows ⇒ treat as unrestricted
+      // (back-compat with groups that were never field-configured).
+      if (!Object.keys(groupPerms).length) { result[companyId] = await fullMap(); continue; }
 
       const fieldOverrides = await getEmployeeFieldOverrides(employeeId, companyId, moduleKey);
-      const merged: FieldPermissionMap = { ...groupPerms };
+      const merged: FieldPermissionMap = {};
+      const base0: FieldPermEntry = {
+        can_view: false, can_add: false, can_edit: false, can_copy: false,
+        can_download: false, is_masked: false, is_partial_masked: false,
+      };
+      for (const [k, v] of Object.entries(groupPerms)) merged[k] = { ...v };
 
       for (const [fieldName, permMap] of Object.entries(fieldOverrides)) {
-        const base = merged[fieldName] || { can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false };
+        const base = merged[fieldName] || { ...base0 };
+        let is_masked = permMap.mask !== undefined ? permMap.mask : base.is_masked;
+        let is_partial_masked = permMap.partial_mask !== undefined ? permMap.partial_mask : base.is_partial_masked;
+        if (is_masked) is_partial_masked = false;
         merged[fieldName] = {
-          can_view: permMap.view !== undefined ? permMap.view : base.can_view,
-          can_edit: permMap.edit !== undefined ? permMap.edit : base.can_edit,
-          can_copy: permMap.copy !== undefined ? permMap.copy : base.can_copy,
+          can_view:     permMap.view     !== undefined ? permMap.view     : base.can_view,
+          can_add:      permMap.add      !== undefined ? permMap.add      : base.can_add,
+          can_edit:     permMap.edit     !== undefined ? permMap.edit     : base.can_edit,
+          can_copy:     permMap.copy     !== undefined ? permMap.copy     : base.can_copy,
           can_download: permMap.download !== undefined ? permMap.download : base.can_download,
-          is_masked: permMap.mask !== undefined ? permMap.mask : base.is_masked,
+          is_masked,
+          is_partial_masked,
         };
       }
 
+      // Masking takes precedence — a masked field grants only View.
+      for (const k of Object.keys(merged)) {
+        const e = merged[k];
+        if (e.is_masked || e.is_partial_masked) {
+          merged[k] = { ...e, can_add: false, can_edit: false, can_copy: false, can_download: false };
+        }
+      }
+      for (const k of Object.keys(merged)) merged[k] = foldEdit(merged[k]);
       result[companyId] = merged;
     }
+
+    if (completionPct !== undefined) result.completion_pct = completionPct;
     return result;
+  }
+
+  /** Field keys the actor may currently write on `targetEmployeeId` (completion-folded). */
+  private async editableFieldKeys(actorId: number, companyId: number, targetEmployeeId: number): Promise<Set<string> | null> {
+    const map = await this.getFieldPermissions(actorId, 'employees', { targetEmployeeId, companyId });
+    const perCompany = (map as any)[companyId] as FieldPermissionMap | undefined;
+    if (!perCompany || !Object.keys(perCompany).length) return null; // unrestricted / no data
+    return new Set(Object.entries(perCompany).filter(([, p]) => p.can_edit).map(([k]) => k));
   }
 
   async uploadProfilePhoto(id: number, companyId: number, avatarUrl: string, actorId: number) {

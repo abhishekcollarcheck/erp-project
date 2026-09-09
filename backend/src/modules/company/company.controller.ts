@@ -893,20 +893,42 @@ function validateEmployeeCodeRange(
 
   let skipCodes: number[] = [];
 
-  if (body.employee_code_skip !== undefined) {
+  const rawSkip = body.employee_code_skip;
+  // Treat "no value" (undefined / null / '' / '[]') as an empty list — never
+  // as [0]. JSON.parse('') throws, and a blank Reserved/Skip Codes field must
+  // not be rejected or coerced into a phantom reserved code.
+  if (rawSkip !== undefined && rawSkip !== null && rawSkip !== '') {
+    let parsed: unknown;
     try {
-      skipCodes = typeof body.employee_code_skip === 'string'
-        ? JSON.parse(body.employee_code_skip)
-        : body.employee_code_skip;
+      parsed = typeof rawSkip === 'string' ? JSON.parse(rawSkip) : rawSkip;
     } catch {
       sendError(res, 'Invalid employee_code_skip format', 400);
       return null;
     }
 
-    if (!Array.isArray(skipCodes)) {
+    if (!Array.isArray(parsed)) {
       sendError(res, 'employee_code_skip must be an array', 400);
       return null;
     }
+
+    // Normalise: trim string entries, drop blanks/null, coerce to Number, dedupe.
+    skipCodes = Array.from(
+      new Set(
+        parsed
+          .map((c) => (typeof c === 'string' ? c.trim() : c))
+          .filter((c) => c !== '' && c !== null && c !== undefined)
+          .map((c) => Number(c)),
+      ),
+    );
+  }
+
+  // `0` is only a valid reserved code if it is explicitly inside a configured
+  // [start, end] range. Otherwise it is the sentinel a blank field used to
+  // produce (Number('') === 0) — silently drop it rather than 400 the request.
+  const zeroExplicitlyConfigured =
+    startCode !== null && endCode !== null && startCode <= 0 && endCode >= 0;
+  if (!zeroExplicitlyConfigured) {
+    skipCodes = skipCodes.filter((c) => c !== 0);
   }
 
   if (startCode !== null && endCode !== null && startCode >= endCode) {
@@ -914,6 +936,7 @@ function validateEmployeeCodeRange(
     return null;
   }
 
+  // Empty list ⇒ nothing to validate (the loop simply doesn't run).
   for (const code of skipCodes) {
     if (!Number.isInteger(code)) {
       sendError(res, `Invalid reserved employee code: ${code}`, 400);
@@ -1205,7 +1228,9 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
 
         legal_name: legal_name || null,
         tagline: tagline || null,
-        since_year: since_year !== undefined ? +since_year : null,
+        since_year: since_year !== undefined && since_year !== null && since_year !== ''
+          ? Number(since_year)
+          : null,
         cin: cin || null,
         google_maps_link: google_maps_link || null,
         hr_email: hr_email || null,
@@ -1602,6 +1627,15 @@ async function updateCompany(req: Request, res: Response, next: NextFunction): P
     ];
     const updates: any = {};
     for (const k of allowed) { if (req.body[k] !== undefined) updates[k] = req.body[k]; }
+
+    // since_year is an INTEGER column — normalise '' / null to a real NULL so the
+    // field can be cleared, and coerce numeric strings so MySQL never sees ''
+    if ('since_year' in updates) {
+      updates.since_year =
+        updates.since_year === null || updates.since_year === ''
+          ? null
+          : Number(updates.since_year);
+    }
 
     // slug/code uniqueness checks if they're being changed
     if (updates.slug && updates.slug !== company.slug) {

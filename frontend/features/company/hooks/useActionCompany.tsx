@@ -32,6 +32,7 @@ import {
   selectActiveCompanyId,
 } from '../../../store/slices/authSlice';
 import type { ManagedCompany } from '../../../types/auth.types';
+import { Select } from '../../../components/ui/Select';
 
 interface UseActionCompanyReturn {
   /** The selected company_id to include in the form payload */
@@ -90,29 +91,18 @@ export function useActionCompany(): UseActionCompanyReturn {
           {label}
           {required && <span className="req-mark"> *</span>}
         </label>
-        <select value={companyId} onChange={e => setCompanyId(Number(e.target.value))}
-          required={required}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            border: '1px solid var(--border2)',
-            borderRadius: 'var(--r)',
-            fontSize: 13,
-            fontFamily: 'var(--font)',
-            background: 'var(--surface)',
-            color: 'var(--ink)',
-            outline: 'none',
-          }}
-        >
-          <option value="" disabled>Select company…</option>
-          {companies.map(co => (
-            <option key={co.id} value={co.id} disabled={!co.is_active}>
-              {co.name}
-              {!co.is_active ? ' (Suspended)' : ''}
-              {!isSuperAdmin && co.manager_role ? ` · ${co.manager_role}` : ''}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={companyId}
+          onChange={(v) => setCompanyId(Number(v))}
+          style={{ width: '100%' }}
+          filter
+          placeholder="Select company…"
+          options={companies.map(co => ({
+            value: co.id,
+            disabled: !co.is_active,
+            label: `${co.name}${!co.is_active ? ' (Suspended)' : ''}${!isSuperAdmin && co.manager_role ? ` · ${co.manager_role}` : ''}`,
+          }))}
+        />
         {!companyId && (
           <p className="field-error" role="alert">Please select a company</p>
         )}

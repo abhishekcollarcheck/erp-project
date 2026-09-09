@@ -64,9 +64,9 @@ html, body {
   border: none;
 }
 
-.p-datatable .p-column-header-content {
+/* .p-datatable .p-column-header-content {
   gap: 6px;
-}
+} */
 
 .p-column-filter input {
   width: 100%;

@@ -382,6 +382,8 @@ import { AppShell } from '../../../layouts/AppLayout';
 import { StatCard } from '../../../components/ui/StatCard';
 import { Chip } from '../../../components/ui/Chip';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
 // import { DesignationFormModal } from '../../../features/designations/components/DesignationFormModal';
 
 import {
@@ -415,6 +417,9 @@ export default function DesignationsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Designation | SubDesignation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Designation | SubDesignation | null>(null);
+  const [selected, setSelected] = useState<(Designation | SubDesignation)[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const debouncedSearch = useDebounce(search, 350);
 
@@ -457,6 +462,20 @@ export default function DesignationsPage() {
     setActiveTab(tab);
     setSearch('');
     setEditTarget(null);
+    setSelected([]);
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    for (const item of selected) {
+      try {
+        if (activeTab === 'designation') await deleteDesignation.mutateAsync(item.id);
+        else await deleteSubDesignation.mutateAsync(item.id);
+      } catch { /* keep going */ }
+    }
+    setBulkDeleting(false);
+    setBulkDeleteOpen(false);
+    setSelected([]);
   };
 
   // ─── Handlers ───────────────────────────────────────────────────────────
@@ -502,6 +521,63 @@ export default function DesignationsPage() {
   const totalCount = currentList.length;
   const activeCount = currentList.filter((item) => item.is_active).length;
   const inactiveCount = totalCount - activeCount;
+
+  const tableColumns: Column<Designation | SubDesignation>[] = [
+    {
+      key: 'title', header: 'Title',
+      render: (item) => (
+        <span>
+          <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', color: 'var(--ink)' }}>
+            {item.name}
+          </span>
+          {item.code && (
+            <span style={{ marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink4)' }}>({item.code})</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: 'mapped',
+      header: activeTab === 'designation' ? 'Mapped Departments' : 'Parent Designations',
+      render: (item) => {
+        if (activeTab === 'designation') {
+          const des = item as Designation;
+          return des.is_all_departments
+            ? <span style={{ color: 'var(--blue)', fontWeight: 500 }}>All Departments</span>
+            : (des.departments?.map((d) => d.department_name).join(', ') || 'Unassigned');
+        }
+        const sub = item as SubDesignation;
+        return sub.is_all_designations
+          ? <span style={{ color: 'var(--blue)', fontWeight: 500 }}>All Designations</span>
+          : (sub.designations?.map((d) => d.name).join(', ') || 'Unassigned');
+      },
+    },
+    {
+      key: 'status', header: 'Status', align: 'center',
+      render: (item) => <Chip variant={item.is_active ? 'green' : 'gray'}>{item.is_active ? 'Active' : 'Inactive'}</Chip>,
+    },
+    {
+      key: 'actions', header: 'Actions', align: 'right',
+      render: (item) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {activeTab === 'designation' && (
+            <Chip variant="blue" onClick={() => router.push(`/designations/${item.id}`)}>View</Chip>
+          )}
+          {canEdit('designation') && (
+            <>
+              <Chip variant="gray" onClick={() => openEdit(item)}>Edit</Chip>
+              <Chip variant={item.is_active ? 'amber' : 'green'} onClick={() => handleToggleStatus(item)}>
+                {item.is_active ? 'Deactivate' : 'Activate'}
+              </Chip>
+            </>
+          )}
+          {canDelete('designation') && (
+            <Chip variant="red" onClick={() => setDeleteTarget(item)}>Delete</Chip>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   return (
     <PermissionGuard permission="designation:view">
@@ -608,124 +684,45 @@ export default function DesignationsPage() {
               />
             </div>
 
-            <select
+            <Select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500"
-            >
-              <option value="true font-medium">Active Only</option>
-              <option value="false">Inactive Only</option>
-              <option value="all">All Records</option>
-            </select>
+              onChange={(v) => setStatusFilter(v as 'true' | 'false' | 'all')}
+              options={[
+                { value: 'true', label: 'Active Only' },
+                { value: 'false', label: 'Inactive Only' },
+                { value: 'all', label: 'All Records' },
+              ]}
+              ariaLabel="Filter by status"
+            />
           </div>
 
           {/* ────────────────────────────────────────────────────────── */}
           {/* TABLE VIEW MODE                                            */}
           {/* ────────────────────────────────────────────────────────── */}
           {viewMode === 'table' && (
-            <div className="card overflow-hidden border border-slate-200 bg-white rounded-xl shadow-sm">
-              <div className="tw overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                      <th className="p-3">Title</th>
-                      <th className="p-3">
-                        {activeTab === 'designation' ? 'Mapped Departments' : 'Parent Designations'}
-                      </th>
-                      <th className="p-3 text-center">Status</th>
-                      <th className="p-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                    {isLoading ? (
-                      Array.from({ length: 5 }).map((_, i) => (
-                        <tr key={i}>
-                          <td className="p-3"><div className="skeleton h-3 w-36 rounded" /></td>
-                          <td className="p-3"><div className="skeleton h-3 w-48 rounded" /></td>
-                          <td className="p-3"><div className="skeleton h-3 w-12 mx-auto rounded" /></td>
-                          <td className="p-3"><div className="skeleton h-3 w-20 ml-auto rounded" /></td>
-                        </tr>
-                      ))
-                    ) : currentList.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="p-8 text-center text-slate-400">
-                          No {activeTab === 'designation' ? 'designations' : 'sub-designations'} found.
-                        </td>
-                      </tr>
-                    ) : (
-                      currentList.map((item) => {
-                        const isDesignation = activeTab === 'designation';
-                        const des = item as Designation;
-                        const sub = item as SubDesignation;
-
-                        return (
-                          <tr
-                            key={item.id}
-                            className="hover:bg-slate-50/60 transition-colors cursor-pointer"
-                            onClick={() => isDesignation && router.push(`/designations/${item.id}`)}
-                          >
-                            <td className="p-3">
-                              <span className="font-bold text-slate-900 uppercase tracking-wide">
-                                {item.name}
-                              </span>
-                              {item.code && (
-                                <span className="ml-2 font-mono text-[10px] text-slate-400">
-                                  ({item.code})
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="p-3 text-slate-500">
-                              {isDesignation ? (
-                                des.is_all_departments ? (
-                                  <span className="text-blue-600 font-medium">All Departments</span>
-                                ) : (
-                                  des.departments?.map((d) => d.department_name).join(', ') || 'Unassigned'
-                                )
-                              ) : sub.is_all_designations ? (
-                                <span className="text-blue-600 font-medium">All Designations</span>
-                              ) : (
-                                sub.designations?.map((d) => d.name).join(', ') || 'Unassigned'
-                              )}
-                            </td>
-
-                            <td className="p-3 text-center">
-                              <Chip variant={item.is_active ? 'green' : 'gray'}>
-                                {item.is_active ? 'Active' : 'Inactive'}
-                              </Chip>
-                            </td>
-
-                            <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-1.5">
-                                {isDesignation && (
-                                  <Chip variant="blue" onClick={() => router.push(`/designations/${item.id}`)}>
-                                    View
-                                  </Chip>
-                                )}
-                                {canEdit('designation') && (
-                                  <>
-                                    <Chip variant="gray" onClick={() => openEdit(item)}>Edit</Chip>
-                                    <Chip
-                                      variant={item.is_active ? 'amber' : 'green'}
-                                      onClick={() => handleToggleStatus(item)}
-                                    >
-                                      {item.is_active ? 'Deactivate' : 'Activate'}
-                                    </Chip>
-                                  </>
-                                )}
-                                {canDelete('designation') && (
-                                  <Chip variant="red" onClick={() => setDeleteTarget(item)}>Delete</Chip>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              columns={tableColumns}
+              data={(currentList as (Designation | SubDesignation)[])}
+              isLoading={isLoading}
+              rowKey={(item) => item.id}
+              minWidth="640px"
+              emptyText={`No ${activeTab === 'designation' ? 'designations' : 'sub-designations'} found.`}
+              onRowClick={(item) => activeTab === 'designation' && router.push(`/designations/${item.id}`)}
+              selectable={canDelete('designation')}
+              selection={selected}
+              onSelectionChange={setSelected}
+              selectionBar={(rows, clear) => (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10,
+                  background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--r)', padding: '7px 12px',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{rows.length} selected</span>
+                  <button className="btn btn-danger btn-sm" onClick={() => setBulkDeleteOpen(true)}>Delete</button>
+                  <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
+                </div>
+              )}
+            />
           )}
 
           {/* ────────────────────────────────────────────────────────── */}
@@ -893,6 +890,27 @@ export default function DesignationsPage() {
               <span>
                 Deleting this record will unassign it from active employees and associated mappings. This action cannot be undone.
               </span>
+            </div>
+          </Modal>
+
+          {/* Bulk delete confirmation */}
+          <Modal
+            open={bulkDeleteOpen}
+            onClose={() => setBulkDeleteOpen(false)}
+            title={`Delete ${selected.length} ${activeTab === 'designation' ? 'Designation' : 'Sub-Designation'}${selected.length === 1 ? '' : 's'}`}
+            subtitle="This action cannot be undone."
+            footer={
+              <>
+                <button className="btn btn-sec" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>Cancel</button>
+                <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkDeleting}>
+                  {bulkDeleting ? 'Deleting…' : `Yes, Delete ${selected.length}`}
+                </button>
+              </>
+            }
+          >
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+              <AlertTriangle size={16} className="shrink-0" />
+              <span>Records still mapped to active employees will be skipped.</span>
             </div>
           </Modal>
 

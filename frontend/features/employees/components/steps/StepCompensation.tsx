@@ -9,14 +9,13 @@ import { useWatch, useFormContext } from 'react-hook-form';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormCurrencyInput } from '../../../../components/form/FormCurrencyInput';
 import { FormToggle } from '../../../../components/form/FormToggle';
-import { useFieldPermissions } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { toOpts, DEDUCTION_FROM, DEDUCTION_MONTHS } from '../../constants/employee.constants';
 import { FormSection } from '@/components/form/FormSection';
 import { useModeOfPaymentData } from '../../../modeofPayment/hooks/useModeOfPayment';
 
 function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: string }) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => fp?.[n];
+  const f = useFieldPerm();
 
   const basic    = useWatch({ name: `${prefix}_basic` }) ?? 0;
   const hra      = useWatch({ name: `${prefix}_hra` }) ?? 0;
@@ -57,8 +56,7 @@ function SalaryBlock({ prefix, label }: { prefix: 'current' | 'joining'; label: 
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepCompensation(_: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => fp?.[n];
+  const f = useFieldPerm();
   const { data: modesOfPayment = [] } = useModeOfPaymentData();
   const assetDeduction = useWatch({ name: 'asset_deduction_applicable' });
   const security       = useWatch({ name: 'security_amount' }) ?? 0;

@@ -36,7 +36,7 @@ const UPDATABLE_FIELDS: readonly (keyof UpdateCandidateDto)[] = [
   'qualification', 'course', 'institute', 'edu_mode', 'edu_start_date', 'edu_end_date',
   'edu_currently_pursuing', 'fresher', 'location', 'total_experience', 'relevant_experience',
   'apply_department', 'apply_designation',
-  'job_title', 'job_location', 'job_type', 'job_code', 'job_description',
+  'job_title', 'job_location', 'job_type', 'job_code', 'job_description', 'skills',
   'current_salary', 'expected_salary',
   'currently_working', 'notice_period', 'serving_notice_period', 'last_working_day',
   'immediate_joiner', 'expected_joining_date', 'own_vehicle', 'vehicle_types',
@@ -66,12 +66,23 @@ export class CandidateService {
 
     if (query.status)   where['status']   = query.status;
     if (query.source)   where['source']   = query.source;
+    if (query.role) {
+      const rl = `%${String(query.role).trim()}%`;
+      (where as any)[Op.and] = [
+        ...((where as any)[Op.and] || []),
+        { [Op.or]: [
+          { job_title:        { [Op.like]: rl } },
+          { apply_designation:{ [Op.like]: rl } },
+          { apply_department: { [Op.like]: rl } },
+        ] },
+      ];
+    }
     if (query.min_experience !== undefined)
       where['total_experience'] = { ...(where['total_experience'] as any || {}), [Op.gte]: Number(query.min_experience) };
     if (query.max_experience !== undefined)
       where['total_experience'] = { ...(where['total_experience'] as any || {}), [Op.lte]: Number(query.max_experience) };
 
-    const sortField = ['candidate_name','created_at','total_experience','expected_salary','status'].includes(String(query.sort)) ? String(query.sort) : 'created_at';
+    const sortField = ['candidate_name','created_at','updated_at','total_experience','expected_salary','status'].includes(String(query.sort)) ? String(query.sort) : 'created_at';
     const { count, rows } = await Candidate.findAndCountAll({
       where, limit, offset,
       order:      [[sortField, query.order === 'ASC' ? 'ASC' : 'DESC']],
@@ -272,6 +283,12 @@ export class CandidateService {
 
       apply_department:         dto.apply_department      ?? null,
       apply_designation:        dto.apply_designation     ?? null,
+      job_title:                dto.job_title?.trim()       || null,
+      job_location:             dto.job_location?.trim()    || null,
+      job_type:                 dto.job_type?.trim()        || null,
+      job_code:                 dto.job_code?.trim()        || null,
+      job_description:          dto.job_description?.trim() || null,
+      skills:                   Array.isArray(dto.skills) && dto.skills.length ? dto.skills : null,
       current_salary:           dto.current_salary        ?? null,
       expected_salary:          dto.expected_salary       ?? null,
       currently_working:        dto.currently_working      ?? null,
@@ -516,6 +533,39 @@ export class CandidateService {
     return candidate;
   }
 
+  /**
+   * Ensures the candidate has Candidate Portal access and returns credentials
+   * that are safe to email to the candidate's registered address.
+   *
+   * A fresh temporary password is generated only when the candidate is not yet
+   * a portal user, or is one but has never logged in — so an emailed password
+   * always works and an already-active candidate's self-chosen password is
+   * never overwritten (in that case `tempPassword` is null and the email just
+   * carries the portal URL + login email).
+   *
+   * Reuses the same generate → hash → persist flow as the portal-access
+   * endpoint; no separate authentication logic is introduced.
+   */
+  private async ensurePortalCredentials(candidate: Candidate): Promise<{
+    portalUrl: string; loginEmail: string | null; tempPassword: string | null;
+  }> {
+    const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/portal/login`;
+    if (!candidate.email) return { portalUrl, loginEmail: null, tempPassword: null };
+
+    const needsPassword = !candidate.is_portal_user || !candidate.portal_last_login;
+    if (needsPassword) {
+      const crypto = await import('crypto');
+      const { hashPassword } = await import('../../utils/hash');
+      const rawPwd = crypto.randomBytes(6).toString('hex');
+      await candidate.update({
+        portal_password_hash: await hashPassword(rawPwd),
+        is_portal_user:       true,
+      });
+      return { portalUrl, loginEmail: candidate.email, tempPassword: rawPwd };
+    }
+    return { portalUrl, loginEmail: candidate.email, tempPassword: null };
+  }
+
   // ─── Interview scheduling ─────────────────────────────────────────────────
   async scheduleInterview(
     id: number, companyId: number,
@@ -547,23 +597,34 @@ export class CandidateService {
       updated_by:            scheduledBy,
     });
 
-    // Send email to candidate
+    // Send the interview email — bundled with Candidate Portal access so the
+    // candidate can immediately confirm/decline, request a reschedule and view
+    // the details. Credentials go only to the candidate's registered email.
     if (candidate.email) {
+      const creds = await this.ensurePortalCredentials(candidate);
       await mailer.sendInterviewScheduled(
         candidate.email,
         candidate.candidate_name,
-        'Vacancy',  // job title placeholder until jobs module
+        candidate.job_title || candidate.apply_designation || 'the role',
         1,
         dto.interview_type,
         `${dto.interview_date} at ${dto.interview_time}`,
         60,
         'HR Team',
         dto.interview_link,
+        {
+          url:      creds.portalUrl,
+          email:    creds.loginEmail || candidate.email,
+          password: creds.tempPassword,
+        },
       );
     }
 
     await logActivity({ companyId, employeeId: scheduledBy, action: 'INTERVIEW_SCHEDULED', module: 'candidates', entityId: id });
-    return candidate;
+
+    // Re-fetch so the response never carries portal secrets that
+    // `ensurePortalCredentials()` may have just written onto the instance.
+    return this.getById(id, companyId);
   }
 
   // ─── Candidate respond to interview (accept/reject) ───────────────────────
@@ -968,6 +1029,11 @@ export class CandidateService {
     };
     if (!isDraft) update.preinterview_submitted_at = new Date();
     await candidate.update(update);
+    await logActivity({
+      companyId, employeeId: undefined,
+      action: isDraft ? 'PREINTERVIEW_DRAFT_SAVED' : 'PREINTERVIEW_SUBMITTED',
+      module: 'candidates', entityId: id,
+    });
     return candidate;
   }
 

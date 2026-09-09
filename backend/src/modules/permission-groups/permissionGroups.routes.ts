@@ -7,6 +7,7 @@ import { createGroup, updateGroup, deleteGroup, getGroupPermissions, setGroupPer
 import { validate } from "../../middleware/validate.middleware";
 import { sendResponse } from "../../utils/response";
 import { FormBuilderService } from "../form-builder/formBuilder.service";
+import { seedRbac } from "../../database/seeders/seedRbac";
 
 const fbSvc = new FormBuilderService();
 
@@ -24,6 +25,22 @@ permissionGroupRouter.put("/:id/permissions", authorize('settings:edit'), [param
 permissionGroupRouter.get("/:id/members", authorize('settings:view'), [param("id").isInt()],validate,getGroupMembers,);
 permissionGroupRouter.post("/:id/members", authorize('settings:edit'), [param("id").isInt(), body("employee_id").isInt()],validate,addGroupMember);
 permissionGroupRouter.delete("/:id/members/:employeeId", authorize('settings:delete'), [param("id").isInt(), param("employeeId").isInt()],validate,removeGroupMember,);
+
+// Bootstrap/repair the RBAC data (permission catalog, system roles, system
+// permission groups, module links). Idempotent. Backs the "Seed System Groups"
+// button in the Permission Groups UI.
+permissionGroupRouter.post(
+  "/seed",
+  authorize('settings:edit'),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const summary = await seedRbac();
+      sendResponse(res, { data: summary, message: "RBAC data seeded" });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
 permissionGroupRouter.get("/company-modules", authenticate,
   async (req: Request, res: Response, next: NextFunction) => {

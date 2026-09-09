@@ -1,5 +1,6 @@
 'use client';
 import { useFormContext, Controller } from 'react-hook-form';
+import type { FieldPerm } from './maskField';
 
 interface Props {
   name:         string;
@@ -11,7 +12,7 @@ interface Props {
   rows?:        number;
   maxLength?:   number;
   hint?:        string;
-  fieldPerm?:   { can_view?: boolean; can_edit?: boolean };
+  fieldPerm?:   FieldPerm;
 }
 
 export function FormTextarea({
@@ -21,7 +22,7 @@ export function FormTextarea({
   const { control, formState: { errors } } = useFormContext();
   const error       = (errors as any)[name]?.message as string | undefined;
   if (fieldPerm?.can_view === false) return null;
-  const isReadOnly  = readOnly || fieldPerm?.can_edit === false;
+  const isReadOnly  = readOnly || fieldPerm?.can_edit === false || !!fieldPerm?.is_masked || !!fieldPerm?.is_partial_masked;
 
   return (
     <Controller name={name} control={control} render={({ field }) => (

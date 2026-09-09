@@ -18,6 +18,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery }   from '@tanstack/react-query';
 import apiClient      from '../../services/api/client';
+import { Select }     from '../ui/Select';
+import { maskPartial } from '../../utils/validationEngine';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,11 +37,13 @@ interface ResolvedField {
   options?:         { label:string; value:string }[];
   dynamic_source?:  string | null;
   resolved: {
-    can_view:     boolean;
-    can_edit:     boolean;
-    can_copy:     boolean;
-    can_download: boolean;
-    is_masked:    boolean;
+    can_view:          boolean;
+    can_add?:          boolean;
+    can_edit:          boolean;
+    can_copy:          boolean;
+    can_download:      boolean;
+    is_masked:         boolean;
+    is_partial_masked?: boolean;
   };
 }
 
@@ -51,6 +55,16 @@ interface MultiStepFormProps {
   submitLabel?:   string;
   isSubmitting?:  boolean;
   readOnly?:      boolean;
+  /**
+   * Completion % of the record being edited. When < 100, fields granted only
+   * "Add" (can_add) become editable; at 100 they lock. Defaults to 100 (strict).
+   */
+  completionPct?: number;
+}
+
+/** effective edit = plain edit grant, OR an Add grant while the record isn't complete */
+function effEdit(r: ResolvedField['resolved'], completionPct = 100): boolean {
+  return !!r.can_edit || (!!r.can_add && completionPct < 100);
 }
 
 // ─── Dynamic source options hook ──────────────────────────────────────────────
@@ -67,27 +81,31 @@ function useDynamicOptions(source: string | null | undefined) {
 
 // ─── Single Field Renderer ────────────────────────────────────────────────────
 
-function FieldRenderer({ field, value, onChange, readOnly }: {
+function FieldRenderer({ field, value, onChange, readOnly, completionPct }: {
   field:    ResolvedField;
   value:    any;
   onChange: (key: string, value: any) => void;
   readOnly: boolean;
+  completionPct?: number;
 }) {
   const { resolved, field_type, field_key } = field;
   const { data: dynOptions } = useDynamicOptions(field.dynamic_source);
 
   if (!resolved.can_view) return null;
 
-  const isDisabled = readOnly || field.is_readonly || !resolved.can_edit;
+  const isPartialMask = !resolved.is_masked && !!resolved.is_partial_masked;
+  const isDisabled = readOnly || field.is_readonly || !effEdit(resolved, completionPct) || isPartialMask;
   const displayValue = resolved.is_masked && value
     ? '•'.repeat(String(value).length || 8)
-    : value;
+    : isPartialMask
+      ? maskPartial(value)
+      : value;
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '8px 10px', border: '1px solid var(--border2)',
     borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'var(--font)',
     background: isDisabled ? 'var(--surface2)' : 'var(--surface)',
-    color: resolved.is_masked ? 'var(--ink4)' : 'var(--ink)',
+    color: (resolved.is_masked || isPartialMask) ? 'var(--ink4)' : 'var(--ink)',
     outline: 'none',
   };
 
@@ -102,6 +120,9 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
   const renderInput = () => {
     if (resolved.is_masked) {
       return <input type="password" value={displayValue || ''} disabled={true} style={inputStyle} />;
+    }
+    if (isPartialMask) {
+      return <input type="text" value={displayValue || ''} readOnly disabled style={inputStyle} />;
     }
 
     switch (field_type) {
@@ -120,17 +141,15 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
       case 'select':
       case 'multi_select':
         return (
-          <select
+          <Select
             value={value || ''}
-            onChange={e => handleChange(e.target.value)}
+            onChange={(v) => handleChange(v)}
             disabled={isDisabled}
-            style={inputStyle}
-          >
-            <option value="">{field.placeholder || `— Select ${field.label} —`}</option>
-            {options.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+            style={{ width: '100%' }}
+            filter
+            placeholder={field.placeholder || `— Select ${field.label} —`}
+            options={options.map(opt => ({ value: opt.value, label: opt.label }))}
+          />
         );
 
       case 'radio':
@@ -240,6 +259,7 @@ function FieldRenderer({ field, value, onChange, readOnly }: {
           {field.label}
           {field.is_required && <span style={{ color: 'var(--red)', marginLeft: 3 }}>*</span>}
           {resolved.is_masked && <span style={{ fontSize: 9, color: 'var(--amber)', background: 'var(--amber-lt)', border: '1px solid var(--amber-bd)', borderRadius: 3, padding: '1px 4px', marginLeft: 6, fontWeight: 700 }}>MASKED</span>}
+          {!resolved.is_masked && resolved.is_partial_masked && <span style={{ fontSize: 9, color: 'var(--amber)', background: 'var(--amber-lt)', border: '1px solid var(--amber-bd)', borderRadius: 3, padding: '1px 4px', marginLeft: 6, fontWeight: 700 }}>PARTIAL</span>}
         </label>
       )}
       {renderInput()}
@@ -287,7 +307,7 @@ function StepIndicator({ sections, currentStep }: { sections: string[]; currentS
 
 export function MultiStepForm({
   formId, initialValues = {}, onSubmit, onCancel,
-  submitLabel = 'Submit', isSubmitting = false, readOnly = false,
+  submitLabel = 'Submit', isSubmitting = false, readOnly = false, completionPct = 100,
 }: MultiStepFormProps) {
 
   const { data: resolvedFields = [], isLoading } = useQuery({
@@ -327,7 +347,7 @@ export function MultiStepForm({
   const validate = (fields: ResolvedField[]): boolean => {
     const errs: Record<string,string> = {};
     for (const f of fields) {
-      if (f.is_required && f.resolved.can_edit) {
+      if (f.is_required && effEdit(f.resolved, completionPct)) {
         const v = values[f.field_key];
         if (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)) {
           errs[f.field_key] = `${f.label} is required`;
@@ -390,6 +410,7 @@ export function MultiStepForm({
             value={values[field.field_key]}
             onChange={handleChange}
             readOnly={readOnly}
+            completionPct={completionPct}
           />
         ))}
       </div>

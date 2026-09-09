@@ -53,7 +53,9 @@ export async function assignMember(req: Request, res: Response, next: NextFuncti
 }
 
 export async function removeMember(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try { sendResponse(res, { data: await rolesSvc.removeMember(+req.params.id, req.user!.companyId, +req.params.employeeId) }); } catch(e){ next(e); }
+  // route param is :userId (see formBuilder.routes.ts) — reading req.params.employeeId
+  // here gave NaN and a 500.
+  try { sendResponse(res, { data: await rolesSvc.removeMember(+req.params.id, req.user!.companyId, +req.params.userId) }); } catch(e){ next(e); }
 }
 
 export async function listAllPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -190,9 +192,28 @@ export async function getPermissionMatrix(req: Request, res: Response, next: Nex
 
 export async function setFieldPermission(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    if (!Array.isArray(req.body.company_ids) || !req.body.company_ids.length) {
+      throw new AppError('company_ids is required', 400);
+    }
     const companyIds = req.body.company_ids.map((id: any) => +id);
     await fbSvc.assertCompaniesManaged(companyIds, req.user!.employeeId, req.user!.isSuperAdmin);
-    const data = await fbSvc.bulkSetFieldPermissions(companyIds, +req.body.group_id, req.body.permissions, req.user!.employeeId);
+    // This route is the single-field variant (field id in the URL, flags flat
+    // in the body) — the frontend's pgApi.setFieldPermission shape. Build the
+    // one-element permissions array the service expects. `permissions` in the
+    // body is still honoured for callers that send the bulk shape here.
+    const permissions = Array.isArray(req.body.permissions) && req.body.permissions.length
+      ? req.body.permissions
+      : [{
+          field_id:          +req.params.fieldId,
+          can_view:          !!req.body.can_view,
+          can_add:           !!req.body.can_add,
+          can_edit:          !!req.body.can_edit,
+          can_copy:          !!req.body.can_copy,
+          can_download:      !!req.body.can_download,
+          is_masked:         !!req.body.is_masked,
+          is_partial_masked: !!req.body.is_partial_masked,
+        }];
+    const data = await fbSvc.bulkSetFieldPermissions(companyIds, +req.body.group_id, permissions, req.user!.employeeId);
     sendResponse(res, { data });
   } catch(e){ next(e); }
 }

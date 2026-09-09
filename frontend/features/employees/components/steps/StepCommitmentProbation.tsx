@@ -6,7 +6,7 @@ import { FormToggle } from '../../../../components/form/FormToggle';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { toOpts } from '../../constants/employee.constants';
-import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useBondList } from '../../../bond/hooks/useBond';
 import { useProbationList } from '../../../probation/hooks/useProbation';
@@ -38,8 +38,7 @@ function addMonths(dateStr: string, termStr: string): string | null {
 }
 
 export function StepCommitmentProbation(_: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
 
   const { setValue } = useFormContext();
 

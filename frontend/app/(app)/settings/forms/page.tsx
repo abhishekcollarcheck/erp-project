@@ -7,6 +7,7 @@ import { setPageTitle }        from '../../../../store/slices/uiSlice';
 import { AppShell }            from '../../../../layouts/AppLayout';
 import { Modal }               from '../../../../components/ui/Modal';
 import { Chip }                from '../../../../components/ui/Chip';
+import { Select }              from '../../../../components/ui/Select';
 import {
   useModules, useCreateModule, useUpdateModule, useDeleteModule,
   useForms, useCreateForm, useUpdateForm, useDeleteForm,
@@ -149,6 +150,7 @@ function FieldEditor({ field, formId, companyId, onClose }: {
     setF(p => ({...p, [k]: e.target.value}));
   const FB = (k:string) => (e:React.ChangeEvent<HTMLInputElement>) =>
     setF(p => ({...p, [k]: e.target.checked}));
+  const FS = (k:string) => (v:any) => setF(p => ({...p, [k]: v}));
 
   const autoKey = () => {
     if (isNew && f.label) setF(p => ({...p, field_key: generateKey(f.label)}));
@@ -210,15 +212,17 @@ function FieldEditor({ field, formId, companyId, onClose }: {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
             <div className="fg" style={{ gridColumn:'1/-1' }}>
               <label>Field Type</label>
-              <select value={f.field_type} onChange={F('field_type')}>
-                {['Text','Number','Date','Choice','Media','Other'].map(g => (
-                  <optgroup key={g} label={g}>
-                    {FIELD_TYPES.filter(t => t.group===g).map(t => (
-                      <option key={t.type} value={t.type}>{t.icon} {t.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              <Select
+                value={f.field_type}
+                onChange={FS('field_type')}
+                filter
+                options={['Text','Number','Date','Choice','Media','Other'].flatMap(g =>
+                  FIELD_TYPES.filter(t => t.group===g).map(t => ({
+                    value: t.type,
+                    label: `${g} · ${t.icon} ${t.label}`,
+                  })),
+                )}
+              />
             </div>
             <div className="fg">
               <label>Label *</label>
@@ -234,9 +238,11 @@ function FieldEditor({ field, formId, companyId, onClose }: {
             </div>
             <div className="fg">
               <label>Width</label>
-              <select value={f.width} onChange={F('width')}>
-                {WIDTH_OPTS.map(w => <option key={w.v} value={w.v}>{w.l}</option>)}
-              </select>
+              <Select
+                value={f.width}
+                onChange={FS('width')}
+                options={WIDTH_OPTS.map(w => ({ value: w.v, label: w.l }))}
+              />
             </div>
             <div className="fg" style={{ gridColumn:'1/-1' }}>
               <label>Placeholder</label>
@@ -255,10 +261,12 @@ function FieldEditor({ field, formId, companyId, onClose }: {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 12px' }}>
                 <div className="fg">
                   <label>Load options from</label>
-                  <select value={f.dynamic_source} onChange={F('dynamic_source')}>
-                    <option value="">— Static options —</option>
-                    {DYNAMIC_SOURCES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                  </select>
+                  <Select
+                    value={f.dynamic_source}
+                    onChange={FS('dynamic_source')}
+                    placeholder="— Static options —"
+                    options={DYNAMIC_SOURCES.map(s => ({ value: s.key, label: s.label }))}
+                  />
                 </div>
                 {f.dynamic_source && f.dynamic_source !== 'custom' && (
                   <>

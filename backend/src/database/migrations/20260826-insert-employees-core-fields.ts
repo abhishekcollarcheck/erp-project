@@ -1,7 +1,9 @@
 import { QueryInterface } from 'sequelize';
 
 const FORM_ID = 1;
-const SORT_ORDER_START = 1; // continues after the 30 core-field rows (sort_order 0-29)
+// This migration is the sole seeder of dynamic_fields for the Employee form:
+// every row below is numbered sequentially from here by its position in FIELDS.
+const SORT_ORDER_START = 1;
  
 interface FieldSeed {
   field_type: 'text' | 'select' | 'date' | 'checkbox' | 'number';
@@ -16,6 +18,7 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'text',     label: 'Employee Code',       field_key: 'employee_code',         section: 'Basic Info' },
   { field_type: 'text',     label: 'Reference Code',      field_key: 'reference_code',        section: 'Basic Info' },
   { field_type: 'select',   label: 'Status',              field_key: 'status',                section: 'Basic Info' },
+  { field_type: 'select',   label: 'Record Status',       field_key: 'record_status',         section: 'Basic Info' },
   { field_type: 'text',     label: 'First Name',          field_key: 'first_name',            section: 'Basic Info' },
   { field_type: 'text',     label: 'Middle Name',         field_key: 'middle_name',           section: 'Basic Info' },
   { field_type: 'text',     label: 'Last Name',           field_key: 'last_name',             section: 'Basic Info' },
@@ -31,10 +34,10 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'text',     label: 'Personal Mobile',     field_key: 'phone',                 section: 'Basic Info' },
 
   // ── Location & Attendance ────────────────────────────────────────
-  { field_type: 'text',     label: 'Working State/Country', field_key: 'working_state_country', section: 'Employment Details' },
-  { field_type: 'text',     label: 'Working City',         field_key: 'working_city',          section: 'Employment Details' },
-  { field_type: 'text',     label: 'Working Site',         field_key: 'working_site',          section: 'Employment Details' },
-  { field_type: 'text',     label: 'Pay Register Location', field_key: 'pay_register_location', section: 'Employment Details' },
+  { field_type: 'select',   label: 'Working State/Country', field_key: 'working_state_country', section: 'Employment Details' },
+  { field_type: 'select',     label: 'Working City',         field_key: 'working_city',          section: 'Employment Details' },
+  { field_type: 'select',     label: 'Working Site',         field_key: 'working_site',          section: 'Employment Details' },
+  { field_type: 'select',     label: 'Pay Register Location', field_key: 'pay_register_location', section: 'Employment Details' },
   { field_type: 'date',     label: 'Actual Date of Joining', field_key: 'actual_doj',          section: 'Employment Details' },
   { field_type: 'date',     label: 'Current Date of Joining', field_key: 'current_doj',        section: 'Employment Details' },
   { field_type: 'select',   label: 'Weekly Off',           field_key: 'weekly_off',            section: 'Employment Details' },
@@ -109,10 +112,13 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'text',     label: 'Spouse Name',                  field_key: 'spouse_name',                 section: 'Personal' },
   { field_type: 'date',     label: 'Spouse DOB',                   field_key: 'spouse_dob',                  section: 'Personal' },
   { field_type: 'text',     label: 'Child 1 Name',                 field_key: 'child1_name',                 section: 'Personal' },
+  { field_type: 'select',   label: 'Child 1 Gender',               field_key: 'child1_gender',               section: 'Personal' },
   { field_type: 'date',     label: 'Child 1 DOB',                  field_key: 'child1_dob',                  section: 'Personal' },
   { field_type: 'text',     label: 'Child 2 Name',                 field_key: 'child2_name',                 section: 'Personal' },
+  { field_type: 'select',   label: 'Child 2 Gender',               field_key: 'child2_gender',               section: 'Personal' },
   { field_type: 'date',     label: 'Child 2 DOB',                  field_key: 'child2_dob',                  section: 'Personal' },
   { field_type: 'text',     label: 'Child 3 Name',                 field_key: 'child3_name',                 section: 'Personal' },
+  { field_type: 'select',   label: 'Child 3 Gender',               field_key: 'child3_gender',               section: 'Personal' },
   { field_type: 'date',     label: 'Child 3 DOB',                  field_key: 'child3_dob',                  section: 'Personal' },
 
   // ── Family (EmployeeFamily) ───────────────────────────────────────
@@ -132,8 +138,10 @@ const FIELDS: FieldSeed[] = [
   // nothing currently reads them; without this row the section is DENY_ALL
   // by default and renders as nothing for every user.
   { field_type: 'text',     label: 'Other Family Members (Section)', field_key: 'family_members',               section: 'Other Family Members' },
+  { field_type: 'select',   label: 'Salutation',                   field_key: 'family_member_salutation',    section: 'Other Family Members' },
   { field_type: 'text',     label: 'Name',                         field_key: 'family_member_name',          section: 'Other Family Members' },
   { field_type: 'text',     label: 'Relationship',                 field_key: 'family_member_relationship',  section: 'Other Family Members' },
+  { field_type: 'text',     label: 'Relationship (Other)',         field_key: 'family_member_relationship_other', section: 'Other Family Members' },
   { field_type: 'date',     label: 'Date of Birth',                field_key: 'family_member_dob',           section: 'Other Family Members' },
   { field_type: 'text',     label: 'Occupation',                   field_key: 'family_member_occupation',    section: 'Other Family Members' },
 
@@ -168,64 +176,73 @@ const FIELDS: FieldSeed[] = [
   { field_type: 'text',     label: 'Contact Number',                field_key: 'emergency_contact_number',   section: 'Emergency Contacts' },
   { field_type: 'text',     label: 'Email',                         field_key: 'emergency_contact_email',    section: 'Emergency Contacts' },
   { field_type: 'text',     label: 'Relationship',                  field_key: 'emergency_relationship',      section: 'Emergency Contacts' },
+  { field_type: 'text',     label: 'Relationship (Other)',           field_key: 'emergency_relationship_other', section: 'Emergency Contacts' },
   { field_type: 'checkbox', label: 'Is Primary',                    field_key: 'emergency_is_primary',        section: 'Emergency Contacts' },
 
-  // ── Statutory / IDs (EmployeeStatutory) ───────────────────────────
-  { field_type: 'text',     label: 'Aadhaar Number',                field_key: 'aadhaar_number',              section: 'Statutory' },
-  { field_type: 'text',     label: 'Aadhaar Name',                  field_key: 'aadhaar_name',                section: 'Statutory' },
-  { field_type: 'date',     label: 'Aadhaar DOB',                   field_key: 'aadhaar_dob',                 section: 'Statutory' },
-  { field_type: 'text',     label: 'Aadhaar Address',               field_key: 'aadhaar_address',             section: 'Statutory' },
-  { field_type: 'text',     label: 'Aadhaar Scan',                  field_key: 'aadhaar_scan_url',            section: 'Statutory' },
-  { field_type: 'text',     label: 'PAN Number',                    field_key: 'pan_number',                  section: 'Statutory' },
-  { field_type: 'text',     label: 'PAN Full Name',                 field_key: 'pan_full_name',               section: 'Statutory' },
-  { field_type: 'date',     label: 'PAN DOB',                       field_key: 'pan_dob',                     section: 'Statutory' },
-  { field_type: 'text',     label: 'PAN Parent/Spouse Name',        field_key: 'pan_parent_spouse_name',      section: 'Statutory' },
-  { field_type: 'text',     label: 'PAN Scan',                      field_key: 'pan_scan_url',                section: 'Statutory' },
-  { field_type: 'text',     label: 'Passport Number',               field_key: 'passport_number',             section: 'Statutory' },
-  { field_type: 'text',     label: 'Passport Full Name',            field_key: 'passport_full_name',          section: 'Statutory' },
-  { field_type: 'text',     label: 'Passport Nationality',          field_key: 'passport_nationality',        section: 'Statutory' },
-  { field_type: 'date',     label: 'Passport Issue Date',           field_key: 'passport_issue_date',         section: 'Statutory' },
-  { field_type: 'date',     label: 'Passport Expiry',               field_key: 'passport_expiry',             section: 'Statutory' },
-  { field_type: 'text',     label: 'Passport Place of Issue',       field_key: 'passport_place_of_issue',     section: 'Statutory' },
-  { field_type: 'text',     label: 'Passport Scan',                 field_key: 'passport_scan_url',           section: 'Statutory' },
-  { field_type: 'text',     label: 'Driving License Number',        field_key: 'driving_license_number',      section: 'Statutory' },
-  { field_type: 'text',     label: 'Driving License Name',          field_key: 'driving_license_name',        section: 'Statutory' },
-  { field_type: 'date',     label: 'Driving License Issue Date',    field_key: 'driving_license_issue_date',  section: 'Statutory' },
-  { field_type: 'date',     label: 'Driving License Expiry',        field_key: 'driving_license_expiry',      section: 'Statutory' },
-  { field_type: 'text',     label: 'Driving License Authority',     field_key: 'driving_license_authority',   section: 'Statutory' },
-  { field_type: 'text',     label: 'Driving License Scan',          field_key: 'driving_license_scan_url',    section: 'Statutory' },
-  { field_type: 'checkbox', label: 'Yellow Fever',                  field_key: 'yellow_fever',                section: 'Statutory' },
-  { field_type: 'date',     label: 'Yellow Fever Date',             field_key: 'yellow_fever_date',           section: 'Statutory' },
+  // ── IDs & Bank (wizard step `ids_bank` — StepIdsBank.tsx) ─────────
+  // Field-Level Permissions groups purely by dynamic_fields.section, so every
+  // field the "IDs & Bank" step owns (government IDs, vaccinations, additional
+  // documents, personal + official bank) MUST carry section 'IDs & Bank' —
+  // otherwise the step has no section row in the permissions panel at all.
+  // Historic section names ('Statutory' / 'Vaccinations' / 'Additional
+  // Documents' / 'Personal Bank Details' / 'Bank Details') were legacy
+  // form-builder groupings that no runtime code reads.
 
-  // ── Vaccinations — repeatable (EmployeeVaccination) ───────────────
+  // Statutory / IDs (EmployeeStatutory)
+  { field_type: 'text',     label: 'Aadhaar Number',                field_key: 'aadhaar_number',              section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Aadhaar Name',                  field_key: 'aadhaar_name',                section: 'IDs & Bank' },
+  { field_type: 'date',     label: 'Aadhaar DOB',                   field_key: 'aadhaar_dob',                 section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Aadhaar Address',               field_key: 'aadhaar_address',             section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Aadhaar Scan',                  field_key: 'aadhaar_scan_url',            section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'PAN Number',                    field_key: 'pan_number',                  section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'PAN Full Name',                 field_key: 'pan_full_name',               section: 'IDs & Bank' },
+  { field_type: 'date',     label: 'PAN DOB',                       field_key: 'pan_dob',                     section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'PAN Parent/Spouse Name',        field_key: 'pan_parent_spouse_name',      section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'PAN Scan',                      field_key: 'pan_scan_url',                section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Passport Number',               field_key: 'passport_number',             section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Passport Full Name',            field_key: 'passport_full_name',          section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Passport Nationality',          field_key: 'passport_nationality',        section: 'IDs & Bank' },
+  { field_type: 'date',     label: 'Passport Issue Date',           field_key: 'passport_issue_date',         section: 'IDs & Bank' },
+  { field_type: 'date',     label: 'Passport Expiry',               field_key: 'passport_expiry',             section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Passport Place of Issue',       field_key: 'passport_place_of_issue',     section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Passport Scan',                 field_key: 'passport_scan_url',           section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Driving License Number',        field_key: 'driving_license_number',      section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Driving License Name',          field_key: 'driving_license_name',        section: 'IDs & Bank' },
+  { field_type: 'date',     label: 'Driving License Issue Date',    field_key: 'driving_license_issue_date',  section: 'IDs & Bank' },
+  { field_type: 'date',     label: 'Driving License Expiry',        field_key: 'driving_license_expiry',      section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Driving License Authority',     field_key: 'driving_license_authority',   section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Driving License Scan',          field_key: 'driving_license_scan_url',    section: 'IDs & Bank' },
+  { field_type: 'checkbox', label: 'Yellow Fever',                  field_key: 'yellow_fever',                section: 'IDs & Bank' },
+  { field_type: 'date',     label: 'Yellow Fever Date',             field_key: 'yellow_fever_date',           section: 'IDs & Bank' },
+
+  // Vaccinations — repeatable (EmployeeVaccination).
   // "vaccinations" is the whole-block key StepIdsBank.tsx actually checks.
-  { field_type: 'text',     label: 'Vaccinations (Section)',        field_key: 'vaccinations',                section: 'Vaccinations' },
-  { field_type: 'text',     label: 'Vaccine Name',                  field_key: 'vaccine_name',                section: 'Vaccinations' },
-  { field_type: 'date',     label: 'Date',                          field_key: 'vaccination_date',            section: 'Vaccinations' },
-  { field_type: 'text',     label: 'Notes',                         field_key: 'vaccination_notes',           section: 'Vaccinations' },
+  { field_type: 'text',     label: 'Vaccinations (Section)',        field_key: 'vaccinations',                section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Vaccine Name',                  field_key: 'vaccine_name',                section: 'IDs & Bank' },
+  { field_type: 'date',     label: 'Date',                          field_key: 'vaccination_date',            section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Notes',                         field_key: 'vaccination_notes',           section: 'IDs & Bank' },
 
-  // ── Additional Documents — repeatable (EmployeeDocument) ──────────
+  // Additional Documents — repeatable (EmployeeDocument).
   // "documents" is the whole-block key StepIdsBank.tsx actually checks.
-  { field_type: 'text',     label: 'Additional Documents (Section)', field_key: 'documents',                   section: 'Additional Documents' },
-  { field_type: 'select',   label: 'Document Type',                 field_key: 'doc_type',                    section: 'Additional Documents' },
-  { field_type: 'text',     label: 'Document Type (Other)',         field_key: 'doc_type_other',              section: 'Additional Documents' },
-  { field_type: 'text',     label: 'File',                          field_key: 'doc_file_url',                section: 'Additional Documents' },
+  { field_type: 'text',     label: 'Additional Documents (Section)', field_key: 'documents',                   section: 'IDs & Bank' },
+  { field_type: 'select',   label: 'Document Type',                 field_key: 'doc_type',                    section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Document Type (Other)',         field_key: 'doc_type_other',              section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'File',                          field_key: 'doc_file_url',                section: 'IDs & Bank' },
 
-  // ── Personal Bank Details (EmployeeBankDetail, bank_type='personal') ──
+  // Personal Bank Details (EmployeeBankDetail, bank_type='personal').
   // StepIdsBank.tsx uses personal_bank_* keys — distinct from the generic
-  // bank_* keys below, which cover a different/official bank-details
-  // consumer. Without these, the whole Personal Bank card is invisible.
-  { field_type: 'select',   label: 'Personal Bank Name',            field_key: 'personal_bank_name',          section: 'Personal Bank Details' },
-  { field_type: 'text',     label: 'Personal Bank Account Number',  field_key: 'personal_bank_account',       section: 'Personal Bank Details' },
-  { field_type: 'text',     label: 'Personal IFSC Code',            field_key: 'personal_ifsc',               section: 'Personal Bank Details' },
-  { field_type: 'text',     label: 'Personal Bank Branch',          field_key: 'personal_bank_branch',        section: 'Personal Bank Details' },
+  // bank_* keys below, which cover a different/official bank-details consumer.
+  { field_type: 'select',   label: 'Personal Bank Name',            field_key: 'personal_bank_name',          section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Personal Bank Account Number',  field_key: 'personal_bank_account',       section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Personal IFSC Code',            field_key: 'personal_ifsc',               section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Personal Bank Branch',          field_key: 'personal_bank_branch',        section: 'IDs & Bank' },
 
-  // ── Bank Details (EmployeeBankDetail) ─────────────────────────────
-  { field_type: 'select',   label: 'Bank Account Type',             field_key: 'bank_type',                   section: 'Bank Details' },
-  { field_type: 'text',     label: 'Bank Name',                     field_key: 'bank_name',                   section: 'Bank Details' },
-  { field_type: 'text',     label: 'Account Number',                field_key: 'bank_account_number',         section: 'Bank Details' },
-  { field_type: 'text',     label: 'IFSC Code',                     field_key: 'ifsc_code',                   section: 'Bank Details' },
-  { field_type: 'text',     label: 'Branch Name',                   field_key: 'bank_branch_name',            section: 'Bank Details' },
+  // Bank Details (EmployeeBankDetail) — official/salary bank.
+  { field_type: 'select',   label: 'Bank Account Type',             field_key: 'bank_type',                   section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Bank Name',                     field_key: 'bank_name',                   section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Account Number',                field_key: 'bank_account_number',         section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'IFSC Code',                     field_key: 'ifsc_code',                   section: 'IDs & Bank' },
+  { field_type: 'text',     label: 'Branch Name',                   field_key: 'bank_branch_name',            section: 'IDs & Bank' },
 
   // ── Compensation (EmployeeSalary) ─────────────────────────────────
   { field_type: 'select',   label: 'Salary Type',                   field_key: 'salary_type',                 section: 'Salary' },
@@ -328,7 +345,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   if (existingForm.length === 0) {
     const [existingModule] = (await queryInterface.sequelize.query(
-      "SELECT id FROM hr_modules WHERE slug = 'employee'",
+      "SELECT id FROM hr_modules WHERE slug = 'employees'",
     )) as unknown as [{ id: number }[], unknown];
 
     let moduleId: number;
@@ -336,8 +353,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       moduleId = existingModule[0].id;
     } else {
       await queryInterface.bulkInsert('hr_modules', [{
-        name: 'Employee',
-        slug: 'employee',
+        name: 'Employees',
+        slug: 'employees',
         icon: '👤',
         description: 'Employee records and profile management',
         sort_order: 1,

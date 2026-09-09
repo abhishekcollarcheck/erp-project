@@ -1,6 +1,7 @@
 'use client';
 import { useCompany }   from '../../features/company/hooks/useCompany';
 import { ManagedCompany } from '../../types/auth.types';
+import { Select } from '../ui/Select';
 
 interface CompanySelectorProps {
   onChange?: (companyId: number) => void;
@@ -13,8 +14,8 @@ export function CompanySelector({ onChange, label = 'Company', size = 'md' }: Co
 
   if (!canSwitchCompany) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = Number(e.target.value);
+  const handleChange = (value: number) => {
+    const id = Number(value);
     switchCompany(id);
     onChange?.(id);
   };
@@ -26,42 +27,17 @@ export function CompanySelector({ onChange, label = 'Company', size = 'md' }: Co
           {label}:
         </label>
       )}
-      <div style={{ position: 'relative' }}>
-        <select
-          value={companyId}
-          onChange={handleChange}
-          style={{
-            padding: size === 'sm' ? '5px 28px 5px 10px' : '7px 32px 7px 12px',
-            border: '1px solid var(--border2)',
-            borderRadius: 'var(--r)',
-            fontSize: size === 'sm' ? 11 : 12,
-            fontFamily: 'var(--font)',
-            fontWeight: 600,
-            background: 'var(--surface)',
-            color: 'var(--ink)',
-            cursor: 'pointer',
-            appearance: 'none',
-            WebkitAppearance: 'none',
-            minWidth: 180,
-            outline: 'none',
-          }}
-        >
-          {companies.map((co: ManagedCompany) => (
-            <option key={co.id} value={co.id} disabled={!co.is_active}>
-              {co.name}
-              {!co.is_active ? ' (Suspended)' : ''}
-              {isSuperAdmin ? '' : ` · ${co.manager_role}`}
-            </option>
-          ))}
-        </select>
-        {/* Custom chevron */}
-        <div style={{
-          position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-          pointerEvents: 'none', fontSize: 10, color: 'var(--ink4)',
-        }}>
-          ▾
-        </div>
-      </div>
+      <Select
+        value={companyId}
+        onChange={handleChange}
+        style={{ minWidth: 180, fontWeight: 600 }}
+        filter
+        options={companies.map((co: ManagedCompany) => ({
+          value: co.id,
+          disabled: !co.is_active,
+          label: `${co.name}${!co.is_active ? ' (Suspended)' : ''}${isSuperAdmin ? '' : ` · ${co.manager_role}`}`,
+        }))}
+      />
 
       {/* Company status badge */}
       {companies.find((c: ManagedCompany) => c.id === companyId)?.is_active === false && (

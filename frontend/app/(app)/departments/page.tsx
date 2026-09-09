@@ -7,6 +7,7 @@ import { AppShell } from '../../../layouts/AppLayout';
 import { StatCard } from '../../../components/ui/StatCard';
 import { Chip } from '../../../components/ui/Chip';
 import { Modal } from '../../../components/ui/Modal';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
 import { DepartmentFormModal } from '../../../features/departments/components/DepartmentFormModal';
 import { useDepartments, useDepartmentStats, useDeleteDepartment } from '../../../features/departments/hooks/useDepartments';
 import { usePermission } from '../../../features/auth/hooks/useAuth';
@@ -26,6 +27,9 @@ export default function DepartmentsPage() {
   const [editTarget, setEditTarget] = useState<Department | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Department | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [selected, setSelected] = useState<Department[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const debouncedSearch = useDebounce(search, 350);
   const deleteMutation = useDeleteDepartment();
@@ -52,6 +56,57 @@ export default function DepartmentsPage() {
     await deleteMutation.mutateAsync(deleteTarget.id);
     setDeleteTarget(null);
   };
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    for (const d of selected) {
+      try { await deleteMutation.mutateAsync(d.id); } catch { /* keep going */ }
+    }
+    setBulkDeleting(false);
+    setBulkDeleteOpen(false);
+    setSelected([]);
+  };
+
+  const tableColumns: Column<Department>[] = [
+    {
+      key: 'department', header: 'Department',
+      render: (dept) => (
+        <strong style={{ cursor: 'pointer', color: 'var(--blue)' }}
+          onClick={() => router.push(`/departments/${dept.id}`)}>
+          {dept.department_name}
+        </strong>
+      ),
+    },
+    {
+      key: 'code', header: 'Code',
+      render: (dept) => dept.department_code
+        ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px' }}>{dept.department_code}</span>
+        : <span style={{ color: 'var(--ink4)' }}>—</span>,
+    },
+    {
+      key: 'head', header: 'Head',
+      render: (dept) => dept.head
+        ? <span style={{ fontSize: 12 }}>{dept.head.first_name} {dept.head.last_name}</span>
+        : <Chip variant="amber">Unassigned</Chip>,
+    },
+    {
+      key: 'employees', header: 'Employees',
+      render: (dept) => <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--blue)' }}>{dept.employee_count ?? 0}</span>,
+    },
+    {
+      key: 'status', header: 'Status',
+      render: (dept) => <Chip variant={dept.is_active ? 'green' : 'gray'}>{dept.is_active ? 'Active' : 'Inactive'}</Chip>,
+    },
+    ...(canEdit('department') || canDelete('department') ? [{
+      key: 'actions', header: 'Actions',
+      render: (dept: Department) => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          {canEdit('department') && <Chip variant="gray" onClick={() => openEdit(dept)}>Edit</Chip>}
+          {canDelete('department') && <Chip variant="red" onClick={() => setDeleteTarget(dept)}>Delete</Chip>}
+        </div>
+      ),
+    }] : []),
+  ];
 
   return (
     <PermissionGuard permission='department:view'>
@@ -222,68 +277,28 @@ export default function DepartmentsPage() {
 
           {/* ─── TABLE VIEW ─── */}
           {viewMode === 'table' && (
-            <div className="card">
-              <div className="tw">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Department</th>
-                      <th>Code</th>
-                      <th>Head</th>
-                      <th>Employees</th>
-                      {/* <th>Designations</th>
-                      <th>Parent</th> */}
-                      <th>Status</th>
-                      {canEdit('department') && <th>Actions</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoading
-                      ? Array.from({ length: 5 }).map((_, i) => (
-                        <tr key={i}>
-                          {Array.from({ length: 7 }).map((_, j) => (
-                            <td key={j}><div className="skeleton" style={{ height: 14, width: 80 }} /></td>
-                          ))}
-                        </tr>
-                      ))
-                      : departments.map((dept) => (
-                        <tr key={dept.id}>
-                          <td>
-                            <strong style={{ cursor: 'pointer', color: 'var(--blue)' }}
-                              onClick={() => router.push(`/departments/${dept.id}`)}>
-                              {dept.department_name}
-                            </strong>
-                          </td>
-                          <td>
-                            {dept.department_code
-                              ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px' }}>{dept.department_code}</span>
-                              : <span style={{ color: 'var(--ink4)' }}>—</span>}
-                          </td>
-                          <td>
-                            {dept.head
-                              ? <span style={{ fontSize: 12 }}>{dept.head.first_name} {dept.head.last_name}</span>
-                              : <Chip variant="amber">Unassigned</Chip>}
-                          </td>
-                          <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--blue)' }}>
-                            {dept.employee_count ?? 0}
-                          </td>
-                          <td><Chip variant={dept.is_active ? 'green' : 'gray'}>{dept.is_active ? 'Active' : 'Inactive'}</Chip></td>
-                            <td>
-                              <div style={{ display: 'flex', gap: 4 }}>
-                                {canEdit('department') && (
-                                  <Chip variant="gray" onClick={() => openEdit(dept)}>Edit</Chip>
-                                )}
-                                {canDelete('department') && (
-                                  <Chip variant="red" onClick={() => setDeleteTarget(dept)}>Delete</Chip>
-                                )}
-                              </div>
-                            </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              columns={tableColumns}
+              data={departments}
+              isLoading={isLoading}
+              rowKey={(d) => d.id}
+              minWidth="720px"
+              emptyText="No departments found."
+              selectable={canDelete('department')}
+              selection={selected}
+              onSelectionChange={setSelected}
+              selectionBar={(rows, clear) => (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10,
+                  background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--r)', padding: '7px 12px',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{rows.length} selected</span>
+                  <button className="btn btn-danger btn-sm" onClick={() => setBulkDeleteOpen(true)}>Delete</button>
+                  <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
+                </div>
+              )}
+            />
           )}
 
         </div>
@@ -315,6 +330,25 @@ export default function DepartmentsPage() {
           <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)' }}>
             ⚠ Departments with active employees or sub-departments cannot be deleted.
             Reassign them first.
+          </div>
+        </Modal>
+
+        <Modal
+          open={bulkDeleteOpen}
+          onClose={() => setBulkDeleteOpen(false)}
+          title="Delete Departments"
+          subtitle={`Delete ${selected.length} selected department${selected.length === 1 ? '' : 's'}?`}
+          footer={
+            <>
+              <button className="btn btn-sec" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkDeleting}>
+                {bulkDeleting ? 'Deleting…' : `Yes, Delete ${selected.length}`}
+              </button>
+            </>
+          }
+        >
+          <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)' }}>
+            ⚠ Departments with active employees or sub-departments will be skipped.
           </div>
         </Modal>
       </AppShell>

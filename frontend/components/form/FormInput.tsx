@@ -2,13 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
-
-interface FieldPerm {
-  can_view?: boolean;
-  can_edit?: boolean;
-  can_copy?: boolean;
-  is_masked?: boolean;
-}
+import { maskPartial } from '../../utils/validationEngine';
+import type { FieldPerm } from './maskField';
 
 interface Props {
   name:         string;
@@ -53,9 +48,10 @@ export function FormInput({
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
   }, []);
 
-  const isMasked   = fieldPerm?.is_masked === true;
+  const isMasked      = fieldPerm?.is_masked === true;
+  const isPartialMask = !isMasked && fieldPerm?.is_partial_masked === true;
   // A masked value must never reach the clipboard, whatever can_copy says.
-  const noCopy     = fieldPerm?.can_copy === false || isMasked;
+  const noCopy     = fieldPerm?.can_copy === false || isMasked || isPartialMask;
 
   const flagBlocked = useCallback(() => {
     onCopyBlocked?.(name);
@@ -85,7 +81,7 @@ export function FormInput({
   // Field-level visibility gate
   if (fieldPerm?.can_view === false) return null;
 
-  const isReadOnly   = readOnly || fieldPerm?.can_edit === false;
+  const isReadOnly   = readOnly || fieldPerm?.can_edit === false || isPartialMask;
   const isDisabled   = disabled;
   const displayType  = isMasked ? 'password' : type;
   const hintId       = `${name}-hint`;
@@ -107,13 +103,13 @@ export function FormInput({
           <label htmlFor={name} className="field-label">
             {label}
             {required && <span className="req-mark" aria-hidden="true">*</span>}
-            {isMasked && (
+            {(isMasked || isPartialMask) && (
               <span
                 style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 4 }}
-                title="This field is masked based on your role"
+                title={isPartialMask ? 'This field is partially masked based on your role' : 'This field is masked based on your role'}
               >🔒</span>
             )}
-            {noCopy && !isMasked && (
+            {noCopy && !isMasked && !isPartialMask && (
               <span
                 style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 4 }}
                 title="Copying is disabled for this field"
@@ -154,11 +150,11 @@ export function FormInput({
               aria-describedby={describedBy}
               aria-required={required}
               data-nocopy={noCopy || undefined}
-              value={displayValue ?? field.value ?? ''}
+              value={isPartialMask ? maskPartial(field.value) : (displayValue ?? field.value ?? '')}
               className={[
                 'form-input',
                 isReadOnly ? 'readonly' : '',
-                isMasked ? 'masked' : '',
+                (isMasked || isPartialMask) ? 'masked' : '',
                 noCopy ? 'nocopy' : '',
               ].filter(Boolean).join(' ')}
               style={{

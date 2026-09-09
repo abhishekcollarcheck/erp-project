@@ -480,8 +480,30 @@ export const mailer = {
     durationMins: number,
     interviewerName: string,
     meetLink?: string,
-  ) =>
-    sendMail({
+    portal?: { url: string; email: string; password: string | null },
+  ) => {
+    const portalBlock = portal
+      ? `
+        <h3 style="margin:24px 0 6px;font-size:14px;font-weight:700;color:#0f1623;">Candidate Portal Access</h3>
+        <p style="font-size:12px;color:#64748b;margin:0 0 12px;line-height:1.6;">
+          Log in to the Candidate Portal to <strong>confirm your attendance</strong>, request a reschedule, and view full interview details.
+        </p>
+        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:8px;">
+          <tbody>
+            ${kvRow('Portal URL', `<a href="${portal.url}" style="color:#1e56d9;font-weight:600;">${portal.url}</a>`)}
+            ${kvRow('Email / Username', portal.email)}
+            ${portal.password
+              ? kvRow('Temporary password', `<code style="background:#e0e7ff;color:#3730a3;padding:4px 10px;border-radius:6px;font-size:13px;font-weight:700;letter-spacing:1px;">${portal.password}</code>`)
+              : kvRow('Password', 'Use your existing Candidate Portal password')}
+          </tbody>
+        </table>
+        ${btn(portal.url, 'Log in to Candidate Portal', '#1e56d9')}
+        <p style="font-size:11px;color:#94a3b8;line-height:1.6;margin:0;">
+          ${portal.password ? 'For security, please change your password after first login. ' : ''}Keep these credentials confidential. If you did not expect this email, please contact HR.
+        </p>`
+      : '';
+
+    return sendMail({
       to,
       subject: `Interview scheduled — ${jobTitle} (Round ${round})`,
       html: emailShell(`
@@ -501,8 +523,10 @@ export const mailer = {
         </table>
         ${infoBox('Please be available 5 minutes before the scheduled time. Ensure a stable internet connection if this is a video interview.', 'blue')}
         ${meetLink ? btn(meetLink, 'Join Meeting', '#1e56d9') : ''}
+        ${portalBlock}
       `, `Your interview for ${jobTitle} is scheduled`),
-    }),
+    });
+  },
 
   /**
    * Offer letter notification to candidate.

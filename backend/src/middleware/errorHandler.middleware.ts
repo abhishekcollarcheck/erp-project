@@ -142,7 +142,18 @@ export function errorHandler(
     return;
   }
 
-  // ─── 7. Multer errors (file upload) ──────────────────────────────────────────
+  // ─── 7. Request body too large (body-parser / raw-body) ──────────────────────
+  if ((err as any).type === 'entity.too.large' || err.name === 'PayloadTooLargeError') {
+    res.status(413).json({
+      success: false,
+      message: 'The submitted data is too large. Please reduce the size of any uploaded photos or documents and try again.',
+      data:    null,
+      errors:  null,
+    });
+    return;
+  }
+
+  // ─── 7b. Multer errors (file upload) ─────────────────────────────────────────
   if ((err as any).code === 'LIMIT_FILE_SIZE') {
     res.status(413).json({
       success: false,
