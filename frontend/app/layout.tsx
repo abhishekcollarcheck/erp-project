@@ -6,7 +6,6 @@ const inter = Inter({
 });
 import "./globals.css";
 import "@/styles/theme.css";
-// import "@/styles/primereact-overrides.css";
 import "primeicons/primeicons.css";
 
 import { ReduxProvider } from '../providers/ReduxProvider';
@@ -14,6 +13,9 @@ import { QueryProvider } from '../providers/QueryProvider';
 import 'primereact/resources/themes/lara-light-blue/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
+// Maps PrimeReact components onto the NexHR design tokens — must load AFTER the
+// base PrimeReact theme + core css above so its rules win.
+import "@/styles/primereact-overrides.css";
 import { PrimeReactProvider } from 'primereact/api';
 import { ThemeProvider } from "next-themes";
 

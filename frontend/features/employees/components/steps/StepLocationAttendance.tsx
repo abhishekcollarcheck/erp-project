@@ -2,7 +2,7 @@
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
-import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useShiftOptions, useShifts } from '../../../../features/shift/hooks/useShift';
 import { useWatch } from 'react-hook-form';
@@ -13,8 +13,7 @@ import { useGraceMinutesData } from '../../../attendance-rule/hooks/useAttendanc
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepLocationAttendance({ }: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
 
   const shiftType = useWatch({
     name: 'shift_type',

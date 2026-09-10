@@ -5,6 +5,7 @@ import { setPageTitle }      from '../../../../store/slices/uiSlice';
 import { AppShell }          from '../../../../layouts/AppLayout';
 import { Modal }             from '../../../../components/ui/Modal';
 import { Chip }              from '../../../../components/ui/Chip';
+import { Select }            from '../../../../components/ui/Select';
 import {
   useEmailBranding, useSaveEmailBranding,
   useEmailTemplates, useEmailTemplate,
@@ -235,9 +236,11 @@ export default function EmailTemplatesPage() {
                 <div className="ct">Typography</div>
                 <div className="fg">
                   <label>Font Family</label>
-                  <select value={branding.font_family} onChange={e => b('font_family', e.target.value)}>
-                    {FONT_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                  </select>
+                  <Select
+                    value={branding.font_family}
+                    onChange={(v) => b('font_family', v)}
+                    options={FONT_OPTIONS.map(f => ({ value: f.value, label: f.label }))}
+                  />
                 </div>
               </div>
 

@@ -1,14 +1,14 @@
 'use client';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormInput } from '../../../../components/form/FormInput';
-import { useFieldPermissions, useEmployees, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepManagersWorkContact({ employeeId }: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
 
   // Load all active employees — used as manager options for both L1 and L2
   const { data: empData, isLoading } = useEmployees({ status: 'Active', limit: 100 });

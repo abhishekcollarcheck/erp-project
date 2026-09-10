@@ -11,6 +11,7 @@ import { LeaveType } from "../models/LeaveModels";
 import { logger } from "../../config/logger";
 import { seedHolidays } from "./holiday-seed-data";
 import { seedEmpLookups } from "./seedEmpLookups";
+import { seedRbac } from "./seedRbac";
 import { computeCompletionPct } from "../../modules/employees/employee.helper";
 import { Designation } from "../models";
 import type { Sequelize } from "sequelize";
@@ -50,12 +51,64 @@ async function assertNoIndexBloat(db: Sequelize, threshold = 55): Promise<void> 
 const COMPANY_ID = 1;
 
 // The seeded admin accounts are login users, not filled-in employee profiles —
-// their completion % must reflect the actual data (base identity only), not a
-// hard-coded 100. Kept in sync with the wizard/list by using the same helper.
-const seedAdminCompletionPct = (emp: {
+// their completion % AND record_status must reflect the actual data (base
+// identity only), never a hard-coded 100 / "Final". Same rule the wizard uses:
+// record_status only becomes 'Final' when the profile is genuinely 100%
+// complete (which also gates employee_code generation). Kept in lock-step with
+// the Employee List / Edit wizard by using the same computeCompletionPct().
+const seedEmployeeCompletion = (emp: {
   first_name: string; last_name: string; employment_type: string;
   department_id: number; designation_id: number; email: string; phone: string;
-}) => computeCompletionPct(emp).overallPct;
+}): { form_completion_pct: number; record_status: 'Draft' | 'Final' } => {
+  const pct = computeCompletionPct(emp).overallPct;
+  return { form_completion_pct: pct, record_status: pct === 100 ? 'Final' : 'Draft' };
+};
+
+/**
+ * Recompute completion for every employee from its real (child-row) data and
+ * correct a drifted form_completion_pct / record_status. Mirrors getById's
+ * self-heal but sweeps the whole table in one pass so a fresh seed leaves no
+ * "Final at 13%" rows behind. Never bumps updated_at.
+ */
+async function reconcileEmployeeCompletion(t: import("sequelize").Transaction): Promise<void> {
+  const employees = await Employee.findAll({
+    include: [
+      { association: "locationAttendance" },
+      { association: "managersWorkContact" },
+      { association: "commitmentProbation" },
+      { association: "schemes" },
+      { association: "onboardingDocs" },
+      { association: "personal" },
+      { association: "family" },
+      { association: "addresses" },
+      { association: "experienceFlag" },
+      { association: "statutory" },
+      { association: "bankDetails" },
+      { association: "salaries" },
+    ],
+    transaction: t,
+  });
+
+  let fixed = 0;
+  for (const emp of employees) {
+    const raw = emp.toJSON() as any;
+    const pct = computeCompletionPct(raw).overallPct;
+    const status: "Draft" | "Final" = pct === 100 ? "Final" : "Draft";
+
+    const patch: Record<string, unknown> = {};
+    if ((emp.get("form_completion_pct") ?? 0) !== pct) patch.form_completion_pct = pct;
+    // Only correct a wrongly-"Final" row here; a genuine 100% is already Final
+    // with a code, and a Draft that just hit 100% is upgraded by the wizard
+    // save (which also mints the employee_code) — not by this sweep.
+    if (emp.get("record_status") === "Final" && pct < 100) patch.record_status = status;
+
+    if (Object.keys(patch).length) {
+      await Employee.update(patch, { where: { id: emp.id }, transaction: t, silent: true });
+      fixed++;
+    }
+  }
+  if (fixed) logger.info(`🩹 Reconciled record_status / form_completion_pct on ${fixed} employee row(s)`);
+}
 // =========================================================
 // ROLE TEMPLATES
 // =========================================================
@@ -621,10 +674,10 @@ export async function seedDatabase(): Promise<void> {
           employment_type: "Permanent",
           status: "Active",
 
-          record_status: "Final",
-          // Honest completion for a base-identity-only record (matches the
-          // Employee List and the Edit wizard). NOT a hard-coded 100.
-          form_completion_pct: seedAdminCompletionPct({
+          // record_status + form_completion_pct derived from the real data
+          // (base identity only ⇒ Draft, not Final) — matches the Employee
+          // List and the Edit wizard exactly.
+          ...seedEmployeeCompletion({
             first_name: "Super", last_name: "Admin", employment_type: "Permanent",
             department_id: hrDepartmentId!, designation_id: superAdminDesignationId!,
             email: "superadmin@ung.com", phone: "+918130988753",
@@ -638,6 +691,11 @@ export async function seedDatabase(): Promise<void> {
       });
 
     if (!saCreated) {
+      // Only reconcile the org fields on re-seed. record_status / form_completion_pct
+      // are owned by the wizard save flow + getById self-heal — the seeder must
+      // NOT force them (forcing "Final" here was the root cause of complete-looking
+      // but 13%-filled seeded admins). reconcileEmployeeCompletion() below fixes
+      // any pre-existing wrongly-"Final" row.
       await superAdminEmp.update(
         {
           company_id: COMPANY_ID,
@@ -646,8 +704,6 @@ export async function seedDatabase(): Promise<void> {
 
           portal_access: true,
           is_super_admin: true,
-
-          record_status: "Final",
         },
         {
           transaction,
@@ -758,10 +814,10 @@ export async function seedDatabase(): Promise<void> {
           employment_type: "Permanent",
           status: "Active",
 
-          record_status: "Final",
-          // Honest completion for a base-identity-only record (matches the
-          // Employee List and the Edit wizard). NOT a hard-coded 100.
-          form_completion_pct: seedAdminCompletionPct({
+          // record_status + form_completion_pct derived from the real data
+          // (base identity only ⇒ Draft, not Final) — matches the Employee
+          // List and the Edit wizard exactly.
+          ...seedEmployeeCompletion({
             first_name: "Admin", last_name: "User", employment_type: "Permanent",
             department_id: hrDepartmentId!, designation_id: superAdminDesignationId!,
             email: "admin@ung.com", phone: "+918826693968",
@@ -806,6 +862,16 @@ export async function seedDatabase(): Promise<void> {
     logger.info("✅ HR admin employee ready");
 
     // =====================================================
+    // RECONCILE record_status / form_completion_pct
+    // =====================================================
+    // Self-heals every employee row so its status/percentage matches the real
+    // profile data — corrects legacy rows that a prior seed hard-coded as
+    // "Final" while only ~13% filled. A record is only 'Final' at a genuine
+    // 100% (same gate as employee_code generation); anything less is 'Draft'
+    // and stays resumable in the wizard.
+    await reconcileEmployeeCompletion(transaction);
+
+    // =====================================================
     // COMMIT
     // =====================================================
 
@@ -826,6 +892,16 @@ export async function seedDatabase(): Promise<void> {
       await seedEmpLookups();
     } catch (lookupError) {
       logger.error("⚠️ Excel master-data catalog seed failed (core seed already committed):", lookupError);
+    }
+
+    // RBAC bootstrap — permission catalog, per-company system roles, module
+    // links, system permission groups, admin role assignments. Idempotent;
+    // runs after the commit in its own try/catch for the same reason as above.
+    try {
+      const rbac = await seedRbac();
+      logger.info(`✅ RBAC ready ${JSON.stringify(rbac)}`);
+    } catch (rbacError) {
+      logger.error("⚠️ RBAC seed failed (core seed already committed):", rbacError);
     }
   } catch (error) {
     await transaction.rollback();

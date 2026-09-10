@@ -6,6 +6,7 @@ import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { Building2, Upload } from 'lucide-react';
 import { Chip } from '@/components/ui/Chip';
+import { Select } from '@/components/ui/Select';
 import apiClient from '@/services/api/client';
 import { showToast } from '@/utils/toast';
 import {
@@ -71,10 +72,19 @@ function skipCodesToText(json: string | null | undefined): string {
   }
 }
 function skipTextToCodes(text: string): string {
-  const codes = text
-    .split(',')
-    .map((v) => Number(v.trim()))
-    .filter((v) => !Number.isNaN(v));
+  // Trim + drop empty tokens BEFORE Number() — otherwise "" and a trailing
+  // comma become Number('') === 0, which the API rejects as a reserved code
+  // "outside company range". An empty field must serialise to [], never [0].
+  const codes = Array.from(
+    new Set(
+      (text ?? '')
+        .split(',')
+        .map((v) => v.trim())
+        .filter((v) => v !== '')
+        .map((v) => Number(v))
+        .filter((v) => Number.isInteger(v)),
+    ),
+  );
   return JSON.stringify(codes);
 }
 
@@ -207,7 +217,8 @@ export default function CompanyPage() {
 
     const payload: CompanyFormDto = {
       ...form,
-      since_year: form.since_year ? Number(form.since_year) : undefined,
+      // send null (not undefined) so clearing the year actually persists on edit
+      since_year: form.since_year ? Number(form.since_year) : null,
       employee_code_start: form.employee_code_start || null,
       employee_code_end: form.employee_code_end || null,
       employee_code_skip: skipTextToCodes(form.employee_code_skip ?? ''),
@@ -369,15 +380,15 @@ export default function CompanyPage() {
               <div className="g3">
                 <div className="fg">
                   <label>Status</label>
-                  <select
+                  <Select
                     value={statusDraft}
-                    onChange={(e) => setStatusDraft(e.target.value as 'active' | 'suspended')}
+                    onChange={(v) => setStatusDraft(v as 'active' | 'suspended')}
                     disabled={!isEdit}
-                    title={!isEdit ? 'Save the company first to change status' : undefined}
-                  >
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
+                    options={[
+                      { value: 'active', label: 'Active' },
+                      { value: 'suspended', label: 'Suspended' },
+                    ]}
+                  />
                 </div>
                 <div className="fg">
                   <label>Industry</label>

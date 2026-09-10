@@ -65,10 +65,10 @@ export const FIELD_DEFS: FieldDef[] = [
   // ── Location & Attendance ──────────────────────────────────────────────────
   // Resolved against the real Site/City/State/PayRegister/WeeklyOffPreset/GraceMinute
   // master tables (same ones the wizard's dropdowns read) rather than a hardcoded copy.
-  f({ col: 'working_site',          step: 'location_attendance', key: 'working_site',          type: 'dbmaster', dbMaster: 'site',          label: 'Working Site' }),
-  f({ col: 'working_city',          step: 'location_attendance', key: 'working_city',          type: 'dbmaster', dbMaster: 'city',          label: 'Working City' }),
-  f({ col: 'working_state_country', step: 'location_attendance', key: 'working_state_country', type: 'dbmaster', dbMaster: 'state',         label: 'Working State / Country' }),
-  f({ col: 'pay_register_location', step: 'location_attendance', key: 'pay_register_location', type: 'dbmaster', dbMaster: 'pay_register',  label: 'Pay Register Location' }),
+  f({ col: 'working_site',          step: 'location_attendance', key: 'working_site',          type: 'dbmaster', dbMaster: 'site',          label: 'Working Site', help: 'Site name from Master → Location (e.g. "Head Office"). The "Site, City" label also works.' }),
+  f({ col: 'working_city',          step: 'location_attendance', key: 'working_city',          type: 'dbmaster', dbMaster: 'city',          label: 'Working City', help: 'City name from Master → Location (e.g. "New Delhi"). The "City, State" label also works.' }),
+  f({ col: 'working_state_country', step: 'location_attendance', key: 'working_state_country', type: 'dbmaster', dbMaster: 'state',         label: 'Working State / Country', help: 'State name from Master → Location (e.g. "Delhi") or the "State, Country" label (e.g. "Delhi, India").' }),
+  f({ col: 'pay_register_location', step: 'location_attendance', key: 'pay_register_location', type: 'dbmaster', dbMaster: 'pay_register',  label: 'Pay Register Location', help: 'Pay Register name from Master → Location. The "Pay Register, State" label also works.' }),
   f({ col: 'date_of_joining',       step: 'location_attendance', key: 'actual_doj',            type: 'date', requiredWithStep: true, label: 'Date of Joining', help: 'Original / group joining date — YYYY-MM-DD' }),
   f({ col: 'current_joining_date',  step: 'location_attendance', key: 'current_doj',           type: 'date', label: 'Current Joining Date', help: 'Transfer field — joining date at the current company after a transfer (YYYY-MM-DD)' }),
   f({ col: 'weekly_off',            step: 'location_attendance', key: 'weekly_off',            type: 'dbmaster', dbMaster: 'weekly_off',    label: 'Weekly Off' }),

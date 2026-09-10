@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Select as UISelect } from '../../../components/ui/Select';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { portalService } from '../../../services/api/candidate.service';
 
@@ -270,6 +271,8 @@ export default function PreJoiningForm() {
   const sigCanvas = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
   const [sigHasData, setSigHasData] = useState(false);
+  const [sig, setSig] = useState('');            // signature image (data URL)
+  const [formError, setFormError] = useState('');
   const [refId] = useState(genRefId);
   const [step, setStep]   = useState<StepId>('personal');
   const [visited, setVisited] = useState<Set<StepId>>(new Set(['personal']));
@@ -392,6 +395,10 @@ export default function PreJoiningForm() {
     if (fd.s10) setS10(fd.s10 as any);
     if (fd.s11) setS11(fd.s11 as any);
     if (fd.photo) setPhoto(fd.photo as string);
+    if (fd.docAadhaar) setDocAadhaar(fd.docAadhaar as string);
+    if (fd.docPan) setDocPan(fd.docPan as string);
+    if (fd.docPassport) setDocPassport(fd.docPassport as string);
+    if (fd.sig) { setSig(fd.sig as string); setSigHasData(true); }
     if ((profile as any).prejoining_form_status === 'Submitted') setSubmitted(true);
   }, [profile]);
 
@@ -423,21 +430,34 @@ export default function PreJoiningForm() {
   const saveMutation = useMutation({
     mutationFn: (isDraft: boolean) => portalService.savePreJoining(
       { s1, s2, edu, awards, profQual, techQual, certs, memb, emp, s4extra,
-        skills, langs, s6, s7, family, proRefs, locRefs, emergency, s10, s11, photo },
+        skills, langs, s6, s7, family, proRefs, locRefs, emergency, s10, s11,
+        photo, docAadhaar, docPan, docPassport, sig },
       isDraft,
     ),
     onSuccess: (_, isDraft) => {
       qc.invalidateQueries({ queryKey: ['portal-profile'] });
+      setFormError('');
       if (!isDraft) setSubmitted(true);
     },
+    onError: (err: any) => setFormError(
+      err?.message?.includes('large') || err?.message?.includes('413')
+        ? 'The form is too large to save — please use smaller document scans / photo.'
+        : (err?.message || 'Could not save the form. Please check your connection and try again.'),
+    ),
   });
 
-  // ── Signature pad ──────────────────────────────────────────────────────────
+  // ── Signature pad — resize + restore any saved signature ───────────────────
   useEffect(() => {
     const cv = sigCanvas.current; if (!cv) return;
-    cv.width  = cv.offsetWidth || 500;
-    cv.height = 120;
-  }, [step]);
+    const w = cv.offsetWidth || 500;
+    if (cv.width !== w) { cv.width = w; cv.height = 120; }
+    const ctx = cv.getContext('2d');
+    if (sig && ctx) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      img.src = sig;
+    }
+  }, [step, sig]);
 
   const getPos = (e: React.MouseEvent | React.TouchEvent, cv: HTMLCanvasElement) => {
     const rect = cv.getBoundingClientRect();
@@ -460,16 +480,30 @@ export default function PreJoiningForm() {
     const p = getPos(e, cv); ctx.lineTo(p.x, p.y); ctx.stroke();
     setSigHasData(true);
   };
-  const sigEnd = () => { isDrawing.current = false; };
+  const sigEnd = () => {
+    isDrawing.current = false;
+    const cv = sigCanvas.current;
+    if (cv && sigHasData) setSig(cv.toDataURL('image/png'));
+  };
   const clearSig = () => {
     const cv = sigCanvas.current; if (!cv) return;
     cv.getContext('2d')?.clearRect(0, 0, cv.width, cv.height);
     setSigHasData(false);
+    setSig('');
   };
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+  const MAX_UPLOAD = 4 * 1024 * 1024; // 4 MB per file
   const toB64 = (f: File, cb: (s: string) => void) => {
-    const r = new FileReader(); r.onload = () => cb(r.result as string); r.readAsDataURL(f);
+    if (f.size > MAX_UPLOAD) {
+      setFormError('Each file must be under 4 MB. Please choose a smaller scan or photo.');
+      return;
+    }
+    setFormError('');
+    const r = new FileReader();
+    r.onerror = () => setFormError('Could not read that file. Please try another one.');
+    r.onload  = () => cb(r.result as string);
+    r.readAsDataURL(f);
   };
 
   const stepIdx  = STEPS.findIndex(s => s.id === step);
@@ -498,6 +532,7 @@ export default function PreJoiningForm() {
         e.decl = 'Please confirm all declarations';
       if (!s11.sig_name.trim()) e.sig_name = 'Please enter your name';
       if (!s11.place.trim())    e.place    = 'Please enter place';
+      if (!sig)                 e.sig      = 'Please draw your signature above';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -506,6 +541,20 @@ export default function PreJoiningForm() {
   const next = () => {
     if (!validate(step)) return;
     if (stepIdx < STEPS.length - 1) goTo(STEPS[stepIdx + 1].id);
+  };
+
+  // Validate every step before final submit; jump to the first incomplete one.
+  const submitForm = async () => {
+    setFormError('');
+    for (const s of STEPS) {
+      if (!validate(s.id)) {
+        goTo(s.id);
+        setFormError(`Please complete the "${s.label}" section before submitting.`);
+        return;
+      }
+    }
+    try { await saveMutation.mutateAsync(false); }
+    catch { /* onError handles the message */ }
   };
 
   const F1 = (k: keyof typeof s1) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -517,6 +566,15 @@ export default function PreJoiningForm() {
     <div className="chips">
       {opts.map(o => <button key={o} type="button" className={`chip${val===o?' on'+(variant?' '+variant:''): ''}`} onClick={() => onChange(o)}>{o}</button>)}
     </div>
+  );
+  const Pick = ({ val, onChange, opts, placeholder = '— Select —' }: { val: string; onChange: (v: string) => void; opts: string[]; placeholder?: string }) => (
+    <UISelect
+      value={val ?? ''}
+      onChange={(v) => onChange(String(v ?? ''))}
+      options={opts.map(o => ({ value: o, label: o }))}
+      placeholder={placeholder}
+      filter
+    />
   );
   const YN = ({ val, onChange }: { val: string; onChange: (v: string) => void }) => (
     <div className="yn">
@@ -571,7 +629,7 @@ export default function PreJoiningForm() {
             <p className="done-sub">Thank you for completing the Employee Pre-Joining & Personal Data Form. HR will review your information and contact you before your joining date.</p>
             <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
               <button className="btn btn-sec" onClick={() => setSubmitted(false)}>View Submitted Form</button>
-              <button className="btn btn-pri" onClick={() => router.push('/portal/home')}>← Dashboard</button>
+              <button className="btn btn-pri" onClick={() => router.push('/portal/joining')}>← Back to portal</button>
             </div>
           </div>
         </div>
@@ -594,7 +652,7 @@ export default function PreJoiningForm() {
             <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => saveMutation.mutate(true)} disabled={saveMutation.isPending}>
               {saveMutation.isPending ? '…' : '↑ Save Draft'}
             </button>
-            <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => router.push('/portal/home')}>← Dashboard</button>
+            <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => router.push('/portal/joining')}>← Back to portal</button>
           </div>
         </div>
 
@@ -648,6 +706,10 @@ export default function PreJoiningForm() {
             })}
           </div>
 
+          {formError && step !== 'declaration' && (
+            <div className="info-am" style={{ marginBottom:14 }}>⚠ {formError}</div>
+          )}
+
           {/* ══════════════════════════════════════════════════════
               STEP 1: PERSONAL INFORMATION
               ══════════════════════════════════════════════════════ */}
@@ -679,7 +741,7 @@ export default function PreJoiningForm() {
                 <div className="fg"><Lbl t="Alternate Mobile" /><input type="tel" value={s1.alt_mobile} onChange={F1('alt_mobile')} /></div>
                 <div className="fg"><Lbl t="Email Address" /><input type="email" value={s1.email} onChange={F1('email')} className={errors.email?'er':''} /><Err k="email" /></div>
                 <div className="fg"><Lbl t="Nationality" /><input value={s1.nationality} onChange={F1('nationality')} /></div>
-                <div className="fg"><Lbl t="Religion" /><select value={s1.religion} onChange={F1('religion')}><option value="">— Select —</option>{RELIGIONS.map(r => <option key={r}>{r}</option>)}</select></div>
+                <div className="fg"><Lbl t="Religion" /><Pick val={s1.religion} onChange={v => setS1(p => ({ ...p, religion: v }))} opts={RELIGIONS} /></div>
                 <div className="fg"><Lbl t="Place of Birth" /><input value={s1.place_of_birth} onChange={F1('place_of_birth')} /></div>
                 <div className="fg"><Lbl t="Height (cm)" /><input type="number" value={s1.height} onChange={F1('height')} /></div>
                 <div className="fg"><Lbl t="Weight (kg)" /><input type="number" value={s1.weight} onChange={F1('weight')} /></div>
@@ -733,7 +795,7 @@ export default function PreJoiningForm() {
                 <div className="fg"><Lbl t="Area / Locality" /><input value={s2.pr_area} onChange={e => setS2(p=>({...p,pr_area:e.target.value}))} /></div>
                 <div className="fg"><Lbl t="City" r /><input value={s2.pr_city} onChange={e => setS2(p=>({...p,pr_city:e.target.value}))} /></div>
                 <div className="fg"><Lbl t="District" /><input value={s2.pr_district} onChange={e => setS2(p=>({...p,pr_district:e.target.value}))} /></div>
-                <div className="fg"><Lbl t="State" /><select value={s2.pr_state} onChange={e => setS2(p=>({...p,pr_state:e.target.value}))}><option value="">— Select —</option>{STATES.map(s => <option key={s}>{s}</option>)}</select></div>
+                <div className="fg"><Lbl t="State" /><Pick val={s2.pr_state} onChange={v => setS2(p => ({ ...p, pr_state: v }))} opts={STATES} /></div>
                 <div className="fg"><Lbl t="PIN Code" /><input maxLength={6} value={s2.pr_pin} onChange={e => setS2(p=>({...p,pr_pin:e.target.value}))} /></div>
                 <div className="fg"><Lbl t="Residential Duration" /><input placeholder="e.g. 3 years" value={s2.pr_duration} onChange={e => setS2(p=>({...p,pr_duration:e.target.value}))} /></div>
                 {s2.pr_house_type==='Rented' && <div className="fg"><Lbl t="Monthly Rent (₹)" /><input type="number" value={s2.pr_rent} onChange={e => setS2(p=>({...p,pr_rent:e.target.value}))} /></div>}
@@ -758,7 +820,7 @@ export default function PreJoiningForm() {
                     <div className="fg"><Lbl t="Area / Locality" /><input value={s2.pe_area} onChange={e => setS2(p=>({...p,pe_area:e.target.value}))} /></div>
                     <div className="fg"><Lbl t="City" /><input value={s2.pe_city} onChange={e => setS2(p=>({...p,pe_city:e.target.value}))} /></div>
                     <div className="fg"><Lbl t="District" /><input value={s2.pe_district} onChange={e => setS2(p=>({...p,pe_district:e.target.value}))} /></div>
-                    <div className="fg"><Lbl t="State" /><select value={s2.pe_state} onChange={e => setS2(p=>({...p,pe_state:e.target.value}))}><option value="">— Select —</option>{STATES.map(s => <option key={s}>{s}</option>)}</select></div>
+                    <div className="fg"><Lbl t="State" /><Pick val={s2.pe_state} onChange={v => setS2(p => ({ ...p, pe_state: v }))} opts={STATES} /></div>
                     <div className="fg"><Lbl t="PIN Code" /><input maxLength={6} value={s2.pe_pin} onChange={e => setS2(p=>({...p,pe_pin:e.target.value}))} /></div>
                   </div>
                 </>
@@ -1212,6 +1274,7 @@ export default function PreJoiningForm() {
                   </button>
                 </div>
               </div>
+              {errors.sig && <div className="err-msg" style={{ marginTop:6 }}>{errors.sig as string}</div>}
 
               <div className="g3" style={{ marginTop:14 }}>
                 <div className="fg s2">
@@ -1235,6 +1298,8 @@ export default function PreJoiningForm() {
               </div>
             </div>
 
+            {formError && <div className="info-am" style={{ marginBottom:12 }}>⚠ {formError}</div>}
+
             <div className="nav-row">
               <button className="btn btn-sec" onClick={prev}>← Back</button>
               <div style={{ display:'flex', gap:8 }}>
@@ -1246,9 +1311,9 @@ export default function PreJoiningForm() {
                   disabled={
                     !s11.commit1 || !s11.commit2 || !s11.commit3 ||
                     !s11.commit4 || !s11.commit5 || !s11.commit6 ||
-                    !s11.sig_name || !s11.place || saveMutation.isPending
+                    !s11.sig_name || !s11.place || !sig || saveMutation.isPending
                   }
-                  onClick={async () => { if (validate('declaration')) await saveMutation.mutateAsync(false); }}
+                  onClick={submitForm}
                 >
                   {saveMutation.isPending ? <><span className="spin" /> Submitting…</> : '✓ Submit Pre-Joining Form'}
                 </button>

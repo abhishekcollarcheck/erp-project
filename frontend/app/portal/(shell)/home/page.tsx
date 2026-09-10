@@ -39,9 +39,9 @@ export default function PortalHome() {
   if (c.aptitude_test_sent && !c.aptitude_attempted_at)
     todos.push({ text: 'Complete your aptitude test', href: '/portal/assessments' });
   if (c.pre_interview_form_sent && c.status === 'Interview' && c.interview_accepted === true && c.preinterview_form_status !== 'Submitted')
-    todos.push({ text: 'Fill in your pre-interview form', href: '/portal/preinterview' });
+    todos.push({ text: 'Fill in your pre-interview form', href: '/portal/pre-interview' });
   if (c.pre_joining_form_sent && c.prejoining_form_status !== 'Submitted')
-    todos.push({ text: 'Complete your pre-joining form', href: '/portal/prejoining' });
+    todos.push({ text: 'Complete your joining form', href: '/portal/joining' });
   if (pendingReq.length)
     todos.push({ text: `Provide ${pendingReq.length} requested document${pendingReq.length > 1 ? 's' : ''}`, href: '/portal/documents' });
   if (pendingShare.length)

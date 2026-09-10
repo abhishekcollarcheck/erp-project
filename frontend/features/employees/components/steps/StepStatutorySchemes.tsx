@@ -13,7 +13,7 @@ import {
   RD_TERM,
   DEDUCTION_FROM,
 } from '../../constants/employee.constants';
-import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useInsuredData } from '../../../insuredAmounts/useInsuredAmount';
 
@@ -55,8 +55,7 @@ function formatINR(n: number): string {
 }
 
 export function StepStatutorySchemes(_: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
 
   const { setValue } = useFormContext();
 

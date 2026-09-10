@@ -5,15 +5,19 @@ import Link from 'next/link';
 import { usePortalProfile, usePortalDocuments } from '../../hooks/usePortal';
 import type { CandidateStatus } from '../../types/candidate.types';
 
-const NAV: { section: string; items: { code: string; label: string; href: string; badge?: boolean }[] }[] = [
+type NavItem = { code: string; label: string; href: string; badge?: 'docs' | 'preinterview' | 'joining' };
+
+const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Your journey',
     items: [
-      { code: 'H',  label: 'Home',        href: '/portal/home' },
-      { code: 'P',  label: 'My progress', href: '/portal/progress' },
-      { code: 'IV', label: 'Interviews',  href: '/portal/interviews' },
-      { code: 'OF', label: 'Offers',      href: '/portal/offers' },
-      { code: 'D',  label: 'Documents',   href: '/portal/documents', badge: true },
+      { code: 'H',  label: 'Home',               href: '/portal/home' },
+      { code: 'P',  label: 'My progress',        href: '/portal/progress' },
+      { code: 'IV', label: 'Interviews',         href: '/portal/interviews' },
+      { code: 'PF', label: 'Pre-Interview Form', href: '/portal/pre-interview', badge: 'preinterview' },
+      { code: 'OF', label: 'Offers',             href: '/portal/offers' },
+      { code: 'JF', label: 'Joining Form',       href: '/portal/joining', badge: 'joining' },
+      { code: 'D',  label: 'Documents',          href: '/portal/documents', badge: 'docs' },
     ],
   },
   {
@@ -59,6 +63,7 @@ const CSS = `
 .pc-nav-code{width:24px;height:22px;flex-shrink:0;border-radius:6px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#64748b;}
 .pc-nav.on .pc-nav-code{background:#1e56d9;color:#fff;}
 .pc-nav-badge{margin-left:auto;background:#fee2e2;color:#b42318;border-radius:99px;font-size:10px;font-weight:800;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 5px;}
+.pc-nav-dot{margin-left:auto;width:7px;height:7px;border-radius:50%;background:#f59e0b;flex-shrink:0;}
 .pc-main{flex:1;min-width:0;padding:28px 32px 80px;max-width:1000px;}
 .pc-h1{font-size:22px;font-weight:800;letter-spacing:-.4px;margin:0 0 4px;}
 .pc-lead{font-size:13px;color:#64748b;margin-bottom:20px;}
@@ -136,6 +141,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   }
 
   const chip = statusChip(profile.status as CandidateStatus);
+  const attn = {
+    preinterview: !!profile.pre_interview_form_sent && profile.preinterview_form_status !== 'Submitted',
+    joining:      !!profile.pre_joining_form_sent && profile.prejoining_form_status !== 'Submitted',
+  };
 
   return (
     <>
@@ -168,7 +177,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                     <Link key={item.href} href={item.href} className={`pc-nav${active ? ' on' : ''}`}>
                       <span className="pc-nav-code">{item.code}</span>
                       {item.label}
-                      {item.badge && unread > 0 && <span className="pc-nav-badge">{unread}</span>}
+                      {item.badge === 'docs' && unread > 0 && <span className="pc-nav-badge">{unread}</span>}
+                      {item.badge === 'preinterview' && attn.preinterview && <span className="pc-nav-dot" title="Action needed" />}
+                      {item.badge === 'joining' && attn.joining && <span className="pc-nav-dot" title="Action needed" />}
                     </Link>
                   );
                 })}

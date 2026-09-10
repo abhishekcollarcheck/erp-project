@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
+import type { FieldPerm } from './maskField';
 
 interface Props {
   name:         string;
@@ -12,7 +13,7 @@ interface Props {
   // Called with the selected File; should upload and return the URL
   onUpload?:    (file: File) => Promise<string>;
   // If no onUpload, stores File object directly in RHF (for local preview)
-  fieldPerm?:   { can_view?: boolean; can_edit?: boolean };
+  fieldPerm?:   FieldPerm;
 }
 
 type UploadStatus = 'idle' | 'uploading' | 'done' | 'error';
@@ -23,7 +24,7 @@ export function FormFileUpload({
   const { control, formState: { errors }, setValue } = useFormContext();
   const error     = (errors as any)[name]?.message as string | undefined;
   if (fieldPerm?.can_view === false) return null;
-  const isDisabled = fieldPerm?.can_edit === false;
+  const isDisabled = fieldPerm?.can_edit === false || !!fieldPerm?.is_masked || !!fieldPerm?.is_partial_masked;
 
   const inputRef              = useRef<HTMLInputElement>(null);
   const [status, setStatus]   = useState<UploadStatus>('idle');

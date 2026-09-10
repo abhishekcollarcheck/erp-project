@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Modal } from '../../../components/ui/Modal';
+import { Select } from '../../../components/ui/Select';
 import { useShareDocument } from '../hooks/useCandidates';
 import { DOC_CATEGORIES, type Candidate } from '../types/candidate.types';
 
@@ -88,9 +89,11 @@ export function ShareDocumentModal({ open, onClose, candidate }: Props) {
 
       <div className="fg">
         <label>Category</label>
-        <select value={category} onChange={e => setCategory(e.target.value)}>
-          {DOC_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <Select
+          value={category}
+          onChange={(v) => setCategory(v)}
+          options={DOC_CATEGORIES.map(c => ({ value: c, label: c }))}
+        />
       </div>
 
       {kind === 'Share' && (

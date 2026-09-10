@@ -4,7 +4,8 @@ import {
   MODULE_FIELDS, SENSITIVE_FIELDS, SYSTEM_MODULES,
   type SystemModule,
 } from '../../database/models/UserPermission';
-import { User }    from '../../database/models/User';
+import { Employee }   from '../../database/models/Employee';
+import { EmployeeRole } from '../../database/models/AuthModels';
 import { AppError } from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 import { maskValue } from '../../utils/fieldMask';
@@ -181,22 +182,27 @@ export class UserPermissionsService {
   }
 
   // ── Admin: list users with their permission summary ────────────────────────
+  // Identity is the Employee row now (the `users` table was retired in the
+  // employee-as-identity migration) — every permission table below keys on
+  // employee_id, so this must enumerate portal-enabled employees, not User.
   async listUsersWithPerms(companyId: number) {
-    const users = await User.findAll({
-      where: { company_id: companyId, is_active: true },
-      attributes: ['id','email','role_id'],
+    const employees = await Employee.findAll({
+      where: { company_id: companyId, portal_access: true },
+      attributes: ['id','email','first_name','last_name'],
       order: [['email','ASC']],
     });
 
-    const userIds = users.map(u => u.id);
+    const employeeIds = employees.map(e => e.id);
+    if (!employeeIds.length) return [];
 
-    const [modulePerms, fieldPerms] = await Promise.all([
-      UserModulePermission.findAll({ where: { company_id: companyId, employee_id: userIds } }),
+    const [modulePerms, fieldPerms, empRoles] = await Promise.all([
+      UserModulePermission.findAll({ where: { company_id: companyId, employee_id: employeeIds } }),
       UserFieldPermission.findAll({
-        where: { company_id: companyId, employee_id: userIds },
-        attributes: ['user_id','module'],
-        group: ['user_id','module'],
+        where: { company_id: companyId, employee_id: employeeIds },
+        attributes: ['employee_id','module'],
+        group: ['employee_id','module'],
       }),
+      EmployeeRole.findAll({ where: { company_id: companyId, employee_id: employeeIds }, attributes: ['employee_id','role_id'] }),
     ]);
 
     const moduleMap = new Map<number, string[]>();
@@ -208,13 +214,16 @@ export class UserPermissionsService {
     }
 
     const customFieldMap = new Set(fieldPerms.map(p => p.employee_id));
+    const roleMap = new Map<number, number>();
+    for (const r of empRoles) roleMap.set(r.employee_id, r.role_id);
 
-    return users.map(u => ({
-      id:             u.id,
-      email:          u.email,
-      role_id:        u.role_id,
-      accessible_modules: moduleMap.get(u.id) || [],
-      has_custom_field_perms: customFieldMap.has(u.id),
+    return employees.map(e => ({
+      id:             e.id,
+      email:          e.email,
+      name:           `${e.first_name ?? ''} ${e.last_name ?? ''}`.trim(),
+      role_id:        roleMap.get(e.id) ?? null,
+      accessible_modules: moduleMap.get(e.id) || [],
+      has_custom_field_perms: customFieldMap.has(e.id),
     }));
   }
 

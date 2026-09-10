@@ -99,20 +99,25 @@ export interface DynamicField {
   options?:      FieldOption[];
   // Resolved at runtime (from permissions)
   resolved?: {
-    can_view:     boolean;
-    can_edit:     boolean;
-    can_copy:     boolean;
-    can_download: boolean;
-    is_masked:    boolean;
+    can_view:          boolean;
+    can_add:           boolean;
+    can_edit:          boolean;
+    can_copy:          boolean;
+    can_download:      boolean;
+    is_masked:         boolean;
+    is_partial_masked: boolean;
   };
 }
 
 export interface FieldPermissionEntry {
-  can_view:     boolean;
-  can_edit:     boolean;
-  can_copy:     boolean;
-  can_download: boolean;
-  is_masked:    boolean;
+  can_view:          boolean;
+  // Onboarding-only edit grant — see PERM_FLAGS / resolveFieldPerm.
+  can_add:           boolean;
+  can_edit:          boolean;
+  can_copy:          boolean;
+  can_download:      boolean;
+  is_masked:         boolean;   // full mask
+  is_partial_masked: boolean;   // first 2 + last 2 visible
 }
 
 // role_id → field_id → FieldPermissionEntry
@@ -179,18 +184,30 @@ export const FIELD_CATEGORIES = {
   'File Upload': ['file','image'],
 } as const;
 
+// Boolean toggle columns. Masking is NOT here — it's a 3-way dropdown
+// (Off / Partial / Full → is_partial_masked / is_masked) in FieldPermissionsPanel.
 export const PERM_FLAGS: { key: keyof FieldPermissionEntry; label: string; color: string }[] = [
   { key: 'can_view',     label: 'View',     color: 'var(--blue)'  },
+  { key: 'can_add',      label: 'Add',      color: 'var(--indigo, var(--blue))' },
   { key: 'can_edit',     label: 'Edit',     color: 'var(--green)' },
   { key: 'can_copy',     label: 'Copy',     color: 'var(--teal)'  },
   { key: 'can_download', label: 'Download', color: 'var(--purple)'},
-  { key: 'is_masked',    label: 'Mask',     color: 'var(--amber)' },
 ];
 
+export type MaskMode = 'none' | 'partial' | 'full';
+export const maskModeOf = (p: Pick<FieldPermissionEntry, 'is_masked' | 'is_partial_masked'>): MaskMode =>
+  p.is_masked ? 'full' : p.is_partial_masked ? 'partial' : 'none';
+export const maskModeToFlags = (m: MaskMode) => ({
+  is_masked: m === 'full',
+  is_partial_masked: m === 'partial',
+});
+
 export const DEFAULT_PERM: FieldPermissionEntry = {
-  can_view: false, can_edit: false, can_copy: false, can_download: false, is_masked: false,
+  can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false,
+  is_masked: false, is_partial_masked: false,
 };
 
 export const FULL_PERM: FieldPermissionEntry = {
-  can_view: true, can_edit: true, can_copy: true, can_download: true, is_masked: false,
+  can_view: true, can_add: true, can_edit: true, can_copy: true, can_download: true,
+  is_masked: false, is_partial_masked: false,
 };

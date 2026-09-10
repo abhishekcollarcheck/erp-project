@@ -103,6 +103,7 @@ export const employeeController = {
         req.body,
         req.user!.employeeId,
         req.ip,
+        req.user!.isSuperAdmin,
       );
       sendResponse(res, { data: emp, message: `${step} saved` });
     } catch (error: any) {
@@ -159,7 +160,12 @@ export const employeeController = {
 
   async fieldPermissions(req: Request, res: Response) {
   const moduleKey = (req.query.module as string) || 'employees';
-  const perms = await employeeService.getFieldPermissions(req.user!.employeeId, moduleKey);
+  const targetEmployeeId = req.query.employee_id ? +req.query.employee_id : undefined;
+  const perms = await employeeService.getFieldPermissions(req.user!.employeeId, moduleKey, {
+    targetEmployeeId,
+    companyId: req.user!.companyId,
+    isSuperAdmin: req.user!.isSuperAdmin,
+  });
   sendResponse(res, { data: perms });
 },
 

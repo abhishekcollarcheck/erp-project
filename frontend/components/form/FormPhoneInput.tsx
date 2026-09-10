@@ -1,5 +1,7 @@
 'use client';
 import { useFormContext, Controller } from 'react-hook-form';
+import type { FieldPerm } from './maskField';
+import { Select } from '../ui/Select';
 
 interface Props {
   name:           string;
@@ -8,7 +10,7 @@ interface Props {
   disabled?:      boolean;
   hint?:          string;
   defaultCountry?: string;   // e.g. '+91'
-  fieldPerm?:     { can_view?: boolean; can_edit?: boolean };
+  fieldPerm?:     FieldPerm;
 }
 
 const COUNTRY_CODES = [
@@ -27,7 +29,7 @@ export function FormPhoneInput({
   const { control, formState: { errors } } = useFormContext();
   const error      = (errors as any)[name]?.message as string | undefined;
   if (fieldPerm?.can_view === false) return null;
-  const isDisabled = disabled || fieldPerm?.can_edit === false;
+  const isDisabled = disabled || fieldPerm?.can_edit === false || !!fieldPerm?.is_masked || !!fieldPerm?.is_partial_masked;
 
   return (
     <Controller name={name} control={control} render={({ field }) => {
@@ -49,26 +51,15 @@ export function FormPhoneInput({
           </label>
           <div style={{ display: 'flex', gap: 6 }}>
             {/* Country prefix */}
-            <select
-              value={prefix}
-              disabled={isDisabled}
-              onChange={e => update(e.target.value, number)}
-              style={{
-                background:   'var(--surface2)',
-                border:       '1px solid var(--border)',
-                borderRadius: 'var(--r)',
-                padding:      '0 8px',
-                fontSize:     12,
-                color:        'var(--ink2)',
-                cursor:       isDisabled ? 'not-allowed' : 'pointer',
-                flexShrink:   0,
-                height:       36,
-              }}
-            >
-              {COUNTRY_CODES.map(c => (
-                <option key={c.code} value={c.code}>{c.label}</option>
-              ))}
-            </select>
+            <div style={{ flexShrink: 0, width: 130 }}>
+              <Select
+                value={prefix}
+                disabled={isDisabled}
+                onChange={(v) => update(String(v), number)}
+                filter
+                options={COUNTRY_CODES.map(c => ({ value: c.code, label: c.label }))}
+              />
+            </div>
 
             {/* Number input */}
             <input

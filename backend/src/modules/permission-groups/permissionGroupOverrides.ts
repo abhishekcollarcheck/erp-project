@@ -58,12 +58,12 @@ class EmployeeOverrideService {
       );
     }
 
-    const VALID_PERMS = new Set(["view", "edit", "copy", "download", "mask"]);
+    const VALID_PERMS = new Set(["view", "add", "edit", "copy", "download", "mask", "partial_mask"]);
     for (const o of overrides) {
       if (!o.field_name?.trim()) throw new AppError("field_name is required", 400);
       if (!VALID_PERMS.has(o.permission))
         throw new AppError(
-          `Invalid permission "${o.permission}". Allowed: view, edit, copy, download, mask`,
+          `Invalid permission "${o.permission}". Allowed: view, add, edit, copy, download, mask, partial_mask`,
           400,
         );
     }

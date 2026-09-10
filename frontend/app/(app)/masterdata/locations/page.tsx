@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { SimpleMasterList } from '@/components/masterdata/SimpleMasterList';
+import { Select } from '@/components/ui/Select';
 import {
   useCountries, useCreateCountry, useUpdateCountry, useDeleteCountry,
   useStates, useCreateState, useUpdateState, useDeleteState,
@@ -205,28 +206,24 @@ export default function LocationsPage() {
           }))}
           addExtra={
             (activeTab === 'state_country' || activeTab === 'address_state') ? (
-              <div className="fg" style={{ margin: 0, width: 160 }}>
-                <select
+              <div className="fg" style={{ margin: 0, width: 180 }}>
+                <Select
                   value={selectedParentId ?? ''}
-                  onChange={(e) => setSelectedParentId(Number(e.target.value))}
-                >
-                  <option value="">Select Country</option>
-                  {countries.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setSelectedParentId(Number(v))}
+                  options={countries.map((c) => ({ value: c.id, label: c.name }))}
+                  placeholder="Select Country"
+                  filter
+                />
               </div>
             ) : (activeTab === 'city' || activeTab === 'address_city') ? (
-              <div className="fg" style={{ margin: 0, width: 160 }}>
-                <select
+              <div className="fg" style={{ margin: 0, width: 180 }}>
+                <Select
                   value={selectedParentId ?? ''}
-                  onChange={(e) => setSelectedParentId(Number(e.target.value))}
-                >
-                  <option value="">Select State</option>
-                  {states.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setSelectedParentId(Number(v))}
+                  options={states.map((s) => ({ value: s.id, label: s.name }))}
+                  placeholder="Select State"
+                  filter
+                />
               </div>
             ) : undefined
           }

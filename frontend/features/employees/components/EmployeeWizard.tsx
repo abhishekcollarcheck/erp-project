@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 
 import { fullEmployeeSchema, STEP_SCHEMA_MAP, type FullEmployeeForm, type StepSchemaKey } from '../validations/employee.schema';
 import { WIZARD_STEPS, HR_STEP_WEIGHTS, CANDIDATE_STEP_WEIGHTS } from '../constants/employee.constants';
-import { useCreateEmployee, useUpdateStep, useSaveDraft } from '../hooks/useEmployees';
+import { useCreateEmployee, useUpdateStep, useSaveDraft, useFieldPermissions } from '../hooks/useEmployees';
+import { FieldPermProvider } from '../hooks/useFieldPerm';
 import { employeeService } from '../../../services/api/employee.service';
 import { showToast } from '../../../utils/toast';
 import { usePermission } from '../../auth/hooks/usePermission';
@@ -45,6 +46,7 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   const router = useRouter();
   const { isHR, isAdmin, isSuperAdmin } = usePermission();
   const canSeeSensitive = isHR || isAdmin || isSuperAdmin;
+  const { data: fieldPerms } = useFieldPermissions();
 
   const sidRef = useRef(getOrCreateSid());
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -60,8 +62,9 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
   const [draftSaving,  setDraftSaving]  = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
 
-  const visibleSteps = useMemo(() => WIZARD_STEPS.filter(s => !s.sensitive || canSeeSensitive), [canSeeSensitive]);
-  const step = visibleSteps[currentIdx];
+const visibleSteps = WIZARD_STEPS;
+
+const step = visibleSteps[currentIdx];
   const isFirst = currentIdx === 0;
   const isLast = currentIdx === visibleSteps.length - 1;
 
@@ -499,6 +502,8 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
     }
   }
 
+ console.log('rendering wizard',  visibleSteps);
+
   return (
     <FormProvider {...methods}>
       <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: 20, alignItems: 'start' }}>
@@ -557,7 +562,9 @@ export function EmployeeWizard({ mode, employee, onSuccess }: Props) {
             </div>
           </div>
 
-          {renderStep()}
+          <FieldPermProvider fp={fieldPerms} completionPct={overallPct} bypass={isSuperAdmin}>
+            {renderStep()}
+          </FieldPermProvider>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
             <button type="button" className="btn btn-sec" disabled={isFirst || isSaving} onClick={() => setCurrentIdx(p => p - 1)}>← Back</button>

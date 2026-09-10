@@ -107,21 +107,25 @@ export async function getModuleFieldRegistry(req: Request, res: Response, next: 
 import { Router }   from 'express';
 import { body, param } from 'express-validator';
 import { validate } from '../../middleware/validate.middleware';
-import { authenticate } from '../auth/auth.middleware';
+import { authenticate, authorize } from '../auth/auth.middleware';
 
 export const userPermissionsRouter = Router();
 userPermissionsRouter.use(authenticate);
 
-// Current user's own permissions (loaded on every page)
+// Current user's own permissions (loaded on every page) — self-scoped, no guard.
 userPermissionsRouter.get('/me',                              getMyPermissions);
 userPermissionsRouter.get('/me/fields/:module',              getMyModuleFieldPerms);
 
-// Admin routes
-userPermissionsRouter.get('/users',                          listUsersPerms);
-userPermissionsRouter.get('/users/:userId',                  getUserPerms);
-userPermissionsRouter.put('/users/:userId/modules',          [body('permissions').isArray()], validate, setUserModulePerms);
-userPermissionsRouter.put('/users/:userId/fields/:module',   [body('fields').isArray()],      validate, setUserFieldPerms);
-userPermissionsRouter.post('/users/:userId/copy',            [body('from_user_id').isInt()],  validate, copyUserPerms);
+// Admin routes — the controllers below read req.params.employeeId, so the route
+// params must be named :employeeId (they were :userId, yielding NaN and a 500).
+// All of these read or overwrite another user's permissions, so they need an
+// explicit settings guard on top of authenticate (previously any logged-in
+// user could call them).
+userPermissionsRouter.get('/users',                              authorize('settings:view'), listUsersPerms);
+userPermissionsRouter.get('/users/:employeeId',                  authorize('settings:view'), [param('employeeId').isInt()], validate, getUserPerms);
+userPermissionsRouter.put('/users/:employeeId/modules',          authorize('settings:edit'), [param('employeeId').isInt(), body('permissions').isArray()], validate, setUserModulePerms);
+userPermissionsRouter.put('/users/:employeeId/fields/:module',   authorize('settings:edit'), [param('employeeId').isInt(), body('fields').isArray()],      validate, setUserFieldPerms);
+userPermissionsRouter.post('/users/:employeeId/copy',            authorize('settings:edit'), [param('employeeId').isInt(), body('from_user_id').isInt()],  validate, copyUserPerms);
 
 // Field registry (used by admin UI to build permission matrix)
 userPermissionsRouter.get('/registry',                       getModuleFieldRegistry);

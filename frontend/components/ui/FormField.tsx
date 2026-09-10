@@ -1,6 +1,7 @@
 'use client';
-import { ReactNode, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { UseFormRegisterReturn, FieldError } from 'react-hook-form';
+import { Dropdown } from 'primereact/dropdown';
 
 interface BaseFieldProps {
   label: string;
@@ -35,16 +36,29 @@ export function InputField({ label, error, required, hint, register, ...rest }: 
   );
 }
 
-export function SelectField({ label, error, required, hint, register, options, placeholder, ...rest }: SelectFieldProps) {
+export function SelectField({ label, error, required, hint, register, options, placeholder, value, onChange, disabled, name }: SelectFieldProps) {
+  // Bridge react-hook-form's register() (built for a native <select>) onto the
+  // PrimeReact <Dropdown> by synthesising the change event it expects.
+  const emit = (val: string | number) => {
+    register?.onChange({ target: { name: register.name ?? name, value: val }, type: 'change' } as any);
+    onChange?.({ target: { value: val } } as any);
+  };
   return (
     <div className="fg">
       <label>{label}{required && ' *'}</label>
-      <select {...register} {...rest}>
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
+      <Dropdown
+        name={(register?.name ?? name) as string}
+        value={(value as any) ?? ''}
+        options={options}
+        optionLabel="label"
+        optionValue="value"
+        placeholder={placeholder}
+        disabled={disabled}
+        filter
+        style={{ width: '100%' }}
+        onChange={(e) => emit(e.value)}
+        onBlur={register?.onBlur as any}
+      />
       {hint && !error && <span style={{ fontSize: 10, color: 'var(--ink4)' }}>{hint}</span>}
       {error && <span className="err">{error.message}</span>}
     </div>

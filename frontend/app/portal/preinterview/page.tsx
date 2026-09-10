@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { Select as UISelect } from '../../../components/ui/Select';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { portalService } from '../../../services/api/candidate.service';
 
@@ -217,6 +218,7 @@ export default function PrejoinFormPage() {
   const sigCanvas = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
   const [sigHasData, setSigHasData] = useState(false);
+  const [sig,       setSig]       = useState('');      // signature image (data URL)
   const [refId]    = useState(genRefId);
 
   const [step,      setStep]      = useState<StepId>('personal');
@@ -224,6 +226,7 @@ export default function PrejoinFormPage() {
   const [photo,     setPhoto]     = useState('');
   const [errors,    setErrors]    = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [formError, setFormError] = useState('');
 
   // Form sections
   const [p1, setP1] = useState({
@@ -294,6 +297,7 @@ export default function PrejoinFormPage() {
     if (fd.p7) setP7(fd.p7 as typeof p7);
     if (fd.p8) setP8(fd.p8 as typeof p8);
     if (fd.photo) setPhoto(fd.photo as string);
+    if (fd.sig)  { setSig(fd.sig as string); setSigHasData(true); }
     if (profile.preinterview_form_status === 'Submitted') setSubmitted(true);
   }, [profile]);
 
@@ -311,21 +315,33 @@ export default function PrejoinFormPage() {
 
   const saveMutation = useMutation({
     mutationFn: (isDraft: boolean) => portalService.savePreinterview(
-      { p1, p2, p3, p4, family, refs, p7, p8, photo },
+      { p1, p2, p3, p4, family, refs, p7, p8, photo, sig },
       isDraft,
     ),
     onSuccess: (_, isDraft) => {
       qc.invalidateQueries({ queryKey: ['portal-profile'] });
+      setFormError('');
       if (!isDraft) setSubmitted(true);
     },
+    onError: (err: any) => setFormError(
+      err?.message?.includes('large') || err?.message?.includes('413')
+        ? 'The form is too large to save — please use a smaller passport photo.'
+        : (err?.message || 'Could not save the form. Please check your connection and try again.'),
+    ),
   });
 
-  // ── Signature pad ──────────────────────────────────────────────────────────
+  // ── Signature pad — resize + restore any saved signature ────────────────────
   useEffect(() => {
     const cv = sigCanvas.current; if (!cv) return;
-    cv.width  = cv.offsetWidth || 500;
-    cv.height = 120;
-  }, [step]);
+    const w = cv.offsetWidth || 500;
+    if (cv.width !== w) { cv.width = w; cv.height = 120; }
+    const ctx = cv.getContext('2d');
+    if (sig && ctx) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      img.src = sig;
+    }
+  }, [step, sig]);
 
   const getPos = (e: React.MouseEvent | React.TouchEvent, cv: HTMLCanvasElement) => {
     const rect = cv.getBoundingClientRect();
@@ -348,11 +364,16 @@ export default function PrejoinFormPage() {
     const p = getPos(e, cv); ctx.lineTo(p.x, p.y); ctx.stroke();
     setSigHasData(true);
   };
-  const sigEnd = () => { isDrawing.current = false; };
+  const sigEnd = () => {
+    isDrawing.current = false;
+    const cv = sigCanvas.current;
+    if (cv && sigHasData) setSig(cv.toDataURL('image/png'));
+  };
   const clearSig = () => {
     const cv = sigCanvas.current; if (!cv) return;
     cv.getContext('2d')?.clearRect(0, 0, cv.width, cv.height);
     setSigHasData(false);
+    setSig('');
   };
 
 
@@ -384,9 +405,24 @@ export default function PrejoinFormPage() {
       if (!p8.agree_terms)   e.agree_terms  = 'Please agree to terms';
       if (!p8.candidate_sig_name.trim()) e.sig_name = 'Signature name is required';
       if (!p8.place.trim())  e.place        = 'Place is required';
+      if (!sig)              e.sig          = 'Please draw your signature above';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  // Validate every step before final submit; jump to the first incomplete one.
+  const submitForm = async () => {
+    setFormError('');
+    for (const s of STEPS) {
+      if (!validate(s.id)) {
+        goTo(s.id);
+        setFormError(`Please complete the "${s.label}" section before submitting.`);
+        return;
+      }
+    }
+    try { await saveMutation.mutateAsync(false); }
+    catch { /* onError handles the message */ }
   };
 
   const goTo = (id: StepId) => { setStep(id); setVisited(v => new Set([...v, id])); };
@@ -400,8 +436,17 @@ export default function PrejoinFormPage() {
 
   const prev = () => { if (stepIdx > 0) goTo(STEPS[stepIdx - 1].id); };
 
+  const MAX_UPLOAD = 4 * 1024 * 1024; // 4 MB
   const toBase64 = (file: File, cb: (s: string) => void) => {
-    const r = new FileReader(); r.onload = () => cb(r.result as string); r.readAsDataURL(file);
+    if (file.size > MAX_UPLOAD) {
+      setFormError('Image must be under 4 MB. Please choose a smaller photo.');
+      return;
+    }
+    setFormError('');
+    const r = new FileReader();
+    r.onerror = () => setFormError('Could not read that file. Please try another image.');
+    r.onload  = () => cb(r.result as string);
+    r.readAsDataURL(file);
   };
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -424,6 +469,16 @@ export default function PrejoinFormPage() {
         </button>
       ))}
     </div>
+  );
+
+  const Pick = ({ value, onChange, options, placeholder = '— Select —' }: { value: string; onChange: (v: string) => void; options: string[]; placeholder?: string }) => (
+    <UISelect
+      value={value ?? ''}
+      onChange={(v) => onChange(String(v ?? ''))}
+      options={options.map(o => ({ value: o, label: o }))}
+      placeholder={placeholder}
+      filter
+    />
   );
 
   const YN = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
@@ -473,7 +528,7 @@ export default function PrejoinFormPage() {
             </p>
             <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
               <button className="btn btn-sec" onClick={() => setSubmitted(false)}>View Submitted Form</button>
-              <button className="btn btn-pri" onClick={() => router.push('/portal/home')}>← Dashboard</button>
+              <button className="btn btn-pri" onClick={() => router.push('/portal/pre-interview')}>← Back to portal</button>
             </div>
           </div>
         </div>
@@ -496,7 +551,7 @@ export default function PrejoinFormPage() {
             <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => saveMutation.mutate(true)} disabled={saveMutation.isPending}>
               {saveMutation.isPending ? '…' : '↑ Save Draft'}
             </button>
-            <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => router.push('/portal/home')}>← Dashboard</button>
+            <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => router.push('/portal/pre-interview')}>← Back to portal</button>
           </div>
         </div>
 
@@ -540,6 +595,10 @@ export default function PrejoinFormPage() {
             })}
           </div>
 
+          {formError && step !== 'declaration' && (
+            <div className="info-box info-am" style={{ marginBottom:14 }}>⚠ {formError}</div>
+          )}
+
           {/* ══ STEP 1: PERSONAL ═══════════════════════════════ */}
           {step === 'personal' && (
             <>
@@ -581,7 +640,7 @@ export default function PrejoinFormPage() {
                     <div className="fg"><Label t="Date of Marriage" /><input type="date" value={p1.date_of_marriage} onChange={F1('date_of_marriage')} /></div>
                   </>}
                   <div className="fg"><Label t="Nationality" /><input value={p1.nationality} onChange={F1('nationality')} /></div>
-                  <div className="fg"><Label t="Religion" /><select value={p1.religion} onChange={F1('religion')}><option value="">— Select —</option>{RELIGIONS.map(r => <option key={r}>{r}</option>)}</select></div>
+                  <div className="fg"><Label t="Religion" /><Pick value={p1.religion} onChange={v => setP1(p => ({ ...p, religion: v }))} options={RELIGIONS} /></div>
                   <div className="fg"><Label t="Place of Birth" /><input placeholder="City / Town" value={p1.place_of_birth} onChange={F1('place_of_birth')} /></div>
                   <div className="fg"><Label t="Blood Group" /><Chips options={BLOOD_GROUPS} value={p1.blood_group} onChange={v => setP1(p => ({...p, blood_group:v}))} /></div>
                   <div className="fg"><Label t="Height (cm)" /><input type="number" placeholder="e.g. 170" value={p1.height} onChange={F1('height')} /></div>
@@ -611,8 +670,8 @@ export default function PrejoinFormPage() {
 
                 <div className="g2">
                   <div className="fg"><Label t="Position Applied For" r /><input placeholder="Job title / role" value={p2.position} onChange={F2('position')} className={errors.position?'err':''} /><Err k="position" /></div>
-                  <div className="fg"><Label t="Department" /><select value={p2.department} onChange={F2('department')}><option value="">— Select —</option>{DEPARTMENTS.map(d => <option key={d}>{d}</option>)}</select></div>
-                  <div className="fg"><Label t="Reference Source" /><select value={p2.reference_source} onChange={F2('reference_source')}><option value="">— Select —</option>{REF_SOURCES.map(s => <option key={s}>{s}</option>)}</select></div>
+                  <div className="fg"><Label t="Department" /><Pick value={p2.department} onChange={v => setP2(p => ({ ...p, department: v }))} options={DEPARTMENTS} /></div>
+                  <div className="fg"><Label t="Reference Source" /><Pick value={p2.reference_source} onChange={v => setP2(p => ({ ...p, reference_source: v }))} options={REF_SOURCES} /></div>
                   <div className="fg"><Label t="Interview Date" /><input type="date" value={p2.interview_date} onChange={F2('interview_date')} /></div>
                   <div className="fg"><Label t="Preferred Interview Time" /><input type="time" value={p2.interview_time} onChange={F2('interview_time')} /></div>
                   <div className="fg"><Label t="Total Years of Experience" /><input type="number" step="0.5" min="0" placeholder="e.g. 4.5" value={p2.total_experience} onChange={F2('total_experience')} /></div>
@@ -668,7 +727,7 @@ export default function PrejoinFormPage() {
                   <div className="fg"><Label t="Area / Locality" /><input value={p3.pr_area} onChange={e => F3('pr_area',e.target.value)} /></div>
                   <div className="fg"><Label t="City" r /><input value={p3.pr_city} onChange={e => F3('pr_city',e.target.value)} className={errors.pr_city?'err':''} /><Err k="pr_city" /></div>
                   <div className="fg"><Label t="District" /><input value={p3.pr_district} onChange={e => F3('pr_district',e.target.value)} /></div>
-                  <div className="fg"><Label t="State" r /><select value={p3.pr_state} onChange={e => F3('pr_state',e.target.value)} className={errors.pr_state?'err':''}><option value="">— Select —</option>{STATES.map(s => <option key={s}>{s}</option>)}</select><Err k="pr_state" /></div>
+                  <div className={`fg${errors.pr_state ? ' err' : ''}`}><Label t="State" r /><Pick value={p3.pr_state} onChange={v => F3('pr_state', v)} options={STATES} /><Err k="pr_state" /></div>
                   <div className="fg"><Label t="PIN Code" /><input maxLength={6} placeholder="6-digit PIN" value={p3.pr_pin} onChange={e => F3('pr_pin',e.target.value)} className={errors.pr_pin?'err':''} /><Err k="pr_pin" /></div>
                 </div>
               </div>
@@ -690,7 +749,7 @@ export default function PrejoinFormPage() {
                       <div className="fg"><Label t="Area / Locality" /><input value={p3.pe_area} onChange={e => F3('pe_area',e.target.value)} /></div>
                       <div className="fg"><Label t="City" /><input value={p3.pe_city} onChange={e => F3('pe_city',e.target.value)} /></div>
                       <div className="fg"><Label t="District" /><input value={p3.pe_district} onChange={e => F3('pe_district',e.target.value)} /></div>
-                      <div className="fg"><Label t="State" /><select value={p3.pe_state} onChange={e => F3('pe_state',e.target.value)}><option value="">— Select —</option>{STATES.map(s => <option key={s}>{s}</option>)}</select></div>
+                      <div className="fg"><Label t="State" /><Pick value={p3.pe_state} onChange={v => F3('pe_state', v)} options={STATES} /></div>
                       <div className="fg"><Label t="PIN Code" /><input maxLength={6} value={p3.pe_pin} onChange={e => F3('pe_pin',e.target.value)} /></div>
                     </div>
                   </>
@@ -702,7 +761,7 @@ export default function PrejoinFormPage() {
                 <div className="g3">
                   <div className="fg"><Label t="Distance from Office (km)" /><input type="number" step="0.5" placeholder="e.g. 12" value={p3.distance_office} onChange={e => F3('distance_office',e.target.value)} /></div>
                   <div className="fg"><Label t="Approx. Travel Time (min)" /><input type="number" placeholder="e.g. 45" value={p3.travel_time} onChange={e => F3('travel_time',e.target.value)} /></div>
-                  <div className="fg"><Label t="Preferred Travel Mode" /><select value={p3.travel_mode} onChange={e => F3('travel_mode',e.target.value)}><option value="">— Select —</option>{TRANSPORT_MODES.map(t => <option key={t}>{t}</option>)}</select></div>
+                  <div className="fg"><Label t="Preferred Travel Mode" /><Pick value={p3.travel_mode} onChange={v => F3('travel_mode', v)} options={TRANSPORT_MODES} /></div>
                 </div>
               </div>
 
@@ -721,7 +780,7 @@ export default function PrejoinFormPage() {
                 <div className="g2" style={{ marginBottom:14 }}>
                   <div className="fg"><Label t="Own Conveyance?" /><YN value={p4.own_vehicle} onChange={v => F4('own_vehicle',v)} /></div>
                   {p4.own_vehicle==='Yes' && <>
-                    <div className="fg"><Label t="Vehicle Type" /><select value={p4.vehicle_type} onChange={e => F4('vehicle_type',e.target.value)}><option value="">— Select —</option>{VEHICLE_TYPES.map(v => <option key={v}>{v}</option>)}</select></div>
+                    <div className="fg"><Label t="Vehicle Type" /><Pick value={p4.vehicle_type} onChange={v => F4('vehicle_type', v)} options={VEHICLE_TYPES} /></div>
                     <div className="fg span2"><Label t="Registration Number" /><input placeholder="e.g. MH01AB1234" style={{ textTransform:'uppercase' }} value={p4.vehicle_reg} onChange={e => F4('vehicle_reg',e.target.value.toUpperCase())} /></div>
                   </>}
                 </div>
@@ -908,6 +967,7 @@ export default function PrejoinFormPage() {
                   </button>
                 </div>
               </div>
+              {errors.sig && <div className="err-msg" style={{ marginTop:6 }}>{errors.sig}</div>}
 
                 <div className="g3" style={{ marginTop:16 }}>
                   <div className="fg span2"><Label t="Full Name (as signature)" r /><input placeholder="Type your full name" value={p8.candidate_sig_name} onChange={e => F8('candidate_sig_name', e.target.value)} className={errors.sig_name?'err':''} /><Err k="sig_name" /></div>
@@ -920,6 +980,8 @@ export default function PrejoinFormPage() {
                 </div>
               </div>
 
+              {formError && <div className="info-box info-am" style={{ marginBottom:12 }}>⚠ {formError}</div>}
+
               <div className="nav-row">
                 <button className="btn btn-sec" onClick={prev}>← Back</button>
                 <div style={{ display:'flex', gap:8 }}>
@@ -928,8 +990,8 @@ export default function PrejoinFormPage() {
                   </button>
                   <button
                     className="btn btn-gr"
-                    disabled={!p8.confirm_true || !p8.agree_terms || !p8.candidate_sig_name || !p8.place || saveMutation.isPending}
-                    onClick={async () => { if (validate('declaration')) await saveMutation.mutateAsync(false); }}
+                    disabled={!p8.confirm_true || !p8.agree_terms || !p8.candidate_sig_name || !p8.place || !sig || saveMutation.isPending}
+                    onClick={submitForm}
                   >
                     {saveMutation.isPending ? <><span className="spin" /> Submitting…</> : '✓ Submit Declaration'}
                   </button>

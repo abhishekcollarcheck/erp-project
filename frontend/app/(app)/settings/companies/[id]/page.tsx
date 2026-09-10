@@ -6,6 +6,7 @@ import { setPageTitle }                  from '../../../../../store/slices/uiSli
 import { selectUser }                    from '../../../../../store/slices/authSlice';
 import { AppShell }                      from '../../../../../layouts/AppLayout';
 import { Modal }                         from '../../../../../components/ui/Modal';
+import { Select }                        from '../../../../../components/ui/Select';
 import { usePermission }                 from '../../../../../features/auth/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient                         from '../../../../../services/api/client';
@@ -432,10 +433,13 @@ function EditCompanyModal({ company, onClose }: { company:CompanyDetail; onClose
         <div className="fg"><label>State</label><input value={f.state} onChange={F('state')} /></div>
         <div className="fg"><label>Country</label><input value={f.country} onChange={F('country')} /></div>
         <div className="fg"><label>Industry</label>
-          <select value={f.industry} onChange={F('industry')}>
-            <option value="">— Select —</option>
-            {['Technology','Manufacturing','Finance','Healthcare','Education','Retail','Logistics','Media','Real Estate','Other'].map(i=><option key={i} value={i}>{i}</option>)}
-          </select>
+          <Select
+            value={f.industry}
+            onChange={(v) => F('industry')({ target: { value: v } } as any)}
+            placeholder="— Select —"
+            filter
+            options={['Technology','Manufacturing','Finance','Healthcare','Education','Retail','Logistics','Media','Real Estate','Other'].map(i => ({ value: i, label: i }))}
+          />
         </div>
         <div className="fg"><label>Company Email</label><input type="email" value={f.email} onChange={F('email')} /></div>
         <div className="fg"><label>Phone</label><input value={f.phone} onChange={F('phone')} /></div>
@@ -632,10 +636,13 @@ function SettingsTab({ companyId, company }: { companyId:number; company:Company
               <div key={field.key} className="fg" style={{ marginBottom:0 }}>
                 <label style={{ fontSize:11 }}>{field.label}</label>
                 {field.type === 'select' ? (
-                  <select value={settings[field.key] ?? ''} onChange={e => handleSettingChange(field.key, e.target.value)} style={{ marginTop:4 }}>
-                    <option value="">— Select —</option>
-                    {field.options?.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-                  </select>
+                  <Select
+                    value={settings[field.key] ?? ''}
+                    onChange={(v) => handleSettingChange(field.key, String(v))}
+                    style={{ marginTop: 4 }}
+                    placeholder="— Select —"
+                    options={(field.options ?? []).map(o => ({ value: o.v, label: o.l }))}
+                  />
                 ) : (
                   <input
                     type={field.type === 'number' ? 'number' : 'text'}

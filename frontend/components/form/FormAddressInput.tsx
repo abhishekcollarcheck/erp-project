@@ -1,5 +1,6 @@
 'use client';
 import { useFormContext } from 'react-hook-form';
+import type { FieldPerm } from './maskField';
 import { FormInput } from './FormInput';
 import { FormSelect } from './FormSelect';
 
@@ -10,7 +11,7 @@ interface Props {
   required?:   boolean;
   disabled?:   boolean;
   showHouseType?: boolean;
-  fieldPerm?:  { can_view?: boolean; can_edit?: boolean };
+  fieldPerm?:  FieldPerm;
 }
 
 const HOUSE_TYPES = [

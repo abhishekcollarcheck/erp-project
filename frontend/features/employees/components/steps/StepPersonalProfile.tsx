@@ -3,7 +3,7 @@ import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { toOpts } from '../../constants/employee.constants';
-import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useGenderData } from '../../../../features/gender/hooks/useGender';
 import { useBloodGroupData } from '../../../../features/bloodGroup/hooks/useBloodGroup';
@@ -14,8 +14,7 @@ import { useShirtSizeData } from '../../../../features/shirtSize/hooks/useShirtS
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepPersonalProfile(_: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
 
   const { data: genders = [] } = useGenderData();
   const { data: bloodGroups = [] } = useBloodGroupData();

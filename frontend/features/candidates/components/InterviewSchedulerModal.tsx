@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useForm }   from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z }         from 'zod';
 import { Modal }     from '../../../components/ui/Modal';
+import { Select }    from '../../../components/ui/Select';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { candidateService } from '../../../services/api/candidate.service';
 import { showToast }        from '../../../utils/toast';
@@ -37,9 +38,8 @@ interface Props {
 
 export function InterviewSchedulerModal({ open, onClose, candidate }: Props) {
   const qc = useQueryClient();
-  const [sendPortalEmail, setSendPortalEmail] = useState(true);
 
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { interview_type: 'Online' },
   });
@@ -53,23 +53,16 @@ export function InterviewSchedulerModal({ open, onClose, candidate }: Props) {
         interview_link:         candidate.interview_link || '',
         interview_instructions: candidate.interview_instructions || '',
       });
-      setSendPortalEmail(!candidate.is_portal_user);
     } else if (open) {
       reset({ interview_type: 'Online' });
-      setSendPortalEmail(true);
     }
   }, [open, candidate, reset]);
 
   const mutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      await candidateService.scheduleInterview(candidate!.id, data as any);
-      // Optionally grant / refresh Candidate Portal access so the candidate can
-      // open the interview details and respond.
-      if (sendPortalEmail) {
-        try { await candidateService.grantPortalAccess(candidate!.id, { send_email: true }); }
-        catch { /* non-blocking — interview is already scheduled */ }
-      }
-    },
+    // The interview email itself now carries Candidate Portal access (URL,
+    // login email and — for candidates who haven't logged in yet — a temporary
+    // password), so no separate portal-access call is needed here.
+    mutationFn: (data: FormData) => candidateService.scheduleInterview(candidate!.id, data as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['candidates'] });
       showToast('✓ Interview scheduled — details shared with the candidate');
@@ -107,9 +100,12 @@ export function InterviewSchedulerModal({ open, onClose, candidate }: Props) {
         {/* Candidate (locked — modal is candidate-scoped) */}
         <div className="fg">
           <label>Candidate *</label>
-          <select value={candidate?.id ?? ''} disabled style={{ background: 'var(--surface2)' }}>
-            <option value={candidate?.id ?? ''}>{candidate?.candidate_name || '—'}</option>
-          </select>
+          <Select
+            value={candidate?.id ?? ''}
+            onChange={() => {}}
+            disabled
+            options={[{ value: candidate?.id ?? '', label: candidate?.candidate_name || '—' }]}
+          />
         </div>
         {/* Role */}
         <div className="fg">
@@ -133,17 +129,23 @@ export function InterviewSchedulerModal({ open, onClose, candidate }: Props) {
         {/* Round (single-round backend — Round 2 stays locked) */}
         <div className="fg">
           <label>Round</label>
-          <select defaultValue="1" style={{ background: 'var(--surface2)' }}>
-            <option value="1">Round 1</option>
-            <option value="2" disabled>Round 2 — locked</option>
-          </select>
+          <Select
+            value="1"
+            onChange={() => {}}
+            options={[
+              { value: '1', label: 'Round 1' },
+              { value: '2', label: 'Round 2 — locked', disabled: true },
+            ]}
+          />
         </div>
         {/* Mode */}
         <div className="fg">
           <label>Mode</label>
-          <select {...register('interview_type')}>
-            {MODE_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
+          <Select
+            value={(watch('interview_type') as any) ?? ''}
+            onChange={(v) => setValue('interview_type', v as any, { shouldValidate: true, shouldDirty: true })}
+            options={MODE_OPTIONS.map(m => ({ value: m.value, label: m.label }))}
+          />
         </div>
 
         {/* Meeting link — only relevant for a video interview */}
@@ -167,11 +169,15 @@ export function InterviewSchedulerModal({ open, onClose, candidate }: Props) {
         Round 2 stays locked until Round 1 is conducted (mark arrived / mark conducted).
       </div>
 
-      {/* Portal email toggle */}
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12, color: 'var(--ink3)', cursor: 'pointer' }}>
-        <input type="checkbox" checked={sendPortalEmail} onChange={e => setSendPortalEmail(e.target.checked)} />
-        Send Candidate Portal login email immediately
-      </label>
+      {/* Portal access is bundled into the interview email */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 12, fontSize: 12, color: 'var(--ink3)' }}>
+        <span aria-hidden>✉</span>
+        <span>
+          The interview email sent to <strong>{candidate?.email || 'the candidate'}</strong> includes Candidate
+          Portal login details{candidate?.is_portal_user ? '' : ' (URL, email and a temporary password)'} so they can
+          confirm attendance and view the details.
+        </span>
+      </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </Modal>

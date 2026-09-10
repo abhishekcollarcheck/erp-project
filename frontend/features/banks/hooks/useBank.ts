@@ -6,7 +6,13 @@ export const BANK_QUERY_KEY = ['banks-list'];
 export const useBankData = () => {
   return useQuery({
     queryKey: BANK_QUERY_KEY,
-    queryFn: () => bankService.getAll(),
+    queryFn: async () => {
+      const response = await bankService.getAll();
+
+      console.log('BANK API RESPONSE:', response);
+
+      return response ?? response ?? response ?? [];
+    },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
   });

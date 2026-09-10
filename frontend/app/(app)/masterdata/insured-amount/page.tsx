@@ -5,6 +5,7 @@ import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { X, Plus } from 'lucide-react';
 import { SimpleMasterList } from '@/components/masterdata/SimpleMasterList';
+import { Select } from '@/components/ui/Select';
 import {
   useInsuredData,
   useCreateInsuredMaster,
@@ -224,14 +225,11 @@ function BracketRowItem({
       </td>
       <td style={{ minWidth: 140 }}>
         <div className="fg" style={{ margin: 0 }}>
-          <select
+          <Select
             value={row.insured_amount_id}
-            onChange={(e) => onUpdate(row.id, { insured_amount_id: Number(e.target.value) })}
-          >
-            {masters.map((m) => (
-              <option key={m.id} value={m.id}>₹{m.name}</option>
-            ))}
-          </select>
+            onChange={(v) => onUpdate(row.id, { insured_amount_id: Number(v) })}
+            options={masters.map((m) => ({ value: m.id, label: `₹${m.name}` }))}
+          />
         </div>
       </td>
       <td style={{ color: 'var(--ink4)' }}>

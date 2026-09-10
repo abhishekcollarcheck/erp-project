@@ -99,10 +99,13 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
     // "remote" (in a different company). employee_code / email are globally
     // unique, so the lookup stays unambiguous.
     Employee.findAll({ attributes: ['id', 'employee_code', 'email'], raw: true }),
-    Site.findAll({ attributes: ['id', 'name'], raw: true }),
-    City.findAll({ attributes: ['id', 'name'], raw: true }),
-    State.findAll({ attributes: ['id', 'name'], raw: true }),
-    PayRegister.findAll({ attributes: ['id', 'name'], raw: true }),
+    // Pull the parent name too so a spreadsheet cell can carry the combined
+    // "<name>, <parent>" label the Master → Location list and the Employee
+    // wizard dropdowns render ("Andhra Pradesh, India", "New Delhi, Delhi").
+    Site.findAll({ attributes: ['id', 'name'], include: [{ association: 'city', attributes: ['name'] }], raw: true, nest: true }),
+    City.findAll({ attributes: ['id', 'name'], include: [{ association: 'state', attributes: ['name'] }], raw: true, nest: true }),
+    State.findAll({ attributes: ['id', 'name'], include: [{ association: 'country', attributes: ['name'] }], raw: true, nest: true }),
+    PayRegister.findAll({ attributes: ['id', 'name'], include: [{ association: 'state', attributes: ['name'] }], raw: true, nest: true }),
     WeeklyOffPreset.findAll({ attributes: ['id', 'name'], raw: true }),
     GraceMinute.findAll({ attributes: ['id', 'name', 'minutes'], raw: true }),
   ]);
@@ -112,6 +115,26 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
     for (const r of rows) if (r[nameKey]) m.set(norm(String(r[nameKey])), r.id);
     return m;
   };
+
+  /**
+   * Location lookup map — a spreadsheet cell may hold any of:
+   *   • the bare master name              — "Andhra Pradesh"
+   *   • the "<name>, <parent>" UI label   — "Andhra Pradesh, India"
+   *   • the numeric row id                — "1"
+   * `parentKey` is the nested association whose `.name` forms the label
+   * (state→country, city→state, site→city, pay_register→state); null for none.
+   */
+  const locMap = (rows: any[], parentKey: string | null) => {
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      if (r.name == null) continue;
+      m.set(norm(String(r.name)), r.id);
+      const parent = parentKey ? r[parentKey]?.name : null;
+      if (parent) m.set(norm(`${r.name}, ${parent}`), r.id);
+      m.set(String(r.id), r.id);
+    }
+    return m;
+  };
   const deptMap    = map(depts, 'department_name');
   const desigMap   = map(desigs, 'name');
   const compMap    = map(comps, 'name');
@@ -119,10 +142,10 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
   const subDesigMap= map(subDesigs, 'name');
   const shiftMap   = map(shifts, 'label');
   const shiftById  = new Set<number>(shifts.map((s: any) => s.id));
-  const siteMap        = map(sites, 'name');
-  const cityMap         = map(cities, 'name');
-  const stateMap        = map(states, 'name');
-  const payRegisterMap  = map(payRegisters, 'name');
+  const siteMap        = locMap(sites, 'city');
+  const cityMap         = locMap(cities, 'state');
+  const stateMap        = locMap(states, 'country');
+  const payRegisterMap  = locMap(payRegisters, 'state');
   const weeklyOffMap    = map(weeklyOffs, 'name');
 
   // grace_minutes stores the literal minute count, not a surrogate id — resolve

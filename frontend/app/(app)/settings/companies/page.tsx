@@ -5,6 +5,8 @@ import { useAppDispatch, useAppSelector } from '../../../../store';
 import { setPageTitle } from '../../../../store/slices/uiSlice';
 import { AppShell } from '../../../../layouts/AppLayout';
 import { Modal } from '../../../../components/ui/Modal';
+import { DataTable, type Column } from '../../../../components/ui/DataTable';
+import { Select } from '../../../../components/ui/Select';
 import { usePermission } from '../../../../hooks/usePermission';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../../services/api/client';
@@ -287,10 +289,13 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <div className="fg"><label>City</label><input value={f.city} onChange={F('city')} /></div>
             <div className="fg"><label>State</label><input value={f.state} onChange={F('state')} /></div>
             <div className="fg"><label>Industry</label>
-              <select value={f.industry} onChange={F('industry')}>
-                <option value="">— Select —</option>
-                {['Technology', 'Manufacturing', 'Finance', 'Healthcare', 'Education', 'Retail', 'Logistics', 'Media', 'Real Estate', 'Other'].map(i => <option key={i} value={i}>{i}</option>)}
-              </select>
+              <Select
+                value={f.industry}
+                onChange={(v) => F('industry')({ target: { value: v } } as any)}
+                placeholder="— Select —"
+                filter
+                options={['Technology', 'Manufacturing', 'Finance', 'Healthcare', 'Education', 'Retail', 'Logistics', 'Media', 'Real Estate', 'Other'].map(i => ({ value: i, label: i }))}
+              />
             </div>
             <div className="fg"><label>Company Email</label><input type="email" value={f.email} onChange={F('email')} /></div>
             <div className="fg"><label>Employee Code Start</label><input type='number' value={f.employee_code_start} onChange={F('employee_code_start')} /></div>
@@ -342,9 +347,12 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'flex-end' }}>
               <div className="fg" style={{ flex: 1, marginBottom: 0 }}>
                 <label style={{ fontSize: 11 }}>Role *</label>
-                <select value={selRoleSlug} onChange={e => setSelRoleSlug(e.target.value)} style={{ marginTop: 4 }}>
-                  {ROLES.map(r => <option key={r.slug} value={r.slug}>{r.name}</option>)}
-                </select>
+                <Select
+                  value={selRoleSlug}
+                  onChange={(v) => setSelRoleSlug(String(v))}
+                  style={{ marginTop: 4 }}
+                  options={ROLES.map(r => ({ value: r.slug, label: r.name }))}
+                />
               </div>
               <button className="btn btn-pri btn-sm" onClick={handleAddEmployee} style={{ flexShrink: 0 }}>
                 + Add to List
@@ -455,6 +463,56 @@ export default function CompaniesPage() {
     onError: (e: any) => showToast(e?.message || 'Failed'),
   });
 
+  const companyColumns: Column<Company>[] = [
+    {
+      key: 'company', header: 'Company',
+      render: (co) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 'var(--r)', background: 'linear-gradient(135deg,var(--blue),var(--purple))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0,
+          }}>
+            {co.name[0].toUpperCase()}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{co.name}</div>
+            <div style={{ fontSize: 10, color: 'var(--ink4)', marginTop: 1 }}>
+              {co.slug} {co.city ? `· ${co.city}` : ''} {co.state ? `, ${co.state}` : ''}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'manager', header: 'Primary Manager',
+      render: (co) => co.primary_manager ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Av name={`${co.primary_manager.first_name} ${co.primary_manager.last_name}`} size={26} />
+          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{co.primary_manager.first_name} {co.primary_manager.last_name}</span>
+        </div>
+      ) : <span style={{ fontSize: 11, color: 'var(--ink4)' }}>—</span>,
+    },
+    { key: 'status', header: 'Status', render: (co) => <StatusBadge c={co} /> },
+    { key: 'created', header: 'Created', render: (co) => <span style={{ color: 'var(--ink4)' }}>{formatDate(co.created_at)}</span> },
+    {
+      key: 'action', header: 'Action',
+      render: (co) => (
+        <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+          <button className="btn btn-sec btn-sm" style={{ fontSize: 11 }} onClick={() => router.push(`/settings/companies/${co.id}`)}>
+            Open →
+          </button>
+          {canEdit('companies') && (
+            co.is_active
+              ? <button className="btn btn-sec btn-sm" style={{ fontSize: 11, color: 'var(--amber)' }}
+                  onClick={() => { if (window.confirm(`Suspend ${co.name}?`)) suspendMut.mutate(co.id); }}>⏸</button>
+              : <button className="btn btn-sec btn-sm" style={{ fontSize: 11, color: 'var(--green)' }}
+                  onClick={() => activateMut.mutate(co.id)}>▶</button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <AppShell>
       <div className="pg-enter">
@@ -496,85 +554,15 @@ export default function CompaniesPage() {
           </select>
         </div> */}
 
-        {isLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2, 3].map(i => <div key={i} style={{ height: 72, borderRadius: 'var(--r3)', background: 'var(--surface)', border: '1px solid var(--border)' }}><div className="skeleton" style={{ height: '100%', borderRadius: 'var(--r3)' }} /></div>)}
-          </div>
-        ) : companies.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--ink4)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r3)' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>🏢</div>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>No companies yet</div>
-            {canEdit('companies') && <button className="btn btn-pri btn-sm" onClick={() => setCreateOpen(true)}>+ Create First Company</button>}
-          </div>
-        ) : (
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r3)', overflow: 'hidden', boxShadow: 'var(--sh)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: 'var(--surface2)' }}>
-                  {['Company', 'Primary Manager', 'Status', 'Created', 'Action'].map(h => (
-                    <th key={h} style={{
-                      padding: '10px 14px', textAlign: 'left', fontWeight: 700, fontSize: 10,
-                      textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--ink4)',
-                      borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap'
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {companies.map((co: Company) => (
-                  <tr key={co.id} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-                    onClick={() => router.push(`/settings/companies/${co.id}`)}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface2)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    <td style={{ padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                          width: 34, height: 34, borderRadius: 'var(--r)', background: 'linear-gradient(135deg,var(--blue),var(--purple))',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0
-                        }}>
-                          {co.name[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{co.name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--ink4)', marginTop: 1 }}>
-                            {co.slug} {co.city ? `· ${co.city}` : ''} {co.state ? `, ${co.state}` : ''}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 14px' }}>
-                      {co.primary_manager ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Av name={`${co.primary_manager.first_name} ${co.primary_manager.last_name}`} size={26} />
-                          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{co.primary_manager.first_name} {co.primary_manager.last_name}</span>
-                        </div>
-                      ) : <span style={{ fontSize: 11, color: 'var(--ink4)' }}>—</span>}
-                    </td>
-                    <td style={{ padding: '12px 14px' }}><StatusBadge c={co} /></td>
-                    <td style={{ padding: '12px 14px', color: 'var(--ink4)' }}>{formatDate(co.created_at)}</td>
-                    <td style={{ padding: '12px 14px', display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
-                      <button className="btn btn-sec btn-sm" style={{ fontSize: 11 }}
-                        onClick={() => router.push(`/settings/companies/${co.id}`)}>
-                        Open →
-                      </button>
-                      {canEdit('companies') && (
-                        co.is_active
-                          ? <button className="btn btn-sec btn-sm" style={{ fontSize: 11, color: 'var(--amber)' }}
-                            onClick={() => { if (window.confirm(`Suspend ${co.name}?`)) suspendMut.mutate(co.id); }}>
-                            ⏸
-                          </button>
-                          : <button className="btn btn-sec btn-sm" style={{ fontSize: 11, color: 'var(--green)' }}
-                            onClick={() => activateMut.mutate(co.id)}>
-                            ▶
-                          </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={companyColumns}
+          data={companies as Company[]}
+          isLoading={isLoading}
+          rowKey={(co) => co.id}
+          minWidth="820px"
+          onRowClick={(co) => router.push(`/settings/companies/${co.id}`)}
+          emptyText="No companies yet."
+        />
 
       </div>
       <CreateModal open={createOpen} onClose={() => setCreateOpen(false)} />

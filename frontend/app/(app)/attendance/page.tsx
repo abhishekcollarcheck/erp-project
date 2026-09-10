@@ -1280,6 +1280,9 @@ import { setPageTitle } from "../../../store/slices/uiSlice";
 import { AppShell } from "../../../layouts/AppLayout";
 import { StatCard } from "../../../components/ui/StatCard";
 import { Chip } from "../../../components/ui/Chip";
+import { DataTable, type Column } from "../../../components/ui/DataTable";
+import { Select } from "../../../components/ui/Select";
+import { Pagination } from "../../../components/ui/Pagination";
 import { RegularizationFormModal } from "../../../features/attendance/components/RegularizationForm";
 import { ReviewRegularizationModal } from "../../../features/attendance/components/ReviewRegularization";
 import {
@@ -1422,6 +1425,74 @@ export default function AttendancePage() {
         "%"
       : "…";
 
+  const mono = { fontFamily: "var(--mono)", fontSize: 11 } as const;
+
+  const myRequestColumns: Column<any>[] = [
+    { key: "date", header: "Date", render: (r) => <span style={mono}>{r.date}</span> },
+    { key: "in", header: "Requested In", render: (r) => <span style={mono}>{r.requested_check_in ?? "—"}</span> },
+    { key: "out", header: "Requested Out", render: (r) => <span style={mono}>{r.requested_check_out ?? "—"}</span> },
+    { key: "reason", header: "Reason", render: (r) => <span style={{ fontSize: 12 }}>{r.reason}</span> },
+    { key: "status", header: "Status", render: (r) => <Chip variant={REG_STATUS_VARIANT[r.status as keyof typeof REG_STATUS_VARIANT]}>{r.status}</Chip> },
+  ];
+
+  const pendingColumns: Column<any>[] = [
+    {
+      key: "employee", header: "Employee",
+      render: (r) => <strong>{r.Employee ? `${r.Employee.first_name} ${r.Employee.last_name}` : `#${r.employee_id}`}</strong>,
+    },
+    { key: "date", header: "Date", render: (r) => <span style={mono}>{r.date}</span> },
+    { key: "in", header: "Requested In", render: (r) => <span style={mono}>{r.requested_check_in ?? "—"}</span> },
+    { key: "out", header: "Requested Out", render: (r) => <span style={mono}>{r.requested_check_out ?? "—"}</span> },
+    { key: "reason", header: "Reason", render: (r) => <span style={{ fontSize: 12 }}>{r.reason}</span> },
+    { key: "action", header: "Action", render: (r) => <Chip variant="blue" onClick={() => setReviewTarget(r)}>Review</Chip> },
+  ];
+
+  const combinedColumns: Column<any>[] = [
+    { key: "date", header: "Date", render: (r) => <span style={mono}>{r.date}</span> },
+    {
+      key: "status", header: "Status",
+      render: (r) => {
+        const sd = getFinalStatusDisplay(r.finalStatus as unknown as string | null);
+        return (
+          <>
+            <Chip variant={sd.variant}>{sd.label}</Chip>
+            {r.isRegularized && <Chip variant="green">Regularized</Chip>}
+          </>
+        );
+      },
+    },
+    { key: "in", header: "Check In", render: (r) => <span style={mono}>{r.check_in ?? "—"}</span> },
+    { key: "out", header: "Check Out", render: (r) => <span style={mono}>{r.check_out ?? "—"}</span> },
+    { key: "hours", header: "Hours", render: (r) => <span style={mono}>{r.working_hours ?? "—"}</span> },
+    {
+      key: "punches", header: "Punches", align: "center",
+      render: (r) => <span style={{ ...mono, color: r.punch_count ? "var(--ink)" : "var(--ink4)" }}>{r.punch_count ?? 0}</span>,
+    },
+    {
+      key: "sources", header: "Sources",
+      render: (r) => (r.sources && r.sources.length > 0) ? (
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {r.sources.map((s: string) => (
+            <Chip key={s} variant={s === "Biometric" ? "blue" : s === "Regularized" ? "green" : "amber"}>{s}</Chip>
+          ))}
+        </div>
+      ) : <span style={{ fontSize: 11, color: "var(--ink4)" }}>—</span>,
+    },
+  ];
+
+  const recordColumns: Column<any>[] = [
+    {
+      key: "employee", header: "Employee",
+      render: (row) => <strong>{row.Employee ? `${row.Employee.first_name} ${row.Employee.last_name}` : `#${row.employee_id}`}</strong>,
+    },
+    { key: "date", header: "Date", render: (row) => <span style={mono}>{row.date}</span> },
+    { key: "status", header: "Status", render: (row) => <Chip variant={STATUS_VARIANT[row.status as keyof typeof STATUS_VARIANT]}>{row.status}</Chip> },
+    { key: "source", header: "Source", render: (row) => <span style={{ fontSize: 11 }}>{row.source}</span> },
+    { key: "in", header: "Check In", render: (row) => <span style={mono}>{row.check_in ?? "—"}</span> },
+    { key: "out", header: "Check Out", render: (row) => <span style={mono}>{row.check_out ?? "—"}</span> },
+    { key: "hours", header: "Hours", render: (row) => <span style={mono}>{row.working_hours ?? "—"}</span> },
+  ];
+
   return (
     // <PermissionGuard permission="attendance:view">
     <AppShell
@@ -1481,40 +1552,13 @@ export default function AttendancePage() {
               No correction requests yet.
             </div>
           ) : (
-            <div className="tw">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Requested In</th>
-                    <th>Requested Out</th>
-                    <th>Reason</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {myRequests.map((r) => (
-                    <tr key={r.id}>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {r.date}
-                      </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {r.requested_check_in ?? "—"}
-                      </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {r.requested_check_out ?? "—"}
-                      </td>
-                      <td style={{ fontSize: 12 }}>{r.reason}</td>
-                      <td>
-                        <Chip variant={REG_STATUS_VARIANT[r.status]}>
-                          {r.status}
-                        </Chip>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              bare
+              columns={myRequestColumns}
+              data={myRequests}
+              rowKey={(r) => r.id}
+              minWidth="560px"
+            />
           )}
         </div>
 
@@ -1524,48 +1568,13 @@ export default function AttendancePage() {
             <div className="ct">
               Pending Regularization Approvals ({pending.length})
             </div>
-            <div className="tw">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Employee</th>
-                    <th>Date</th>
-                    <th>Requested In</th>
-                    <th>Requested Out</th>
-                    <th>Reason</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pending.map((r) => (
-                    <tr key={r.id}>
-                      <td>
-                        <strong>
-                          {r.Employee
-                            ? `${r.Employee.first_name} ${r.Employee.last_name}`
-                            : `#${r.employee_id}`}
-                        </strong>
-                      </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {r.date}
-                      </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {r.requested_check_in ?? "—"}
-                      </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {r.requested_check_out ?? "—"}
-                      </td>
-                      <td style={{ fontSize: 12 }}>{r.reason}</td>
-                      <td>
-                        <Chip variant="blue" onClick={() => setReviewTarget(r)}>
-                          Review
-                        </Chip>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              bare
+              columns={pendingColumns}
+              data={pending}
+              rowKey={(r) => r.id}
+              minWidth="720px"
+            />
           </div>
         )}
 
@@ -1613,100 +1622,13 @@ export default function AttendancePage() {
               No punches found for this period.
             </div>
           ) : (
-            <div className="tw">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th>Check In</th>
-                    <th>Check Out</th>
-                    <th>Hours</th>
-                    <th style={{ textAlign: "center" }}>Punches</th>
-                    <th>Sources</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {myCombined.map((r) => {
-                    const statusDisplay = getFinalStatusDisplay(
-                      r.finalStatus as unknown as string | null,
-                    );
-                    const hasSources = r.sources && r.sources.length > 0;
-                    return (
-                      <tr key={r.date}>
-                        <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                          {r.date}
-                        </td>
-                        <td title={r.matchedRule ?? undefined}>
-                          <Chip variant={statusDisplay.variant}>
-                            {statusDisplay.label}
-                          </Chip>
-                          {r.isRegularized && (
-                            <Chip
-                              variant="green"
-                              // style={{ marginLeft: 6 }}
-                            >
-                              Regularized
-                            </Chip>
-                          )}
-                        </td>
-                        <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                          {r.check_in ?? "—"}
-                        </td>
-                        <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                          {r.check_out ?? "—"}
-                        </td>
-                        <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                          {r.working_hours ?? "—"}
-                        </td>
-                        <td
-                          style={{
-                            fontFamily: "var(--mono)",
-                            fontSize: 11,
-                            textAlign: "center",
-                            color: r.punch_count ? "var(--ink)" : "var(--ink4)",
-                          }}
-                        >
-                          {r.punch_count ?? 0}
-                        </td>
-                        <td>
-                          {hasSources ? (
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: 4,
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              {r.sources.map((s) => (
-                                <Chip
-                                  key={s}
-                                  variant={
-                                    s === "Biometric"
-                                      ? "blue"
-                                      : s === "Regularized"
-                                        ? "green"
-                                        : "amber"
-                                  }
-                                >
-                                  {s}
-                                </Chip>
-                              ))}
-                            </div>
-                          ) : (
-                            <span
-                              style={{ fontSize: 11, color: "var(--ink4)" }}
-                            >
-                              —
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              bare
+              columns={combinedColumns}
+              data={myCombined}
+              rowKey={(r) => r.date}
+              minWidth="820px"
+            />
           )}
         </div>
 
@@ -1741,60 +1663,26 @@ export default function AttendancePage() {
                   }}
                 />
               </div>
-              <select
+              <Select
                 value={status}
-                onChange={(e) => {
-                  setPage(1);
-                  setStatus(e.target.value as AttendanceStatus | "");
-                }}
-              >
-                <option value="">All Statuses</option>
-                {(
-                  [
-                    "Present",
-                    "Absent",
-                    "WFH",
-                    "Half-Day",
-                    "Holiday",
-                    "Leave",
-                  ] as const
-                ).map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <select
+                onChange={(v) => { setPage(1); setStatus(v as AttendanceStatus | ""); }}
+                allLabel="All Statuses"
+                options={(["Present", "Absent", "WFH", "Half-Day", "Holiday", "Leave"] as const).map((s) => ({ value: s, label: s }))}
+              />
+              <Select
                 value={source}
-                onChange={(e) => {
-                  setPage(1);
-                  setSource(e.target.value as AttendanceSource | "");
-                }}
-              >
-                <option value="">All Sources</option>
-                {(["Biometric", "Manual", "Mobile", "System"] as const).map(
-                  (s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ),
-                )}
-              </select>
-              <select
+                onChange={(v) => { setPage(1); setSource(v as AttendanceSource | ""); }}
+                allLabel="All Sources"
+                options={(["Biometric", "Manual", "Mobile", "System"] as const).map((s) => ({ value: s, label: s }))}
+              />
+              <Select
                 value={month}
-                onChange={(e) => {
-                  setPage(1);
-                  setMonth(Number(e.target.value));
-                }}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>
-                    {new Date(2000, m - 1, 1).toLocaleString("en-US", {
-                      month: "long",
-                    })}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => { setPage(1); setMonth(Number(v)); }}
+                options={Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                  value: m,
+                  label: new Date(2000, m - 1, 1).toLocaleString("en-US", { month: "long" }),
+                }))}
+              />
               <input
                 type="number"
                 value={year}
@@ -1807,108 +1695,24 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          <div className="tw">
-            <table>
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                  <th>Source</th>
-                  <th>Check In</th>
-                  <th>Check Out</th>
-                  <th>Hours</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}>
-                      {Array.from({ length: 7 }).map((_, j) => (
-                        <td key={j}>
-                          <div
-                            className="skeleton"
-                            style={{ height: 14, width: 80 }}
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : records.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      style={{
-                        textAlign: "center",
-                        padding: 24,
-                        color: "var(--ink4)",
-                      }}
-                    >
-                      No records match these filters.
-                    </td>
-                  </tr>
-                ) : (
-                  records.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <strong>
-                          {row.Employee
-                            ? `${row.Employee.first_name} ${row.Employee.last_name}`
-                            : `#${row.employee_id}`}
-                        </strong>
-                      </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {row.date}
-                      </td>
-                      <td>
-                        <Chip variant={STATUS_VARIANT[row.status]}>
-                          {row.status}
-                        </Chip>
-                      </td>
-                      <td style={{ fontSize: 11 }}>{row.source}</td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {row.check_in ?? "—"}
-                      </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {row.check_out ?? "—"}
-                      </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {row.working_hours ?? "—"}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            bare
+            columns={recordColumns}
+            data={records}
+            isLoading={isLoading}
+            rowKey={(row) => row.id}
+            minWidth="720px"
+            emptyText="No records match these filters."
+          />
 
-          {meta && meta.totalPages > 1 && (
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                justifyContent: "center",
-                padding: 12,
-              }}
-            >
-              <button
-                className="btn btn-sec btn-sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                ← Prev
-              </button>
-              <span style={{ fontSize: 12, alignSelf: "center" }}>
-                Page {meta.page} of {meta.totalPages}
-              </span>
-              <button
-                className="btn btn-sec btn-sm"
-                disabled={page >= meta.totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next →
-              </button>
-            </div>
+          {meta && (
+            <Pagination
+              page={meta.page ?? page}
+              totalPages={meta.totalPages}
+              total={meta.total ?? (meta.totalPages * 20)}
+              limit={20}
+              onPageChange={setPage}
+            />
           )}
         </div>
       </div>

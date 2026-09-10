@@ -56,6 +56,18 @@ export function maskValue(value: string, fieldKey: string): string {
   return '••••';
 }
 
+/**
+ * Partial mask — reveal only the first 2 and last 2 characters, mask the middle.
+ * Values of 4 characters or fewer are fully masked so nothing meaningful leaks.
+ * Mirrors the backend maskPartial() in utils/fieldMask.ts.
+ */
+export function maskPartial(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '';
+  const s = String(value);
+  if (s.length <= 4) return '••••';
+  return s.slice(0, 2) + '•'.repeat(s.length - 4) + s.slice(-2);
+}
+
 // ─── Dynamic Zod schema builder ───────────────────────────────────────────────
 
 type ZodShape = Record<string, z.ZodTypeAny>;
@@ -70,8 +82,11 @@ export function buildZodSchema(fields: DynamicField[]): z.ZodObject<ZodShape> {
   for (const field of fields) {
     if (!field.is_active || field.is_hidden) continue;
 
-    // Check if user can edit — if resolved and can_edit is false, skip validation (read-only display)
-    if (field.resolved && !field.resolved.can_edit && !field.is_required) continue;
+    // Check if user can edit — if resolved and neither can_edit nor can_add is
+    // set, skip validation (read-only display). can_add is treated as editable
+    // here since whether it actually applies depends on the record's completion
+    // %, which this schema builder doesn't see.
+    if (field.resolved && !field.resolved.can_edit && !(field.resolved as any).can_add && !field.is_required) continue;
 
     shape[field.field_key] = buildFieldSchema(field);
   }

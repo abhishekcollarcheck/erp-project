@@ -1,7 +1,9 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { GripVertical, Pencil, X, Check } from 'lucide-react';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
 import { Chip } from '@/components/ui/Chip';
 
 export interface MasterListItem {
@@ -79,6 +81,65 @@ export function SimpleMasterList<T extends MasterListItem>({
   addExtra,
   extraBeforeList,
 }: SimpleMasterListProps<T>) {
+  // Selection is visual-only here — none of the lookup master pages expose a
+  // bulk action, but the checkboxes keep every listing table consistent.
+  const [selected, setSelected] = useState<T[]>([]);
+
+  const selectedIds = new Set(selected.map((i) => i.id));
+  const allSelected = items.length > 0 && items.every((i) => selectedIds.has(i.id));
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) setSelected([...selected, ...items.filter((i) => !selectedIds.has(i.id))]);
+    else {
+      const pageIds = new Set(items.map((i) => i.id));
+      setSelected(selected.filter((i) => !pageIds.has(i.id)));
+    }
+  };
+
+  const nameBody = (item: T) => {
+    const isEditing = editingId === item.id;
+    return isEditing ? (
+      <div className="master-inline-edit">
+        <input
+          type="text"
+          value={editName}
+          onChange={(e) => onEditNameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSaveEdit(item.id);
+            if (e.key === 'Escape') onCancelEdit();
+          }}
+          autoFocus
+        />
+        <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--green)' }} onClick={() => onSaveEdit(item.id)}>
+          <Check size={14} />
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancelEdit}>
+          <X size={14} />
+        </button>
+      </div>
+    ) : (
+      <strong
+        style={{ cursor: 'pointer' }}
+        title="Double-click to edit"
+        onDoubleClick={() => onStartEdit(item)}
+      >
+        {item.name}
+      </strong>
+    );
+  };
+
+  const actionsBody = (item: T) => (
+    editingId === item.id ? null : (
+      <div className="master-row-actions">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => onStartEdit(item)}>
+          <Pencil size={13} />
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => onDelete(item.id)}>
+          <X size={14} />
+        </button>
+      </div>
+    )
+  );
+
   return (
     <div className="pg-enter">
       <div className="ph">
@@ -136,83 +197,27 @@ export function SimpleMasterList<T extends MasterListItem>({
         {extraBeforeList}
 
         <div className="tw">
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: 28 }}></th>
-                <th>Name</th>
-                <th style={{ width: 90, textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--ink4)' }}>
-                    Loading…
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--ink4)' }}>
-                    {emptyText}
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => {
-                  const isEditing = editingId === item.id;
-                  return (
-                    <tr key={item.id}>
-                      <td>
-                        <GripVertical size={14} style={{ cursor: 'grab', color: 'var(--ink4)' }} />
-                      </td>
-                      <td>
-                        {isEditing ? (
-                          <div className="master-inline-edit">
-                            <input
-                              type="text"
-                              value={editName}
-                              onChange={(e) => onEditNameChange(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') onSaveEdit(item.id);
-                                if (e.key === 'Escape') onCancelEdit();
-                              }}
-                              autoFocus
-                            />
-                            <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--green)' }} onClick={() => onSaveEdit(item.id)}>
-                              <Check size={14} />
-                            </button>
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={onCancelEdit}>
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ) : (
-                          <strong
-                            style={{ cursor: 'pointer' }}
-                            title="Double-click to edit"
-                            onDoubleClick={() => onStartEdit(item)}
-                          >
-                            {item.name}
-                          </strong>
-                        )}
-                      </td>
-                      <td>
-                        {!isEditing && (
-                          <div className="master-row-actions">
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onStartEdit(item)}>
-                              <Pencil size={13} />
-                            </button>
-                            <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => onDelete(item.id)}>
-                              <X size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+          <DataTable
+            value={isLoading ? [] : items}
+            loading={isLoading}
+            dataKey="id"
+            selection={selected}
+            selectionMode="checkbox"
+            selectAll={allSelected}
+            onSelectAllChange={(e) => handleSelectAll(e.checked)}
+            onSelectionChange={(e) => setSelected((e.value ?? []) as T[])}
+            emptyMessage={emptyText}
+            className="p-datatable-sm"
+            tableStyle={{ minWidth: '360px' }}
+          >
+            <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} />
+            <Column
+              headerStyle={{ width: 28 }}
+              body={() => <GripVertical size={14} style={{ cursor: 'grab', color: 'var(--ink4)' }} />}
+            />
+            <Column header="Name" body={nameBody} />
+            <Column header="Actions" headerStyle={{ width: 90, textAlign: 'right' }} body={actionsBody} />
+          </DataTable>
         </div>
       </div>
     </div>

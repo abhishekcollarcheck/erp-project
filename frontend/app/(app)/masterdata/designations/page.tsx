@@ -1678,6 +1678,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { Chip } from '@/components/ui/Chip';
+import { Select } from '@/components/ui/Select';
 import {
   GripVertical,
   Pencil,
@@ -2184,30 +2185,14 @@ export default function DesignationsPage() {
           <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
             {tab === 'subdesignation' && (
-              <div className="fg" style={{ margin: 0, width: 200 }}>
-                <select
+              <div className="fg" style={{ margin: 0, width: 220 }}>
+                <Select
                   value={quickAddDesignationId}
-                  onChange={(e) =>
-                    setQuickAddDesignationId(
-                      e.target.value
-                        ? Number(e.target.value)
-                        : '',
-                    )
-                  }
-                >
-                  <option value="">
-                    Select Designation...
-                  </option>
-
-                  {designations.map((d) => (
-                    <option
-                      key={d.id}
-                      value={d.id}
-                    >
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setQuickAddDesignationId(v ? Number(v) : '')}
+                  options={designations.map((d) => ({ value: d.id, label: d.name }))}
+                  placeholder="Select Designation..."
+                  filter
+                />
               </div>
             )}
 

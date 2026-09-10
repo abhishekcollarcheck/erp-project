@@ -71,6 +71,7 @@ export interface CandidateAttributes {
   job_type?: string | null;
   job_code?: string | null;
   job_description?: string | null;
+  skills?: string[] | null;
 
   // ── Compensation ──────────────────────────────────────────────────────────
   current_salary?: number | null;
@@ -225,6 +226,7 @@ export class Candidate
   public job_type!: string | null;
   public job_code!: string | null;
   public job_description!: string | null;
+  public skills!: string[] | null;
   public current_salary!: number | null;
   public expected_salary!: number | null;
   public currently_working!: boolean | null;
@@ -351,6 +353,7 @@ Candidate.init(
     job_type: { type: DataTypes.STRING(40), allowNull: true },
     job_code: { type: DataTypes.STRING(40), allowNull: true },
     job_description: { type: DataTypes.TEXT, allowNull: true },
+    skills: { type: DataTypes.JSON, allowNull: true, get: jsonGet('skills') },
 
     currently_working: { type: DataTypes.BOOLEAN, allowNull: true },
     notice_period: { type: DataTypes.INTEGER, allowNull: true },

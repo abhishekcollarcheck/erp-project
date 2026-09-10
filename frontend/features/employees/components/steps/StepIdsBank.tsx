@@ -5,7 +5,7 @@ import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { FormToggle } from '../../../../components/form/FormToggle';
-import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { DOC_TYPE_OPTIONS, VACCINE_OPTIONS } from '../../constants/employee.constants';
 import { FormSection } from '@/components/form/FormSection';
 import { useBankData } from '../../../banks/hooks/useBank';
@@ -31,8 +31,7 @@ function KycCard({ title, hint, required, children }: { title: string; hint: str
 }
 
 export function StepIdsBank(_: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
   const { control, register } = useFormContext();
 
   const vaccinations = useFieldArray({ control, name: 'vaccinations' });

@@ -3,9 +3,16 @@ import {
   useState, useCallback, useEffect, useRef, useMemo,
   type ChangeEvent,
 } from 'react';
+import { Select } from '../../../components/ui/Select';
 import type { DynamicField, FieldOption, FieldPermissionEntry } from '../types/rbac.types';
 import { FIELD_TYPE_ICONS, FIELD_TYPE_LABELS } from '../types/rbac.types';
-import { maskValue, validateForm, buildDefaultValues, type ValidationErrors } from '../../../utils/validationEngine';
+import { maskValue, maskPartial, validateForm, buildDefaultValues, type ValidationErrors } from '../../../utils/validationEngine';
+
+/** effective edit = plain edit grant, OR an Add grant while the record isn't complete */
+function effEdit(r: Partial<FieldPermissionEntry> | undefined, completionPct = 100): boolean {
+  if (!r) return true;
+  return !!r.can_edit || (!!r.can_add && completionPct < 100);
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +35,8 @@ export interface DynamicFormProps {
   showSubmit?:  boolean;
   /** Extra class/style for the form wrapper */
   className?:  string;
+  /** Completion % of the record being edited — < 100 unlocks Add-only fields. Default 100. */
+  completionPct?: number;
 }
 
 // ─── Section grouper ──────────────────────────────────────────────────────────
@@ -47,11 +56,13 @@ function groupBySection(fields: DynamicField[]): Map<string, DynamicField[]> {
 
 function PermBadge({ resolved }: { resolved: FieldPermissionEntry }) {
   const flags = [
-    resolved.can_view     && { label:'V', color:'var(--blue)'   },
-    resolved.can_edit     && { label:'E', color:'var(--green)'  },
-    resolved.can_copy     && { label:'C', color:'var(--teal)'   },
-    resolved.can_download && { label:'D', color:'var(--purple)' },
-    resolved.is_masked    && { label:'M', color:'var(--amber)'  },
+    resolved.can_view          && { label:'V', color:'var(--blue)'   },
+    resolved.can_add           && { label:'A', color:'var(--indigo, var(--blue))' },
+    resolved.can_edit          && { label:'E', color:'var(--green)'  },
+    resolved.can_copy          && { label:'C', color:'var(--teal)'   },
+    resolved.can_download      && { label:'D', color:'var(--purple)' },
+    resolved.is_masked         && { label:'M', color:'var(--amber)'  },
+    (!resolved.is_masked && resolved.is_partial_masked) && { label:'P', color:'var(--amber)' },
   ].filter(Boolean) as { label: string; color: string }[];
 
   if (!flags.length) return null;
@@ -79,6 +90,7 @@ interface FieldProps {
   error?:      string;
   readOnly?:   boolean;
   showPermBadges?: boolean;
+  completionPct?: number;
 }
 
 function FieldWrapper({ field, error, showPermBadges, children }: {
@@ -105,9 +117,10 @@ function FieldWrapper({ field, error, showPermBadges, children }: {
   );
 }
 
-function RenderField({ field, value, onChange, error, readOnly, showPermBadges }: FieldProps) {
+function RenderField({ field, value, onChange, error, readOnly, showPermBadges, completionPct }: FieldProps) {
   const perm   = field.resolved;
-  const isEdit = !readOnly && (!perm || perm.can_edit);
+  const partialMasked = !perm?.is_masked && !!perm?.is_partial_masked;
+  const isEdit = !readOnly && effEdit(perm, completionPct) && !partialMasked;
   const isView = !perm || perm.can_view;
   const masked = perm?.is_masked;
 
@@ -118,7 +131,11 @@ function RenderField({ field, value, onChange, error, readOnly, showPermBadges }
   const numVal  = value != null && value !== '' ? Number(value) : '';
 
   // Apply mask to displayed value
-  const displayVal = masked && strVal ? maskValue(strVal, field.field_key) : strVal;
+  const displayVal = masked && strVal
+    ? maskValue(strVal, field.field_key)
+    : partialMasked && strVal
+      ? maskPartial(strVal)
+      : strVal;
 
   const commonProps = {
     disabled: !isEdit,
@@ -134,7 +151,7 @@ function RenderField({ field, value, onChange, error, readOnly, showPermBadges }
     case 'url':
       return (
         <FieldWrapper field={field} error={error} showPermBadges={showPermBadges}>
-          <input type="text" value={masked ? displayVal : strVal} onChange={e => onChange(e.target.value)} {...commonProps} />
+          <input type="text" value={(masked || partialMasked) ? displayVal : strVal} onChange={e => onChange(e.target.value)} {...commonProps} readOnly={commonProps.disabled} />
         </FieldWrapper>
       );
 
@@ -148,7 +165,7 @@ function RenderField({ field, value, onChange, error, readOnly, showPermBadges }
     case 'password':
       return (
         <FieldWrapper field={field} error={error} showPermBadges={showPermBadges}>
-          <input type={isEdit ? 'password' : 'text'} value={masked ? '••••••••' : strVal} onChange={e => onChange(e.target.value)} {...commonProps} />
+          <input type={isEdit ? 'password' : 'text'} value={masked ? '••••••••' : partialMasked ? displayVal : strVal} onChange={e => onChange(e.target.value)} {...commonProps} />
         </FieldWrapper>
       );
 
@@ -211,12 +228,16 @@ function RenderField({ field, value, onChange, error, readOnly, showPermBadges }
       const opts = field.options || [];
       return (
         <FieldWrapper field={field} error={error} showPermBadges={showPermBadges}>
-          <select value={strVal} onChange={e => onChange(e.target.value)} {...commonProps}>
-            <option value="">{field.placeholder || `— Select ${field.label} —`}</option>
-            {opts.filter(o => o.is_active !== false).map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <Select
+            value={strVal}
+            onChange={(v) => onChange(v)}
+            disabled={commonProps.disabled}
+            className={commonProps.className}
+            style={commonProps.style}
+            placeholder={field.placeholder || `— Select ${field.label} —`}
+            filter
+            options={opts.filter(o => o.is_active !== false).map(o => ({ value: o.value, label: o.label }))}
+          />
         </FieldWrapper>
       );
     }
@@ -346,6 +367,7 @@ export function DynamicForm({
   submitLabel = 'Submit',
   showSubmit = true,
   className,
+  completionPct = 100,
 }: DynamicFormProps) {
   // Active, visible fields sorted by sort_order
   const visibleFields = useMemo(() =>
@@ -419,6 +441,7 @@ export function DynamicForm({
                 error={errors[field.field_key]}
                 readOnly={readOnly || field.is_readonly}
                 showPermBadges={showPermBadges}
+                completionPct={completionPct}
               />
             ))}
           </div>

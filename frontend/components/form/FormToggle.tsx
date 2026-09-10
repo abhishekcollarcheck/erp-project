@@ -9,12 +9,7 @@
  */
 
 import { useFormContext, Controller } from 'react-hook-form';
-
-interface FieldPerm {
-  can_view?: boolean;
-  can_edit?: boolean;
-  is_masked?: boolean;
-}
+import type { FieldPerm } from './maskField';
 
 interface Props {
   name:       string;
@@ -41,7 +36,8 @@ export function FormToggle({
       control={control}
       render={({ field }) => {
         const checked = !!field.value;
-        const isReadOnly = fieldPerm?.can_edit === false;
+        // A boolean can't be partially masked — any mask just locks it.
+        const isReadOnly = fieldPerm?.can_edit === false || !!fieldPerm?.is_masked || !!fieldPerm?.is_partial_masked;
 
         const toggle = () => {
           if (disabled || isReadOnly) return;

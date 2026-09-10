@@ -1,10 +1,7 @@
 'use client';
 import { useFormContext, Controller } from 'react-hook-form';
-
-interface FieldPerm {
-  can_view?: boolean;
-  can_edit?: boolean;
-}
+import type { FieldPerm } from './maskField';
+import { maskPartial } from '../../utils/validationEngine';
 
 interface Props {
   name:       string;
@@ -24,7 +21,9 @@ export function FormTimeInput({
 
   if (fieldPerm?.can_view === false) return null;
 
-  const isReadOnly  = fieldPerm?.can_edit === false;
+  const isFullMask    = fieldPerm?.is_masked === true;
+  const isPartialMask = !isFullMask && fieldPerm?.is_partial_masked === true;
+  const isReadOnly  = fieldPerm?.can_edit === false || isFullMask || isPartialMask;
   const isDisabled  = disabled;
   const hintId      = `${name}-hint`;
   const errorId     = `${name}-error`;
@@ -49,14 +48,14 @@ export function FormTimeInput({
           <input
             {...field}
             id={name}
-            type="time"
+            type={isFullMask ? 'password' : isPartialMask ? 'text' : 'time'}
             disabled={isDisabled}
             readOnly={isReadOnly}
             aria-invalid={!!error}
             aria-describedby={describedBy}
             aria-required={required}
-            value={field.value ?? ''}
-            className={['form-input', isReadOnly ? 'readonly' : ''].filter(Boolean).join(' ')}
+            value={isPartialMask ? maskPartial(field.value ?? '') : isFullMask ? '••••••' : (field.value ?? '')}
+            className={['form-input', isReadOnly ? 'readonly' : '', (isFullMask || isPartialMask) ? 'masked' : ''].filter(Boolean).join(' ')}
             onChange={e => {
               if (isReadOnly) return;
               field.onChange(e.target.value);

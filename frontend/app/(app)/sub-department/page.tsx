@@ -7,6 +7,7 @@ import { AppShell } from '../../../layouts/AppLayout';
 import { StatCard } from '../../../components/ui/StatCard';
 import { Chip } from '../../../components/ui/Chip';
 import { Modal } from '../../../components/ui/Modal';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
 import { SubDepartmentFormModal } from '../../../features/sub-departments/components/SubDepartmentFormModal';
 import { useSubDepartments, useDeleteSubDepartment } from '../../../features/sub-departments/hooks/useSubDepartments';
 import { usePermission } from '../../../features/auth/hooks/useAuth';
@@ -26,6 +27,9 @@ export default function SubDepartmentsPage() {
   const [editTarget, setEditTarget] = useState<SubDepartment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SubDepartment | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [selected, setSelected] = useState<SubDepartment[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const debouncedSearch = useDebounce(search, 350);
   const deleteMutation = useDeleteSubDepartment();
@@ -51,6 +55,45 @@ export default function SubDepartmentsPage() {
     await deleteMutation.mutateAsync(deleteTarget.id);
     setDeleteTarget(null);
   };
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    for (const sd of selected) {
+      try { await deleteMutation.mutateAsync(sd.id); } catch { /* keep going */ }
+    }
+    setBulkDeleting(false);
+    setBulkDeleteOpen(false);
+    setSelected([]);
+  };
+
+  const tableColumns: Column<SubDepartment>[] = [
+    {
+      key: 'name', header: 'Sub-Department',
+      render: (sd) => (
+        <strong style={{ cursor: 'pointer', color: 'var(--blue)' }}
+          onClick={() => router.push(`/sub-department/${sd.id}`)}>
+          {sd.name}
+        </strong>
+      ),
+    },
+    {
+      key: 'employees', header: 'Employees',
+      render: (sd) => <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--blue)' }}>{sd.employee_count ?? 0}</span>,
+    },
+    {
+      key: 'status', header: 'Status',
+      render: (sd) => <Chip variant={sd.is_active ? 'green' : 'gray'}>{sd.is_active ? 'Active' : 'Inactive'}</Chip>,
+    },
+    ...(canEdit('sub-department') || canDelete('sub-department') ? [{
+      key: 'actions', header: 'Actions',
+      render: (sd: SubDepartment) => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          {canEdit('sub-department') && <Chip variant="gray" onClick={() => openEdit(sd)}>Edit</Chip>}
+          {canDelete('sub-department') && <Chip variant="red" onClick={() => setDeleteTarget(sd)}>Delete</Chip>}
+        </div>
+      ),
+    }] : []),
+  ];
 
   return (
     <PermissionGuard permission='sub-department:view'>
@@ -171,54 +214,28 @@ export default function SubDepartmentsPage() {
 
           {/* ─── TABLE VIEW ─── */}
           {viewMode === 'table' && (
-            <div className="card">
-              <div className="tw">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Sub-Department</th>
-                      <th>Employees</th>
-                      <th>Status</th>
-                      {canEdit('sub-department') && <th>Actions</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoading
-                      ? Array.from({ length: 5 }).map((_, i) => (
-                        <tr key={i}>
-                          {Array.from({ length: 7 }).map((_, j) => (
-                            <td key={j}><div className="skeleton" style={{ height: 14, width: 80 }} /></td>
-                          ))}
-                        </tr>
-                      ))
-                      : subDepartments.map((subDept) => (
-                        <tr key={subDept.id}>
-                          <td>
-                            <strong style={{ cursor: 'pointer', color: 'var(--blue)' }}
-                              onClick={() => router.push(`/sub-department/${subDept.id}`)}>
-                              {subDept.name}
-                            </strong>
-                          </td>
-                          <td style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--blue)' }}>
-                            {subDept.employee_count ?? 0}
-                          </td>
-                          <td><Chip variant={subDept.is_active ? 'green' : 'gray'}>{subDept.is_active ? 'Active' : 'Inactive'}</Chip></td>
-                          <td>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {canEdit('sub-department') && (
-                                <Chip variant="gray" onClick={() => openEdit(subDept)}>Edit</Chip>
-                              )}
-                              {canDelete('sub-department') && (
-                                <Chip variant="red" onClick={() => setDeleteTarget(subDept)}>Delete</Chip>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              columns={tableColumns}
+              data={subDepartments}
+              isLoading={isLoading}
+              rowKey={(sd) => sd.id}
+              minWidth="560px"
+              emptyText="No sub-departments found."
+              selectable={canDelete('sub-department')}
+              selection={selected}
+              onSelectionChange={setSelected}
+              selectionBar={(rows, clear) => (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10,
+                  background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--r)', padding: '7px 12px',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{rows.length} selected</span>
+                  <button className="btn btn-danger btn-sm" onClick={() => setBulkDeleteOpen(true)}>Delete</button>
+                  <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
+                </div>
+              )}
+            />
           )}
 
         </div>
@@ -250,6 +267,25 @@ export default function SubDepartmentsPage() {
           <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)' }}>
             ⚠ Sub-departments with active employees cannot be deleted.
             Reassign them first.
+          </div>
+        </Modal>
+
+        <Modal
+          open={bulkDeleteOpen}
+          onClose={() => setBulkDeleteOpen(false)}
+          title="Delete Sub-Departments"
+          subtitle={`Delete ${selected.length} selected sub-department${selected.length === 1 ? '' : 's'}?`}
+          footer={
+            <>
+              <button className="btn btn-sec" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkDeleting}>
+                {bulkDeleting ? 'Deleting…' : `Yes, Delete ${selected.length}`}
+              </button>
+            </>
+          }
+        >
+          <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)' }}>
+            ⚠ Sub-departments with active employees will be skipped.
           </div>
         </Modal>
       </AppShell>

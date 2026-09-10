@@ -8,6 +8,7 @@ import { useQuery }              from '@tanstack/react-query';
 import { rbacService }           from '../../../../../../services/api/rbac.service';
 import { DynamicForm, DynamicFormDisplay } from '../../../../../../features/rbac/components/DynamicForm';
 import { useRoles }              from '../../../../../../hooks/useRbac';
+import { Select }                from '../../../../../../components/ui/Select';
 import type { DynamicField }     from '../../../../../../features/rbac/types/rbac.types';
 
 export default function FormDemoPage() {
@@ -61,10 +62,14 @@ export default function FormDemoPage() {
           <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'flex-end' }}>
             <div className="fg" style={{ marginBottom:0, minWidth:180 }}>
               <label>Preview as Role</label>
-              <select value={roleId} onChange={e => setRoleId(Number(e.target.value))}>
-                <option value="0">— No permission filter —</option>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
+              <Select
+                value={roleId}
+                onChange={(v) => setRoleId(Number(v) || 0)}
+                options={[
+                  { value: 0, label: '— No permission filter —' },
+                  ...roles.map(r => ({ value: r.id, label: r.name })),
+                ]}
+              />
             </div>
             <div style={{ display:'flex', gap:6 }}>
               {(['edit','view'] as const).map(m => (

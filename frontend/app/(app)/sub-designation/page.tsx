@@ -7,6 +7,8 @@ import { AppShell } from '../../../layouts/AppLayout';
 import { StatCard } from '../../../components/ui/StatCard';
 import { Chip } from '../../../components/ui/Chip';
 import { Modal } from '../../../components/ui/Modal';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
+import { Select } from '../../../components/ui/Select';
 import { SubDesignationFormModal } from '../../../features/sub-designations/components/SubDesignationFormModal';
 import {
   useSubDesignations, useSubDesignationStats,
@@ -28,6 +30,9 @@ export default function SubDesignationsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<SubDesignation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SubDesignation | null>(null);
+  const [selected, setSelected] = useState<SubDesignation[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const debouncedSearch = useDebounce(search, 350);
   const deleteMutation = useDeleteSubDesignation();
@@ -52,6 +57,53 @@ export default function SubDesignationsPage() {
     await deleteMutation.mutateAsync(deleteTarget.id);
     setDeleteTarget(null);
   };
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    for (const sd of selected) {
+      try { await deleteMutation.mutateAsync(sd.id); } catch { /* keep going */ }
+    }
+    setBulkDeleting(false);
+    setBulkDeleteOpen(false);
+    setSelected([]);
+  };
+
+  const tableColumns: Column<SubDesignation>[] = [
+    {
+      key: 'name', header: 'Sub-Designation',
+      render: (sd) => <strong style={{ color: 'var(--ink)' }}>{sd.name}</strong>,
+    },
+    {
+      key: 'employees', header: 'Employees', align: 'center',
+      render: (sd) => (
+        <span style={{ fontFamily: 'var(--mono)', fontWeight: 500, color: (sd.employee_count ?? 0) > 0 ? 'var(--blue)' : 'var(--ink4)' }}>
+          {sd.employee_count ?? 0}
+        </span>
+      ),
+    },
+    {
+      key: 'status', header: 'Status',
+      render: (sd) => <Chip variant={sd.is_active ? 'green' : 'gray'}>{sd.is_active ? 'Active' : 'Inactive'}</Chip>,
+    },
+    ...(canEdit('sub-designation') || canDelete('sub-designation') ? [{
+      key: 'actions', header: 'Actions',
+      render: (sd: SubDesignation) => (
+        <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+          {canEdit('sub-designation') && (
+            <>
+              <Chip variant="gray" onClick={() => openEdit(sd)}>Edit</Chip>
+              <Chip variant={sd.is_active ? 'amber' : 'green'} onClick={() => toggleMutation.mutate(sd.id)}>
+                {sd.is_active ? 'Deactivate' : 'Activate'}
+              </Chip>
+            </>
+          )}
+          {canDelete('sub-designation') && (
+            <Chip variant="red" onClick={() => setDeleteTarget(sd)}>Delete</Chip>
+          )}
+        </div>
+      ),
+    }] : []),
+  ];
 
   return (
     <PermissionGuard permission='sub-designation:view'>
@@ -103,15 +155,16 @@ export default function SubDesignationsPage() {
               <span style={{ color: 'var(--ink4)' }}>⌕</span>
               <input type="text" placeholder="Search name…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <select
+            <Select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }}
-            >
-              <option value="true">Active only</option>
-              <option value="false">Inactive only</option>
-              <option value="all">All</option>
-            </select>
+              onChange={(v) => setStatusFilter(v as 'true' | 'false' | 'all')}
+              options={[
+                { value: 'true', label: 'Active only' },
+                { value: 'false', label: 'Inactive only' },
+                { value: 'all', label: 'All' },
+              ]}
+              ariaLabel="Filter by status"
+            />
             <span style={{ fontSize: 11, color: 'var(--ink4)', alignSelf: 'center', marginLeft: 4 }}>
               {subDesignations.length} result{subDesignations.length !== 1 ? 's' : ''}
             </span>
@@ -119,66 +172,29 @@ export default function SubDesignationsPage() {
 
           {/* ─── TABLE VIEW ─── */}
           {viewMode === 'table' && (
-            <div className="card">
-              <div className="tw">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Sub-Designation</th>
-                      <th>Employees</th>
-                      <th>Status</th>
-                      {canEdit('sub-designation') && <th>Actions</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoading
-                      ? Array.from({ length: 5 }).map((_, i) => (
-                        <tr key={i}>
-                          {[140, 40, 60, 80].map((w, j) => (
-                            <td key={j}><div className="skeleton" style={{ height: 14, width: w }} /></td>
-                          ))}
-                        </tr>
-                      ))
-                      : subDesignations.length === 0
-                        ? (
-                          <tr>
-                            <td colSpan={4} style={{ textAlign: 'center', padding: '32px', color: 'var(--ink4)' }}>
-                              No sub-designations found. {canEdit('sub-designation') && <span style={{ color: 'var(--blue)', cursor: 'pointer' }} onClick={openCreate}>Create the first one →</span>}
-                            </td>
-                          </tr>
-                        )
-                        : subDesignations.map((sd) => (
-                          <tr key={sd.id} style={{ cursor: 'pointer' }} onClick={() => router.push(`/sub-designations/${sd.id}`)}>
-                            <td>
-                              <strong style={{ color: 'var(--ink)' }}>{sd.name}</strong>
-                            </td>
-                            <td style={{ fontFamily: 'var(--mono)', fontWeight: 500, color: (sd.employee_count ?? 0) > 0 ? 'var(--blue)' : 'var(--ink4)', textAlign: 'center' }}>
-                              {sd.employee_count ?? 0}
-                            </td>
-                            <td>
-                              <Chip variant={sd.is_active ? 'green' : 'gray'}>{sd.is_active ? 'Active' : 'Inactive'}</Chip>
-                            </td>
-                            <td onClick={(e) => e.stopPropagation()}>
-                              <div style={{ display: 'flex', gap: 4 }}>
-                                {canEdit('sub-designation') && (
-                                  <>
-                                    <Chip variant="gray" onClick={() => openEdit(sd)}>Edit</Chip>
-                                    <Chip variant={sd.is_active ? 'amber' : 'green'} onClick={() => toggleMutation.mutate(sd.id)}>
-                                      {sd.is_active ? 'Deactivate' : 'Activate'}
-                                    </Chip>
-                                  </>
-                                )}
-                                {canDelete('sub-designation') && (
-                                  <Chip variant="red" onClick={() => setDeleteTarget(sd)}>Delete</Chip>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              columns={tableColumns}
+              data={subDesignations}
+              isLoading={isLoading}
+              rowKey={(sd) => sd.id}
+              minWidth="560px"
+              emptyText="No sub-designations found."
+              onRowClick={(sd) => router.push(`/sub-designations/${sd.id}`)}
+              selectable={canDelete('sub-designation')}
+              selection={selected}
+              onSelectionChange={setSelected}
+              selectionBar={(rows, clear) => (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10,
+                  background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--r)', padding: '7px 12px',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{rows.length} selected</span>
+                  <button className="btn btn-danger btn-sm" onClick={() => setBulkDeleteOpen(true)}>Delete</button>
+                  <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
+                </div>
+              )}
+            />
           )}
 
           {/* ─── CARDS VIEW ─── */}
@@ -260,6 +276,25 @@ export default function SubDesignationsPage() {
         >
           <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)' }}>
             ⚠ If active employees hold this sub-designation, deletion will be blocked. Reassign them first.
+          </div>
+        </Modal>
+
+        <Modal
+          open={bulkDeleteOpen}
+          onClose={() => setBulkDeleteOpen(false)}
+          title="Delete Sub-Designations"
+          subtitle={`Delete ${selected.length} selected sub-designation${selected.length === 1 ? '' : 's'}?`}
+          footer={
+            <>
+              <button className="btn btn-sec" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkDeleting}>
+                {bulkDeleting ? 'Deleting…' : `Yes, Delete ${selected.length}`}
+              </button>
+            </>
+          }
+        >
+          <div style={{ background: 'var(--red-lt)', border: '1px solid var(--red-bd)', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 12, color: 'var(--red)' }}>
+            ⚠ Sub-designations held by active employees will be skipped.
           </div>
         </Modal>
       </AppShell>

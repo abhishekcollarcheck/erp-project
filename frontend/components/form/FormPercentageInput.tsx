@@ -1,5 +1,6 @@
 'use client';
 import { useFormContext, Controller } from 'react-hook-form';
+import type { FieldPerm } from './maskField';
 
 interface Props {
   name:       string;
@@ -10,7 +11,7 @@ interface Props {
   step?:      number;
   hint?:      string;
   disabled?:  boolean;
-  fieldPerm?: { can_view?: boolean; can_edit?: boolean };
+  fieldPerm?: FieldPerm;
 }
 
 export function FormPercentageInput({
@@ -19,7 +20,7 @@ export function FormPercentageInput({
   const { control, formState: { errors } } = useFormContext();
   const error      = (errors as any)[name]?.message as string | undefined;
   if (fieldPerm?.can_view === false) return null;
-  const isDisabled = disabled || fieldPerm?.can_edit === false;
+  const isDisabled = disabled || fieldPerm?.can_edit === false || !!fieldPerm?.is_masked || !!fieldPerm?.is_partial_masked;
 
   return (
     <Controller name={name} control={control} render={({ field }) => (

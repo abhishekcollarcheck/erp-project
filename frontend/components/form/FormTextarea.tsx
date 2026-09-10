@@ -1,5 +1,7 @@
 'use client';
 import { useFormContext, Controller } from 'react-hook-form';
+import type { FieldPerm } from './maskField';
+import { maskPartial } from '../../utils/validationEngine';
 
 interface Props {
   name:         string;
@@ -11,7 +13,7 @@ interface Props {
   rows?:        number;
   maxLength?:   number;
   hint?:        string;
-  fieldPerm?:   { can_view?: boolean; can_edit?: boolean };
+  fieldPerm?:   FieldPerm;
 }
 
 export function FormTextarea({
@@ -21,7 +23,9 @@ export function FormTextarea({
   const { control, formState: { errors } } = useFormContext();
   const error       = (errors as any)[name]?.message as string | undefined;
   if (fieldPerm?.can_view === false) return null;
-  const isReadOnly  = readOnly || fieldPerm?.can_edit === false;
+  const isFullMask    = fieldPerm?.is_masked === true;
+  const isPartialMask = !isFullMask && fieldPerm?.is_partial_masked === true;
+  const isReadOnly  = readOnly || fieldPerm?.can_edit === false || isFullMask || isPartialMask;
 
   return (
     <Controller name={name} control={control} render={({ field }) => (
@@ -40,8 +44,8 @@ export function FormTextarea({
           maxLength={maxLength}
           aria-invalid={!!error}
           aria-describedby={error ? `${name}-err` : hint ? `${name}-hint` : undefined}
-          value={field.value ?? ''}
-          className={`w-full border border-gray-300 p-2 rounded-2xl form-textarea${isReadOnly ? ' readonly' : ''}`}
+          value={isFullMask ? '••••••' : isPartialMask ? maskPartial(field.value ?? '') : (field.value ?? '')}
+          className={`w-full border border-gray-300 p-2 rounded-2xl form-textarea${isReadOnly ? ' readonly' : ''}${(isFullMask || isPartialMask) ? ' masked' : ''}`}
           onChange={e => { if (!isReadOnly) field.onChange(e.target.value); }}
         />
         {maxLength && (

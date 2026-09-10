@@ -5,7 +5,7 @@ import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { toOpts } from '../../constants/employee.constants';
-import { useFieldPermissions, resolveFieldPerm } from '../../hooks/useEmployees';
+import { useFieldPerm } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useMaritalStatusData } from '../../../../features/maritalStatus/hooks/useMaritalStatus';
 import { useSalutationData } from '../../../../features/salutation/hooks/useSalutation';
@@ -20,8 +20,7 @@ const MOTHER_SALUTATION_NAMES = ['Mrs.', 'Ms.', 'Dr.', 'Late'];
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepFamilyEmergency(_: Props) {
-  const { data: fp } = useFieldPermissions();
-  const f = (n: string) => resolveFieldPerm(fp, n);
+  const f = useFieldPerm();
   const { control, getValues } = useFormContext();
 
   const { data: maritalStatuses = [] } = useMaritalStatusData();

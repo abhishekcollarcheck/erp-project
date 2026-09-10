@@ -1,67 +1,317 @@
-/* DATATABLE */
+/* ═══════════════════════════════════════════════════════════════════════════
+   PrimeReact → NexHR design-system bridge
+
+   Loaded after primereact's lara-light-blue theme + core css (see app/layout.tsx).
+   Every rule here re-skins a PrimeReact component with the tokens defined in
+   app/globals.css (--surface, --border, --ink*, --blue*, --r, --font …) so the
+   PrimeReact DataTable / Dropdown / MultiSelect / AutoComplete match the rest of
+   the app. Dark-mode variants track the `.dark` class (styles/theme.css).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────── DataTable ─────────────────────────── */
 
 .p-datatable {
+  font-family: var(--font);
   overflow: hidden;
+  background: transparent;
 }
 
-.p-datatable-header {
-  background: var(--surface);
-border-color: var(--border);
+.p-datatable .p-datatable-header {
+  background: transparent;
+  border: none;
+  padding: 0 0 12px;
 }
 
-/* .p-datatable-thead>tr>th {
-  background: var(--surface-2);
-  color: var(--text-muted);
+.p-datatable .p-datatable-thead > tr > th {
+  background: var(--surface2);
+  color: var(--ink4);
   border-color: var(--border);
+  border-width: 0 0 1px 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 14px;
+}
+
+.p-datatable .p-datatable-tbody > tr {
+  background: var(--surface);
+  color: var(--ink2);
+  transition: background 0.1s;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+  border-color: var(--border);
+  border-width: 0 0 1px 0;
   font-size: 12px;
-} */
+  padding: 10px 14px;
+  color: var(--ink2);
+}
 
-.p-datatable-tbody>tr {
+.p-datatable.p-datatable-sm .p-datatable-thead > tr > th {
+  padding: 8px 12px;
+}
+
+.p-datatable.p-datatable-sm .p-datatable-tbody > tr > td {
+  padding: 8px 12px;
+}
+
+.p-datatable .p-datatable-tbody > tr:not(.p-highlight):hover {
+  background: var(--surface2);
+}
+
+.p-datatable .p-datatable-tbody > tr.p-highlight {
+  background: var(--blue-lt);
+  color: var(--ink2);
+}
+
+.p-datatable .p-datatable-tbody > tr.p-selectable-row:focus {
+  outline: 2px solid var(--blue-md);
+  outline-offset: -2px;
+}
+
+.p-datatable .p-sortable-column:not(.p-highlight):hover {
+  background: var(--surface3);
+  color: var(--ink3);
+}
+
+.p-datatable .p-sortable-column.p-highlight {
+  background: var(--surface2);
+  color: var(--blue);
+}
+
+.p-datatable .p-sortable-column.p-highlight .p-sortable-column-icon {
+  color: var(--blue);
+}
+
+.p-datatable .p-datatable-emptymessage > td {
+  text-align: center;
+  color: var(--ink4);
+  padding: 32px 16px;
+  font-size: 12px;
+}
+
+.p-datatable .p-datatable-loading-overlay {
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+/* We render our own <Pagination> bar — neutralise any built-in paginator. */
+.p-paginator {
+  background: transparent;
+  border: none !important;
+  padding: 8px 0;
+}
+
+/* ───────────────────────────── Checkbox ─────────────────────────────
+   PrimeReact 10.9 (lara-light-blue) puts the checked state as `.p-highlight`
+   on the OUTER `.p-checkbox`, not on `.p-checkbox-box`. Target it the same way
+   so the checked box actually turns blue (row + header "select all"). */
+
+.p-checkbox .p-checkbox-box {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border2);
   background: var(--surface);
-  color: var(--text);
+  border-radius: 4px;
+  color: #fff;
 }
 
-.p-datatable-tbody>tr>td {
-  border-color: var(--border);
-  font-size: 11px;
+.p-checkbox.p-highlight .p-checkbox-box,
+.p-checkbox.p-highlight:not(.p-disabled):hover .p-checkbox-box {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
 }
 
-/* INPUTS */
+.p-checkbox.p-highlight .p-checkbox-box .p-checkbox-icon {
+  color: #fff;
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+}
 
-.p-inputtext,
+.p-checkbox:not(.p-disabled):has(.p-checkbox-input:focus-visible) .p-checkbox-box {
+  box-shadow: 0 0 0 2px var(--blue-md);
+  border-color: var(--blue);
+}
+
+.p-datatable .p-selection-column .p-checkbox {
+  vertical-align: middle;
+}
+
+/* ───────────────────── Dropdown / MultiSelect / AutoComplete ───────────────────── */
+
 .p-dropdown,
-.p-calendar,
-.p-multiselect {
+.p-multiselect,
+.p-autocomplete .p-inputtext {
   background: var(--surface);
-  color: var(--text);
-  border-color: var(--border);
+  border-color: var(--border2);
+  border-radius: var(--r);
+  font-family: var(--font);
+  font-size: 13px;
 }
+
+.p-dropdown:not(.p-disabled):hover,
+.p-multiselect:not(.p-disabled):hover,
+.p-autocomplete:not(.p-disabled):hover .p-inputtext {
+  border-color: var(--blue-md);
+}
+
+.p-dropdown:not(.p-disabled).p-focus,
+.p-multiselect:not(.p-disabled).p-focus,
+.p-autocomplete .p-inputtext:enabled:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px var(--blue-md);
+}
+
+.p-dropdown.p-disabled,
+.p-multiselect.p-disabled {
+  background: var(--surface2);
+  opacity: 1;
+}
+
+.p-dropdown .p-dropdown-label,
+.p-multiselect .p-multiselect-label {
+  font-size: 13px;
+  color: var(--ink);
+  padding: 7px 10px;
+}
+
+.p-dropdown .p-dropdown-label.p-placeholder,
+.p-multiselect .p-multiselect-label.p-placeholder {
+  color: var(--ink4);
+}
+
+.p-dropdown .p-dropdown-trigger,
+.p-multiselect .p-multiselect-trigger {
+  color: var(--ink4);
+  width: 2.25rem;
+}
+
+.p-dropdown-panel,
+.p-multiselect-panel,
+.p-autocomplete-panel {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  box-shadow: var(--sh2);
+}
+
+.p-dropdown-panel .p-dropdown-items .p-dropdown-item,
+.p-multiselect-panel .p-multiselect-items .p-multiselect-item,
+.p-autocomplete-panel .p-autocomplete-items .p-autocomplete-item {
+  font-size: 12px;
+  color: var(--ink2);
+  padding: 8px 12px;
+}
+
+.p-dropdown-panel .p-dropdown-items .p-dropdown-item.p-highlight,
+.p-multiselect-panel .p-multiselect-items .p-multiselect-item.p-highlight,
+.p-autocomplete-panel .p-autocomplete-items .p-autocomplete-item.p-highlight {
+  background: var(--blue-lt);
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.p-dropdown-panel .p-dropdown-items .p-dropdown-item:not(.p-highlight):not(.p-disabled).p-focus,
+.p-multiselect-panel .p-multiselect-items .p-multiselect-item:not(.p-highlight):not(.p-disabled).p-focus,
+.p-autocomplete-panel .p-autocomplete-items .p-autocomplete-item:not(.p-highlight):hover {
+  background: var(--surface2);
+  color: var(--ink);
+}
+
+.p-dropdown-panel .p-dropdown-header,
+.p-multiselect-panel .p-multiselect-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
+}
+
+.p-dropdown-panel .p-dropdown-filter,
+.p-multiselect-panel .p-multiselect-filter {
+  font-size: 12px;
+  border-color: var(--border2);
+  border-radius: var(--r);
+}
+
+.p-dropdown-panel .p-dropdown-item-group,
+.p-multiselect-panel .p-multiselect-item-group {
+  background: var(--surface);
+  color: var(--ink4);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 12px 2px;
+}
+
+/* MultiSelect chips */
+.p-multiselect .p-multiselect-token {
+  background: var(--blue-lt);
+  color: var(--blue);
+  border: 1px solid var(--blue-md);
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+}
+
+/* ─────────────────────────── Inputs shared ─────────────────────────── */
 
 .p-inputtext {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-}
-
-/* DIALOG */
-
-.p-dialog {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--ink);
   background: var(--surface);
-  color: var(--text);
-  border-radius: 24px;
+  border-color: var(--border2);
+  border-radius: var(--r);
+  padding: 7px 10px;
 }
 
-.p-dialog-header {
-  border-bottom: 1px solid var(--border);
+.p-inputtext:enabled:hover {
+  border-color: var(--blue-md);
 }
 
-/* BUTTON */
-
-.p-button {
-  background: var(--primary);
-  border: none;
+.p-inputtext:enabled:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px var(--blue-md);
 }
 
-.p-button:hover {
-  background: var(--primary-hover);
+/* ═══════════════════════════ DARK MODE ═══════════════════════════ */
+
+.dark .p-datatable .p-datatable-thead > tr > th,
+.dark .p-datatable .p-datatable-tbody > tr,
+.dark .p-datatable .p-datatable-tbody > tr > td,
+.dark .p-dropdown,
+.dark .p-multiselect,
+.dark .p-autocomplete .p-inputtext,
+.dark .p-dropdown-panel,
+.dark .p-multiselect-panel,
+.dark .p-autocomplete-panel,
+.dark .p-inputtext,
+.dark .p-checkbox:not(.p-highlight) .p-checkbox-box {
+  background: var(--surface, #111827);
+  color: var(--text, #f8fafc);
+  border-color: var(--border, #334155);
+}
+
+.dark .p-checkbox.p-highlight .p-checkbox-box {
+  background: var(--blue, #1e56d9);
+  border-color: var(--blue, #1e56d9);
+  color: #fff;
+}
+
+.dark .p-datatable .p-datatable-thead > tr > th {
+  background: var(--surface-2, #1e293b);
+  color: var(--text-muted, #94a3b8);
+}
+
+.dark .p-datatable .p-datatable-tbody > tr:not(.p-highlight):hover,
+.dark .p-dropdown-panel .p-dropdown-items .p-dropdown-item:not(.p-highlight):hover,
+.dark .p-multiselect-panel .p-multiselect-items .p-multiselect-item:not(.p-highlight):hover {
+  background: var(--surface-2, #1e293b);
+}
+
+.dark .p-datatable .p-datatable-tbody > tr.p-highlight {
+  background: color-mix(in srgb, var(--info, #38bdf8) 18%, transparent);
 }
