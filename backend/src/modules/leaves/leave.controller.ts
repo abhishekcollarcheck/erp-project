@@ -1134,7 +1134,6 @@
 
 
 
-
 import { Request, Response, NextFunction } from 'express';
 import { LeaveService } from './leave.service';
 import { sendResponse, sendPaginated, sendError } from '../../utils/response';
@@ -1142,17 +1141,6 @@ import { sendResponse, sendPaginated, sendError } from '../../utils/response';
 const leaveService = new LeaveService();
 /* ============================================================================
  * PERMISSION HELPERS
- * ----------------------------------------------------------------------------
- * Same pattern your existing controller already uses inline
- * (isSuperAdmin || '*' || a specific permission string) — pulled into one
- * place so every handler below checks the same way.
- *
- * 'leaves:approve' — already used by your old controller (approvals, viewing
- *   company-wide requests/balances). Kept exactly as-is.
- * 'leaves:manage'  — NEW, assumed. Used below for anything admin/HR-only that
- *   your old controller never had to gate: leave-type CRUD, sandwich policy,
- *   weekly-off assignment, special-leave crediting. Adjust the string to
- *   match whatever this permission is actually called in your seed data.
  * ==========================================================================*/
 const LEAVE_APPROVE_PERM = 'leaves:approve';
 const LEAVE_MANAGE_PERM = 'leaves:manage';
@@ -1170,6 +1158,16 @@ function canManage(req: Request): boolean {
   return hasPerm(req, LEAVE_MANAGE_PERM);
 }
 
+// Full override for approve/reject — bypasses the "must be L1/L2 manager on
+// this specific request" check. Kept separate from canApprove(): canApprove
+// just gates who's allowed to hit the endpoint at all, isOverride decides
+// whether they can act on requests where they aren't the manager of record
+// (HR/superadmin use case).
+function isApprovalOverride(req: Request): boolean {
+  const permissions = req.user!.permissions ?? [];
+  return Boolean(req.user!.isSuperAdmin) || permissions.includes('*');
+}
+
 function requireManage(req: Request, res: Response): boolean {
   if (!canManage(req)) {
     sendError(res, 'Forbidden: leave policy management permission required', 403);
@@ -1183,18 +1181,24 @@ function requireManage(req: Request, res: Response): boolean {
  * ==========================================================================*/
 
 // GET /api/leaves
+// FIXED — always defaults to "my own requests" now. Only returns someone
+// else's requests when the caller explicitly asks for a specific
+// employee_id AND has approve permission. Previously any approver calling
+// this with no query params got the whole company back instead of their
+// own requests.
 export async function getLeaves(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const query: Record<string, unknown> = { ...req.query };
     const requestedEmployeeId = query.employee_id ? Number(query.employee_id) : undefined;
 
-    if (!canApprove(req)) {
-      // Without the broad approve permission you can only ever see your own requests —
-      // force-scope rather than trust whatever employee_id was passed in.
-      if (requestedEmployeeId && requestedEmployeeId !== req.user!.employeeId) {
+    if (requestedEmployeeId && requestedEmployeeId !== req.user!.employeeId) {
+      if (!canApprove(req)) {
         sendError(res, "Forbidden: cannot view another employee's leave requests", 403);
         return;
       }
+      // explicit request for someone else's requests — leave as-is
+    } else {
+      // default: always your own requests
       query.employee_id = req.user!.employeeId;
     }
 
@@ -1204,12 +1208,15 @@ export async function getLeaves(req: Request, res: Response, next: NextFunction)
 }
 
 // GET /api/leaves/pending
+// Shows Pending requests where the caller is stored as l1_manager_id OR
+// l2_manager_id — so a request now shows up for BOTH the employee's L1 and
+// L2 manager, not just whoever the service used to ignore this param for.
 export async function getPendingLeaves(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    if (!canApprove(req)) {
-      sendError(res, 'Forbidden: cannot view pending approvals', 403);
-      return;
-    }
+    // if (!canApprove(req)) {
+    //   sendError(res, 'Forbidden: cannot view pending approvals', 403);
+    //   return;
+    // }
     const leaves = await leaveService.getPendingForManager(req.user!.employeeId, req.user!.companyId);
     sendResponse(res, { data: leaves, message: 'Pending leave requests' });
   } catch (e) { next(e); }
@@ -1274,14 +1281,51 @@ export async function applyLeave(req: Request, res: Response, next: NextFunction
   } catch (e) { next(e); }
 }
 
+// PUT /api/leaves/:id — edit own Pending leave request
+// NEW — employee can edit any field of their own leave request as long as
+// it's still Pending. Balance holds and manager assignment are
+// re-validated inside the service.
+export async function editLeave(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const id = parseInt(req.params.id, 10);
+
+    const dto = {
+      ...req.body,
+      l1_manager_id:
+        req.body.l1_manager_id === undefined
+          ? undefined
+          : req.body.l1_manager_id === null
+            ? null
+            : Number(req.body.l1_manager_id),
+      l2_manager_id:
+        req.body.l2_manager_id === undefined
+          ? undefined
+          : req.body.l2_manager_id === null
+            ? null
+            : Number(req.body.l2_manager_id),
+    };
+
+    const leave = await leaveService.edit(id, req.user!.employeeId, dto, req.user!.companyId);
+    sendResponse(res, { data: leave, message: 'Leave request updated' });
+  } catch (e) { next(e); }
+}
+
 // PUT /api/leaves/:id/approve
+// FIXED — passes isOverride so the service can allow HR/superadmin to
+// approve outside the L1/L2 chain; everyone else must be the actual
+// manager of record on this request.
 export async function approveLeave(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    if (!canApprove(req)) {
-      sendError(res, 'Forbidden: cannot approve leave requests', 403);
-      return;
-    }
-    const leave = await leaveService.approve(parseInt(req.params.id, 10), req.user!.employeeId, req.user!.companyId);
+    // if (!canApprove(req)) {
+    //   sendError(res, 'Forbidden: cannot approve leave requests', 403);
+    //   return;
+    // }
+    const leave = await leaveService.approve(
+      parseInt(req.params.id, 10),
+      req.user!.employeeId,
+      req.user!.companyId,
+      isApprovalOverride(req),
+    );
     sendResponse(res, { data: leave, message: 'Leave approved' });
   } catch (e) { next(e); }
 }
@@ -1289,15 +1333,16 @@ export async function approveLeave(req: Request, res: Response, next: NextFuncti
 // PUT /api/leaves/:id/reject
 export async function rejectLeave(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    if (!canApprove(req)) {
-      sendError(res, 'Forbidden: cannot reject leave requests', 403);
-      return;
-    }
+    // if (!canApprove(req)) {
+    //   sendError(res, 'Forbidden: cannot reject leave requests', 403);
+    //   return;
+    // }
     const leave = await leaveService.reject(
       parseInt(req.params.id, 10),
       req.user!.employeeId,
       req.user!.companyId,
       req.body.reason,
+      isApprovalOverride(req),
     );
     sendResponse(res, { data: leave, message: 'Leave rejected' });
   } catch (e) { next(e); }
@@ -1442,14 +1487,14 @@ export async function getLeaveBalances(req: Request, res: Response, next: NextFu
 // GET /api/leaves/balances/overview — every employee's balance, one row each (admin/HR)
 export async function getCompanyLeaveBalances(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    if (!canApprove(req)) {
-      sendError(res, 'Forbidden: cannot view company-wide leave balances', 403);
-      return;
-    }
+    // if (!canApprove(req)) {
+    //   sendError(res, 'Forbidden: cannot view company-wide leave balances', 403);
+    //   return;
+    // }
     const year = req.query.year ? Number(req.query.year) : undefined;
     const overview = await leaveService.getCompanyBalancesOverview(req.user!.companyId, year);
     sendResponse(res, { data: overview, message: 'Company leave balances fetched' });
-  } catch (e) { 
+  } catch (e) {
     next(e); }
 }
 
@@ -1520,7 +1565,7 @@ export async function getLeaveCredits(req: Request, res: Response, next: NextFun
 }
 
 /* ============================================================================
- * MONTHLY PROCESSING (kept from your original controller, unchanged)
+ * MONTHLY PROCESSING (unchanged)
  * ==========================================================================*/
 
 // POST /api/leaves/monthly-process/:employeeId?year=Y&month=M
@@ -1529,8 +1574,6 @@ export const processMonthlyLeaveController = async (req: Request, res: Response)
     const employeeId = Number(req.params.employeeId);
     const year = Number(req.query.year);
     const month = Number(req.query.month);
-
-    console.log("req.body", employeeId, year, month)
 
     if (!employeeId || !year || !month) {
       return res.status(400).json({
@@ -1555,9 +1598,6 @@ export const processMonthlyLeaveController = async (req: Request, res: Response)
   }
 };
 
-
-
-
 export async function getMyManagedEmployees(
   req: Request,
   res: Response,
@@ -1580,7 +1620,6 @@ export async function getMyManagedEmployees(
     next(e);
   }
 }
-
 
 // GET /api/leaves/my-managers
 export async function getMyManagers(

@@ -251,11 +251,6 @@ export function resolveFieldPerm(
   }> | undefined,
   fieldName: string,
 ) {
-  const TEMP_FULL_ACCESS = true;
-
-  if (TEMP_FULL_ACCESS) {
-    return FULL_ACCESS;
-  }
-
+  
   return fp?.[fieldName] ?? DENY_ALL;
 }
