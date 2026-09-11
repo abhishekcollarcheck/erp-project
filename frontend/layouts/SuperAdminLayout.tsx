@@ -41,9 +41,9 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
         {/* Brand mark */}
         <div style={{ padding:'16px 14px', borderBottom:'1px solid rgba(255,255,255,.08)', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:30, height:30, borderRadius:8, background:'linear-gradient(135deg,#6c31d9,#cc2a2a)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>N</div>
+            <div style={{ width:30, height:30, borderRadius:8, background:'linear-gradient(135deg,#6c31d9,#cc2a2a)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>U</div>
             <div>
-              <div style={{ fontSize:13, fontWeight:700, color:'#fff', letterSpacing:'-.3px' }}>NexHR</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#fff', letterSpacing:'-.3px' }}>UNG</div>
               <div style={{ fontSize:9, color:'rgba(255,255,255,.35)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.07em', marginTop:1 }}>Platform Admin</div>
             </div>
           </div>

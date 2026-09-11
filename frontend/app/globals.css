@@ -2,7 +2,7 @@
 
 @import "tailwindcss";
 
-/* ═══ NexHR Design System Tokens ═══ */
+/* ═══ UNG Design System Tokens ═══ */
 :root {
   --bg: #f5f6f8;
   --surface: #ffffff;
@@ -123,7 +123,6 @@ div#sb.slim {
 }
 .sb-wordmark { overflow: hidden; white-space: nowrap; }
 .sb-app { font-size: 14px; font-weight: 700; color: var(--ink); letter-spacing: -.3px; }
-.sb-tagline { font-size: 10px; color: var(--ink4); font-weight: 400; margin-top: 1px; }
 /* #sb.slim .sb-wordmark { display: none; } */
 
 .role-sw { margin: 8px 8px 2px; flex-shrink: 0; }

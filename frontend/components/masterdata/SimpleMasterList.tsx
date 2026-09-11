@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useMemo, useRef } from 'react';
 import { GripVertical, Pencil, X, Check } from 'lucide-react';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
@@ -38,7 +38,15 @@ interface SimpleMasterListProps<T extends MasterListItem> {
   editName: string;
   onEditNameChange: (value: string) => void;
   onStartEdit: (item: T) => void;
-  onSaveEdit: (id: number) => void;
+  /**
+   * `value` is the freshly-typed text, read directly off the input at click
+   * time (see the `editValueRef` note below) — pass it through to whatever
+   * gets saved instead of re-reading `editName`/other external state, which
+   * may be stale by the time this fires. Optional only so existing callers
+   * that still read their own `editName` state keep compiling; new/fixed
+   * callers should prefer the passed `value`.
+   */
+  onSaveEdit: (id: number, value?: string) => void;
   onCancelEdit: () => void;
   onDelete: (id: number) => void;
 
@@ -81,35 +89,53 @@ export function SimpleMasterList<T extends MasterListItem>({
   addExtra,
   extraBeforeList,
 }: SimpleMasterListProps<T>) {
-  // Selection is visual-only here — none of the lookup master pages expose a
-  // bulk action, but the checkboxes keep every listing table consistent.
-  const [selected, setSelected] = useState<T[]>([]);
+  // PrimeReact's DataTable only re-invokes a Column's `body` render prop for
+  // a row when that row's entry in `value` changes — a parent re-render that
+  // leaves `items` and `editingId` untouched (e.g. typing into the inline
+  // edit input, which only changes `editName`) does NOT get a fresh
+  // `body()` call. Two consequences, both fixed below:
+  //  1. Clicking Edit correctly calls onStartEdit/setEditingId, but without
+  //     `editingId` changing the row's data too, the row never re-renders
+  //     into its input — the click visibly "does nothing".
+  //  2. Once editing, every handler PrimeReact cached for that row (Save,
+  //     Cancel, the input's onChange) stays bound to the closures from the
+  //     moment editing started — including whatever `editName`/`onSaveEdit`
+  //     were at that instant. Typing updates state fine (the onChange still
+  //     calls the stable `onEditNameChange` setter), but clicking Save
+  //     re-invokes that stale closure, which silently saves the pre-edit
+  //     text since it never picked up the newer one.
+  // Fix for (1): fold `editingId` into the row data so entering/leaving edit
+  // mode always changes `value`'s identity, forcing a re-render.
+  // Fix for (2): `editValueRef` mirrors the latest `editName` on every
+  // render (a plain assignment, not tied to any effect timing). Because a
+  // ref's object identity never changes, even a stale cached closure that
+  // captured `editValueRef` still reads today's `.current` — so Save always
+  // sends what's actually in the box regardless of when PrimeReact last
+  // bothered to re-render that cell.
+  const editValueRef = useRef(editName);
+  editValueRef.current = editName;
 
-  const selectedIds = new Set(selected.map((i) => i.id));
-  const allSelected = items.length > 0 && items.every((i) => selectedIds.has(i.id));
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) setSelected([...selected, ...items.filter((i) => !selectedIds.has(i.id))]);
-    else {
-      const pageIds = new Set(items.map((i) => i.id));
-      setSelected(selected.filter((i) => !pageIds.has(i.id)));
-    }
-  };
+  const tableItems = useMemo(
+    () => items.map((item) => ({ ...item, __editing: editingId === item.id })),
+    [items, editingId],
+  );
 
-  const nameBody = (item: T) => {
-    const isEditing = editingId === item.id;
+  const nameBody = (item: T & { __editing: boolean }) => {
+    const isEditing = item.__editing;
     return isEditing ? (
       <div className="master-inline-edit">
         <input
+          key={item.id}
           type="text"
-          value={editName}
+          defaultValue={editName}
           onChange={(e) => onEditNameChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') onSaveEdit(item.id);
+            if (e.key === 'Enter') onSaveEdit(item.id, editValueRef.current);
             if (e.key === 'Escape') onCancelEdit();
           }}
           autoFocus
         />
-        <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--green)' }} onClick={() => onSaveEdit(item.id)}>
+        <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--green)' }} onClick={() => onSaveEdit(item.id, editValueRef.current)}>
           <Check size={14} />
         </button>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onCancelEdit}>
@@ -127,8 +153,8 @@ export function SimpleMasterList<T extends MasterListItem>({
     );
   };
 
-  const actionsBody = (item: T) => (
-    editingId === item.id ? null : (
+  const actionsBody = (item: T & { __editing: boolean }) => (
+    item.__editing ? null : (
       <div className="master-row-actions">
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => onStartEdit(item)}>
           <Pencil size={13} />
@@ -198,19 +224,13 @@ export function SimpleMasterList<T extends MasterListItem>({
 
         <div className="tw">
           <DataTable
-            value={isLoading ? [] : items}
+            value={isLoading ? [] : tableItems}
             loading={isLoading}
             dataKey="id"
-            selection={selected}
-            selectionMode="checkbox"
-            selectAll={allSelected}
-            onSelectAllChange={(e) => handleSelectAll(e.checked)}
-            onSelectionChange={(e) => setSelected((e.value ?? []) as T[])}
             emptyMessage={emptyText}
             className="p-datatable-sm"
             tableStyle={{ minWidth: '360px' }}
           >
-            <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} />
             <Column
               headerStyle={{ width: 28 }}
               body={() => <GripVertical size={14} style={{ cursor: 'grab', color: 'var(--ink4)' }} />}

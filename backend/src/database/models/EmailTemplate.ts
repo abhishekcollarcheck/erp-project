@@ -145,7 +145,7 @@ EmailBranding.init(
     show_social_links: { type: DataTypes.BOOLEAN, defaultValue: false },
     social_linkedin: { type: DataTypes.STRING(500), allowNull: true },
     social_twitter: { type: DataTypes.STRING(500), allowNull: true },
-    from_name: { type: DataTypes.STRING(100), defaultValue: 'NexHR Team' },
+    from_name: { type: DataTypes.STRING(100), defaultValue: 'UNG Team' },
     from_email: { type: DataTypes.STRING(255), allowNull: false, defaultValue: 'noreply@nexhr.com' },
     reply_to: { type: DataTypes.STRING(255), allowNull: true },
     letterhead_html: { type: DataTypes.TEXT, allowNull: true },

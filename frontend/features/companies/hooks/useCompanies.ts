@@ -8,6 +8,17 @@ const KEYS = {
   one:  (id?: number) => ['companies', 'detail', id]  as const,
 };
 
+// The CompanySelector / CompanySwitcher dropdown (features/company/hooks/
+// useCompany.ts) reads a *separate* query key fed by GET /companies/mine —
+// invalidate it alongside every mutation here too, or a company created/
+// edited/suspended in Master → Company never shows up (or updates) in that
+// dropdown until some unrelated refetch happens to fire.
+const MY_COMPANIES_KEY = ['my-companies'] as const;
+function invalidateEverywhere(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: KEYS.all });
+  qc.invalidateQueries({ queryKey: MY_COMPANIES_KEY });
+}
+
 // ─── List ─────────────────────────────────────────────────────────────────────
 export function useCompanies(params?: CompanyQueryParams) {
   return useQuery({
@@ -35,7 +46,7 @@ export function useCreateCompany() {
   return useMutation({
     mutationFn: (data: CompanyFormDto) => companyService.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEYS.all });
+      invalidateEverywhere(qc);
       showToast('✓ Company created');
     },
     onError: (err: any) => showToast(err?.message || 'Failed to create company'),
@@ -49,7 +60,7 @@ export function useUpdateCompany() {
     mutationFn: ({ id, data }: { id: number; data: Partial<CompanyFormDto> }) =>
       companyService.update(id, data),
     onSuccess: (_res, variables) => {
-      qc.invalidateQueries({ queryKey: KEYS.all });
+      invalidateEverywhere(qc);
       qc.invalidateQueries({ queryKey: KEYS.one(variables.id) });
       showToast('✓ Company updated');
     },
@@ -63,7 +74,7 @@ export function useSuspendCompany() {
   return useMutation({
     mutationFn: (id: number) => companyService.suspend(id),
     onSuccess: (_res, id) => {
-      qc.invalidateQueries({ queryKey: KEYS.all });
+      invalidateEverywhere(qc);
       qc.invalidateQueries({ queryKey: KEYS.one(id) });
       showToast('Company suspended');
     },
@@ -76,7 +87,7 @@ export function useActivateCompany() {
   return useMutation({
     mutationFn: (id: number) => companyService.activate(id),
     onSuccess: (_res, id) => {
-      qc.invalidateQueries({ queryKey: KEYS.all });
+      invalidateEverywhere(qc);
       qc.invalidateQueries({ queryKey: KEYS.one(id) });
       showToast('✓ Company activated');
     },

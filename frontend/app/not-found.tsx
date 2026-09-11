@@ -99,7 +99,7 @@ export default function NotFound() {
         textAlign: 'center',
       }}>
 
-        {/* NexHR logo */}
+        {/* UNG logo */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 32 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 9,
@@ -108,11 +108,10 @@ export default function NotFound() {
             fontSize: 13, fontWeight: 700, color: '#fff',
             flexShrink: 0,
           }}>
-            NX
+            UNG
           </div>
           <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.3px' }}>NexHR ERP</div>
-            <div style={{ fontSize: 10, color: 'var(--ink4)' }}>Enterprise Suite</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.3px' }}>UNG ERP</div>
           </div>
         </div>
 
@@ -282,7 +281,7 @@ export default function NotFound() {
         color: 'var(--ink4)',
         textAlign: 'center',
       }}>
-        © {new Date().getFullYear()} NexHR ERP · Enterprise Human Resource Management
+        © {new Date().getFullYear()} UNG ERP · Enterprise Human Resource Management
       </div>
 
       <style>{`

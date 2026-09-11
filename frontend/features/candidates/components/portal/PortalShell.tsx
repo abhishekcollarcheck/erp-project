@@ -156,7 +156,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             <div className="pc-logo">NX</div>
             <div>
               <b>Candidate Portal</b>
-              <span>NexHR ERP</span>
+              <span>UNG ERP</span>
             </div>
           </div>
           <div className="pc-top-r">

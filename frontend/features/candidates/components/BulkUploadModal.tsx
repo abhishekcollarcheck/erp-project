@@ -316,7 +316,7 @@ export function BulkUploadModal({
     try {
       const workbook = new ExcelJS.Workbook();
 
-      workbook.creator = 'NexHR';
+      workbook.creator = 'UNG';
       workbook.created = new Date();
 
       const sheet =
@@ -416,7 +416,7 @@ export function BulkUploadModal({
 
       saveAs(
         new Blob([buffer]),
-        'nexhr_candidates_template.xlsx',
+        'ung_candidates_template.xlsx',
       );
     } catch (err) {
       console.error(err);

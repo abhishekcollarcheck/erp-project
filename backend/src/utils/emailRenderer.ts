@@ -31,7 +31,7 @@ function defaultBranding(companyId: number): Partial<EmailBranding> & {
 } {
   return {
     company_id:         companyId,
-    company_name:       'NexHR ERP',
+    company_name:       'UNG ERP',
     logo_url:           null,
     logo_width:         120,
     primary_color:      '#1e56d9',
@@ -47,7 +47,7 @@ function defaultBranding(companyId: number): Partial<EmailBranding> & {
     show_social_links:  false,
     social_linkedin:    null,
     social_twitter:     null,
-    from_name:          'NexHR Team',
+    from_name:          'UNG Team',
     from_email:         'noreply@nexhr.com',
     reply_to:           null,
     letterhead_html:    null,

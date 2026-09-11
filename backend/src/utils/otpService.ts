@@ -61,7 +61,7 @@ async function sendEmail(
 
   await sendMail({
     to: email,
-    subject: 'Your NexHR Login OTP',
+    subject: 'Your UNG Login OTP',
     html: `
 <!DOCTYPE html>
 <html>
@@ -72,7 +72,7 @@ async function sendEmail(
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;margin:0;padding:20px">
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
     <div style="background:linear-gradient(135deg,#185FA5,#1D9E75);padding:28px 32px;text-align:center">
-      <div style="font-size:24px;font-weight:800;color:#fff">NexHR</div>
+      <div style="font-size:24px;font-weight:800;color:#fff">UNG</div>
       <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:4px">
         Enterprise HR Suite
       </div>
@@ -84,7 +84,7 @@ async function sendEmail(
       </p>
 
       <p style="font-size:14px;color:#555;margin:0 0 24px;line-height:1.5">
-        Use the code below to sign in to your NexHR portal.
+        Use the code below to sign in to your UNG portal.
         This code expires in <strong>10 minutes</strong>.
       </p>
 
@@ -102,14 +102,14 @@ async function sendEmail(
 
     <div style="padding:16px 32px;background:#f9f9f9;border-top:1px solid #eee;text-align:center">
       <p style="font-size:11px;color:#aaa;margin:0">
-        NexHR Enterprise · This is an automated message
+        UNG Enterprise · This is an automated message
       </p>
     </div>
   </div>
 </body>
 </html>
     `.trim(),
-    text: `Your NexHR login code is: ${otp}
+    text: `Your UNG login code is: ${otp}
 
 This code expires in 10 minutes.
 

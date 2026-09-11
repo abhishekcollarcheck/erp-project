@@ -13,14 +13,14 @@ import { QueryProvider } from '../providers/QueryProvider';
 import 'primereact/resources/themes/lara-light-blue/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
-// Maps PrimeReact components onto the NexHR design tokens — must load AFTER the
+// Maps PrimeReact components onto the UNG design tokens — must load AFTER the
 // base PrimeReact theme + core css above so its rules win.
 import "@/styles/primereact-overrides.css";
 import { PrimeReactProvider } from 'primereact/api';
 import { ThemeProvider } from "next-themes";
 
 export const metadata: Metadata = {
-  title: 'NexHR ERP — Enterprise Human Resource Management System',
+  title: 'UNG ERP — Enterprise Human Resource Management System',
   description: 'Enterprise-grade HRMS for managing employees, attendance, payroll, recruitment and more.',
 };
 

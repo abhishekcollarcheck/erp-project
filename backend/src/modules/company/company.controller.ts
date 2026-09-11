@@ -1272,7 +1272,17 @@ async function createCompany(req: Request, res: Response, next: NextFunction): P
         }
       }
 
-      const saRole = rolesCreated.find(r => r.slug === 'super_admin')!;
+      const saRole = rolesCreated.find(r => r.slug === 'super_admin');
+      if (!saRole) {
+        // No global RoleTemplate rows (or none slugged 'super_admin') — the
+        // RBAC catalog was never seeded (see seedRbac.ts). Fail clearly
+        // instead of crashing further down with "Cannot read properties of
+        // undefined (reading 'id')".
+        throw new AppError(
+          'Cannot create company: system role templates are not configured. Run the RBAC seed (seedRbac.ts) first.',
+          500,
+        );
+      }
 
       // Step 3.5: Seed permission groups with default permissions
       const allPerms = await Permission.findAll({ attributes: ['id', 'slug'], transaction: t });

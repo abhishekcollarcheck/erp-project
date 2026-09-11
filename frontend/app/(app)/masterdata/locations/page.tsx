@@ -142,19 +142,24 @@ export default function LocationsPage() {
     setSelectedParentId(null);
   };
 
-  const handleSaveEdit = async (id: number) => {
-    if (!editTitle.trim()) return;
+  const handleSaveEdit = async (id: number, value?: string) => {
+    // `value` is what SimpleMasterList read directly off the input at click
+    // time — prefer it over `editTitle` state, which can be one render
+    // behind by the time this fires (see the comment on `editValueRef` in
+    // SimpleMasterList).
+    const title = (value ?? editTitle).trim();
+    if (!title) return;
 
     if (activeTab === 'state_country' || activeTab === 'address_state') {
-      await updateState.mutateAsync({ id, data: { name: editTitle.trim() } });
+      await updateState.mutateAsync({ id, data: { name: title } });
     } else if (activeTab === 'city' || activeTab === 'address_city') {
-      await updateCity.mutateAsync({ id, data: { name: editTitle.trim() } });
+      await updateCity.mutateAsync({ id, data: { name: title } });
     } else if (activeTab === 'site') {
-      await updateSite.mutateAsync({ id, data: { name: editTitle.trim() } });
+      await updateSite.mutateAsync({ id, data: { name: title } });
     } else if (activeTab === 'address_country') {
-      await updateCountry.mutateAsync({ id, data: { name: editTitle.trim() } });
+      await updateCountry.mutateAsync({ id, data: { name: title } });
     } else if (activeTab === 'pay_register') {
-      await updatePayRegister.mutateAsync({ id, data: { name: editTitle.trim() } });
+      await updatePayRegister.mutateAsync({ id, data: { name: title } });
     }
 
     setEditingId(null);

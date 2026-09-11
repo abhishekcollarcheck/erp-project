@@ -618,8 +618,8 @@ export default function PreJoiningForm() {
       <div style={{ minHeight:'100vh', background:'var(--bg)' }}>
         <div className="topbar">
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:32,height:32,borderRadius:8,background:'var(--bl)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff' }}>NX</div>
-            <span style={{ fontFamily:'var(--fs)', fontSize:16, color:'var(--ink)' }}>NexHR · Candidate Portal</span>
+            <div style={{ width:32,height:32,borderRadius:8,background:'var(--bl)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff' }}>UNG</div>
+            <span style={{ fontFamily:'var(--fs)', fontSize:16, color:'var(--ink)' }}>UNG · Candidate Portal</span>
           </div>
         </div>
         <div className="wrap">
@@ -645,8 +645,8 @@ export default function PreJoiningForm() {
         {/* ── Top bar ─────────────────────────────────────────── */}
         <div className="topbar">
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:32,height:32,borderRadius:8,background:'var(--bl)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff' }}>NX</div>
-            <span style={{ fontFamily:'var(--fs)', fontSize:16, color:'var(--ink)' }}>NexHR · Candidate Portal</span>
+            <div style={{ width:32,height:32,borderRadius:8,background:'var(--bl)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff' }}>UNG</div>
+            <span style={{ fontFamily:'var(--fs)', fontSize:16, color:'var(--ink)' }}>UNG · Candidate Portal</span>
           </div>
           <div style={{ display:'flex', gap:8 }}>
             <button className="btn btn-sec" style={{ fontSize:12, padding:'6px 12px' }} onClick={() => saveMutation.mutate(true)} disabled={saveMutation.isPending}>

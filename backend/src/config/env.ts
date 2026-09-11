@@ -46,7 +46,7 @@ export const env = {
     pass: process.env.SMTP_PASS || '',
     secure: process.env.SMTP_SECURE || true,
     fromEmail: process.env.FROM_EMAIL || 'noreply@nexhr.com',
-    fromName: process.env.FROM_NAME || 'NexHR ERP',
+    fromName: process.env.FROM_NAME || 'UNG ERP',
   },
 
   rateLimit: {

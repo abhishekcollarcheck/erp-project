@@ -442,8 +442,7 @@ export function Sidebar() {
         <div className="sb-mark">NX</div>
         {!collapsed && (
           <div className="sb-wordmark">
-            <div className="sb-app">NexHR ERP</div>
-            <div className="sb-tagline">Enterprise Suite</div>
+            <div className="sb-app">UNG ERP</div>
           </div>
         )}
       </div>

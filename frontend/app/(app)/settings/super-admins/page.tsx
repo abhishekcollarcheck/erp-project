@@ -37,7 +37,7 @@ function CreateSuperAdminModal({ open, onClose }: { open: boolean; onClose: () =
       <div style={{ background:'var(--amber-lt)', border:'1px solid var(--amber-bd)', borderRadius:'var(--r)', padding:'10px 14px', fontSize:12, color:'var(--amber)', marginBottom:14 }}>
         ⚠ Super admins have unrestricted access to all companies, data, and settings. Create carefully.
       </div>
-      <div className="fg"><label>Email *</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} autoFocus placeholder="admin@nexhr.com" /></div>
+      <div className="fg"><label>Email *</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} autoFocus placeholder="admin@ungerp.com" /></div>
       <div className="fg"><label>Password * (min 8 characters)</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} /></div>
     </Modal>
   );

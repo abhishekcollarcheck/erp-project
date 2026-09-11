@@ -83,9 +83,8 @@ export default function LoginPage() {
           <div className="sb-mark" style={{ width: 40, height: 40, fontSize: 14 }}>NX</div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.3px' }}>
-              NexHR ERP
+              UNG ERP
             </div>
-            <div style={{ fontSize: 11, color: 'var(--ink4)' }}>Enterprise Suite</div>
           </div>
         </div>
 
@@ -207,7 +206,7 @@ export default function LoginPage() {
         )}
 
         <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--ink4)', textAlign: 'center' }}>
-          © 2026 NexHR ERP · Enterprise Human Resource Management
+          © 2026 UNG ERP · Enterprise Human Resource Management
         </div>
       </div>
     </div>
