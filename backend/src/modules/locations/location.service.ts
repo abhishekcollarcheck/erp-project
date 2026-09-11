@@ -3,6 +3,18 @@ import { City, Country, PayRegister, Site, State } from '../../database/models/L
 import { FindOptions, Op, WhereOptions } from 'sequelize';
 import { requireName, assertUniqueMaster } from '../../utils/masterCrud';
 import { AppError } from '../../middleware/errorHandler.middleware';
+import { EmployeeLocationAttendance } from '../../database/models/Employee';
+
+/** Blocks a delete when `Model.count(where)` finds dependents, with a friendly message. */
+async function assertNoDependents(Model: any, where: Record<string, unknown>, label: string) {
+  const count = await Model.count({ where });
+  if (count > 0) {
+    throw new AppError(
+      `This record cannot be deleted because it is being used by ${count} existing ${label}. Reassign or remove them first.`,
+      409,
+    );
+  }
+}
 
 /**
  * A location name only has to be unique within its parent, not globally:
@@ -49,6 +61,7 @@ export class CountryService {
   async delete(id: number, userId?: number) {
     const item = await Country.findByPk(id);
     if (!item) return false;
+    await assertNoDependents(State, { country_id: id }, 'state(s)');
     if (userId) await item.update({ deleted_by: userId });
     await item.destroy();
     return true;
@@ -93,6 +106,9 @@ export class StateService {
   async delete(id: number, userId?: number) {
     const item = await State.findByPk(id);
     if (!item) return false;
+    await assertNoDependents(City, { state_id: id }, 'city/cities');
+    await assertNoDependents(PayRegister, { state_id: id }, 'pay register(s)');
+    await assertNoDependents(EmployeeLocationAttendance, { working_state_country: id }, 'employee(s)');
     if (userId) await item.update({ deleted_by: userId });
     await item.destroy();
     return true;
@@ -136,6 +152,8 @@ export class CityService {
   async delete(id: number, userId?: number) {
     const item = await City.findByPk(id);
     if (!item) return false;
+    await assertNoDependents(Site, { city_id: id }, 'site(s)');
+    await assertNoDependents(EmployeeLocationAttendance, { working_city: id }, 'employee(s)');
     if (userId) await item.update({ deleted_by: userId });
     await item.destroy();
     return true;
@@ -176,6 +194,7 @@ export class SiteService {
   async delete(id: number, userId?: number) {
     const item = await Site.findByPk(id);
     if (!item) return false;
+    await assertNoDependents(EmployeeLocationAttendance, { working_site: id }, 'employee(s)');
     if (userId) await item.update({ deleted_by: userId });
     await item.destroy();
     return true;
@@ -216,6 +235,7 @@ export class PayRegisterService {
   async delete(id: number, userId?: number) {
     const item = await PayRegister.findByPk(id);
     if (!item) return false;
+    await assertNoDependents(EmployeeLocationAttendance, { pay_register_location: id }, 'employee(s)');
     if (userId) await item.update({ deleted_by: userId });
     await item.destroy();
     return true;

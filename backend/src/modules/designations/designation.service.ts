@@ -1038,6 +1038,7 @@ import {
   SubDesignationDesignation,
 } from '../../database/models/Designation';
 import { Department } from '../../database/models/Department';
+import { Employee } from '../../database/models/Employee';
 import { AppError } from '../../middleware/errorHandler.middleware';
 
 // ─── DTO Interfaces ─────────────────────────────────────────────────────────
@@ -1335,6 +1336,16 @@ export class DesignationService {
     const designation = await Designation.findByPk(id);
     if (!designation) throw new AppError('Designation not found', 404);
 
+    // Refuse to delete a designation still referenced by employees — Employee
+    // is paranoid, so this naturally excludes already-offboarded (soft-deleted) rows.
+    const empCount = await Employee.count({ where: { designation_id: id } });
+    if (empCount > 0) {
+      throw new AppError(
+        `This record cannot be deleted because it is being used by ${empCount} existing employee(s). Reassign them first.`,
+        409,
+      );
+    }
+
     const transaction = await sequelize.transaction();
 
     try {
@@ -1560,6 +1571,16 @@ export class DesignationService {
   async deleteSubDesignation(id: number) {
     const sub = await SubDesignation.findByPk(id);
     if (!sub) throw new AppError('Sub-Designation not found', 404);
+
+    // Refuse to delete a sub-designation still referenced by employees — Employee
+    // is paranoid, so this naturally excludes already-offboarded (soft-deleted) rows.
+    const empCount = await Employee.count({ where: { sub_designation_id: id } });
+    if (empCount > 0) {
+      throw new AppError(
+        `This record cannot be deleted because it is being used by ${empCount} existing employee(s). Reassign them first.`,
+        409,
+      );
+    }
 
     const transaction = await sequelize.transaction();
 

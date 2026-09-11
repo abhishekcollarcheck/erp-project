@@ -5,13 +5,10 @@ import { Employee } from "../models/Employee";
 import { Company } from "../models/Company";
 import { Department, CompanyDepartment } from "../models/Department";
 import { SubDepartment } from "../models/Subdepartment";
-import { Role } from "../models/RoleModels";
-import { EmployeeRole, RoleTemplate } from "../models/AuthModels";
 import { LeaveType } from "../models/LeaveModels";
 import { logger } from "../../config/logger";
 import { seedHolidays } from "./holiday-seed-data";
 import { seedEmpLookups } from "./seedEmpLookups";
-import { seedRbac } from "./seedRbac";
 import { computeCompletionPct } from "../../modules/employees/employee.helper";
 import { Designation } from "../models";
 import type { Sequelize } from "sequelize";
@@ -109,33 +106,6 @@ async function reconcileEmployeeCompletion(t: import("sequelize").Transaction): 
   }
   if (fixed) logger.info(`🩹 Reconciled record_status / form_completion_pct on ${fixed} employee row(s)`);
 }
-// =========================================================
-// ROLE TEMPLATES
-// =========================================================
-
-const TEMPLATE_DEFS = [
-  {
-    slug: "super_admin",
-    name: "Super Admin",
-    sort_order: 1,
-  },
-  {
-    slug: "hr_manager",
-    name: "HR Manager",
-    sort_order: 2,
-  },
-  {
-    slug: "manager",
-    name: "Department Manager",
-    sort_order: 3,
-  },
-  {
-    slug: "employee",
-    name: "Employee",
-    sort_order: 4,
-  },
-] as const;
-
 // =========================================================
 // DESIGNATIONS
 // =========================================================
@@ -401,26 +371,11 @@ export async function seedDatabase(): Promise<void> {
 
     logger.info("✅ Company ready");
 
-    // =====================================================
-    // 2. GLOBAL ROLE TEMPLATES
-    // =====================================================
-
-    for (const def of TEMPLATE_DEFS) {
-      await RoleTemplate.findOrCreate({
-        where: {
-          slug: def.slug,
-        },
-        defaults: {
-          slug: def.slug,
-          name: def.name,
-          sort_order: def.sort_order,
-          is_system: true,
-        },
-        transaction,
-      });
-    }
-
-    logger.info("✅ Role templates ready");
+    // NOTE: Global role templates (RoleTemplate) used to be seeded here.
+    // Role templates, roles, and every other RBAC/permission-group construct
+    // are now exclusively seeded by seedRbac.ts (standalone, or via the
+    // guarded POST /api/permission-groups/seed endpoint) — see the RBAC
+    // skip note at the end of this function.
 
     const existingDepts = await Department.findAll({
       where: {
@@ -725,34 +680,9 @@ export async function seedDatabase(): Promise<void> {
       );
     }
 
-    // =====================================================
-    // SUPER ADMIN ROLE
-    // =====================================================
-
-    const saRole = await Role.findOne({
-      where: {
-        company_id: COMPANY_ID,
-        slug: "super_admin",
-      },
-      transaction,
-    });
-
-    if (saRole) {
-      await EmployeeRole.findOrCreate({
-        where: {
-          employee_id: superAdminEmp.id,
-          role_id: saRole.id,
-        },
-
-        defaults: {
-          employee_id: superAdminEmp.id,
-          role_id: saRole.id,
-          company_id: COMPANY_ID,
-        },
-
-        transaction,
-      });
-    }
+    // NOTE: Role assignment (EmployeeRole) for the super-admin employee used
+    // to happen here. RBAC role/permission-group assignment is now exclusively
+    // seedRbac.ts's job — see the RBAC skip note at the end of this function.
 
     logger.info("✅ Super admin employee ready");
 
@@ -844,34 +774,9 @@ export async function seedDatabase(): Promise<void> {
         transaction,
       });
 
-    // =====================================================
-    // HR MANAGER ROLE
-    // =====================================================
-
-    const hrRole = await Role.findOne({
-      where: {
-        company_id: COMPANY_ID,
-        slug: "hr_manager",
-      },
-      transaction,
-    });
-
-    if (hrRole) {
-      await EmployeeRole.findOrCreate({
-        where: {
-          employee_id: hrEmp.id,
-          role_id: hrRole.id,
-        },
-
-        defaults: {
-          employee_id: hrEmp.id,
-          role_id: hrRole.id,
-          company_id: COMPANY_ID,
-        },
-
-        transaction,
-      });
-    }
+    // NOTE: Role assignment (EmployeeRole) for the HR admin employee used to
+    // happen here. RBAC role/permission-group assignment is now exclusively
+    // seedRbac.ts's job — see the RBAC skip note at the end of this function.
 
     logger.info("✅ HR admin employee ready");
 
@@ -891,7 +796,7 @@ export async function seedDatabase(): Promise<void> {
 
     await transaction.commit();
 
-    logger.info("🎉 Database seed completed successfully");
+    logger.info("✅ Core master/application data committed");
     logger.info("📧 Login: admin@ung.com");
     logger.info("🔑 Password: 123456");
 
@@ -900,25 +805,42 @@ export async function seedDatabase(): Promise<void> {
     // a fresh `npm run seed` (new DB, CI, a reset dev DB) always includes it —
     // it was previously a one-off script and silently vanished on the next
     // reseed. Runs AFTER the commit above, in its own try/catch, so a problem
-    // here can never roll back or fail the core company/department/employee
-    // seed that just succeeded.
+    // here can never roll back the core company/department/employee seed that
+    // just succeeded — but it must still fail the overall command (see the
+    // rethrow below), not be silently swallowed.
+    let postCommitError: unknown = null;
     try {
       await seedEmpLookups();
     } catch (lookupError) {
       logger.error("⚠️ Excel master-data catalog seed failed (core seed already committed):", lookupError);
+      postCommitError = lookupError;
     }
 
-    // RBAC bootstrap — permission catalog, per-company system roles, module
-    // links, system permission groups, admin role assignments. Idempotent;
-    // runs after the commit in its own try/catch for the same reason as above.
-    try {
-      const rbac = await seedRbac();
-      logger.info(`✅ RBAC ready ${JSON.stringify(rbac)}`);
-    } catch (rbacError) {
-      logger.error("⚠️ RBAC seed failed (core seed already committed):", rbacError);
+    // RBAC / permission-group seeding is intentionally EXCLUDED from the
+    // normal seed. `npm run seed` must never create, update, or reset
+    // permission_groups, group_permissions, roles, role_templates,
+    // employee_roles, or any other RBAC pivot table — existing RBAC data is
+    // left completely untouched. To seed/refresh RBAC explicitly: run
+    // `seedRbac.ts` standalone, or use the guarded
+    // `POST /api/permission-groups/seed` admin endpoint.
+    logger.info("ℹ️  RBAC / permission-group seeding: SKIPPED BY DESIGN");
+
+    if (postCommitError) {
+      throw new Error(
+        `Core seed data committed successfully, but the post-commit master-data ` +
+        `catalog seed failed: ${postCommitError instanceof Error ? postCommitError.message : String(postCommitError)}`
+      );
     }
+
+    logger.info("🎉 Database seed completed successfully");
   } catch (error) {
-    await transaction.rollback();
+    // The transaction may already be committed by the time a post-commit step
+    // (above) throws — rolling back a finished transaction throws its own
+    // ("Transaction cannot be rolled back...") error and would mask the real
+    // one, so only roll back if it's still open.
+    if (!(transaction as any).finished) {
+      await transaction.rollback();
+    }
 
     console.error(error);
 

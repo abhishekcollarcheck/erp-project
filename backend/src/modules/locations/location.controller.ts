@@ -73,7 +73,7 @@ const createCrudController = (service: any, filterKeys: string[] = []) => ({
         meta: { total: result.count, page: pg?.page ?? 1, limit: pg?.limit ?? result.count },
       });
     } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
+      return res.status(err.statusCode || 500).json({ success: false, message: err.message });
     }
   },
 
@@ -83,7 +83,7 @@ const createCrudController = (service: any, filterKeys: string[] = []) => ({
       if (!data) return res.status(404).json({ success: false, message: 'Record not found' });
       return res.status(200).json({ success: true, data });
     } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
+      return res.status(err.statusCode || 500).json({ success: false, message: err.message });
     }
   },
 
@@ -103,7 +103,7 @@ const createCrudController = (service: any, filterKeys: string[] = []) => ({
       if (!success) return res.status(404).json({ success: false, message: 'Record not found' });
       return res.status(200).json({ success: true, message: 'Record deleted successfully' });
     } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message });
+      return res.status(err.statusCode || 500).json({ success: false, message: err.message });
     }
   },
 });

@@ -105,6 +105,18 @@ export async function up(queryInterface: QueryInterface) {
 }
 
 export async function down(queryInterface: QueryInterface) {
+  // Mirror the up() guard: on a DB where `leave_requests` doesn't exist (it's
+  // only ever created by another migration / sequelize.sync(), never here —
+  // see the comment in up()), there's nothing to roll back. Without this,
+  // `db:migrate:undo` throws "Table 'leave_requests' doesn't exist" instead
+  // of no-op'ing, e.g. right after the create-migration ahead of this one in
+  // the chain was itself undone first.
+  const tables = await queryInterface.showAllTables();
+  if (!tables.includes('leave_requests')) {
+    console.log('[add-leave-request-fields] leave_requests does not exist - skipping rollback.');
+    return;
+  }
+
   await queryInterface.removeIndex('leave_requests', 'idx_leave_requests_applied_by');
   await queryInterface.removeIndex('leave_requests', 'idx_leave_requests_hod_id');
   await queryInterface.removeColumn('leave_requests', 'undertaking_accepted');

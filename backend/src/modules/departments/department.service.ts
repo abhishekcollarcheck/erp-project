@@ -2345,6 +2345,7 @@ import { Op } from 'sequelize';
 import { sequelize } from '../../config/database';
 import { Department, CompanyDepartment } from '../../database/models/Department';
 import { Company } from '../../database/models/Company';
+import { Employee } from '../../database/models/Employee';
 import { AppError } from '../../middleware/errorHandler.middleware';
 import { logActivity } from '../../utils/activityLogger';
 
@@ -2777,6 +2778,16 @@ export class DepartmentService {
   async delete(id: number, deletedBy?: number) {
     const department = await Department.findByPk(id);
     if (!department) throw new AppError('Department not found', 404);
+
+    // Refuse to delete a department still referenced by employees — Employee
+    // is paranoid, so this naturally excludes already-offboarded (soft-deleted) rows.
+    const empCount = await Employee.count({ where: { department_id: id } });
+    if (empCount > 0) {
+      throw new AppError(
+        `This record cannot be deleted because it is being used by ${empCount} existing employee(s). Reassign them first.`,
+        409,
+      );
+    }
 
     const transaction = await sequelize.transaction();
 

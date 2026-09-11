@@ -100,7 +100,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   // SubDesignation model (src/database/models/Designation.ts).
 
   {
-    await queryInterface.createTable('sub_designations', {
+    // `sub_designations` may already exist — either from an older
+    // sync()-created DB, or from 20260826150000-create-designations-table.ts
+    // (which must create it early, before 20260903000000-candidate-wizard-
+    // fields.ts needs `employees.sub_designation_id`'s FK target to exist).
+    const already = (await queryInterface.showAllTables())
+      .map((t) => (typeof t === 'string' ? t : (t as any).tableName))
+      .includes('sub_designations');
+    if (!already) await queryInterface.createTable('sub_designations', {
       id: {
         type: DataTypes.INTEGER.UNSIGNED,
         autoIncrement: true,
