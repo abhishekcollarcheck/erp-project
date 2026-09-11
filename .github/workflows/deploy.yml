@@ -1,0 +1,89 @@
+name: Deploy UNG-ERP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Backend and Frontend
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "======================================"
+            echo "Starting UNG-ERP deployment"
+            echo "======================================"
+
+            # ==========================================
+            # BACKEND
+            # ==========================================
+
+            echo "Deploying Backend..."
+
+            cd /var/www/api-erp
+
+            echo "Fetching latest backend code..."
+            git fetch origin
+
+            echo "Resetting backend to main..."
+            git reset --hard origin/main
+
+            echo "Installing backend dependencies..."
+            npm ci
+
+            echo "Running backend migrations..."
+            npm run migrate
+
+            echo "Building backend..."
+            npm run build
+
+            echo "Restarting backend PM2..."
+            pm2 restart api-erp --update-env
+
+            echo "Backend deployment completed."
+
+
+            # ==========================================
+            # FRONTEND
+            # ==========================================
+
+            echo "Deploying Frontend..."
+
+            cd /var/www/erp
+
+            echo "Fetching latest frontend code..."
+            git fetch origin
+
+            echo "Resetting frontend to main..."
+            git reset --hard origin/main
+
+            echo "Installing frontend dependencies..."
+            npm ci
+
+            echo "Building frontend..."
+            npm run build
+
+            echo "Restarting frontend PM2..."
+            pm2 restart ungerp-front --update-env
+
+            echo "Frontend deployment completed."
+
+
+            # ==========================================
+            # DONE
+            # ==========================================
+
+            echo "======================================"
+            echo "UNG-ERP DEPLOYMENT SUCCESSFUL"
+            echo "======================================"
+
+            pm2 status
