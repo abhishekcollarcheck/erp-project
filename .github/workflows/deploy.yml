@@ -10,12 +10,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy Backend and Frontend
+      # 1. Get latest code from GitHub
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Create deployment packages
+      - name: Prepare deployment packages
+        run: |
+          tar --exclude='.git' \
+              --exclude='backend/node_modules' \
+              --exclude='backend/dist' \
+              --exclude='backend/.env' \
+              --exclude='backend/uploads' \
+              -czf backend.tar.gz backend
+
+          tar --exclude='.git' \
+              --exclude='frontend/node_modules' \
+              --exclude='frontend/.next' \
+              --exclude='frontend/.env' \
+              -czf frontend.tar.gz frontend
+
+          ls -lh *.tar.gz
+
+      # 3. Upload backend package
+      - name: Upload backend
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "backend.tar.gz"
+          target: "/tmp/ung-erp-deploy"
+
+      # 4. Upload frontend package
+      - name: Upload frontend
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "frontend.tar.gz"
+          target: "/tmp/ung-erp-deploy"
+
+      # 5. Deploy on EC2
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+
           script: |
             set -e
 
@@ -23,19 +67,31 @@ jobs:
             echo "Starting UNG-ERP deployment"
             echo "======================================"
 
-            # ==========================================
+            mkdir -p /tmp/ung-erp-deploy/backend
+            mkdir -p /tmp/ung-erp-deploy/frontend
+
+            # ======================================
             # BACKEND
-            # ==========================================
+            # ======================================
 
             echo "Deploying Backend..."
 
+            rm -rf /tmp/ung-erp-deploy/backend/*
+            tar -xzf /tmp/ung-erp-deploy/backend.tar.gz \
+              -C /tmp/ung-erp-deploy/backend \
+              --strip-components=1
+
+            echo "Syncing backend source..."
+
+            rsync -a --delete \
+              --exclude='.env' \
+              --exclude='node_modules/' \
+              --exclude='dist/' \
+              --exclude='uploads/' \
+              /tmp/ung-erp-deploy/backend/ \
+              /var/www/api-erp/
+
             cd /var/www/api-erp
-
-            echo "Fetching latest backend code..."
-            git fetch origin
-
-            echo "Resetting backend to main..."
-            git reset --hard origin/main
 
             echo "Installing backend dependencies..."
             npm ci
@@ -46,25 +102,32 @@ jobs:
             echo "Building backend..."
             npm run build
 
-            echo "Restarting backend PM2..."
+            echo "Restarting backend..."
             pm2 restart api-erp --update-env
 
             echo "Backend deployment completed."
 
-
-            # ==========================================
+            # ======================================
             # FRONTEND
-            # ==========================================
+            # ======================================
 
             echo "Deploying Frontend..."
 
+            rm -rf /tmp/ung-erp-deploy/frontend/*
+            tar -xzf /tmp/ung-erp-deploy/frontend.tar.gz \
+              -C /tmp/ung-erp-deploy/frontend \
+              --strip-components=1
+
+            echo "Syncing frontend source..."
+
+            rsync -a --delete \
+              --exclude='.env' \
+              --exclude='node_modules/' \
+              --exclude='.next/' \
+              /tmp/ung-erp-deploy/frontend/ \
+              /var/www/erp/
+
             cd /var/www/erp
-
-            echo "Fetching latest frontend code..."
-            git fetch origin
-
-            echo "Resetting frontend to main..."
-            git reset --hard origin/main
 
             echo "Installing frontend dependencies..."
             npm ci
@@ -72,15 +135,16 @@ jobs:
             echo "Building frontend..."
             npm run build
 
-            echo "Restarting frontend PM2..."
+            echo "Restarting frontend..."
             pm2 restart ungerp-front --update-env
 
             echo "Frontend deployment completed."
 
+            # ======================================
+            # CLEANUP
+            # ======================================
 
-            # ==========================================
-            # DONE
-            # ==========================================
+            rm -rf /tmp/ung-erp-deploy
 
             echo "======================================"
             echo "UNG-ERP DEPLOYMENT SUCCESSFUL"
