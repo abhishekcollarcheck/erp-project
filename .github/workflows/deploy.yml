@@ -10,30 +10,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Get latest code from GitHub
+      # ==========================================
+      # 1. CHECKOUT
+      # ==========================================
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Create deployment packages
+      # ==========================================
+      # 2. PREPARE DEPLOYMENT PACKAGES
+      # ==========================================
+
       - name: Prepare deployment packages
         run: |
-          tar --exclude='.git' \
-              --exclude='backend/node_modules' \
-              --exclude='backend/dist' \
-              --exclude='backend/.env' \
-              --exclude='backend/uploads' \
-              -czf backend.tar.gz backend
+          echo "Preparing backend package..."
 
-          tar --exclude='.git' \
-              --exclude='frontend/node_modules' \
-              --exclude='frontend/.next' \
-              --exclude='frontend/.env' \
-              -czf frontend.tar.gz frontend
+          tar \
+            --exclude='.git' \
+            --exclude='backend/node_modules' \
+            --exclude='backend/dist' \
+            --exclude='backend/.env' \
+            --exclude='backend/uploads' \
+            -czf backend.tar.gz backend
 
-          ls -lh *.tar.gz
+          echo "Preparing frontend package..."
 
-      # 3. Upload backend package
-      - name: Upload backend
+          tar \
+            --exclude='.git' \
+            --exclude='frontend/node_modules' \
+            --exclude='frontend/.next' \
+            --exclude='frontend/.env' \
+            -czf frontend.tar.gz frontend
+
+          echo "Packages created:"
+          ls -lh backend.tar.gz frontend.tar.gz
+
+      # ==========================================
+      # 3. UPLOAD BACKEND
+      # ==========================================
+
+      - name: Upload backend package
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -42,8 +58,11 @@ jobs:
           source: "backend.tar.gz"
           target: "/tmp/ung-erp-deploy"
 
-      # 4. Upload frontend package
-      - name: Upload frontend
+      # ==========================================
+      # 4. UPLOAD FRONTEND
+      # ==========================================
+
+      - name: Upload frontend package
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -52,7 +71,10 @@ jobs:
           source: "frontend.tar.gz"
           target: "/tmp/ung-erp-deploy"
 
-      # 5. Deploy on EC2
+      # ==========================================
+      # 5. DEPLOY TO EC2
+      # ==========================================
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -67,6 +89,32 @@ jobs:
             echo "Starting UNG-ERP deployment"
             echo "======================================"
 
+            # ======================================
+            # LOAD NVM
+            # ======================================
+
+            export NVM_DIR="$HOME/.nvm"
+
+            if [ -s "$NVM_DIR/nvm.sh" ]; then
+              . "$NVM_DIR/nvm.sh"
+            else
+              echo "ERROR: NVM not found at $NVM_DIR"
+              exit 1
+            fi
+
+            echo "NVM loaded successfully"
+
+            # Verify Node versions available
+            echo "Available Node versions:"
+            nvm ls
+
+            # ======================================
+            # PREPARE TEMP DIRECTORIES
+            # ======================================
+
+            rm -rf /tmp/ung-erp-deploy/backend
+            rm -rf /tmp/ung-erp-deploy/frontend
+
             mkdir -p /tmp/ung-erp-deploy/backend
             mkdir -p /tmp/ung-erp-deploy/frontend
 
@@ -74,12 +122,33 @@ jobs:
             # BACKEND
             # ======================================
 
-            echo "Deploying Backend..."
+            echo ""
+            echo "======================================"
+            echo "Deploying Backend"
+            echo "======================================"
 
-            rm -rf /tmp/ung-erp-deploy/backend/*
-            tar -xzf /tmp/ung-erp-deploy/backend.tar.gz \
+            echo "Extracting backend package..."
+
+            tar \
+              -xzf /tmp/ung-erp-deploy/backend.tar.gz \
               -C /tmp/ung-erp-deploy/backend \
               --strip-components=1
+
+            echo "Switching backend to Node 22.22.1..."
+
+            nvm use 22.22.1
+
+            echo "Backend Node:"
+            node -v
+
+            echo "Backend NPM:"
+            npm -v
+
+            # Safety check
+            if [ "$(node -v)" != "v22.22.1" ]; then
+              echo "ERROR: Backend is not using Node 22.22.1"
+              exit 1
+            fi
 
             echo "Syncing backend source..."
 
@@ -94,29 +163,54 @@ jobs:
             cd /var/www/api-erp
 
             echo "Installing backend dependencies..."
+
             npm ci
 
             echo "Running backend migrations..."
+
             npm run migrate
 
             echo "Building backend..."
+
             npm run build
 
-            echo "Restarting backend..."
+            echo "Restarting backend PM2..."
+
             pm2 restart api-erp --update-env
 
-            echo "Backend deployment completed."
+            echo "Backend deployment completed successfully."
 
             # ======================================
             # FRONTEND
             # ======================================
 
-            echo "Deploying Frontend..."
+            echo ""
+            echo "======================================"
+            echo "Deploying Frontend"
+            echo "======================================"
 
-            rm -rf /tmp/ung-erp-deploy/frontend/*
-            tar -xzf /tmp/ung-erp-deploy/frontend.tar.gz \
+            echo "Extracting frontend package..."
+
+            tar \
+              -xzf /tmp/ung-erp-deploy/frontend.tar.gz \
               -C /tmp/ung-erp-deploy/frontend \
               --strip-components=1
+
+            echo "Switching frontend to Node 20.20.1..."
+
+            nvm use 20.20.1
+
+            echo "Frontend Node:"
+            node -v
+
+            echo "Frontend NPM:"
+            npm -v
+
+            # Safety check
+            if [ "$(node -v)" != "v20.20.1" ]; then
+              echo "ERROR: Frontend is not using Node 20.20.1"
+              exit 1
+            fi
 
             echo "Syncing frontend source..."
 
@@ -130,24 +224,37 @@ jobs:
             cd /var/www/erp
 
             echo "Installing frontend dependencies..."
+
             npm ci
 
             echo "Building frontend..."
+
             npm run build
 
-            echo "Restarting frontend..."
+            echo "Restarting frontend PM2..."
+
             pm2 restart ungerp-front --update-env
 
-            echo "Frontend deployment completed."
+            echo "Frontend deployment completed successfully."
 
             # ======================================
             # CLEANUP
             # ======================================
 
+            echo ""
+            echo "Cleaning temporary deployment files..."
+
             rm -rf /tmp/ung-erp-deploy
 
+            # ======================================
+            # FINAL STATUS
+            # ======================================
+
+            echo ""
             echo "======================================"
             echo "UNG-ERP DEPLOYMENT SUCCESSFUL"
             echo "======================================"
 
+            echo ""
+            echo "PM2 Status:"
             pm2 status
