@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { toOpts } from '../../constants/employee.constants';
 import { useCompany } from '../../../company/hooks/useCompany';
 import { FormSection } from '../../../../components/form/FormSection';
@@ -16,6 +16,7 @@ interface Props { isEdit: boolean; employeeId: number | null; avatarUrl?: string
 
 export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) {
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
   const { setValue, watch } = useFormContext();
   const { company } = useCompany();
 
@@ -74,7 +75,7 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
   };
 
   return (
-    <FormSection fields={[f('employee_code'), f('company_id'), f('status'), f('first_name'), f('middle_name'), f('last_name'), f('employment_type'), f('email'), f('phone'), f('department_id'), f('sub_department_id'), f('designation_id'), f('sub_designation_id')]}>
+    <FormSection fields={sp('role_identity')}>
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0' }}>
         <div style={{
@@ -114,7 +115,7 @@ export function StepRoleIdentity({ isEdit, avatarUrl, onPhotoSelected }: Props) 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
         <FormInput name="first_name" label="First Name" required placeholder="Rahul" fieldPerm={f('first_name')} />
         <FormInput name="middle_name" label="Middle Name" placeholder="Kumar" fieldPerm={f('middle_name')} />
-        <FormInput name="last_name" label="Last Name" required placeholder="Sharma" fieldPerm={f('last_name')} />
+        <FormInput name="last_name" label="Last Name" placeholder="Sharma" fieldPerm={f('last_name')} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <FormInput name="status" label="Status" required displayValue="Active" readOnly hint="New employees start as Active" fieldPerm={f('status')} />

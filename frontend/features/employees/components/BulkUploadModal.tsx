@@ -30,12 +30,37 @@ interface TemplateColumn {
   col: string;
   label: string;
   step: string;
+  stepLabel?: string;
   required: boolean;
   help?: string;
   enumValues?: string[];
+  optionSource?: string;
+  strictOptions?: boolean;
 }
 
 const VALIDATION_ROWS = 500;
+// Excel caps an inline data-validation list ("a,b,c") near 255 chars; longer
+// lists (or any value containing a comma) go through a hidden helper sheet.
+const INLINE_LIST_MAX = 250;
+
+// One distinct header colour per Employee-form step, so the template's column
+// groups are visually separable at a glance. Keyed by step key; falls back to
+// a neutral slate for anything unmapped. All dark enough for white header text.
+const STEP_HEADER_COLORS: Record<string, string> = {
+  role_identity:         'FF2563EB',
+  location_attendance:   'FF0891B2',
+  managers_work_contact: 'FF7C3AED',
+  commitment_probation:  'FFDB2777',
+  statutory_schemes:     'FFEA580C',
+  compensation:          'FFCA8A04',
+  hr_joining_checklist:  'FF65A30D',
+  personal_profile:      'FF059669',
+  address:               'FF0D9488',
+  family_emergency:      'FF4F46E5',
+  ids_bank:              'FFBE123C',
+  experience_education:  'FF475569',
+};
+const STEP_HEADER_FALLBACK = 'FF64748B';
 
 function base64ToBlob(b64: string, type: string): Blob {
   const bin = atob(b64);
@@ -105,8 +130,13 @@ export function BulkUploadModal({ open, onClose }: Props) {
 
       const resp: any = await employeeService.bulkImportFields();
       const columns: TemplateColumn[] = resp?.data?.columns ?? [];
+      // options[col] = live dropdown values (enum constants + master/catalogue
+      // lists), served by the API so nothing is hardcoded here.
+      const options: Record<string, string[]> = resp?.data?.options ?? {};
       const companies: Array<{ id: number; name: string }> = resp?.data?.companies ?? [];
       if (!columns.length) throw new Error('no columns');
+      // Back-compat: older API builds only sent `companies`.
+      if (!options['company'] && companies.length) options['company'] = companies.map((c) => c.name);
 
       const wb = new ExcelJS.Workbook();
       wb.creator = 'HR';
@@ -114,10 +144,15 @@ export function BulkUploadModal({ open, onClose }: Props) {
 
       const sheet = wb.addWorksheet('Employees');
       const header = columns.map((c) => c.label);   // readable headers ("Salary Mode")
+      const optsOf = (c: TemplateColumn) => options[c.col] ?? (c.enumValues ?? []);
       const helpRow = columns.map((c, i) => {
         const bits: string[] = [];
         if (c.required) bits.push('REQUIRED');
-        if (c.enumValues?.length) bits.push(`one of: ${c.enumValues.join(' | ')}`);
+        const list = optsOf(c);
+        if (list.length) {
+          const shown = list.length > 12 ? `${list.slice(0, 12).join(' | ')} | …` : list.join(' | ');
+          bits.push(c.strictOptions ? `one of: ${shown}` : `pick from list (others allowed): ${shown}`);
+        }
         if (c.help) bits.push(c.help);
         const text = bits.join('  •  ');
         // Marker on the first cell — the importer skips this guidance row even
@@ -130,63 +165,97 @@ export function BulkUploadModal({ open, onClose }: Props) {
       const headerRow = sheet.getRow(1);
       headerRow.height = 22;
       headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
       headerRow.alignment = { vertical: 'middle' };
+      // Per-step header colour — each Employee-form step gets its own hue, and a
+      // thin white divider on the first column of every new group.
+      let prevStep = '';
+      columns.forEach((c, i) => {
+        const cell = sheet.getCell(1, i + 1);
+        cell.fill = {
+          type: 'pattern', pattern: 'solid',
+          fgColor: { argb: STEP_HEADER_COLORS[c.step] ?? STEP_HEADER_FALLBACK },
+        };
+        if (c.step !== prevStep) {
+          cell.border = { left: { style: 'medium', color: { argb: 'FFFFFFFF' } } };
+          prevStep = c.step;
+        }
+      });
       sheet.getRow(2).font = { italic: true, size: 9, color: { argb: 'FF94A3B8' } };
 
       header.forEach((h, i) => { sheet.getColumn(i + 1).width = Math.max(h.length + 2, 16); });
-      sheet.views = [{ state: 'frozen', ySplit: 2 }];
+      sheet.views = [{ state: 'frozen', xSplit: 1, ySplit: 2 }];
 
-      // Company dropdown — from the company master (hidden helper sheet so long
-      // lists and names with commas work reliably).
-      const companyIdx = columns.findIndex((c) => c.col === 'company');
-      if (companyIdx >= 0 && companies.length) {
-        const listSheet = wb.addWorksheet('_lists', { state: 'veryHidden' });
-        companies.forEach((c, i) => { listSheet.getCell(`A${i + 1}`).value = c.name; });
-        const colLetter = sheet.getColumn(companyIdx + 1).letter;
-        for (let r = 3; r <= VALIDATION_ROWS; r++) {
-          sheet.getCell(`${colLetter}${r}`).dataValidation = {
-            type: 'list',
-            allowBlank: true,
-            formulae: [`_lists!$A$1:$A$${companies.length}`],
-            showErrorMessage: true,
-            errorStyle: 'error',
-            errorTitle: 'Invalid company',
-            error: 'Pick a company from the dropdown list',
-          };
-        }
-      }
+      // Colour legend so the header hues are self-explanatory.
+      const seenSteps = new Set<string>();
+      const legendSheet = wb.addWorksheet('Step colours');
+      legendSheet.addRow(['Employee form step', 'Columns']).font = { bold: true };
+      columns.forEach((c) => {
+        if (seenSteps.has(c.step)) return;
+        seenSteps.add(c.step);
+        const count = columns.filter((x) => x.step === c.step).length;
+        const row = legendSheet.addRow([c.stepLabel ?? c.step, count]);
+        row.getCell(1).fill = {
+          type: 'pattern', pattern: 'solid',
+          fgColor: { argb: STEP_HEADER_COLORS[c.step] ?? STEP_HEADER_FALLBACK },
+        };
+        row.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      });
+      legendSheet.getColumn(1).width = 28;
+      legendSheet.getColumn(2).width = 10;
 
-      // Inline dropdowns for the other enum columns (kept from the earlier template).
+      // ── Dropdowns — one per column that has a value list ──────────────────
+      // Short comma-free lists go inline; anything longer or with a comma in a
+      // value goes through a hidden helper sheet (Excel needs a range there).
+      const helperSheet = wb.addWorksheet('_lists', { state: 'veryHidden' });
+      let helperCol = 0;
       columns.forEach((c, i) => {
-        if (!c.enumValues?.length) return;
-        const joined = c.enumValues.join(',');
-        if (joined.length > 250) return; // Excel inline-list limit
+        const list = (optsOf(c) as string[]).filter(Boolean);
+        if (!list.length) return;
+
         const colLetter = sheet.getColumn(i + 1).letter;
+        const joined = list.join(',');
+        const inline = joined.length <= INLINE_LIST_MAX && !list.some((v) => v.includes(','));
+
+        let formula: string;
+        if (inline) {
+          formula = `"${joined}"`;
+        } else {
+          helperCol += 1;
+          const hLetter = helperSheet.getColumn(helperCol).letter;
+          list.forEach((v, r) => { helperSheet.getCell(`${hLetter}${r + 1}`).value = v; });
+          formula = `_lists!$${hLetter}$1:$${hLetter}$${list.length}`;
+        }
+
         for (let r = 3; r <= VALIDATION_ROWS; r++) {
           sheet.getCell(`${colLetter}${r}`).dataValidation = {
             type: 'list',
             allowBlank: true,
-            formulae: [`"${joined}"`],
+            formulae: [formula],
             showErrorMessage: true,
-            errorStyle: 'warning',
-            errorTitle: 'Check value',
-            error: `Expected one of: ${c.enumValues.join(', ')}`,
+            // strict (enum / true master FK) → block unknown values;
+            // catalogue picklists → warn only, free text still allowed.
+            errorStyle: c.strictOptions ? 'error' : 'warning',
+            errorTitle: c.strictOptions ? 'Invalid value' : 'Check value',
+            error: `${c.label}: pick a value from the list${c.strictOptions ? '' : ' (or type your own)'}.`,
           };
         }
       });
+      if (helperCol === 0) wb.removeWorksheet(helperSheet.id);
 
-      // "Field guide" sheet — mirrors the previous server-generated template.
+      // "Field guide" sheet — every column, its step, whether required, the full
+      // dropdown list (if any) and the hint.
       const guide = wb.addWorksheet('Field guide');
-      guide.addRow(['header', 'field_key', 'step', 'required', 'allowed_values', 'note']);
+      guide.addRow(['step', 'header', 'field_key', 'required', 'dropdown', 'allowed_values', 'hint']);
       guide.getRow(1).font = { bold: true };
       columns.forEach((c) => {
+        const list = optsOf(c) as string[];
         guide.addRow([
-          c.label, c.col, c.step, c.required ? 'yes' : '',
-          c.enumValues?.join(' | ') ?? '', c.help ?? '',
+          c.stepLabel ?? c.step, c.label, c.col, c.required ? 'yes' : '',
+          list.length ? (c.strictOptions ? 'yes (strict)' : 'yes (suggested)') : '',
+          list.join(' | '), c.help ?? '',
         ]);
       });
-      [18, 26, 14, 10, 32, 48].forEach((w, i) => { guide.getColumn(i + 1).width = w; });
+      [24, 26, 24, 10, 14, 40, 48].forEach((w, i) => { guide.getColumn(i + 1).width = w; });
 
       const buf = await wb.xlsx.writeBuffer();
       saveAs(new Blob([buf]), 'employee_bulk_import_template.xlsx');

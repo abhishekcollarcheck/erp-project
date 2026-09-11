@@ -1,11 +1,11 @@
 'use client';
 import { useEffect, useRef } from 'react';
-import { useFieldArray, useFormContext } from 'react-hook-form';
+import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { toOpts } from '../../constants/employee.constants';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useMaritalStatusData } from '../../../../features/maritalStatus/hooks/useMaritalStatus';
 import { useSalutationData } from '../../../../features/salutation/hooks/useSalutation';
@@ -21,6 +21,7 @@ interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepFamilyEmergency(_: Props) {
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
   const { control, getValues } = useFormContext();
 
   const { data: maritalStatuses = [] } = useMaritalStatusData();
@@ -31,6 +32,9 @@ export function StepFamilyEmergency(_: Props) {
 
   const familyMembers = useFieldArray({ control, name: 'family_members' });
   const emergencyContacts = useFieldArray({ control, name: 'emergency_contacts' });
+
+  // Marriage / spouse fields only apply when Married.
+  const isMarried = useWatch({ control, name: 'marital_status' }) === 'Married';
 
   // The primary contact must live inside the tracked field array from the
   // start, not as a hand-written path outside it — otherwise the first
@@ -52,10 +56,18 @@ export function StepFamilyEmergency(_: Props) {
   }, []);
 
   return (
-    <FormSection fields={[f('marital_status'), f('father_salutation'), f('father_name'), f('father_dob'), f('father_occupation'), f('mother_salutation'), f('mother_name'), f('mother_dob'), f('mother_occupation'), f('family_members'), f('emergency_contacts')]}>
+    <FormSection fields={sp('family_emergency')}>
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Marital Status</div>
       <FormSelect name="marital_status" label="Marital Status" options={toOpts(maritalStatuses.map(m => m.name))} placeholder="Select" fieldPerm={f('marital_status')} />
+
+      {isMarried && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, padding: 12, background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
+          <FormInput name="spouse_name" label="Spouse Name" required fieldPerm={f('spouse_name')} />
+          <FormDatePicker name="marriage_date" label="Marriage Date" required fieldPerm={f('marriage_date')} />
+          <FormDatePicker name="spouse_dob" label="Spouse DOB" fieldPerm={f('spouse_dob')} />
+        </div>
+      )}
 
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Parents</div>
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr', gap: 12 }}>
@@ -81,7 +93,7 @@ export function StepFamilyEmergency(_: Props) {
       {familyMembers.fields.map((field, i) => (
         <div key={field.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 12, alignItems: 'end', padding: 12, background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
           <FormInput name={`family_members.${i}.name`} label="Name" fieldPerm={f('family_members')} />
-          <FormInput name={`family_members.${i}.relationship`} label="Relationship" fieldPerm={f('family_members')} />
+          <FormSelect name={`family_members.${i}.relationship`} label="Relationship" options={toOpts(relationships.map(r => r.name))} placeholder="Select" fieldPerm={f('family_members')} />
           <FormDatePicker name={`family_members.${i}.dob`} label="DOB" fieldPerm={f('family_members')} />
           <FormInput name={`family_members.${i}.occupation`} label="Occupation" fieldPerm={f('family_members')} />
           <button type="button" className="btn btn-sec btn-sm" onClick={() => familyMembers.remove(i)}>Remove</button>

@@ -23,9 +23,10 @@ import { GraceMinute } from '../../database/models/AttendanceRules';
 import { STEP_VALIDATORS } from './employee.validation';
 import { EMPLOYEE_STATUS, EMPLOYMENT_TYPE, type StepKey } from './employee.constants';
 import {
-  FIELD_DEFS, REPEATABLE_GROUPS, BULK_STEP_ORDER, allTemplateColumns,
+  FIELD_DEFS, REPEATABLE_GROUPS, BULK_STEP_ORDER, COLUMN_OPTION_SOURCE, allTemplateColumns,
   type FieldDef, type FieldType,
 } from './bulkImport.fields';
+import { getMasterLists } from './bulkImport.masterLists';
 
 export interface RowError { column: string; message: string }
 
@@ -38,7 +39,7 @@ export interface MappedRow {
     company_id: number;
     first_name: string;
     middle_name: string | null;
-    last_name: string;
+    last_name: string | null;
     status: string;
     employment_type: string;
     department_id: number;
@@ -74,6 +75,13 @@ export interface Resolvers {
   weeklyOff:     (v: string) => number | null | undefined;
   /** Resolves to the literal minutes value (not a surrogate id) — grace_minutes stores the minute count itself. */
   graceMinutes:  (v: string) => number | null | undefined;
+  /**
+   * Canonical-case a free-text catalogue value against its master list
+   * ("indian" → "Indian"). Returns the input unchanged when the source is
+   * unknown or no case-insensitive match exists — these fields are free text,
+   * the master list is only a picklist hint.
+   */
+  canonicalize:  (source: string, v: string) => string;
   defaultCompanyId: number;
   /** id → name, for back-filling identity cells of an existing (update) row. */
   names: {
@@ -88,6 +96,20 @@ export interface Resolvers {
 const norm = (s: string) => s.trim().toLowerCase();
 
 export async function buildResolvers(companyId: number): Promise<Resolvers> {
+  const masterLists = await getMasterLists();
+  // source → (lower-cased value → canonical value)
+  const canonMaps = new Map<string, Map<string, string>>();
+  for (const [source, values] of Object.entries(masterLists)) {
+    const m = new Map<string, string>();
+    for (const v of values) m.set(norm(v), v);
+    canonMaps.set(source, m);
+  }
+  const canonicalize = (source: string, v: string): string => {
+    const raw = String(v ?? '').trim();
+    if (!raw) return raw;
+    return canonMaps.get(source)?.get(norm(raw)) ?? raw;
+  };
+
   const [depts, desigs, comps, subDepts, subDesigs, shifts, mgrs, sites, cities, states, payRegisters, weeklyOffs, graceMinutes] = await Promise.all([
     Department.findAll({ attributes: ['id', 'department_name'], raw: true }),
     Designation.findAll({ attributes: ['id', 'name'], raw: true }),
@@ -184,6 +206,7 @@ export async function buildResolvers(companyId: number): Promise<Resolvers> {
 
   return {
     defaultCompanyId: companyId,
+    canonicalize,
     company:       lookup(compMap),
     department:    lookup(deptMap),
     designation:   lookup(desigMap),
@@ -300,6 +323,11 @@ const HEADER_TO_COL: Map<string, string> = (() => {
     ['l2_manager_employee_code', 'l2_manager_code'],
     ['avatar_image', 'avatar'],
     ['profile_photo', 'avatar'],
+    ['yellow_fever_vaccinated', 'yellow_fever'],   // label was renamed to "Yellow Fever Injection"
+    ['bank_name', 'personal_bank_name'],           // older templates: unprefixed personal-bank headers
+    ['bank_account_number', 'personal_bank_account'],
+    ['ifsc_code', 'personal_ifsc'],
+    ['bank_branch', 'personal_bank_branch'],
   ] as const) if (!m.has(from)) m.set(from, to);
   return m;
 })();
@@ -350,7 +378,7 @@ async function runStepValidators(step: StepKey, payload: Record<string, any>): P
   });
 }
 
-function buildRepeatables(row: Record<string, unknown>, step: StepKey, errors: RowError[]): Record<string, any[]> {
+function buildRepeatables(row: Record<string, unknown>, step: StepKey, errors: RowError[], resolvers: Resolvers): Record<string, any[]> {
   const out: Record<string, any[]> = {};
   for (const g of REPEATABLE_GROUPS) {
     if (g.step !== step) continue;
@@ -360,8 +388,9 @@ function buildRepeatables(row: Record<string, unknown>, step: StepKey, errors: R
       let anyValue = false;
       for (const gf of g.fields) {
         const col = `${g.prefix}_${i}_${gf.sub}`;
-        const val = coerce(gf.type, row[col], gf.enumValues);
+        let val = coerce(gf.type, row[col], gf.enumValues);
         if (val === null) errors.push({ column: col, message: 'Invalid value' });
+        if (gf.optionSource && typeof val === 'string') val = resolvers.canonicalize(gf.optionSource, val);
         if (val !== undefined && val !== null) { entry[gf.key] = val; anyValue = true; }
       }
       if (!anyValue) continue;
@@ -433,10 +462,10 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
   });
   errors.push(...roleErrors);
 
-  const base = (first_name && last_name && email && phone && departmentId && designationId)
+  const base = (first_name && email && phone && departmentId && designationId)
     ? {
         company_id: companyId,
-        first_name, last_name,
+        first_name, last_name: last_name ?? null,
         middle_name: toStr(row['middle_name']) ?? null,
         status: (statusVal as string) || 'Active',
         employment_type: (empTypeVal as string) || 'Permanent',
@@ -486,12 +515,16 @@ export async function mapRow(rawRow: Record<string, unknown>, resolvers: Resolve
       } else {
         val = coerce(d.type, rawVal, d.enumValues);
         if (val === null) stepErrors.push({ column: d.col, message: 'Invalid value' });
+        // free-text catalogue field with a master picklist → canonical-case it
+        // ("indian" → "Indian") so the stored value matches the master exactly.
+        const src = d.type !== 'enum' ? COLUMN_OPTION_SOURCE[d.col] : undefined;
+        if (src && typeof val === 'string') val = resolvers.canonicalize(src, val);
       }
 
       if (val !== undefined && val !== null) { payload[d.key] = val; anyValue = true; }
     }
 
-    const repeatables = buildRepeatables(row, step, stepErrors);
+    const repeatables = buildRepeatables(row, step, stepErrors, resolvers);
     Object.assign(payload, repeatables);
     if (Object.keys(repeatables).length) anyValue = true;
 

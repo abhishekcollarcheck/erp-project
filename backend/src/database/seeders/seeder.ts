@@ -324,8 +324,17 @@ export async function seedDatabase(): Promise<void> {
     // 1. COMPANY
     // =====================================================
 
-    await Company.upsert(
-      {
+    // `findOrCreate`, NOT `upsert` — `upsert()` runs INSERT ... ON DUPLICATE KEY
+    // UPDATE on every field listed below, so on every re-run it was silently
+    // resetting real data (cin, since_year, industry, employee_code_start/end,
+    // theme_color, notes, ...) back to these bootstrap nulls/defaults the
+    // instant an admin had filled them in via the app. This block only needs
+    // to run ONCE per DB, to create the row a fresh install has none of;
+    // once it exists it must be left alone (enrichment of blank fields for
+    // this and the other 3 companies is `seedEmpLookups.ts`'s job).
+    await Company.findOrCreate({
+      where: { id: COMPANY_ID },
+      defaults: {
         id: COMPANY_ID,
 
         // Basic company information
@@ -387,10 +396,8 @@ export async function seedDatabase(): Promise<void> {
         notes: null,
         created_by: null,
       },
-      {
-        transaction,
-      }
-    );
+      transaction,
+    });
 
     logger.info("✅ Company ready");
 

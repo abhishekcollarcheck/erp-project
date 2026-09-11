@@ -117,6 +117,9 @@ Shift.init(
     sequelize,
     tableName: 'shift',
     modelName: 'Shift',
-    indexes: [{ fields: ['is_active'] }],
+    indexes: [
+      { unique: true, fields: ['label'], name: 'shift_label_unique' },
+      { fields: ['is_active'] },
+    ],
   },
 );

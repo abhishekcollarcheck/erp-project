@@ -1,6 +1,7 @@
 'use client';
 import { useFormContext } from 'react-hook-form';
 import { FormSection } from '@/components/form/FormSection';
+import { useStepFieldPerms } from '../../hooks/useFieldPerm';
 
 const DOCS = [
   { name: 'offer_letter',           label: 'Offer Letter',           desc: 'Signed offer letter from employee' },
@@ -16,10 +17,12 @@ interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepHrJoiningChecklist(_: Props) {
   const { register, watch } = useFormContext();
+  const sp = useStepFieldPerms();
   const values = watch();
   const complete = DOCS.filter(d => values[d.name]).length;
 
   return (
+    <FormSection fields={sp('hr_joining_checklist')}>
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ fontSize: 12, color: 'var(--ink4)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--r)' }}>
         Exit / resignation fields appear only when Status is On Notice, Relieved, Absconded, or Inactive. Company transfers are done from the employee directory via <strong>Transfer</strong>.
@@ -62,5 +65,6 @@ export function StepHrJoiningChecklist(_: Props) {
         </div>
       )}
     </div>
+    </FormSection>
   );
 }

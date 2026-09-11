@@ -53,6 +53,7 @@ export const employeeController = {
       req.query as any,
       req.user!.companyId,
       req.user!.isSuperAdmin,
+      req.user!.employeeId,
     );
     sendPaginated(res, result.rows, result.meta);
   },
@@ -69,6 +70,8 @@ export const employeeController = {
       Number(req.params.id),
       u.companyId,
       canSeeSensitive,
+      u.employeeId,
+      u.isSuperAdmin,
     );
     sendResponse(res, { data: emp });
   },
@@ -529,26 +532,62 @@ export const employeeController = {
   bulkImportTemplate: async function (_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { buildTemplateWorkbook } = await import('./bulkImport.service');
-      const buf = buildTemplateWorkbook();
+      const { getMasterLists } = await import('./bulkImport.masterLists');
+      const buf = buildTemplateWorkbook(await getMasterLists());
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename="employee_bulk_import_template.xlsx"');
       res.send(buf);
     } catch (e) { next(e); }
   },
 
-  bulkImportFields: async function (_req: Request, res: Response, next: NextFunction): Promise<void> {
+  bulkImportFields: async function (req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { allTemplateColumns } = await import('./bulkImport.fields');
+      const { getMasterLists } = await import('./bulkImport.masterLists');
       const { Company } = await import('../../database/models/Company');
-      // Company master for the template's Company dropdown. Same set the bulk
-      // import resolver accepts (see bulkImport.mapper.ts → buildResolvers),
-      // so the dropdown options == the values the importer will accept.
+
+      let columns = allTemplateColumns();
+
+      // Field permissions — a column the caller can't view (or can't create/edit)
+      // is dropped from the template so restricted fields can't be imported.
+      if (!req.user!.isSuperAdmin) {
+        const map = (await employeeService.getFieldPermissions(req.user!.employeeId, 'employees', {
+          companyId: req.user!.companyId,
+        })) as any;
+        const perms = map[req.user!.companyId];
+        if (perms && Object.keys(perms).length) {
+          const alias: Record<string, string> = {
+            avatar: 'avatar_url', company: 'company_id', department: 'department_id',
+            sub_department: 'sub_department_id', designation: 'designation_id',
+            sub_designation: 'sub_designation_id', l1_manager_code: 'l1_manager_id',
+            l2_manager_code: 'l2_manager_id', shift: 'shift_id',
+            date_of_joining: 'actual_doj', current_joining_date: 'current_doj',
+          };
+          columns = columns.filter((c: any) => {
+            const p = perms[c.col] || perms[c.key] || perms[alias[c.col]];
+            if (!p) return true; // not permission-configured → keep
+            return p.can_view !== false && (p.can_add !== false || p.can_edit !== false);
+          });
+        }
+      }
+      // Live master/catalogue lists — the SAME rows the wizard's selects load and
+      // the bulk importer's resolvers accept. Nothing hardcoded.
+      const lists = await getMasterLists();
+
+      // options keyed by column: enum columns from their shared constant,
+      // master/catalogue columns from the live list.
+      const options: Record<string, string[]> = {};
+      for (const c of columns) {
+        if (c.enumValues?.length) options[c.col] = [...c.enumValues];
+        else if (c.optionSource && lists[c.optionSource]?.length) options[c.col] = lists[c.optionSource];
+      }
+
+      // kept for backwards compatibility with older frontends
       const companies = await Company.findAll({
-        attributes: ['id', 'name'],
-        order: [['name', 'ASC']],
-        raw: true,
+        attributes: ['id', 'name'], order: [['name', 'ASC']], raw: true,
       });
-      sendResponse(res, { data: { columns: allTemplateColumns(), companies } });
+
+      sendResponse(res, { data: { columns, options, companies } });
     } catch (e) { next(e); }
   },
 
@@ -644,7 +683,28 @@ export async function getManagedEmployees(
       limit: 100,
     });
 
-    sendResponse(res, { data: employees });
+    // Field permissions — if the caller can't view employee names/email, hand
+    // back codes only (the frontend manager-picker falls back to employee_code).
+    let data: any[] = employees.map((e: any) => e.toJSON());
+    if (!isSuperAdmin) {
+      const map = (await employeeService.getFieldPermissions(employeeId, "employees", {
+        companyId: req.user!.companyId,
+      })) as any;
+      const perms = map[req.user!.companyId];
+      if (perms && Object.keys(perms).length) {
+        const hideName = perms.first_name && perms.first_name.can_view === false;
+        const hideEmail = perms.email && perms.email.can_view === false;
+        if (hideName || hideEmail) {
+          data = data.map((e) => ({
+            ...e,
+            ...(hideName ? { first_name: null, last_name: null } : {}),
+            ...(hideEmail ? { email: null } : {}),
+          }));
+        }
+      }
+    }
+
+    sendResponse(res, { data });
   } catch (error) {
     next(error);
   }

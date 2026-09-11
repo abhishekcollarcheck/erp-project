@@ -280,7 +280,12 @@ export class FormBuilderService {
   async getFormWithFields(formId: number) {
     const form = await FormDefinition.findOne({
       where: { id: formId },
-      include: [{ model: DynamicField, as: 'fields', where: { is_active: true }, required: false, order: [['sort_order', 'ASC']] }],
+      include: [{ model: DynamicField, as: 'fields', where: { is_active: true }, required: false }],
+      // Order the included association at the top level — an `order` nested
+      // inside the include is silently ignored for a hasMany on findOne, which
+      // left `fields` (and the Field-Level Permissions section list built from
+      // it) in primary-key order instead of form order.
+      order: [[{ model: DynamicField, as: 'fields' }, 'sort_order', 'ASC']],
     });
     if (!form) throw new AppError('Form not found', 404);
     return form;

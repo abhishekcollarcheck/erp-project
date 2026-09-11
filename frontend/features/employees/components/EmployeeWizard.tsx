@@ -113,6 +113,7 @@ const step = visibleSteps[currentIdx];
       perm_address_type: 'Same as Present', commitment: false, on_probation: false,
       pf_status: false, esic_status: false, mediclaim_status: 'No', rd_scheme: false,
       is_experienced: false, asset_deduction_applicable: false, yellow_fever: false,
+      salary_change_after_probation: false, give_arrears_after_probation: false,
       offer_letter: false, address_verification: false, service_agreement: false,
       indemnity_bond: false, asset_deduction_letter: false, account_opening_letter: false, nda: false,
       company_id:        undefined as number | undefined,
@@ -141,8 +142,10 @@ const step = visibleSteps[currentIdx];
     const cp  = (employee.commitmentProbation ?? {}) as Partial<CommitmentProbation>;
     const sch = (employee.schemes             ?? {}) as Partial<EmployeeSchemes>;
     const pb  = (employee.bankDetails?.find((b: any) => b.bank_type === 'personal') ?? {}) as Partial<EmployeeBankDetail>;
+    const ob  = (employee.bankDetails?.find((b: any) => b.bank_type === 'official') ?? {}) as Partial<EmployeeBankDetail>;
     const cur = (employee.salaries?.find((s: any) => s.salary_type === 'current')   ?? {}) as Partial<EmployeeSalary>;
     const joi = (employee.salaries?.find((s: any) => s.salary_type === 'joining')   ?? {}) as Partial<EmployeeSalary>;
+    const ap  = (employee.salaries?.find((s: any) => s.salary_type === 'after_probation') ?? {}) as Partial<EmployeeSalary>;
     const ad  = (employee.assetDeduction      ?? {}) as Partial<EmployeeAssetDeduction>;
     const doc = (employee.onboardingDocs      ?? {}) as Partial<OnboardingDocs>;
     const pAddr = (employee.addresses?.find((a: any) => a.address_type === 'present')   ?? {}) as Partial<EmployeeAddress>;
@@ -267,6 +270,8 @@ const step = visibleSteps[currentIdx];
       documents:    (employee.documents ?? []) as any,
       personal_bank_name: pb.bank_name ?? '', personal_bank_account: pb.account_number ?? '',
       personal_ifsc: pb.ifsc_code ?? '', personal_bank_branch: pb.branch_name ?? '',
+      official_bank_name: ob.bank_name ?? '', official_bank_account: ob.account_number ?? '',
+      official_ifsc: ob.ifsc_code ?? '', official_bank_branch: ob.branch_name ?? '',
 
       // ── Experience & Education (both arrays now) ──────────────────────────
       is_experienced: (employee as any).experienceFlag?.is_experienced ?? false,
@@ -279,6 +284,10 @@ const step = visibleSteps[currentIdx];
       current_allowance1: cur.allowance1 ?? undefined, current_amdb: cur.amdb_pm ?? undefined,
       joining_basic: joi.basic ?? undefined, joining_hra: joi.hra ?? undefined,
       joining_allowance1: joi.allowance1 ?? undefined, joining_amdb: joi.amdb_pm ?? undefined,
+      salary_change_after_probation: ad.salary_change_after_probation ?? false,
+      give_arrears_after_probation: ad.give_arrears_after_probation ?? false,
+      after_probation_basic: ap.basic ?? undefined, after_probation_hra: ap.hra ?? undefined,
+      after_probation_allowance1: ap.allowance1 ?? undefined, after_probation_amdb: ap.amdb_pm ?? undefined,
       asset_deduction_applicable: ad.asset_deduction_applicable ?? false,
       security_amount: ad.security_amount ?? undefined,
       deduction_months: ad.deduction_months ?? undefined,
@@ -366,7 +375,7 @@ const step = visibleSteps[currentIdx];
     const n = (x: any) => (x === '' || x === undefined || x === null) ? null : Number(x);
     switch (key) {
       case 'role_identity':
-        return { company_id: n(v.company_id), first_name: v.first_name?.trim(), middle_name: c(v.middle_name), last_name: v.last_name?.trim(), status: v.status, employment_type: v.employment_type, department_id: n(v.department_id), sub_department_id: n(v.sub_department_id), designation_id: n(v.designation_id), sub_designation_id: n(v.sub_designation_id), email: v.email?.toLowerCase().trim() ?? null, phone: v.phone?.trim() ?? null };
+        return { company_id: n(v.company_id), first_name: v.first_name?.trim(), middle_name: c(v.middle_name), last_name: v.last_name?.trim() || null, status: v.status, employment_type: v.employment_type, department_id: n(v.department_id), sub_department_id: n(v.sub_department_id), designation_id: n(v.designation_id), sub_designation_id: n(v.sub_designation_id), email: v.email?.toLowerCase().trim() ?? null, phone: v.phone?.trim() ?? null };
 
       case 'location_attendance':
         return { working_state_country: n(v.working_state_country), working_city: n(v.working_city), working_site: n(v.working_site), pay_register_location: n(v.pay_register_location), actual_doj: c(v.actual_doj), current_doj: c((v as any).current_doj), weekly_off: c(v.weekly_off), shift_category: c((v as any).shift_category), shift_id: n(v.shift_id), grace_minutes: n(v.grace_minutes) };
@@ -380,8 +389,23 @@ const step = visibleSteps[currentIdx];
       case 'statutory_schemes':
         return { pf_status: v.pf_status ?? false, uan_number: c(v.uan_number), epfo_member_id: c(v.epfo_member_id), pf_contribution_pct: n(v.pf_contribution_pct), pf_employer_from: c(v.pf_employer_from), pf_employee_12: n(v.pf_employee_12), eps_employer_833: n(v.eps_employer_833), epf_eps_diff_367: n(v.epf_eps_diff_367), esic_status: v.esic_status ?? false, esic_number: c(v.esic_number), esi_employee_pct: n((v as any).esi_employee_pct), esi_employer_pct: n((v as any).esi_employer_pct), mediclaim_status: v.mediclaim_status ?? 'No', mediclaim_number: c(v.mediclaim_number), mediclaim_amount: c(v.mediclaim_amount), rd_scheme: v.rd_scheme ?? false, rd_term: c(v.rd_term), rd_opening_date: c(v.rd_opening_date), rd_account_number: c(v.rd_account_number), rd_deduction_from: c(v.rd_deduction_from), rd_amount_employee: n(v.rd_amount_employee), rd_amount_employer: n(v.rd_amount_employer), rd_maturity_date: c(v.rd_maturity_date), rd_maturity_amount: n(v.rd_maturity_amount), rd_status: c(v.rd_status) };
 
-      case 'compensation':
-        return { salary_mode: v.salary_mode, current_basic: n(v.current_basic), current_hra: n(v.current_hra), current_allowance1: n(v.current_allowance1), current_amdb: n(v.current_amdb), joining_basic: n(v.joining_basic), joining_hra: n(v.joining_hra), joining_allowance1: n(v.joining_allowance1), joining_amdb: n(v.joining_amdb), asset_deduction_applicable: v.asset_deduction_applicable ?? false, security_amount: n(v.security_amount), deduction_months: n(v.deduction_months), deduction_from: c(v.deduction_from), monthly_deduction: n(v.monthly_deduction), final_monthly_deduction: n(v.final_monthly_deduction) };
+      case 'compensation': {
+        // Joining package is saved as the same as the current package
+        // ("Joining salary is saved as the same as this package").
+        const changeAfterProbation = !!(v as any).on_probation && !!(v as any).salary_change_after_probation;
+        return {
+          salary_mode: v.salary_mode,
+          current_basic: n(v.current_basic), current_hra: n(v.current_hra), current_allowance1: n(v.current_allowance1), current_amdb: n(v.current_amdb),
+          joining_basic: n(v.current_basic), joining_hra: n(v.current_hra), joining_allowance1: n(v.current_allowance1), joining_amdb: n(v.current_amdb),
+          salary_change_after_probation: changeAfterProbation,
+          give_arrears_after_probation: changeAfterProbation && !!(v as any).give_arrears_after_probation,
+          after_probation_basic: changeAfterProbation ? n(v.after_probation_basic) : null,
+          after_probation_hra: changeAfterProbation ? n(v.after_probation_hra) : null,
+          after_probation_allowance1: changeAfterProbation ? n(v.after_probation_allowance1) : null,
+          after_probation_amdb: changeAfterProbation ? n(v.after_probation_amdb) : null,
+          asset_deduction_applicable: v.asset_deduction_applicable ?? false, security_amount: n(v.security_amount), deduction_months: n(v.deduction_months), deduction_from: c(v.deduction_from), monthly_deduction: n(v.monthly_deduction), final_monthly_deduction: n(v.final_monthly_deduction),
+        };
+      }
 
       case 'hr_joining_checklist':
         return { offer_letter: v.offer_letter ?? false, address_verification: v.address_verification ?? false, service_agreement: v.service_agreement ?? false, indemnity_bond: v.indemnity_bond ?? false, asset_deduction_letter: v.asset_deduction_letter ?? false, account_opening_letter: v.account_opening_letter ?? false, nda: v.nda ?? false, remarks: c(v.remarks) };
@@ -392,17 +416,25 @@ const step = visibleSteps[currentIdx];
       case 'address':
         return { present_house_type: c(v.present_house_type), present_house_no: c(v.present_house_no), present_area: c(v.present_area), present_district: c(v.present_district), present_city: c(v.present_city), present_state: c(v.present_state), present_country: c(v.present_country), present_pincode: c(v.present_pincode), perm_address_type: c(v.perm_address_type), perm_house_type: c(v.perm_house_type), perm_house_no: c(v.perm_house_no), perm_area: c(v.perm_area), perm_district: c(v.perm_district), perm_city: c(v.perm_city), perm_state: c(v.perm_state), perm_country: c(v.perm_country), perm_pincode: c(v.perm_pincode) };
 
-      case 'family_emergency':
-        return { marital_status: c(v.marital_status), marriage_date: c((v as any).marriage_date), spouse_name: c((v as any).spouse_name), spouse_dob: c((v as any).spouse_dob), child1_name: c((v as any).child1_name), child1_gender: c((v as any).child1_gender), child1_dob: c((v as any).child1_dob), child2_name: c((v as any).child2_name), child2_gender: c((v as any).child2_gender), child2_dob: c((v as any).child2_dob), child3_name: c((v as any).child3_name), child3_gender: c((v as any).child3_gender), child3_dob: c((v as any).child3_dob), father_salutation: c(v.father_salutation), father_name: c(v.father_name), father_dob: c(v.father_dob), father_occupation: c(v.father_occupation), mother_salutation: c(v.mother_salutation), mother_name: c(v.mother_name), mother_dob: c(v.mother_dob), mother_occupation: c(v.mother_occupation),
+      case 'family_emergency': {
+        // Marriage / spouse fields only apply when Married — clear them otherwise.
+        const married = (v as any).marital_status === 'Married';
+        return { marital_status: c(v.marital_status),
+          marriage_date: married ? c((v as any).marriage_date) : null,
+          spouse_name: married ? c((v as any).spouse_name) : null,
+          spouse_dob: married ? c((v as any).spouse_dob) : null,
+          child1_name: c((v as any).child1_name), child1_gender: c((v as any).child1_gender), child1_dob: c((v as any).child1_dob), child2_name: c((v as any).child2_name), child2_gender: c((v as any).child2_gender), child2_dob: c((v as any).child2_dob), child3_name: c((v as any).child3_name), child3_gender: c((v as any).child3_gender), child3_dob: c((v as any).child3_dob), father_salutation: c(v.father_salutation), father_name: c(v.father_name), father_dob: c(v.father_dob), father_occupation: c(v.father_occupation), mother_salutation: c(v.mother_salutation), mother_name: c(v.mother_name), mother_dob: c(v.mother_dob), mother_occupation: c(v.mother_occupation),
           // drop the always-present blank rows — only send rows the user actually filled
           family_members: (v.family_members ?? []).filter((m: any) => m && String(m.name ?? '').trim()),
           emergency_contacts: (v.emergency_contacts ?? []).filter((cn: any) => cn && (String(cn.contact_name ?? '').trim() || String(cn.contact_number ?? '').trim())) };
+      }
 
       case 'ids_bank':
         return { aadhaar_number: c(v.aadhaar_number), aadhaar_name: c(v.aadhaar_name), aadhaar_dob: c(v.aadhaar_dob), aadhaar_address: c(v.aadhaar_address), pan_number: v.pan_number?.toUpperCase() || null, pan_full_name: c(v.pan_full_name), pan_dob: c(v.pan_dob), pan_parent_spouse_name: c(v.pan_parent_spouse_name), passport_number: c(v.passport_number), passport_full_name: c(v.passport_full_name), passport_nationality: c(v.passport_nationality), passport_issue_date: c(v.passport_issue_date), passport_expiry: c(v.passport_expiry), passport_place_of_issue: c(v.passport_place_of_issue), yellow_fever: (v as any).yellow_fever ?? false, yellow_fever_date: c((v as any).yellow_fever_date), driving_license_number: c(v.driving_license_number), driving_license_name: c(v.driving_license_name), driving_license_issue_date: c(v.driving_license_issue_date), driving_license_expiry: c(v.driving_license_expiry), driving_license_authority: c(v.driving_license_authority),
           vaccinations: (v.vaccinations ?? []).filter((x: any) => x && String(x.vaccine_name ?? '').trim()),
           documents: (v.documents ?? []).filter((x: any) => x && String(x.file_url ?? '').trim()),
-          personal_bank_name: c(v.personal_bank_name), personal_bank_account: c(v.personal_bank_account), personal_ifsc: v.personal_ifsc?.toUpperCase() || null, personal_bank_branch: c(v.personal_bank_branch) };
+          personal_bank_name: c(v.personal_bank_name), personal_bank_account: c(v.personal_bank_account), personal_ifsc: v.personal_ifsc?.toUpperCase() || null, personal_bank_branch: c(v.personal_bank_branch),
+          official_bank_name: c(v.official_bank_name), official_bank_account: c(v.official_bank_account), official_ifsc: v.official_ifsc?.toUpperCase() || null, official_bank_branch: c(v.official_bank_branch) };
 
       case 'experience_education':
         return {

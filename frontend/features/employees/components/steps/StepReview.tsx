@@ -44,7 +44,9 @@ export function StepReview({ employeeId, onEdit }: Props) {
   const docs: any = emp.onboardingDocs ?? {};
   const cur: any = emp.salaries?.find((s: any) => s.salary_type === 'current') ?? {};
   const joi: any = emp.salaries?.find((s: any) => s.salary_type === 'joining') ?? {};
+  const apr: any = emp.salaries?.find((s: any) => s.salary_type === 'after_probation') ?? {};
   const pb: any = emp.bankDetails?.find((b: any) => b.bank_type === 'personal') ?? {};
+  const ob: any = emp.bankDetails?.find((b: any) => b.bank_type === 'official') ?? {};
   const pres: any = emp.addresses?.find((a: any) => a.address_type === 'present') ?? {};
   const perm: any = emp.addresses?.find((a: any) => a.address_type === 'permanent') ?? {};
   const ad: any = emp.assetDeduction ?? {};
@@ -98,9 +100,14 @@ export function StepReview({ employeeId, onEdit }: Props) {
     ],
     compensation: [
       ['Salary Mode', cur.salary_mode],
-      ['Current Basic', money(cur.basic)], ['Current HRA', money(cur.hra)], ['Current Allowance', money(cur.allowance1)],
-      ['Current Gross', money(cur.gross_salary_pm)], ['Current AMDB', money(cur.amdb_pm)], ['Total Earning', money(cur.total_earning_pm)],
-      ['Joining Basic', money(joi.basic)], ['Joining Gross', money(joi.gross_salary_pm)],
+      ['Basic (Current)', money(cur.basic)], ['HRA (Current)', money(cur.hra)], ['Allowance 1 (Current)', money(cur.allowance1)],
+      ['Gross Salary P.M (Current)', money(cur.gross_salary_pm)], ['AMDB P.M (Current)', money(cur.amdb_pm)], ['Total Earning P.M (Current)', money(cur.total_earning_pm)],
+      ...(ad.salary_change_after_probation ? [
+        ['Salary Change After Probation', 'Yes'],
+        ['Basic (After Probation)', money(apr.basic)], ['HRA (After Probation)', money(apr.hra)], ['Allowance 1 (After Probation)', money(apr.allowance1)],
+        ['Gross Salary P.M (After Probation)', money(apr.gross_salary_pm)], ['AMDB P.M (After Probation)', money(apr.amdb_pm)], ['Total Earning P.M (After Probation)', money(apr.total_earning_pm)],
+        ['Give Arrears After Probation', yn(ad.give_arrears_after_probation)],
+      ] as [string, any][] : []),
       ['Asset Deduction', yn(ad.asset_deduction_applicable)], ['Security Amount', money(ad.security_amount)],
       ['Deduction Months', ad.deduction_months], ['Deduction From', ad.deduction_from],
     ],
@@ -137,7 +144,8 @@ export function StepReview({ employeeId, onEdit }: Props) {
       ['Aadhaar Number', st.aadhaar_number], ['Name as on Aadhaar', st.aadhaar_name],
       ['PAN Number', st.pan_number], ['Passport Number', st.passport_number],
       ['Driving Licence', st.driving_license_number],
-      ['Bank Name', pb.bank_name], ['Account Number', pb.account_number], ['IFSC', pb.ifsc_code],
+      ['Personal Bank', pb.bank_name], ['Personal A/C', pb.account_number], ['Personal IFSC', pb.ifsc_code],
+      ...(ob.bank_name || ob.account_number ? [['Official Bank', ob.bank_name], ['Official A/C', ob.account_number], ['Official IFSC', ob.ifsc_code]] as [string, any][] : []),
       ['Vaccinations', count(emp.vaccinations, 'record')], ['Documents', count(emp.documents, 'file')],
     ],
     experience_education: [

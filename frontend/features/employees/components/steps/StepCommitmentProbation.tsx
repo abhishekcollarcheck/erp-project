@@ -6,7 +6,7 @@ import { FormToggle } from '../../../../components/form/FormToggle';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { toOpts } from '../../constants/employee.constants';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useBondList } from '../../../bond/hooks/useBond';
 import { useProbationList } from '../../../probation/hooks/useProbation';
@@ -39,6 +39,7 @@ function addMonths(dateStr: string, termStr: string): string | null {
 
 export function StepCommitmentProbation(_: Props) {
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
 
   const { setValue } = useFormContext();
 
@@ -164,19 +165,7 @@ export function StepCommitmentProbation(_: Props) {
   ]);
 
   return (
-    <FormSection
-      fields={[
-        f('commitment'),
-        f('commitment_term'),
-        f('commitment_entered_on'),
-        f('commitment_end_date'),
-
-        f('on_probation'),
-        f('probation_period'),
-        f('probation_end_date'),
-        f('probation_status'),
-      ]}
-    >
+    <FormSection fields={sp('commitment_probation')}>
       <div
         style={{
           display: 'grid',

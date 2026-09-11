@@ -101,34 +101,81 @@ function parseOrdinalPattern(pattern: string): number[] {
   return [...new Set(weeks)].sort();
 }
 
+/**
+ * Source-catalog placeholder tokens — values the legacy Excel used to mean
+ * "not decided yet", never a real master-data row (e.g. City "Not Fixed",
+ * whose State column is blank).
+ *
+ * Only applied to the FK-chain tables handled by the hand-rolled loops below
+ * (`cities`, `sites`), where such a value would otherwise be inserted with a
+ * dangling/blank relationship or reported as a hard failure. NOT applied to
+ * the plain {name, code} lookups — there "Not Applicable" / "Not Available"
+ * are legitimate, selectable options.
+ */
+const PLACEHOLDER_TOKENS = new Set([
+  'not fixed', 'not decided', 'to be decided', 'tbd',
+  'n/a', 'na', 'none', 'undefined', 'null', '-', '--',
+]);
+function isPlaceholderValue(v: string | null | undefined): boolean {
+  return PLACEHOLDER_TOKENS.has(String(v ?? '').trim().toLowerCase());
+}
+
 interface SeedResult {
   table: string;
   attempted: number;
   inserted: number;
   skippedDuplicate: number;
+  /** Intentionally ignored source rows (placeholders / broken source mapping) — NOT failures. */
+  skippedInvalid: Array<{ value: string; reason: string }>;
   failed: Array<{ value: string; error: string }>;
 }
 
 function newResult(table: string): SeedResult {
-  return { table, attempted: 0, inserted: 0, skippedDuplicate: 0, failed: [] };
+  return { table, attempted: 0, inserted: 0, skippedDuplicate: 0, skippedInvalid: [], failed: [] };
 }
 
-/** Generic seeder for the simple lookup tables (name[, code], display_order, is_active). */
+/** `{ name: 'Foo', code: 'x' }` + naturalKey ['name'] -> "foo" (case-insensitive). */
+function naturalKeyOf(row: Record<string, unknown>, naturalKey: string[]): string {
+  return naturalKey.map((k) => String(row[k] ?? '').trim().toLowerCase()).join('||');
+}
+
+/**
+ * Generic seeder for the simple lookup tables (name[, code], display_order,
+ * is_active). Idempotent by an explicit "check before insert" on the table's
+ * natural key (default `['name']`, case-insensitive) — every row is looked up
+ * in the DB first and counted as `skipped_dup` without an INSERT attempt. The
+ * `SequelizeUniqueConstraintError` catch is kept only as a race backstop (two
+ * seeds running at once); it is NEVER counted as `failed`.
+ */
 async function seedSimpleLookup<T extends Model>(
   ModelClass: ModelStatic<T>,
   table: string,
   rows: Array<Record<string, unknown>>,
+  naturalKey: string[] = ['name'],
 ): Promise<SeedResult> {
   const result = newResult(table);
+
+  const existing = new Set(
+    (await ModelClass.findAll({ attributes: naturalKey as any, raw: true }))
+      .map((r) => naturalKeyOf(r as Record<string, unknown>, naturalKey)),
+  );
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     result.attempted++;
+    const key = naturalKeyOf(row, naturalKey);
+    if (existing.has(key)) {
+      result.skippedDuplicate++;
+      continue;
+    }
     try {
       await ModelClass.create({ display_order: i, is_active: true, ...row } as any);
       result.inserted++;
+      existing.add(key);
     } catch (e: any) {
       if (e.name === 'SequelizeUniqueConstraintError') {
         result.skippedDuplicate++;
+        existing.add(key);
       } else {
         result.failed.push({ value: JSON.stringify(row), error: e.message });
       }
@@ -218,56 +265,85 @@ export async function seedEmpLookups(): Promise<void> {
   const countryIdByName = new Map<string, number>();
   for (const row of await Country.findAll({ attributes: ['id', 'name'] })) countryIdByName.set(row.name, row.id);
 
-  // Neither State nor City has a DB-level unique constraint on `name` (only
-  // non-unique indexes on country_id/state_id/is_active), so — unlike every
-  // other table here — duplicates must be pre-filtered by this script rather
-  // than left to a unique-constraint catch, or a re-run would insert twice.
+  // ── States — natural key (name, country_id) ──────────────────────────────
+  // Resolve the country FIRST, then check the DB for an existing
+  // (name, country_id) row before inserting. `stateIdByName` is a separate
+  // name→id map used only to resolve a city's parent state below (the catalog
+  // never repeats a state name across countries, so it stays unambiguous).
   const stateResult = newResult('states');
+  const stateKeySet = new Set<string>();     // `${name}||${country_id}` — dedupe key
   const stateIdByName = new Map<string, number>();
-  for (const row of await State.findAll({ attributes: ['id', 'name'] })) stateIdByName.set(row.name, row.id);
+  for (const row of await State.findAll({ attributes: ['id', 'name', 'country_id'] })) {
+    stateKeySet.add(`${row.name}||${row.country_id}`);
+    stateIdByName.set(row.name, row.id);
+  }
   for (const name of c.state) {
     stateResult.attempted++;
-    if (stateIdByName.has(name)) {
-      stateResult.skippedDuplicate++;
-      continue;
-    }
     const countryName = LOOKUPS.stateCountryLinks[name]?.[0] ?? 'India';
     const countryId = countryIdByName.get(countryName);
     if (!countryId) {
       stateResult.failed.push({ value: name, error: `Unknown country "${countryName}"` });
       continue;
     }
+    if (stateKeySet.has(`${name}||${countryId}`)) {
+      stateResult.skippedDuplicate++;
+      continue;
+    }
     try {
       const row = await State.create({ name, country_id: countryId, is_active: true } as any);
       stateResult.inserted++;
+      stateKeySet.add(`${name}||${countryId}`);
       stateIdByName.set(name, row.id);
     } catch (e: any) {
-      stateResult.failed.push({ value: name, error: e.message });
+      if (e.name === 'SequelizeUniqueConstraintError') stateResult.skippedDuplicate++;
+      else stateResult.failed.push({ value: name, error: e.message });
     }
   }
   results.push(stateResult);
 
+  // ── Cities — natural key (name, state_id) ────────────────────────────────
   const cityResult = newResult('cities');
-  const existingCityNames = new Set((await City.findAll({ attributes: ['name'] })).map((r) => r.name));
+  const cityKeySet = new Set<string>();       // `${name}||${state_id}`
+  for (const row of await City.findAll({ attributes: ['name', 'state_id'] })) {
+    cityKeySet.add(`${row.name}||${row.state_id}`);
+  }
   for (const name of c.city) {
     cityResult.attempted++;
-    if (existingCityNames.has(name)) {
-      cityResult.skippedDuplicate++;
+
+    // Placeholder source value ("Not Fixed" — its State column is blank in the
+    // sheet). Never a real city: skip it intentionally rather than fail, and
+    // never invent / null-out a state just to force it through.
+    if (isPlaceholderValue(name)) {
+      cityResult.skippedInvalid.push({
+        value: name,
+        reason: 'placeholder value — no state in the source catalog; not a real city',
+      });
       continue;
     }
+
     const stateWithCountry = LOOKUPS.cityStateLinks[name]?.[0]; // e.g. "Delhi, India"
     const stateName = stateWithCountry?.split(',')[0]?.trim();
     const stateId = stateName ? stateIdByName.get(stateName) : undefined;
     if (!stateId) {
-      cityResult.failed.push({ value: name, error: `Could not resolve state for city "${name}" (linked state "${stateName}")` });
+      // A real-looking city name whose source→state mapping is missing or points
+      // at an unknown state — a genuine catalog error worth surfacing as failed.
+      cityResult.failed.push({
+        value: name,
+        error: `Could not resolve state for city "${name}" (linked state "${stateName ?? 'none'}")`,
+      });
+      continue;
+    }
+    if (cityKeySet.has(`${name}||${stateId}`)) {
+      cityResult.skippedDuplicate++;
       continue;
     }
     try {
       await City.create({ name, state_id: stateId, is_active: true } as any);
       cityResult.inserted++;
-      existingCityNames.add(name);
+      cityKeySet.add(`${name}||${stateId}`);
     } catch (e: any) {
-      cityResult.failed.push({ value: name, error: e.message });
+      if (e.name === 'SequelizeUniqueConstraintError') cityResult.skippedDuplicate++;
+      else cityResult.failed.push({ value: name, error: e.message });
     }
   }
   results.push(cityResult);
@@ -275,31 +351,72 @@ export async function seedEmpLookups(): Promise<void> {
   // 2b. Sites & Pay Registers — dummy master data for the Employee wizard's
   //     Working Site / Pay Register Location dropdowns (previously hardcoded
   //     numeric-coded lists in employee.masterOptions.ts / employee.constants.ts).
-  //     No unique constraint on `name`, so dedupe by pre-fetching existing rows.
+  //     Natural key is (company_id, name); this seeder always uses company_id 1.
   //     city_id/state_id are nullable ("all cities/states" scope) — best-effort
   //     matched from the label text; left null when nothing matches.
+  const SEED_COMPANY_ID = 1;
   const siteResult = newResult('sites');
-  const existingSiteNames = new Set((await Site.findAll({ attributes: ['name'] })).map((s) => s.name));
+
+  // Self-heal: an earlier run of this seeder inserted the "Not Fixed" placeholder
+  // (from c.workingSite) as a real site before it was recognised as junk. Remove
+  // any such row now — scoped to this seeder's own company row, only rows with
+  // no city link, and only when no employee references it. `paranoid: false` so
+  // a row a prior run only *soft*-deleted is found and cleared for good;
+  // `force: true` hard-deletes (these rows should never have existed).
+  // Idempotent: a no-op once cleaned.
+  const staleSites = (await Site.findAll({
+    where: { company_id: 1 }, attributes: ['id', 'name', 'city_id'], paranoid: false,
+  })).filter((s) => s.city_id == null && isPlaceholderValue(s.name));
+  for (const stale of staleSites) {
+    const [refRows] = (await sequelize.query(
+      'SELECT COUNT(*) AS refs FROM employee_location_attendance WHERE working_site = :id',
+      { replacements: { id: stale.id } },
+    )) as unknown as [Array<{ refs: number }>, unknown];
+    if (Number(refRows[0]?.refs ?? 0) > 0) {
+      siteResult.skippedInvalid.push({
+        value: stale.name,
+        reason: `placeholder site referenced by ${refRows[0].refs} employee row(s) — left in place`,
+      });
+      continue;
+    }
+    await Site.destroy({ where: { id: stale.id }, force: true });
+    siteResult.skippedInvalid.push({ value: stale.name, reason: 'removed stale placeholder site row left by an earlier seed' });
+  }
+
+  // Natural key (company_id, name) — this seeder only ever writes company_id 1.
+  const existingSiteNames = new Set(
+    (await Site.findAll({ where: { company_id: SEED_COMPANY_ID }, attributes: ['name'] })).map((s) => s.name),
+  );
   const cityRowsForMatch = await City.findAll({ attributes: ['id', 'name'] });
   for (const label of c.workingSite) {
     siteResult.attempted++;
+
+    // Placeholder label ("Not Fixed") — not a real working site. Skip.
+    if (isPlaceholderValue(label)) {
+      siteResult.skippedInvalid.push({ value: label, reason: 'placeholder value — not a real working site' });
+      continue;
+    }
+
     if (existingSiteNames.has(label)) {
       siteResult.skippedDuplicate++;
       continue;
     }
     const matchedCity = cityRowsForMatch.find((city) => label.toUpperCase().includes(city.name.toUpperCase()));
     try {
-      await Site.create({ name: label, company_id: 1, city_id: matchedCity?.id ?? null, is_active: true } as any);
+      await Site.create({ name: label, company_id: SEED_COMPANY_ID, city_id: matchedCity?.id ?? null, is_active: true } as any);
       siteResult.inserted++;
       existingSiteNames.add(label);
     } catch (e: any) {
-      siteResult.failed.push({ value: label, error: e.message });
+      if (e.name === 'SequelizeUniqueConstraintError') siteResult.skippedDuplicate++;
+      else siteResult.failed.push({ value: label, error: e.message });
     }
   }
   results.push(siteResult);
 
   const payRegisterResult = newResult('pay_registers');
-  const existingPayRegisterNames = new Set((await PayRegister.findAll({ attributes: ['name'] })).map((p) => p.name));
+  const existingPayRegisterNames = new Set(
+    (await PayRegister.findAll({ where: { company_id: SEED_COMPANY_ID }, attributes: ['name'] })).map((p) => p.name),
+  );
   const stateRowsForMatch = await State.findAll({ attributes: ['id', 'name'] });
   for (const label of c.payRegisterLocation) {
     payRegisterResult.attempted++;
@@ -309,22 +426,33 @@ export async function seedEmpLookups(): Promise<void> {
     }
     const matchedState = stateRowsForMatch.find((state) => label.toUpperCase() === state.name.toUpperCase());
     try {
-      await PayRegister.create({ name: label, company_id: 1, state_id: matchedState?.id ?? null, is_active: true } as any);
+      await PayRegister.create({ name: label, company_id: SEED_COMPANY_ID, state_id: matchedState?.id ?? null, is_active: true } as any);
       payRegisterResult.inserted++;
       existingPayRegisterNames.add(label);
     } catch (e: any) {
-      payRegisterResult.failed.push({ value: label, error: e.message });
+      if (e.name === 'SequelizeUniqueConstraintError') payRegisterResult.skippedDuplicate++;
+      else payRegisterResult.failed.push({ value: label, error: e.message });
     }
   }
   results.push(payRegisterResult);
 
-  // 3. Departments (unique department_name — DB enforces dedupe) ------------
+  // 3. Departments — natural key `department_name` (DB-unique). Explicit
+  //    check-before-insert; unique-constraint catch kept as a race backstop.
   const deptResult = newResult('departments');
+  const existingDeptNames = new Set(
+    (await Department.findAll({ attributes: ['department_name'] })).map((d) => d.department_name.trim().toLowerCase()),
+  );
   for (const name of c.department) {
     deptResult.attempted++;
+    const key = name.trim().toLowerCase();
+    if (existingDeptNames.has(key)) {
+      deptResult.skippedDuplicate++;
+      continue;
+    }
     try {
       await Department.create({ department_name: name, is_active: true } as any);
       deptResult.inserted++;
+      existingDeptNames.add(key);
     } catch (e: any) {
       if (e.name === 'SequelizeUniqueConstraintError') deptResult.skippedDuplicate++;
       else deptResult.failed.push({ value: name, error: e.message });
@@ -332,8 +460,9 @@ export async function seedEmpLookups(): Promise<void> {
   }
   results.push(deptResult);
 
-  // 4. Designations — NO unique constraint on `name` at the DB level, so this
-  //    script must dedupe case-insensitively itself against what's already there.
+  // 4. Designations — natural key `name` (now DB-unique via
+  //    20260910140000-add-master-data-unique-indexes). Dedupe case-insensitively
+  //    against what's already there (catalog is ALL CAPS, existing rows Title Case).
   const desigResult = newResult('designations');
   const existingDesigNames = new Set(
     (await Designation.findAll({ attributes: ['name'] })).map((d) => d.name.trim().toLowerCase()),
@@ -346,23 +475,75 @@ export async function seedEmpLookups(): Promise<void> {
       continue;
     }
     try {
-      // Store in the same Title Case convention as the existing 76 rows,
+      // Store in the same Title Case convention as the existing rows,
       // rather than the catalog's ALL CAPS, so lists render consistently.
       const titleCase = name.replace(/\w\S*/g, (w) => w[0] + w.slice(1).toLowerCase());
       await Designation.create({ name: titleCase, is_active: true } as any);
       desigResult.inserted++;
       existingDesigNames.add(key);
     } catch (e: any) {
-      desigResult.failed.push({ value: name, error: e.message });
+      if (e.name === 'SequelizeUniqueConstraintError') desigResult.skippedDuplicate++;
+      else desigResult.failed.push({ value: name, error: e.message });
     }
   }
   results.push(desigResult);
 
-  // 5. Sub-departments / sub-designations (global, name unique — neither
-  //    table has a display_order column, so the generic helper's default is
-  //    silently dropped by Sequelize as an unknown attribute).
+  // 5a. Sub-departments — `sub_departments` HAS a DB-level unique constraint on
+  //     (name, is_active), so the generic helper's unique-constraint catch is a
+  //     reliable dedupe. (No display_order column — the helper's default for it
+  //     is silently dropped by Sequelize as an unknown attribute.)
   results.push(await seedSimpleLookup(SubDepartment, 'sub_departments', c.subDepartment.map((name) => ({ name }))));
-  results.push(await seedSimpleLookup(SubDesignation, 'sub_designations', c.subDesignation.map((name) => ({ name }))));
+
+  // 5b. Sub-designations — natural key `name` (now DB-unique via
+  //     20260910140000-add-master-data-unique-indexes). Historically it had NO
+  //     unique constraint, so pre-dedupe runs of this seeder piled up duplicate
+  //     rows — the self-heal block below collapses any that a prior run left,
+  //     then the loop dedupes case-insensitively going forward.
+  const subDesigResult = newResult('sub_designations');
+
+  const [dupGroups] = (await sequelize.query(
+    `SELECT name, MIN(id) AS keep_id, GROUP_CONCAT(id) AS all_ids
+       FROM sub_designations GROUP BY name HAVING COUNT(*) > 1`,
+  )) as unknown as [Array<{ name: string; keep_id: number; all_ids: string }>, unknown];
+  for (const g of dupGroups) {
+    const extraIds = g.all_ids.split(',').map(Number).filter((id) => id !== Number(g.keep_id));
+    if (!extraIds.length) continue;
+    // Repoint any FK references onto the surviving row, then hard-delete the
+    // extras (raw DELETE bypasses paranoid soft-delete — these rows are junk).
+    await sequelize.query('UPDATE employees SET sub_designation_id = :keep WHERE sub_designation_id IN (:extras)',
+      { replacements: { keep: g.keep_id, extras: extraIds } });
+    await sequelize.query('UPDATE IGNORE sub_designation_designations SET sub_designation_id = :keep WHERE sub_designation_id IN (:extras)',
+      { replacements: { keep: g.keep_id, extras: extraIds } });
+    await sequelize.query('DELETE FROM sub_designation_designations WHERE sub_designation_id IN (:extras)',
+      { replacements: { extras: extraIds } });
+    await sequelize.query('DELETE FROM sub_designations WHERE id IN (:extras)',
+      { replacements: { extras: extraIds } });
+    subDesigResult.skippedInvalid.push({
+      value: g.name,
+      reason: `collapsed ${extraIds.length} duplicate row(s) from an earlier seed → kept id ${g.keep_id}`,
+    });
+  }
+
+  const existingSubDesig = new Set(
+    (await SubDesignation.findAll({ attributes: ['name'] })).map((s) => s.name.trim().toLowerCase()),
+  );
+  for (const name of c.subDesignation) {
+    subDesigResult.attempted++;
+    const key = name.trim().toLowerCase();
+    if (existingSubDesig.has(key)) {
+      subDesigResult.skippedDuplicate++;
+      continue;
+    }
+    try {
+      await SubDesignation.create({ name, is_active: true } as any);
+      subDesigResult.inserted++;
+      existingSubDesig.add(key);
+    } catch (e: any) {
+      if (e.name === 'SequelizeUniqueConstraintError') subDesigResult.skippedDuplicate++;
+      else subDesigResult.failed.push({ value: name, error: e.message });
+    }
+  }
+  results.push(subDesigResult);
 
   // 6. Weekly-off presets -----------------------------------------------------
   const wopResult = newResult('weekly_off_preset');
@@ -382,7 +563,8 @@ export async function seedEmpLookups(): Promise<void> {
       await WeeklyOffPreset.create({ name: def.name, always_off, nth_off_rules, is_active: true } as any);
       wopResult.inserted++;
     } catch (e: any) {
-      wopResult.failed.push({ value: def.name, error: e.message });
+      if (e.name === 'SequelizeUniqueConstraintError') wopResult.skippedDuplicate++;
+      else wopResult.failed.push({ value: def.name, error: e.message });
     }
   }
   results.push(wopResult);
@@ -442,9 +624,9 @@ export async function seedEmpLookups(): Promise<void> {
   }
   results.push(companyResult);
 
-  // 8. Shifts — `Shift.label` has no DB-level unique constraint, so (like
-  //    states/cities) dedupe by pre-fetching existing labels rather than
-  //    relying on a unique-constraint catch.
+  // 8. Shifts — natural key `label` (now DB-unique via
+  //    20260910140000-add-master-data-unique-indexes). Pre-fetch existing
+  //    labels; unique-constraint catch kept as a race backstop.
   const shiftResult = newResult('shift');
   const existingShiftLabels = new Set((await Shift.findAll({ attributes: ['label'] })).map((s) => s.label));
   for (const def of LOOKUPS.shiftDefinitions) {
@@ -464,7 +646,8 @@ export async function seedEmpLookups(): Promise<void> {
       shiftResult.inserted++;
       existingShiftLabels.add(def.name);
     } catch (e: any) {
-      shiftResult.failed.push({ value: def.name, error: e.message });
+      if (e.name === 'SequelizeUniqueConstraintError') shiftResult.skippedDuplicate++;
+      else shiftResult.failed.push({ value: def.name, error: e.message });
     }
   }
   results.push(shiftResult);
@@ -481,19 +664,53 @@ export async function seedEmpLookups(): Promise<void> {
   );
 
   // ─── Report ──────────────────────────────────────────────────────────────
+  // Per-table status:
+  //   OK      – no genuine failures (rows inserted, deduped, or intentionally skipped)
+  //   PARTIAL – some rows are genuine data/DB errors
+  //   FAILED  – every attempted row is a genuine error
+  //   SKIPPED – the whole table is intentionally not seeded (listed separately below)
+  const statusOf = (r: SeedResult): string =>
+    r.failed.length === 0 ? 'OK'
+      : r.attempted > 0 && r.failed.length === r.attempted ? 'FAILED'
+        : 'PARTIAL';
+
   console.log('\n================ SEED REPORT ================');
   for (const r of results) {
-    const status = r.failed.length > 0 ? 'PARTIAL' : r.inserted > 0 ? 'OK' : 'NO-OP (all already present)';
     console.log(
-      `${r.table.padEnd(28)} ${status.padEnd(28)} inserted=${r.inserted} skipped_dup=${r.skippedDuplicate} failed=${r.failed.length}/${r.attempted}`,
+      `${r.table.padEnd(24)} ${statusOf(r).padEnd(8)} ` +
+      `inserted=${r.inserted} skipped_dup=${r.skippedDuplicate} ` +
+      `skipped_invalid=${r.skippedInvalid.length} failed=${r.failed.length}/${r.attempted}`,
     );
     if (r.failed.length > 0) {
       for (const f of r.failed.slice(0, 5)) console.log(`    FAIL "${f.value}": ${f.error}`);
       if (r.failed.length > 5) console.log(`    ... and ${r.failed.length - 5} more`);
     }
   }
-  console.log('\n--- Skipped tables (not touched) ---');
+
+  const withInvalid = results.filter((r) => r.skippedInvalid.length > 0);
+  if (withInvalid.length > 0) {
+    console.log('\n--- Skipped invalid source records (intentional, NOT failures) ---');
+    for (const r of withInvalid) {
+      for (const s of r.skippedInvalid) console.log(`${r.table.padEnd(24)} "${s.value}" → ${s.reason}`);
+    }
+  }
+
+  console.log('\n--- Skipped tables (not touched, by design) ---');
   for (const s of skippedTables) console.log(`${s.table}: ${s.reason}`);
+
+  const totalInserted = results.reduce((n, r) => n + r.inserted, 0);
+  const totalDup      = results.reduce((n, r) => n + r.skippedDuplicate, 0);
+  const totalInvalid  = results.reduce((n, r) => n + r.skippedInvalid.length, 0);
+  const totalFailed   = results.reduce((n, r) => n + r.failed.length, 0);
+  console.log(
+    `\nTOTALS  inserted=${totalInserted} skipped_dup=${totalDup} ` +
+    `skipped_invalid=${totalInvalid} failed=${totalFailed}`,
+  );
+  console.log(
+    totalFailed === 0
+      ? '✅ No real failures — every record was inserted, deduped, or intentionally skipped.'
+      : `❌ ${totalFailed} genuine failure(s) — see FAIL lines above.`,
+  );
   console.log('===============================================\n');
 }
 

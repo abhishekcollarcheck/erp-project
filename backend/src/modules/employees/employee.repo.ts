@@ -235,10 +235,18 @@ export class EmployeeRepository {
     return EmployeeBankDetail.create({ employee_id: employeeId, bank_type: bankType, ...data } as any, { transaction: t });
   }
 
-  async upsertSalary(employeeId: number, salaryType: 'current' | 'joining', data: object, t: Transaction) {
+  async deleteBank(employeeId: number, bankType: 'personal' | 'official', t: Transaction) {
+    return EmployeeBankDetail.destroy({ where: { employee_id: employeeId, bank_type: bankType }, transaction: t });
+  }
+
+  async upsertSalary(employeeId: number, salaryType: 'current' | 'joining' | 'after_probation', data: object, t: Transaction) {
     const existing = await EmployeeSalary.findOne({ where: { employee_id: employeeId, salary_type: salaryType } });
     if (existing) return existing.update(data as any, { transaction: t });
     return EmployeeSalary.create({ employee_id: employeeId, salary_type: salaryType, ...data } as any, { transaction: t });
+  }
+
+  async deleteSalary(employeeId: number, salaryType: 'current' | 'joining' | 'after_probation', t: Transaction) {
+    return EmployeeSalary.destroy({ where: { employee_id: employeeId, salary_type: salaryType }, transaction: t });
   }
 
   async replaceVaccinations(employeeId: number, vaccinations: object[], t: Transaction) {

@@ -109,6 +109,18 @@ const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
   On_Hold: { label: '→ On Hold',   color: 'var(--amber)'  },
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** First-letter-of-first + first-letter-of-last initials, null/undefined/empty-safe. */
+function nameInitials(first?: string | null, last?: string | null): string {
+  return `${(first ?? '').trim().charAt(0)}${(last ?? '').trim().charAt(0)}`;
+}
+
+/** "First Last" display name, tolerating a missing last name. */
+function fullName(first?: string | null, last?: string | null): string {
+  return [first, last].filter(Boolean).join(' ');
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -144,7 +156,7 @@ export function InterviewResultModal({ open, onClose, candidate }: Props) {
 
   const filteredEmployees = employeeSearch.trim()
     ? employees.filter(e =>
-        `${e.first_name} ${e.last_name}`.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+        fullName(e.first_name, e.last_name).toLowerCase().includes(employeeSearch.toLowerCase()) ||
         e.employee_code?.toLowerCase().includes(employeeSearch.toLowerCase()) ||
         e.designation_id
       )
@@ -257,11 +269,11 @@ export function InterviewResultModal({ open, onClose, candidate }: Props) {
               color: '#fff', fontSize: 10, fontWeight: 700,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              {[selectedEmployee.first_name[0], selectedEmployee.last_name[0]].join('')}
+              {nameInitials(selectedEmployee.first_name, selectedEmployee.last_name)}
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>
-                {selectedEmployee.first_name} {selectedEmployee.last_name}
+                {fullName(selectedEmployee.first_name, selectedEmployee.last_name)}
               </div>
               <div style={{ fontSize: 10, color: 'var(--ink4)' }}>
                 {selectedEmployee.designation_id} · {selectedEmployee.employee_code}
@@ -306,11 +318,11 @@ export function InterviewResultModal({ open, onClose, candidate }: Props) {
                     }}
                   >
                     <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, var(--blue), var(--purple))', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {[emp.first_name[0], emp.last_name[0]].join('')}
+                      {nameInitials(emp.first_name, emp.last_name)}
                     </div>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>
-                        {emp.first_name} {emp.last_name}
+                        {fullName(emp.first_name, emp.last_name)}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--ink4)' }}>
                         {emp.designation_id || emp.employee_code}

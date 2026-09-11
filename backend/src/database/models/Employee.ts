@@ -11,7 +11,7 @@ interface EmployeeAttrs {
   record_status:          'Draft' | 'Final';
   first_name:             string;
   middle_name?:           string | null;
-  last_name:              string;
+  last_name:              string | null;
   company_id:             number;
   employment_type:        'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
   department_id:          number;
@@ -60,7 +60,7 @@ export class Employee extends Model<EmployeeAttrs, EmployeeCreation> implements 
   public record_status!:         'Draft' | 'Final';
   public first_name!:            string;
   public middle_name!:           string | null;
-  public last_name!:             string;
+  public last_name!:             string | null;
   public company_id!:            number;
   public employment_type!:       'Permanent' | 'Contract' | 'Intern' | 'Consultant' | 'Probation';
   public department_id!:         number;
@@ -126,7 +126,7 @@ Employee.init({
   record_status:          { type: DataTypes.ENUM('Draft', 'Final'), defaultValue: 'Draft', allowNull: false },
   first_name:             { type: DataTypes.STRING(100), allowNull: false },
   middle_name:            { type: DataTypes.STRING(100), allowNull: true },
-  last_name:              { type: DataTypes.STRING(100), allowNull: false },
+  last_name:              { type: DataTypes.STRING(100), allowNull: true },
   company_id:             { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'companies', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
   employment_type:        { type: DataTypes.ENUM('Permanent', 'Contract', 'Intern', 'Consultant', 'Probation'), defaultValue: 'Permanent' },
   department_id:          { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, references: { model: 'departments', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT' },
@@ -208,29 +208,6 @@ EmployeeManagersWorkContact.init({
   sequelize, tableName: 'employee_managers_work_contact', modelName: 'EmployeeManagersWorkContact', timestamps: true,
   indexes: [{ fields: ['l1_manager_id'] }],
 });
-
-// export class EmployeeCommitmentProbation extends Model {
-//   public employee_id!:               number;
-//   public commitment!:                boolean;
-//   public commitment_term!:           string | null;
-//   public commitment_entered_on!:     Date | null;
-//   public commitment_end_date!:       Date | null;
-//   public on_probation!:              boolean;
-//   public probation_period!:          string | null;
-//   public probation_end_date!:        Date | null;
-//   public probation_status!:          string | null;
-// }
-// EmployeeCommitmentProbation.init({
-//   employee_id:               { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
-//   commitment:                { type: DataTypes.BOOLEAN, defaultValue: false },
-//   commitment_term:           { type: DataTypes.ENUM('36 Months', '60 Months', 'N/A'), defaultValue: null, allowNull: true },
-//   commitment_entered_on:     { type: DataTypes.DATEONLY, allowNull: true },
-//   commitment_end_date:       { type: DataTypes.DATEONLY, allowNull: true },
-//   on_probation:              { type: DataTypes.BOOLEAN, defaultValue: true },
-//   probation_period:          { type: DataTypes.STRING(30), allowNull: true },
-//   probation_end_date:        { type: DataTypes.DATEONLY, allowNull: true },
-//   probation_status:          { type: DataTypes.ENUM(...PROBATION_STATUS), defaultValue: null, allowNull: true },
-// }, { sequelize, tableName: 'employee_commitment_probation', modelName: 'EmployeeCommitmentProbation', timestamps: true });
 
 
 export class EmployeeCommitmentProbation extends Model {
@@ -393,7 +370,9 @@ EmployeeSchemes.init({
 export class EmployeeSalary extends Model {
   public id!:               number;
   public employee_id!:      number;
-  public salary_type!:      'current' | 'joining';
+  // 'after_probation' — the package that starts the day probation is passed
+  // (see migration 20260910120000-add-after-probation-salary).
+  public salary_type!:      'current' | 'joining' | 'after_probation';
   public salary_mode!:      'Bank Transfer' | 'Cash' | 'Cheque' | null;
   public basic!:            number | null;
   public hra!:              number | null;
@@ -406,7 +385,7 @@ export class EmployeeSalary extends Model {
 EmployeeSalary.init({
   id:               { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   employee_id:      { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  salary_type:      { type: DataTypes.ENUM('current', 'joining'), allowNull: false },
+  salary_type:      { type: DataTypes.ENUM('current', 'joining', 'after_probation'), allowNull: false },
   salary_mode:      { type: DataTypes.ENUM('Bank Transfer', 'Cash', 'Cheque'), allowNull: true },
   basic:            { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   hra:              { type: DataTypes.DECIMAL(12, 2), allowNull: true },
@@ -427,6 +406,12 @@ export class EmployeeAssetDeduction extends Model {
   public monthly_deduction!:           number | null;
   public final_monthly_deduction!:     number | null;
   public last_installment!:            number | null;
+  // Compensation-step flags for the "Salary change after probation" feature.
+  // Kept on this per-employee Compensation singleton (rather than a new table)
+  // — it is the row routeStep('compensation') already upserts. Only meaningful
+  // when the employee is on probation.
+  public salary_change_after_probation!: boolean;
+  public give_arrears_after_probation!:  boolean;
 }
 EmployeeAssetDeduction.init({
   employee_id:                 { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true },
@@ -437,6 +422,8 @@ EmployeeAssetDeduction.init({
   monthly_deduction:           { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   final_monthly_deduction:     { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   last_installment:            { type: DataTypes.DECIMAL(12, 2), allowNull: true },
+  salary_change_after_probation: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  give_arrears_after_probation:  { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 }, { sequelize, tableName: 'employee_asset_deduction', modelName: 'EmployeeAssetDeduction', timestamps: true });
 
 export class EmployeeOnboardingDocs extends Model {

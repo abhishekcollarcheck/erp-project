@@ -3,7 +3,7 @@ import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { toOpts } from '../../constants/employee.constants';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useGenderData } from '../../../../features/gender/hooks/useGender';
 import { useBloodGroupData } from '../../../../features/bloodGroup/hooks/useBloodGroup';
@@ -15,6 +15,7 @@ interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepPersonalProfile(_: Props) {
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
 
   const { data: genders = [] } = useGenderData();
   const { data: bloodGroups = [] } = useBloodGroupData();
@@ -23,7 +24,7 @@ export function StepPersonalProfile(_: Props) {
   const { data: shirtSizes = [] } = useShirtSizeData();
 
   return (
-    <FormSection fields={[f('date_of_birth'), f('gender'), f('blood_group'), f('nationality'), f('religion'), f('shirt_size'), f('tshirt_size')]}>
+    <FormSection fields={sp('personal_profile')}>
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Identity</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>

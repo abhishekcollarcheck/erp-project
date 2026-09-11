@@ -27,7 +27,7 @@ export const roleIdentitySchema = z.object({
   reference_code: optStr,
   first_name: reqStr('First name is required').max(100),
   middle_name: optStr,
-  last_name: reqStr('Last name is required').max(100),
+  last_name: z.string().max(100, 'Last name cannot exceed 100 characters').optional().or(z.literal('')).nullable(),
   status: z.enum(['Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive']).default('Active'),
   employment_type: z.enum(['Permanent', 'Contract', 'Intern', 'Consultant', 'Probation']).default('Permanent'),
   department_id: reqInt('Department is required'),
@@ -135,10 +135,19 @@ export const compensationSchema = z.object({
   current_hra: optNum,
   current_allowance1: optNum,
   current_amdb: optNum,
+  // Joining package is mirrored from the current package by the wizard; kept in
+  // the schema for the bulk-import path which may send explicit values.
   joining_basic: optNum,
   joining_hra: optNum,
   joining_allowance1: optNum,
   joining_amdb: optNum,
+  // Salary change after probation (shown only when On Probation = Yes).
+  salary_change_after_probation: yesNo,
+  give_arrears_after_probation: yesNo,
+  after_probation_basic: optNum,
+  after_probation_hra: optNum,
+  after_probation_allowance1: optNum,
+  after_probation_amdb: optNum,
   asset_deduction_applicable: yesNo,
   security_amount: optNum,
   deduction_months: z.number({ coerce: true }).int().min(0).optional().nullable(),
@@ -266,6 +275,14 @@ export const familyEmergencySchema = z.object({
   mother_occupation: optStr,
   family_members: z.array(familyMemberSchema).optional().default([]),
   emergency_contacts: z.array(emergencyContactSchema).optional().default([]),
+}).superRefine((v, ctx) => {
+  // Spouse / marriage fields are required only when Married.
+  if (v.marital_status === 'Married') {
+    if (!(v.spouse_name && String(v.spouse_name).trim()))
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['spouse_name'], message: 'Spouse name is required when married' });
+    if (!(v.marriage_date && String(v.marriage_date).trim()))
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['marriage_date'], message: 'Marriage date is required when married' });
+  }
 });
 
 // ─── Step 11 (Candidate): IDs & Bank ──────────────────────────────────────────
@@ -335,6 +352,11 @@ export const idsBankSchema = z.object({
   personal_bank_account: z.string({ required_error: 'Account number is required' }).regex(/^\d{9,18}$/, 'Account number must be 9-18 digits'),
   personal_ifsc: z.string({ required_error: 'IFSC is required' }).toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Invalid IFSC format (ABCD0123456)'),
   personal_bank_branch: optStr,
+  // Official / salary bank — all optional
+  official_bank_name: optStr,
+  official_bank_account: z.string().regex(/^\d{9,18}$/, 'Account number must be 9-18 digits').optional().or(z.literal('')).nullable(),
+  official_ifsc: z.string().toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Invalid IFSC format (ABCD0123456)').optional().or(z.literal('')).nullable(),
+  official_bank_branch: optStr,
 });
 
 // ─── Step 12 (Candidate): Experience & Education ──────────────────────────────
@@ -397,7 +419,7 @@ export const fullEmployeeSchema = z.object({
   reference_code: optStr,
   first_name: reqStr('First name is required').max(100),
   middle_name: optStr,
-  last_name: reqStr('Last name is required').max(100),
+  last_name: z.string().max(100, 'Last name cannot exceed 100 characters').optional().or(z.literal('')).nullable(),
   status: z.enum(['Active', 'Left', 'Retired', 'On Notice', 'Relieved', 'Absconded', 'Inactive']).default('Active'),
   employment_type: z.enum(['Permanent', 'Contract', 'Intern', 'Consultant', 'Probation']).default('Permanent'),
   department_id: reqInt('Department is required'),
@@ -487,6 +509,12 @@ export const fullEmployeeSchema = z.object({
   joining_hra: optNum,
   joining_allowance1: optNum,
   joining_amdb: optNum,
+  salary_change_after_probation: yesNo,
+  give_arrears_after_probation: yesNo,
+  after_probation_basic: optNum,
+  after_probation_hra: optNum,
+  after_probation_allowance1: optNum,
+  after_probation_amdb: optNum,
   asset_deduction_applicable: yesNo,
   security_amount: optNum,
   deduction_months: z.number({ coerce: true }).int().min(0).optional().nullable(),
@@ -589,11 +617,23 @@ export const fullEmployeeSchema = z.object({
   personal_bank_account: z.string({ required_error: 'Account number is required' }).regex(/^\d{9,18}$/, 'Account number must be 9-18 digits'),
   personal_ifsc: z.string({ required_error: 'IFSC is required' }).toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Invalid IFSC format (ABCD0123456)'),
   personal_bank_branch: optStr,
+  official_bank_name: optStr,
+  official_bank_account: z.string().regex(/^\d{9,18}$/, 'Account number must be 9-18 digits').optional().or(z.literal('')).nullable(),
+  official_ifsc: z.string().toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Invalid IFSC format (ABCD0123456)').optional().or(z.literal('')).nullable(),
+  official_bank_branch: optStr,
 
   // ── Experience & Education ───────────────────────────────────────────────
   is_experienced: yesNo,
   experience: z.array(experienceEntrySchema).optional().default([]),
   education: z.array(educationEntrySchema).optional().default([]),
+}).superRefine((v, ctx) => {
+  // Spouse / marriage fields are required only when Married.
+  if (v.marital_status === 'Married') {
+    if (!(v.spouse_name && String(v.spouse_name).trim()))
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['spouse_name'], message: 'Spouse name is required when married' });
+    if (!(v.marriage_date && String(v.marriage_date).trim()))
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['marriage_date'], message: 'Marriage date is required when married' });
+  }
 });
 
 export type FullEmployeeForm = z.infer<typeof fullEmployeeSchema>;

@@ -15,7 +15,7 @@ import { Select } from '../../../components/ui/Select';
 import { Chip } from '../../../components/ui/Chip';
 import { StatCard } from '../../../components/ui/StatCard';
 import { Modal } from '../../../components/ui/Modal';
-import { useEmployees, useEmployeeSummary, useDeleteEmployee } from '../../../features/employees/hooks/useEmployees';
+import { useEmployees, useEmployeeSummary, useDeleteEmployee, useEmployeeFieldPerm, maskEmployeeValue } from '../../../features/employees/hooks/useEmployees';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { usePermission } from '../../../features/auth/hooks/useAuth';
 import { formatDate, getTenure, getInitials, statusVariant, displayStatus } from '../../../features/employees/utils/employee.utils';
@@ -116,56 +116,85 @@ export default function EmployeesPage() {
     </div>
   );
 
+  // ── Field-level permissions (list view) ──────────────────────────────────
+  const fperm = useEmployeeFieldPerm();
+  const COLUMN_FIELD_KEYS: Record<string, string[]> = {
+    employee:    ['first_name', 'last_name', 'employee_code'],
+    company:     ['company_id'],
+    department:  ['department_id'],
+    designation: ['designation_id'],
+    location:    ['working_site'],
+    status:      ['status'],
+    doj:         ['actual_doj'],
+  };
+  /** Masked/plain display for a relational name cell; '—' when hidden. */
+  const cell = (fieldKey: string, raw: any) => {
+    const m = maskEmployeeValue(fperm(fieldKey), raw, fieldKey);
+    return m.hide || m.text == null || m.text === '' ? '—' : String(m.text);
+  };
+
   // ── Columns ───────────────────────────────────────────────────────────────
-  const columns: Column<Employee>[] = [
+  const allColumns: Column<Employee>[] = [
     {
       key: 'employee',
       header: 'Employee',
-      render: row => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {row.avatar_url ? (
-            <Image src={row.avatar_url} alt={`${row.first_name} ${row.last_name}`} width={32} height={32}
-              style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-          ) : (
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--blue), var(--purple))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-              {getInitials(`${row.first_name} ${row.last_name}`)}
-            </div>
-          )}
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--blue)', cursor: 'pointer' }}
-              onClick={e => { e.stopPropagation(); router.push(`/employees/${row.id}`); }}>
-              {row.first_name} {row.middle_name ? `${row.middle_name[0]}. ` : ''}{row.last_name}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>
-              {row.employee_code ?? (isDraft(row) ? 'No code yet' : '—')}
+      render: row => {
+        const nameP = fperm('first_name');
+        const codeP = fperm('employee_code');
+        const nameVisible = nameP.can_view;
+        const fullName = `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim();
+        const shownName = !nameVisible
+          ? ''
+          : nameP.is_masked || nameP.is_partial_masked
+            ? maskEmployeeValue(nameP, fullName, 'first_name').text
+            : `${row.first_name ?? ''} ${row.middle_name ? `${row.middle_name[0]}. ` : ''}${row.last_name ?? ''}`.trim();
+        const shownCode = codeP.can_view ? (row.employee_code ?? (isDraft(row) ? 'No code yet' : '—')) : '—';
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {nameVisible && row.avatar_url && fperm('avatar_url').can_view ? (
+              <Image src={row.avatar_url} alt={fullName} width={32} height={32}
+                style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--blue), var(--purple))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                {nameVisible && fullName ? getInitials(fullName) : '—'}
+              </div>
+            )}
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--blue)', cursor: 'pointer' }}
+                onClick={e => { e.stopPropagation(); router.push(`/employees/${row.id}`); }}>
+                {shownName || shownCode || '—'}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--ink4)', fontFamily: 'var(--mono)' }}>
+                {shownName ? shownCode : ''}
+              </div>
             </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'company',
       header: 'Company',
-      render: row => <span style={{ fontSize: 11, color: 'var(--ink2)' }}>{row.company?.name ?? '—'}</span>,
+      render: row => <span style={{ fontSize: 11, color: 'var(--ink2)' }}>{cell('company_id', row.company?.name)}</span>,
     },
     {
       key: 'department',
       header: 'Department',
       render: row => (
         <div>
-          <div style={{ fontSize: 11 }}>{row.department?.name ?? '—'}</div>
+          <div style={{ fontSize: 11 }}>{cell('department_id', row.department?.name)}</div>
         </div>
       ),
     },
     {
       key: 'designation',
       header: 'Designation',
-      render: row => <span style={{ fontSize: 11 }}>{row.designation?.name ?? '—'}</span>,
+      render: row => <span style={{ fontSize: 11 }}>{cell('designation_id', row.designation?.name)}</span>,
     },
     {
       key: 'location',
       header: 'Location',
-      render: row => <span style={{ fontSize: 11, color: 'var(--ink4)' }}>{row.workingSite?.name || '—'}</span>,
+      render: row => <span style={{ fontSize: 11, color: 'var(--ink4)' }}>{cell('working_site', row.workingSite?.name)}</span>,
     },
     {
       key: 'status',
@@ -206,6 +235,12 @@ export default function EmployeesPage() {
       ),
     },
   ];
+
+  // Drop a column whose every mapped field is not viewable for this user.
+  const columns = allColumns.filter(c => {
+    const keys = COLUMN_FIELD_KEYS[c.key] ?? [];
+    return keys.length === 0 || keys.some(k => fperm(k).can_view);
+  });
 
   // ── Toolbar ───────────────────────────────────────────────────────────────
   const toolbar = (
@@ -341,7 +376,7 @@ export default function EmployeesPage() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         title="Remove Employee"
-        subtitle={`Remove ${deleteTarget?.first_name} ${deleteTarget?.last_name} (${deleteTarget?.employee_code ?? 'code pending'})?`}
+        subtitle={`Remove ${[`${deleteTarget?.first_name ?? ''} ${deleteTarget?.last_name ?? ''}`.trim(), deleteTarget?.employee_code].filter(Boolean).join(' · ') || 'this employee'}?`}
         footer={
           <>
             <button className="btn btn-sec" onClick={() => setDeleteTarget(null)}>Cancel</button>

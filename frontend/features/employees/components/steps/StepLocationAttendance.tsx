@@ -2,7 +2,7 @@
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useShiftOptions, useShifts } from '../../../../features/shift/hooks/useShift';
 import { useWatch } from 'react-hook-form';
@@ -14,6 +14,7 @@ interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepLocationAttendance({ }: Props) {
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
 
   const shiftType = useWatch({
     name: 'shift_type',
@@ -43,7 +44,7 @@ export function StepLocationAttendance({ }: Props) {
 
 
   return (
-    <FormSection fields={[f('working_state_country'), f('working_city'), f('working_site'), f('pay_register_location'), f('actual_doj'), f('weekly_off'), f('shift_category'), f('shift_id'), f('grace_minutes')]}>
+    <FormSection fields={sp('location_attendance')}>
       <div style={{ display: 'grid', gap: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)', marginTop: -4 }}>Work Location</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

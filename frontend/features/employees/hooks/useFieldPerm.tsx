@@ -16,6 +16,7 @@
 import { createContext, useContext, useCallback, type ReactNode } from 'react';
 import type { FieldPermissionEntry } from '../../rbac/types/rbac.types';
 import { FULL_PERM, DEFAULT_PERM } from '../../rbac/types/rbac.types';
+import { SECTION_TO_STEP, type StepKey } from '../constants/employee.constants';
 
 export type FieldPermMap = Record<string, Partial<FieldPermissionEntry>> | undefined;
 
@@ -64,6 +65,34 @@ export function useFieldPerm() {
   const { fp, completionPct, bypass } = useContext(Ctx);
   return useCallback(
     (name: string) => resolveFieldPerm(fp, name, { completionPct, bypass }),
+    [fp, completionPct, bypass],
+  );
+}
+
+/**
+ * All resolved field-permission entries for a wizard step, derived from
+ * `dynamic_fields.section` (via SECTION_TO_STEP) — NOT a hardcoded per-step list.
+ *
+ * `<FormSection fields={sp('compensation')}>` then shows the step whenever the
+ * user can view ANY one of its fields, and only shows the "no access" panel when
+ * every field in the step is hidden.
+ *
+ * Returns `[FULL_PERM]` (⇒ visible) when enforcement is bypassed, the map hasn't
+ * loaded, or the step's fields simply aren't in the map — matching the
+ * "never lock out an un-configured group" rule the backend already applies.
+ */
+export function useStepFieldPerms() {
+  const { fp, completionPct, bypass } = useContext(Ctx);
+  return useCallback(
+    (step: StepKey): FieldPermissionEntry[] => {
+      if (bypass || !fp || Object.keys(fp).length === 0) return [FULL_PERM];
+      const keys = Object.keys(fp).filter(k => {
+        const section = (fp[k] as FieldPermissionEntry | undefined)?.section;
+        return section != null && SECTION_TO_STEP[section] === step;
+      });
+      if (keys.length === 0) return [FULL_PERM];
+      return keys.map(k => resolveFieldPerm(fp, k, { completionPct, bypass }));
+    },
     [fp, completionPct, bypass],
   );
 }

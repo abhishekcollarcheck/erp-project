@@ -37,7 +37,7 @@ export interface RoleIdentityDto {
   company_id:       number;
   first_name:       string;
   middle_name?:     string | null;
-  last_name:        string;
+  last_name?:       string | null;
   status:           EmployeeStatus;
   employment_type:  EmploymentType;
   email:            string;  
@@ -253,6 +253,11 @@ export interface BankDto {
   personal_bank_account:  string;
   personal_ifsc:          string;
   personal_bank_branch?:  string | null;
+  // Official / salary bank — all optional (HR-set, may be unknown at onboarding).
+  official_bank_name?:     string | null;
+  official_bank_account?:  string | null;
+  official_ifsc?:          string | null;
+  official_bank_branch?:   string | null;
 }
 
 // ─── Step 12 (Candidate): Experience & Education ─────────────────────────────
@@ -299,10 +304,20 @@ export interface SalaryDto {
   current_hra:          number;
   current_allowance1:   number;
   current_amdb:         number;
-  joining_basic:        number;
-  joining_hra:          number;
-  joining_allowance1:   number;
-  joining_amdb:         number;
+  // Joining package. The wizard mirrors it from the current package
+  // ("Joining salary is saved as the same as this package"); bulk import may
+  // still send explicit joining_* values, which take precedence.
+  joining_basic?:       number | null;
+  joining_hra?:         number | null;
+  joining_allowance1?:  number | null;
+  joining_amdb?:        number | null;
+  // Salary change after probation — only meaningful while on probation.
+  salary_change_after_probation?: boolean;
+  give_arrears_after_probation?:  boolean;
+  after_probation_basic?:      number | null;
+  after_probation_hra?:        number | null;
+  after_probation_allowance1?: number | null;
+  after_probation_amdb?:       number | null;
   asset_deduction_applicable: boolean;
   security_amount?:     number | null;
   deduction_months?:    number | null;
@@ -385,7 +400,7 @@ export interface EmployeeFullResponse {
   // ── Step 1 · Role & Identity (directly on the root Employee table) ───────
   first_name:          string;
   middle_name?:        string | null;
-  last_name:           string;
+  last_name:           string | null;
   full_name:           string;
   company_id?:         number | null;
   employment_type:     EmploymentType;
@@ -457,6 +472,10 @@ export interface FieldPermEntry {
   can_download:      boolean;
   is_masked:         boolean;
   is_partial_masked: boolean;
+  // dynamic_fields.section — the wizard step this field belongs to. Lets the
+  // frontend decide step visibility ("any field in this section viewable?")
+  // without a hardcoded step→field list.
+  section?:          string | null;
 }
 
 export type FieldPermissionMap = Record<string, FieldPermEntry>;
@@ -464,7 +483,7 @@ export type FieldPermissionMap = Record<string, FieldPermEntry>;
 // ─── Bulk upload ─────────────────────────────────────────────────────────────
 export interface BulkUploadRow {
   first_name:       string;
-  last_name:        string;
+  last_name?:       string | null;
   employment_type?: string;
   working_city?:    string;
   actual_doj?:      string;
