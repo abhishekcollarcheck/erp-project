@@ -2,7 +2,6 @@ import { Router }     from 'express';
 import multer         from 'multer';
 import path           from 'path';
 import crypto         from 'crypto';
-import fs             from 'fs';
 import rateLimit       from 'express-rate-limit';
 import { validate }   from '../../middleware/validate.middleware';
 import { authenticate, authorize } from '../../modules/auth/auth.middleware';
@@ -27,11 +26,12 @@ import {
   portalLoginValidation, rescheduleValidation, handleRescheduleValidation,
   shareDocumentValidation, updateDocumentValidation,
 } from './candidate.validation';
-import { env } from '../../config/env';
+import { uploadDir } from '../../utils/uploadPaths';
 
 // ─── Multer: Resume ───────────────────────────────────────────────────────────
-const resumeDir = path.join(process.cwd(), env.upload.dir, 'resumes');
-if (!fs.existsSync(resumeDir)) fs.mkdirSync(resumeDir, { recursive: true });
+// `uploadDir()` resolves under the same production-safe root the static file
+// server uses (see utils/uploadPaths.ts) and creates the directory if missing.
+const resumeDir = uploadDir('resumes');
 
 const resumeUpload = multer({
   storage: multer.diskStorage({
@@ -46,8 +46,7 @@ const resumeUpload = multer({
 });
 
 // ─── Multer: Candidate documents (HR shares a file with the candidate) ───────
-const candidateDocsDir = path.join(process.cwd(), env.upload.dir, 'candidate-docs');
-if (!fs.existsSync(candidateDocsDir)) fs.mkdirSync(candidateDocsDir, { recursive: true });
+const candidateDocsDir = uploadDir('candidate-docs');
 
 const candidateDocsUpload = multer({
   storage: multer.diskStorage({
@@ -65,8 +64,7 @@ const candidateDocsUpload = multer({
 });
 
 // ─── Multer: Resume parse (autofill) — PDF/TXT only, temp dir, always deleted after parsing ──
-const resumeParseDir = path.join(process.cwd(), env.upload.dir, 'resume-parse-tmp');
-if (!fs.existsSync(resumeParseDir)) fs.mkdirSync(resumeParseDir, { recursive: true });
+const resumeParseDir = uploadDir('resume-parse-tmp');
 
 const resumeParseUpload = multer({
   storage: multer.diskStorage({
@@ -92,8 +90,7 @@ const parseResumeLimiter = rateLimit({
 });
 
 // ─── Multer: CSV bulk ─────────────────────────────────────────────────────────
-const bulkDir = path.join(process.cwd(), env.upload.dir, 'bulk');
-if (!fs.existsSync(bulkDir)) fs.mkdirSync(bulkDir, { recursive: true });
+const bulkDir = uploadDir('bulk');
 
 const allowedExtensions = ['.csv', '.xlsx', '.xls'];
 

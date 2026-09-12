@@ -14,7 +14,8 @@
     "migrate": "sequelize-cli db:migrate",
     "migrate:status": "sequelize-cli db:migrate:status",
     "migrate:undo": "sequelize-cli db:migrate:undo",
-    "migrate:undo:all": "sequelize-cli db:migrate:undo:all"
+    "migrate:undo:all": "sequelize-cli db:migrate:undo:all",
+    "verify:uploads": "node scripts/verify-uploads.js"
   },
   "_moduleAliases": {
     "@": "dist"

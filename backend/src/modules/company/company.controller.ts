@@ -821,8 +821,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { body, param } from 'express-validator';
 import { Op } from 'sequelize';
 import multer from 'multer';
-import fs from 'fs';
-import path from 'path';
+import { uploadDir, uploadUrl, writeUploadFile } from '../../utils/uploadPaths';
+import { detectImageType } from '../../utils/imageSignature';
 import { sequelize } from '../../config/database';
 import { Company } from '../../database/models/Company';
 import { Employee } from '../../database/models/Employee';
@@ -1700,11 +1700,13 @@ async function uploadLogo(req: Request, res: Response, next: NextFunction): Prom
     if (!company) { sendError(res, 'Not found', 404); return; }
     if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
 
-    const dir = path.join(process.cwd(), 'uploads', 'company-logos', String(company.id));
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const filename = `logo-${Date.now()}${path.extname(req.file.originalname)}`;
-    fs.writeFileSync(path.join(dir, filename), req.file.buffer);
-    const logoUrl = `/uploads/company-logos/${company.id}/${filename}`;
+    const detected = detectImageType(req.file.buffer);
+    if (!detected) { sendError(res, 'Uploaded file is not a valid JPEG, PNG, or WebP image', 400); return; }
+
+    const dir = uploadDir('company-logos', String(company.id));
+    const filename = `logo-${Date.now()}.${detected.ext}`;
+    writeUploadFile(dir, filename, req.file.buffer);
+    const logoUrl = uploadUrl('company-logos', String(company.id), filename);
 
     await company.update({ logo_url: logoUrl });
     sendResponse(res, { data: { logo_url: logoUrl }, message: 'Logo uploaded' });

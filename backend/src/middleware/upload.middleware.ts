@@ -1,24 +1,22 @@
 import multer, { FileFilterCallback, StorageEngine } from 'multer';
 import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
 import { Request } from 'express';
 import { env } from '../config/env';
+import { uploadDir as resolveUploadDir } from '../utils/uploadPaths';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Directory helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Ensures the upload sub-directory exists, creates it recursively if not. */
-function ensureDir(dirPath: string): void {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
-}
-
-/** Build an absolute path under the configured upload root. */
+/**
+ * Build an absolute path under the configured upload root, creating it if
+ * missing. Delegates to `utils/uploadPaths.ts` — the same resolver the static
+ * file server and every other upload handler use — so this can never drift
+ * from where `/uploads/**` is actually served from in production.
+ */
 function uploadPath(...segments: string[]): string {
-  return path.join(process.cwd(), env.upload.dir, ...segments);
+  return resolveUploadDir(...segments);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,9 +33,7 @@ function uploadPath(...segments: string[]): string {
 function diskStorage(subDir: string): StorageEngine {
   return multer.diskStorage({
     destination: (_req, _file, cb) => {
-      const dir = uploadPath(subDir);
-      ensureDir(dir);
-      cb(null, dir);
+      cb(null, uploadPath(subDir));   // uploadPath() already ensures the dir exists
     },
     filename: (_req, file, cb) => {
       const randomHex = crypto.randomBytes(16).toString('hex');

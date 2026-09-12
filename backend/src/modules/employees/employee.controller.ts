@@ -8,6 +8,8 @@ import type { StepKey } from "./employee.constants";
 import { AppError } from "../../middleware/errorHandler.middleware";
 import fs from "fs";
 import path from "path";
+import { uploadDir, uploadUrl, writeUploadFile } from "../../utils/uploadPaths";
+import { detectImageType } from "../../utils/imageSignature";
 const MAX_ROWS = 5000;
 const REQUIRED_HEADERS = ['first_name', 'last_name', 'email', 'phone', 'department', 'designation'];
 
@@ -209,11 +211,16 @@ export const employeeController = {
   async uploadProfilePhoto(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
-      const dir = path.join(process.cwd(), 'uploads', 'employee-avatars', String(req.params.id));
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const filename = `avatar-${Date.now()}${path.extname(req.file.originalname)}`;
-      fs.writeFileSync(path.join(dir, filename), req.file.buffer);
-      const avatarUrl = `/uploads/employee-avatars/${req.params.id}/${filename}`;
+      // Trust the actual bytes, not the client-supplied filename/extension —
+      // catches a mislabeled or corrupt upload (or an HTML error page saved
+      // with a .jpg name) before it ever reaches disk.
+      const detected = detectImageType(req.file.buffer);
+      if (!detected) { sendError(res, 'Uploaded file is not a valid JPEG, PNG, or WebP image', 400); return; }
+
+      const dir = uploadDir('employee-avatars', String(req.params.id));
+      const filename = `avatar-${Date.now()}.${detected.ext}`;
+      writeUploadFile(dir, filename, req.file.buffer);
+      const avatarUrl = uploadUrl('employee-avatars', String(req.params.id), filename);
       await employeeService.uploadProfilePhoto(Number(req.params.id), req.user!.companyId, avatarUrl, req.user!.employeeId);
       sendResponse(res, { data: { avatar_url: avatarUrl }, message: 'Profile photo uploaded' });
     } catch (e) { next(e); }
@@ -224,11 +231,10 @@ export const employeeController = {
     try {
       if (!req.file) { sendError(res, 'No file uploaded', 400); return; }
       const docType = req.params.docType as 'aadhaar' | 'pan' | 'passport' | 'drivingLicense';
-      const dir = path.join(process.cwd(), 'uploads', 'employee-docs', String(req.params.id));
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const dir = uploadDir('employee-docs', String(req.params.id));
       const filename = `${docType}-${Date.now()}${path.extname(req.file.originalname)}`;
-      fs.writeFileSync(path.join(dir, filename), req.file.buffer);
-      const fileUrl = `/uploads/employee-docs/${req.params.id}/${filename}`;
+      writeUploadFile(dir, filename, req.file.buffer);
+      const fileUrl = uploadUrl('employee-docs', String(req.params.id), filename);
       await employeeService.uploadIdDocument(Number(req.params.id), req.user!.companyId, docType, fileUrl, req.user!.employeeId);
       sendResponse(res, { data: { file_url: fileUrl }, message: 'Document uploaded' });
     } catch (e) { next(e); }

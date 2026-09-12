@@ -11,8 +11,6 @@
  */
 
 import * as XLSX from 'xlsx';
-import fs from 'fs';
-import path from 'path';
 import { Op } from 'sequelize';
 
 import { AppError } from '../../middleware/errorHandler.middleware';
@@ -22,6 +20,8 @@ import { Employee, EmployeeStatutory } from '../../database/models/Employee';
 import { normalizePhone } from '../../utils/normalizeNumber';
 import { buildResolvers, mapRow, normaliseKeys, resolveHeader, type RowError, type Resolvers } from './bulkImport.mapper';
 import { allTemplateColumns } from './bulkImport.fields';
+import { uploadDir, uploadUrl, writeUploadFile } from '../../utils/uploadPaths';
+import { detectImageType } from '../../utils/imageSignature';
 
 /** Marker our generated templates put at the start of the instruction/help row. */
 export const TEMPLATE_INSTRUCTION_MARKER = '# INSTRUCTIONS';
@@ -58,9 +58,6 @@ const REQUIRED_HEADERS = ['first_name', 'email', 'phone', 'department', 'designa
 // `uploads/employee-avatars/<id>/` folder the profile-photo endpoint uses.
 
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
-const AVATAR_EXT_BY_MIME: Record<string, string> = {
-  'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
-};
 
 /** Reject obviously-internal hosts so the URL fetch isn't an SSRF vector. */
 function isBlockedHost(hostname: string): boolean {
@@ -77,19 +74,24 @@ async function localiseAvatar(source: string, employeeId: number): Promise<strin
   const s = source.trim();
   if (s.startsWith('/uploads/')) return s;               // already a stored path
 
-  const dir = path.join(process.cwd(), 'uploads', 'employee-avatars', String(employeeId));
-  const write = (buf: Buffer, ext: string): string => {
+  // `write` decides the file's real extension from its actual bytes, not the
+  // caller's claimed extension/Content-Type — a redirect to a login wall or
+  // an error page (still HTTP 200, still nominally "image/jpeg" if the
+  // source mislabels it) can never be saved to disk as a fake .jpg this way.
+  const write = (buf: Buffer): string => {
     if (buf.length > AVATAR_MAX_BYTES) throw new AppError('Avatar image exceeds 2 MB', 400);
     if (!buf.length) throw new AppError('Avatar image is empty', 400);
-    fs.mkdirSync(dir, { recursive: true });
-    const filename = `avatar-${Date.now()}.${ext}`;
-    fs.writeFileSync(path.join(dir, filename), buf);
-    return `/uploads/employee-avatars/${employeeId}/${filename}`;
+    const detected = detectImageType(buf);
+    if (!detected) throw new AppError('Avatar is not a valid JPEG, PNG, or WebP image', 400);
+    const dir = uploadDir('employee-avatars', String(employeeId));
+    const filename = `avatar-${Date.now()}.${detected.ext}`;
+    writeUploadFile(dir, filename, buf);
+    return uploadUrl('employee-avatars', String(employeeId), filename);
   };
 
   const dataUri = s.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/is);
   if (dataUri) {
-    return write(Buffer.from(dataUri[2], 'base64'), AVATAR_EXT_BY_MIME[dataUri[1].toLowerCase()] ?? 'jpg');
+    return write(Buffer.from(dataUri[2], 'base64'));
   }
 
   let url: URL;
@@ -100,14 +102,7 @@ async function localiseAvatar(source: string, employeeId: number): Promise<strin
 
   const resp = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(10000) });
   if (!resp.ok) throw new AppError(`Avatar download failed (HTTP ${resp.status})`, 400);
-  const mime = (resp.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
-  let ext = AVATAR_EXT_BY_MIME[mime];
-  if (!ext) {
-    const m = url.pathname.toLowerCase().match(/\.(jpe?g|png|webp)(?:$|\?)/);
-    ext = m ? (m[1] === 'jpeg' ? 'jpg' : m[1]) : '';
-  }
-  if (!ext) throw new AppError('Avatar URL is not a JPG / PNG / WebP image', 400);
-  return write(Buffer.from(await resp.arrayBuffer()), ext);
+  return write(Buffer.from(await resp.arrayBuffer()));
 }
 
 export interface BulkImportRowFailure {

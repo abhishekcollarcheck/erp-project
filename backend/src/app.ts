@@ -5,12 +5,12 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import path from 'path';
 
 import { env } from './config/env';
 import { logger } from './config/logger';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.middleware';
+import { uploadRoot } from './utils/uploadPaths';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -54,7 +54,16 @@ app.use(morgan('combined', {
 }));
 
 // ─── Static Files ────────────────────────────────────────────
-app.use('/uploads', express.static(path.join(process.cwd(), env.upload.dir)));
+// `uploadRoot()` is the SAME resolver every upload handler writes through
+// (see utils/uploadPaths.ts) — anchored to this file's on-disk location and
+// UPLOAD_DIR, never `process.cwd()`, so write and serve can never drift apart
+// in production. Uploaded avatars/scans/logos are meant to be publicly
+// fetchable by URL (including cross-origin, e.g. a proxied Next.js host) —
+// relax helmet's default same-origin Cross-Origin-Resource-Policy for them.
+logger.info(`Serving /uploads from ${uploadRoot()}`);
+app.use('/uploads', express.static(uploadRoot(), {
+  setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+}));
 
 // ─── API Routes ──────────────────────────────────────────────
 app.use('/api', routes);

@@ -138,22 +138,25 @@ export function FieldPermissionsPanel({
   const [dirty, setDirty] = useState(false);
   const [touchedFieldIds, setTouchedFieldIds] = useState<Set<number>>(new Set());
 
-  // Tracks the module View/Edit/Download state as of the last merge run, so
-  // the effect below can tell "this is the first time we're populating this
-  // field-set" (respect whatever was saved, as-is) apart from "the admin
-  // just toggled the module checkbox in THIS session" (cascade that change
-  // onto every untouched field, even ones with an existing saved row).
-  // null means "not established yet" — reset on every company/form switch
-  // so a fresh context never gets misread as an in-session toggle.
-  const prevModuleViewRef = useRef<boolean | null>(null);
-  const prevModuleEditRef = useRef<boolean | null>(null);
-  const prevModuleDownloadRef = useRef<boolean | null>(null);
+  // Tracks the module View/Edit/Download state as of the last merge run, PER
+  // module key, so the effect below can tell "this is the first time we're
+  // populating this module's field-set" (respect whatever was saved, as-is)
+  // apart from "the admin just toggled the module checkbox in THIS session"
+  // (cascade that change onto every untouched field, even ones with an
+  // existing saved row). Keyed by module — not just reset on every form
+  // switch — because toggling a module's View/Edit while a DIFFERENT
+  // module's fields are on screen (a common flow: flip several module
+  // checkboxes in Module Permissions, then tab through Field Permissions to
+  // check them) must still be picked up once the admin switches to that
+  // module's own form; a single shared ref reset on every `selectedFormId`
+  // change was losing exactly that pending cascade. Only reset wholesale on
+  // a genuinely new context — switching group/role or switching company —
+  // where carrying over another session's toggle history would be wrong.
+  const moduleToggleRef = useRef<Record<string, { view: boolean | null; edit: boolean | null; download: boolean | null }>>({});
 
   useEffect(() => {
-    prevModuleViewRef.current = null;
-    prevModuleEditRef.current = null;
-    prevModuleDownloadRef.current = null;
-  }, [groupId, selectedFormId, matrixCompanyId]);
+    moduleToggleRef.current = {};
+  }, [groupId, matrixCompanyId]);
 
   const displayCompanyId = isOverrideMode ? selectedOverrideCompanyIds?.[0] : undefined;
   const { data: overrideData, refetch: refetchOverrides } = useEmployeeFieldOverrides(
@@ -168,9 +171,11 @@ export function FieldPermissionsPanel({
     const moduleEdit     = !!(selectedModuleKey && modPerms[selectedModuleKey]?.edit);
     const moduleDownload = !!(selectedModuleKey && modPerms[selectedModuleKey]?.download);
 
-    const viewChanged     = prevModuleViewRef.current !== null && prevModuleViewRef.current !== moduleView;
-    const editChanged     = prevModuleEditRef.current !== null && prevModuleEditRef.current !== moduleEdit;
-    const downloadChanged = prevModuleDownloadRef.current !== null && prevModuleDownloadRef.current !== moduleDownload;
+    const moduleKeyForRef = selectedModuleKey || '';
+    const prevForModule = moduleToggleRef.current[moduleKeyForRef] || { view: null, edit: null, download: null };
+    const viewChanged     = prevForModule.view !== null && prevForModule.view !== moduleView;
+    const editChanged     = prevForModule.edit !== null && prevForModule.edit !== moduleEdit;
+    const downloadChanged = prevForModule.download !== null && prevForModule.download !== moduleDownload;
 
     setLocalPerms(prev => {
       const merged: Record<number, any> = { ...prev };
@@ -187,12 +192,20 @@ export function FieldPermissionsPanel({
           // A saved row exists, but the admin just changed the module grant
           // THIS session — apply that change on top of the saved baseline,
           // consistent in both directions (checking OR unchecking).
-          merged[f.id] = {
-            ...saved,
-            can_view: viewChanged ? moduleView : saved.can_view,
-            can_edit: editChanged ? moduleEdit : saved.can_edit,
-            can_download: downloadChanged ? moduleDownload : saved.can_download,
-          };
+          const nextView = viewChanged ? moduleView : saved.can_view;
+          merged[f.id] = nextView
+            ? {
+                ...saved,
+                can_view: true,
+                can_edit: editChanged ? moduleEdit : saved.can_edit,
+                can_download: downloadChanged ? moduleDownload : saved.can_download,
+              }
+            // View going off cascades the same dependency rule as every other
+            // View-off path (toggleFP, brand-new fields above): everything
+            // that depends on View — Add/Edit/Copy/Download and any mask —
+            // goes with it, so a field can never persist as "Add: on,
+            // View: off" through this path.
+            : { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
         } else {
           // First population of this field-set — show the saved baseline
           // exactly as persisted, untouched by the current module state.
@@ -202,9 +215,7 @@ export function FieldPermissionsPanel({
       return merged;
     });
 
-    prevModuleViewRef.current = moduleView;
-    prevModuleEditRef.current = moduleEdit;
-    prevModuleDownloadRef.current = moduleDownload;
+    moduleToggleRef.current[moduleKeyForRef] = { view: moduleView, edit: moduleEdit, download: moduleDownload };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     groupId, selectedFormId, matrixCompanyId, groupPermsData, matrixData,
@@ -246,22 +257,29 @@ export function FieldPermissionsPanel({
   const colLabel = (p: string) => p.replace('can_', '');
   const maskModeOf = (fp: any): 'none' | 'partial' | 'full' =>
     fp?.is_masked ? 'full' : fp?.is_partial_masked ? 'partial' : 'none';
-  const isMaskLocked = (fp: any) => !!fp?.is_masked || !!fp?.is_partial_masked;
+  // Whether a field currently has a mask applied — used ONLY for the
+  // cosmetic "this field is masked" cue (row tint, bold mask dropdown).
+  // Masking is purely a display concern (does the value render as •••• /
+  // first-2-last-2); it must never gate or zero Add/Edit/Copy/Download —
+  // it used to ("mask locks the row"), which silently stripped those grants
+  // the moment an admin masked a field. Kept as a query only, never as a gate.
+  const isMasked = (fp: any) => !!fp?.is_masked || !!fp?.is_partial_masked;
 
   const EMPTY_FP = { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
   const grantedFP = () => ({ can_view: true, can_add: true, can_edit: moduleEditGranted, can_copy: true, can_download: true, is_masked: false, is_partial_masked: false });
 
-  // Masking takes precedence over every other field permission: a masked field
-  // can't be added / edited / copied / downloaded. View stays on so the mask
-  // (•••• or first-2/last-2) can actually render. Setting mode 'none' only
-  // clears the mask flags and leaves the rest untouched.
+  // Masking only controls the mask flags. View is forced on because masking
+  // has nothing to render without it (the value has to be fetched to be
+  // shown as •••• or first-2/last-2) — that's satisfying a dependency, not
+  // revoking a permission. Add/Edit/Copy/Download are left exactly as they
+  // were: enabling a mask must never disable them, and clearing one
+  // (mode 'none') must never re-enable them either.
   const applyMask = (cur: any, mode: 'none' | 'partial' | 'full') => {
     const base = cur || EMPTY_FP;
     if (mode === 'none') return { ...base, is_masked: false, is_partial_masked: false };
     return {
       ...base,
       can_view: true,
-      can_add: false, can_edit: false, can_copy: false, can_download: false,
       is_masked: mode === 'full',
       is_partial_masked: mode === 'partial',
     };
@@ -276,7 +294,6 @@ export function FieldPermissionsPanel({
   ) => {
     setLocalPerms(prev => {
       const current = prev[fieldId] || {};
-      if (perm !== 'can_view' && isMaskLocked(current)) return prev; // masking wins — toggle is inert
       const next: Record<string, boolean> = { ...current, [perm]: !current[perm] };
 
       // Any permission except View requires View
@@ -307,13 +324,13 @@ export function FieldPermissionsPanel({
     setDirty(true);
   };
 
-  // Per-field "All" — grants the full set INCLUDING Add. Masking is left out
-  // (granting everything shouldn't also hide the value); a masked field's All
-  // toggle is inert.
+  // Per-field "All" — grants the full set INCLUDING Add. EMPTY_FP/grantedFP()
+  // both clear masking (granting or revoking everything shouldn't leave a
+  // stray mask on the field) — that's the bulk action's own defined result,
+  // independent of whatever masking state the field was in beforehand.
   const toggleFieldRow = (fieldId: number) => {
     setLocalPerms(prev => {
       const current = prev[fieldId] || {};
-      if (isMaskLocked(current)) return prev;
       const allEnabled = current.can_view && current.can_add && effectiveCanEdit(current) && current.can_copy && current.can_download;
       return { ...prev, [fieldId]: allEnabled ? { ...EMPTY_FP } : grantedFP() };
     });
@@ -377,11 +394,10 @@ export function FieldPermissionsPanel({
         for (const f of fields) {
           const groupBase = groupPermsData?.perms?.[f.id] || {};
           const cur = localPerms[f.id] || {};
-          const locked = isMaskLocked(cur);
           (['view', 'add', 'edit', 'copy', 'download'] as const).forEach(p => {
             const key = `can_${p}` as const;
-            // Masking wins — a masked field grants nothing but view.
-            const curVal = p === 'view' ? !!cur.can_view : locked ? false : (p === 'edit' ? effectiveCanEdit(cur) : !!cur[key]);
+            // Masking is independent of every other grant — never zeroed here.
+            const curVal = p === 'view' ? !!cur.can_view : (p === 'edit' ? effectiveCanEdit(cur) : !!cur[key]);
             if (curVal !== !!groupBase[key]) overrides.push({ field_name: f.field_key, permission: p, granted: curVal });
           });
           if (!!cur.is_masked !== !!groupBase.is_masked) overrides.push({ field_name: f.field_key, permission: 'mask', granted: !!cur.is_masked });
@@ -396,15 +412,15 @@ export function FieldPermissionsPanel({
           const fp = localPerms[f.id] || {};
           const is_masked = !!fp.is_masked;
           const is_partial_masked = !is_masked && !!fp.is_partial_masked;
-          const locked = is_masked || is_partial_masked;
+          // Masking requires View (nothing to render as •••• without it) but
+          // is otherwise independent — it never zeroes Add/Edit/Copy/Download.
           return {
             field_id: f.id,
-            // Masking takes precedence — a masked field keeps only View.
-            can_view: !!fp.can_view || locked,
-            can_add: locked ? false : !!fp.can_add,
-            can_edit: locked ? false : effectiveCanEdit(fp),
-            can_copy: locked ? false : !!fp.can_copy,
-            can_download: locked ? false : !!fp.can_download,
+            can_view: !!fp.can_view || is_masked || is_partial_masked,
+            can_add: !!fp.can_add,
+            can_edit: effectiveCanEdit(fp),
+            can_copy: !!fp.can_copy,
+            can_download: !!fp.can_download,
             is_masked,
             is_partial_masked,
           };
@@ -593,41 +609,36 @@ export function FieldPermissionsPanel({
                       </tr>
                       {sFields.map((f: any) => {
                         const fp = localPerms[f.id] || { can_view: false, can_add: false, can_edit: false, can_copy: false, can_download: false, is_masked: false, is_partial_masked: false };
-                        const maskLocked = isMaskLocked(fp);
+                        const masked = isMasked(fp); // cosmetic only — never gates a toggle
                         const allOn = fp.can_view && fp.can_add && effectiveCanEdit(fp) && fp.can_copy && fp.can_download;
                         return (
-                          <tr key={f.id} style={{ borderBottom: '1px solid var(--border)', background: maskLocked ? 'var(--amber-lt)' : undefined }}>
+                          <tr key={f.id} style={{ borderBottom: '1px solid var(--border)', background: masked ? 'var(--amber-lt)' : undefined }}>
                             <td style={{ padding: '8px 14px', fontSize: 12, fontWeight: 500, color: 'var(--ink2)' }}>
                               {f.label}
                             </td>
-                            <td style={{ padding: '7px 6px', textAlign: 'center', opacity: maskLocked ? 0.35 : 1 }}>
-                              <PermToggle on={allOn} onClick={maskLocked ? undefined : () => toggleFieldRow(f.id)} />
+                            <td style={{ padding: '7px 6px', textAlign: 'center' }}>
+                              <PermToggle on={allOn} onClick={() => toggleFieldRow(f.id)} />
                             </td>
                             {TOGGLE_COLS.map(p => {
                               const editGated = p === 'can_edit' && !moduleEditGranted;
-                              const gated = editGated || (maskLocked && p !== 'can_view');
                               const on = p === 'can_edit' ? effectiveCanEdit(fp) : !!fp[p];
                               return (
-                                <td key={p} style={{ padding: '7px 6px', textAlign: 'center', opacity: gated ? 0.35 : 1 }}
-                                  title={
-                                    maskLocked && p !== 'can_view' ? 'Masking takes precedence — clear the mask to grant this'
-                                    : editGated ? 'Module-level Edit is off — enable it above to allow field-level Edit'
-                                    : undefined
-                                  }>
-                                  <PermToggle on={on} onClick={gated ? undefined : () => toggleFP(f.id, p)} />
+                                <td key={p} style={{ padding: '7px 6px', textAlign: 'center', opacity: editGated ? 0.35 : 1 }}
+                                  title={editGated ? 'Module-level Edit is off — enable it above to allow field-level Edit' : undefined}>
+                                  <PermToggle on={on} onClick={editGated ? undefined : () => toggleFP(f.id, p)} />
                                 </td>
                               );
                             })}
                             <td style={{ padding: '7px 6px', textAlign: 'center' }}>
                               <select
                                 value={maskModeOf(fp)}
-                                disabled={!fp.can_view && !maskLocked}
+                                disabled={!fp.can_view && !masked}
                                 onChange={e => setMaskMode(f.id, e.target.value as 'none' | 'partial' | 'full')}
                                 style={{
                                   fontSize: 11, padding: '3px 4px', borderRadius: 4,
-                                  border: `1px solid ${maskLocked ? 'var(--amber)' : 'var(--border2)'}`, background: 'var(--surface)',
+                                  border: `1px solid ${masked ? 'var(--amber)' : 'var(--border2)'}`, background: 'var(--surface)',
                                   color: maskModeOf(fp) === 'none' ? 'var(--ink4)' : 'var(--amber)',
-                                  fontWeight: maskLocked ? 700 : 400,
+                                  fontWeight: masked ? 700 : 400,
                                 }}
                               >
                                 <option value="none">—</option>
@@ -674,14 +685,14 @@ export function FieldPermissionsPanel({
               <>
                 <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: 5 }}>🔒 Member overrides</strong>
                 Choose which companies this override applies to above. You can set different overrides per company or apply one rule to all assigned companies.<br /><br />
-                <strong style={{ color: 'var(--amber)' }}>Partial</strong> shows first 2 + last 2 chars; <strong style={{ color: 'var(--amber)' }}>Full</strong> hides the value. Masking a field disables its other permissions.
+                <strong style={{ color: 'var(--amber)' }}>Partial</strong> shows first 2 + last 2 chars; <strong style={{ color: 'var(--amber)' }}>Full</strong> hides the value. Masking only controls display — it doesn&apos;t change Add / Edit / Copy / Download.
               </>
             ) : (
               <>
                 <strong style={{ color: 'var(--ink)', display: 'block', marginBottom: 5 }}>🔒 How it works</strong>
                 Field rules sit under module rules. A field blocked here won&apos;t show even if the module is visible, and no field is visible without module view access. The <strong>Edit</strong> column follows the same rule — it&apos;s greyed out here whenever the module&apos;s own Edit permission is off.<br />
                 <strong>Add</strong> lets the field be edited only while the employee profile is under 100% complete. <strong>Grant all</strong> turns on View · Add · Edit · Copy · Download.<br /><br />
-                <strong style={{ color: 'var(--amber)' }}>Mask takes precedence.</strong> <strong>Partial</strong> shows the first 2 and last 2 characters (<code>AB••••••4F</code>); <strong>Full</strong> hides the value entirely (••••). Choosing either disables Add / Edit / Copy / Download for that field. Use <strong>Partial mask all</strong> / <strong>Full mask all</strong> in the header to apply it to every field.
+                <strong style={{ color: 'var(--amber)' }}>Masking only controls display.</strong> <strong>Partial</strong> shows the first 2 and last 2 characters (<code>AB••••••4F</code>); <strong>Full</strong> hides the value entirely (••••). Choosing either leaves View / Add / Edit / Copy / Download exactly as they were — masking never disables another permission. Use <strong>Partial mask all</strong> / <strong>Full mask all</strong> in the header to apply it to every field.
               </>
             )}
           </div>
