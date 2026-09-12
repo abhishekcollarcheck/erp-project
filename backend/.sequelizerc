@@ -1,5 +1,8 @@
 const path = require("path");
 
+require("ts-node/register/transpile-only");
+require("tsconfig-paths/register");
+
 module.exports = {
   config: path.resolve("src/config/config.js"),
 

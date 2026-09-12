@@ -115,7 +115,16 @@ export async function resolveCompanyContext(
     return next();
   }
 
-  // validate user has access to this company
+  // The employee's own home/active company is already validated server-side
+  // at login (buildPayload sets the JWT's companyId from employee.company_id
+  // or an already-authorized activeCompanyId) — no CompanyManager row is ever
+  // created for that default company by the role/group assignment flows, so
+  // requiring one here would lock every user out of their own company.
+  if (companyId === req.user!.companyId) {
+    return next();
+  }
+
+  // validate user has access to any OTHER company (e.g. a company switch)
 
   const access = await CompanyManager.findOne({
     where: {
