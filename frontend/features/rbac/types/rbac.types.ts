@@ -118,6 +118,10 @@ export interface FieldPermissionEntry {
   can_download:      boolean;
   is_masked:         boolean;   // full mask
   is_partial_masked: boolean;   // first 2 + last 2 visible
+  // dynamic_fields.section — the wizard step this field belongs to. Present on
+  // entries resolved from the employee field-permission API; used to decide
+  // per-step visibility without a hardcoded step→field list.
+  section?:          string | null;
 }
 
 // role_id → field_id → FieldPermissionEntry

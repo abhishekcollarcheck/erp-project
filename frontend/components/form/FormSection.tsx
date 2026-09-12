@@ -16,7 +16,10 @@ export function FormSection({
   noAccessMessage = "You don't have access to view this section.",
 }: Props) {
 
-  const canView = fields.some(f => f?.can_view);
+  // Visible when at least one field in the step is viewable. An empty list means
+  // "membership unknown / not permission-configured" — show it (per-field gates
+  // still apply); only an explicit all-hidden set collapses the whole step.
+  const canView = fields.length === 0 || fields.some(f => f?.can_view);
   return (
     <>
       {canView ? (

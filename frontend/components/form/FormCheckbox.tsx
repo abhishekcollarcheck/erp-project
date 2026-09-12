@@ -1,5 +1,6 @@
 'use client';
 import { useFormContext, Controller } from 'react-hook-form';
+import type { FieldPerm } from './maskField';
 
 interface Props {
   name:       string;
@@ -7,11 +8,16 @@ interface Props {
   hint?:      string;
   disabled?:  boolean;
   onChange?:  (v: boolean) => void;
+  fieldPerm?: FieldPerm;
 }
 
-export function FormCheckbox({ name, label, hint, disabled, onChange }: Props) {
+export function FormCheckbox({ name, label, hint, disabled, onChange, fieldPerm }: Props) {
   const { control, formState: { errors } } = useFormContext();
   const error = (errors as any)[name]?.message as string | undefined;
+
+  if (fieldPerm?.can_view === false) return null;
+  // A boolean can't be partially masked — any mask just locks it read-only.
+  const locked = disabled || fieldPerm?.can_edit === false || !!fieldPerm?.is_masked || !!fieldPerm?.is_partial_masked;
 
   return (
     <Controller name={name} control={control} render={({ field }) => (
@@ -21,14 +27,14 @@ export function FormCheckbox({ name, label, hint, disabled, onChange }: Props) {
             display:     'flex',
             alignItems:  'center',
             gap:         10,
-            cursor:      disabled ? 'not-allowed' : 'pointer',
+            cursor:      locked ? 'not-allowed' : 'pointer',
             userSelect:  'none',
           }}
         >
           <input
             type="checkbox"
             checked={!!field.value}
-            disabled={disabled}
+            disabled={locked}
             onChange={e => {
               field.onChange(e.target.checked);
               onChange?.(e.target.checked);
@@ -37,11 +43,11 @@ export function FormCheckbox({ name, label, hint, disabled, onChange }: Props) {
               width:        18,
               height:       18,
               accentColor:  'var(--blue)',
-              cursor:       disabled ? 'not-allowed' : 'pointer',
+              cursor:       locked ? 'not-allowed' : 'pointer',
               flexShrink:   0,
             }}
           />
-          <span style={{ fontSize: 13, color: disabled ? 'var(--ink4)' : 'var(--ink2)', fontWeight: 500 }}>
+          <span style={{ fontSize: 13, color: locked ? 'var(--ink4)' : 'var(--ink2)', fontWeight: 500 }}>
             {label}
           </span>
         </label>

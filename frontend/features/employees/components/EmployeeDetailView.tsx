@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 
 import { Chip } from '../../../components/ui/Chip';
 import apiClient from '../../../services/api/client';
-import { useEmployee } from '../hooks/useEmployees';
+import { useEmployee, useEmployeeFieldPerm, maskEmployeeValue } from '../hooks/useEmployees';
+import { detailFieldKey } from '../constants/employee.field-map';
 import { useShifts } from '../../shift/hooks/useShift';
 import { useGraceMinutesData } from '../../attendance-rule/hooks/useAttendanceRules';
 import { useEmployeeAttendance } from '../../attendance/hooks/useAttendance';
@@ -25,17 +26,40 @@ const money = (n: any) => (n == null || n === '' || Number(n) === 0 || Number.is
 const date = (d: any) => (d ? formatDate(d) : undefined);
 
 // ─── Presentational bits ─────────────────────────────────────────────────────
-function Field({ label, value }: { label: string; value: any }) {
+function Field({ label, value, noCopy }: { label: string; value: any; noCopy?: boolean }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)', wordBreak: 'break-word' }}>{String(value)}</div>
+      <div style={{ fontSize: 10, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 2 }}>
+        {label}{noCopy && <span title="Copying disabled for this field" style={{ marginLeft: 4, color: 'var(--ink4)' }}>⊘</span>}
+      </div>
+      <div
+        onCopy={noCopy ? e => e.preventDefault() : undefined}
+        onContextMenu={noCopy ? e => e.preventDefault() : undefined}
+        style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)', wordBreak: 'break-word', ...(noCopy ? { userSelect: 'none' as const, WebkitUserSelect: 'none' as const } : {}) }}
+      >{String(value)}</div>
     </div>
   );
 }
 
 function InfoCard({ title, rows, action }: { title: string; rows: Row[]; action?: React.ReactNode }) {
-  const filled = rows.filter(([, v]) => v != null && v !== '');
+  const perm = useEmployeeFieldPerm();
+
+  // Field-permission pass: drop hidden rows, mask masked ones, flag no-copy.
+  const permRows = rows
+    .map(([label, value]) => {
+      const fk = detailFieldKey(title, label);
+      if (!fk) return { label, value, noCopy: false };
+      const p = perm(fk);
+      if (p.can_view === false) return null;
+      const m = maskEmployeeValue(p, value, fk);
+      return { label, value: m.text, noCopy: p.can_copy === false };
+    })
+    .filter((r): r is { label: string; value: any; noCopy: boolean } => r !== null);
+
+  // Every row was permission-hidden ⇒ hide the whole card.
+  if (rows.length > 0 && permRows.length === 0) return null;
+
+  const filled = permRows.filter(r => r.value != null && r.value !== '');
   return (
     <div className="card" style={{ padding: 16, marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: filled.length ? 12 : 6 }}>
@@ -46,7 +70,7 @@ function InfoCard({ title, rows, action }: { title: string; rows: Row[]; action?
         <div style={{ fontSize: 12, color: 'var(--ink4)' }}>No data entered</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '10px 22px' }}>
-          {filled.map(([label, value]) => <Field key={label} label={label} value={value} />)}
+          {filled.map(r => <Field key={r.label} label={r.label} value={r.value} noCopy={r.noCopy} />)}
         </div>
       )}
     </div>
@@ -109,6 +133,7 @@ export function EmployeeDetailView({ id }: { id: number }) {
   const { data: graceMinutesResponse } = useGraceMinutesData();
   const graceMinutes = graceMinutesResponse?.data ?? [];
   const { canEdit } = usePermission();
+  const fp = useEmployeeFieldPerm();
   const [tab, setTab] = useState<Tab>('Overview');
 
   const shiftLabel = useMemo(
@@ -147,7 +172,9 @@ export function EmployeeDetailView({ id }: { id: number }) {
   const ad = e.assetDeduction ?? {};
   const cur = e.salaries?.find((s: any) => s.salary_type === 'current');
   const joi = e.salaries?.find((s: any) => s.salary_type === 'joining');
+  const apr = e.salaries?.find((s: any) => s.salary_type === 'after_probation');
   const pb = e.bankDetails?.find((b: any) => b.bank_type === 'personal') ?? {};
+  const ob = e.bankDetails?.find((b: any) => b.bank_type === 'official') ?? {};
   const st = e.statutory ?? {};
   const pres = e.addresses?.find((a: any) => a.address_type === 'present') ?? {};
   const perm = e.addresses?.find((a: any) => a.address_type === 'permanent') ?? {};
@@ -296,6 +323,13 @@ export function EmployeeDetailView({ id }: { id: number }) {
               ['Basic', money(cur?.basic)], ['HRA', money(cur?.hra)], ['Allowance 1', money(cur?.allowance1)],
               ['Gross (PM)', money(cur?.gross_salary_pm)], ['AMDB (PM)', money(cur?.amdb_pm)], ['Total Earning (PM)', money(cur?.total_earning_pm)],
             ]} />
+            {(ad as any)?.salary_change_after_probation && (
+              <InfoCard title="Salary After Probation" rows={[
+                ['Basic', money(apr?.basic)], ['HRA', money(apr?.hra)], ['Allowance 1', money(apr?.allowance1)],
+                ['Gross (PM)', money(apr?.gross_salary_pm)], ['AMDB (PM)', money(apr?.amdb_pm)], ['Total Earning (PM)', money(apr?.total_earning_pm)],
+                ['Give Arrears After Probation', (ad as any)?.give_arrears_after_probation ? 'Yes' : 'No'],
+              ]} />
+            )}
             <InfoCard title="Joining Salary" rows={[
               ['Basic', money(joi?.basic)], ['HRA', money(joi?.hra)], ['Allowance 1', money(joi?.allowance1)],
               ['Gross (PM)', money(joi?.gross_salary_pm)], ['AMDB (PM)', money(joi?.amdb_pm)], ['Total Earning (PM)', money(joi?.total_earning_pm)],
@@ -388,6 +422,10 @@ export function EmployeeDetailView({ id }: { id: number }) {
             <InfoCard title="Personal Bank" rows={[
               ['Bank Name', pb.bank_name], ['Account Number', pb.account_number],
               ['IFSC', pb.ifsc_code], ['Branch', pb.branch_name],
+            ]} />
+            <InfoCard title="Official Bank" rows={[
+              ['Bank Name', ob.bank_name], ['Account Number', ob.account_number],
+              ['IFSC', ob.ifsc_code], ['Branch', ob.branch_name],
             ]} />
             <TableCard
               title="Vaccinations"
@@ -489,21 +527,34 @@ export function EmployeeDetailView({ id }: { id: number }) {
     <div className="pg-enter">
       {/* Header */}
       <div className="card" style={{ padding: 16, marginBottom: 14, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ width: 52, height: 52, borderRadius: 12, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800, color: '#fff', background: 'linear-gradient(135deg, var(--blue), var(--purple))' }}>
-          {e.avatar_url ? <img src={e.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : getInitials(`${e.first_name} ${e.last_name}`)}
-        </div>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>
-            {[e.first_name, e.middle_name, e.last_name].filter(Boolean).join(' ')}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--ink4)', marginTop: 2 }}>
-            {[e.employee_code ?? 'Code pending', desigName ?? 'No designation', deptName ?? 'No department', e.company?.name].filter(Boolean).join(' · ')}
-          </div>
-          <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Chip variant={statusVariant(st2)}>{st2}</Chip>
-            {e.actual_doj && <span style={{ fontSize: 11, color: 'var(--ink4)' }}>Joined {formatDate(e.actual_doj)} · {getTenure(e.actual_doj)}</span>}
-          </div>
-        </div>
+        {(() => {
+          const nameVisible = fp('first_name').can_view;
+          const fullName = [e.first_name, e.middle_name, e.last_name].filter(Boolean).join(' ');
+          const nameP = fp('first_name');
+          const shownName = !nameVisible ? '' : maskEmployeeValue(nameP, fullName, 'first_name').text || fullName;
+          const codeVisible = fp('employee_code').can_view;
+          return (
+            <>
+              <div style={{ width: 52, height: 52, borderRadius: 12, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800, color: '#fff', background: 'linear-gradient(135deg, var(--blue), var(--purple))' }}>
+                {nameVisible && e.avatar_url && fp('avatar_url').can_view
+                  ? <img src={e.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : (nameVisible && fullName ? getInitials(fullName) : '—')}
+              </div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 17, fontWeight: 800 }}>
+                  {shownName || (codeVisible ? (e.employee_code ?? 'Employee') : 'Employee')}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--ink4)', marginTop: 2 }}>
+                  {[codeVisible ? (e.employee_code ?? 'Code pending') : null, desigName ?? 'No designation', deptName ?? 'No department', e.company?.name].filter(Boolean).join(' · ')}
+                </div>
+                <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Chip variant={statusVariant(st2)}>{st2}</Chip>
+                  {e.actual_doj && fp('actual_doj').can_view && <span style={{ fontSize: 11, color: 'var(--ink4)' }}>Joined {formatDate(e.actual_doj)} · {getTenure(e.actual_doj)}</span>}
+                </div>
+              </div>
+            </>
+          );
+        })()}
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-sec btn-sm" onClick={() => router.push('/employees')}>← Directory</button>
           {canEdit('employees') && (

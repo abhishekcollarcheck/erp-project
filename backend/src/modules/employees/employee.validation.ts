@@ -54,7 +54,7 @@ export const roleIdentityValidation: ValidationChain[] = [
   body('company_id').isInt({ min: 1 }).withMessage('Company is required'),
   body('first_name').trim().notEmpty().withMessage('First name is required').isLength({ max: 100 }),
   opt(body('middle_name').trim().isLength({ max: 100 })),
-  body('last_name').trim().notEmpty().withMessage('Last name is required').isLength({ max: 100 }),
+  opt(body('last_name').trim().isLength({ max: 100 })),
   body('status').isIn(EMPLOYEE_STATUS).withMessage('Invalid status'),
   body('employment_type').isIn(EMPLOYMENT_TYPE).withMessage('Invalid employment type'),
   body('department_id').isInt({ min: 1 }).withMessage('Department is required'),
@@ -159,6 +159,12 @@ export const compensationValidation: ValidationChain[] = [
   opt(body('joining_hra').isFloat({ min: 0 })),
   opt(body('joining_allowance1').isFloat({ min: 0 })),
   opt(body('joining_amdb').isFloat({ min: 0 })),
+  opt(body('salary_change_after_probation').isBoolean()),
+  opt(body('give_arrears_after_probation').isBoolean()),
+  opt(body('after_probation_basic').isFloat({ min: 0 })),
+  opt(body('after_probation_hra').isFloat({ min: 0 })),
+  opt(body('after_probation_allowance1').isFloat({ min: 0 })),
+  opt(body('after_probation_amdb').isFloat({ min: 0 })),
   opt(body('asset_deduction_applicable').isBoolean()),
   opt(body('security_amount').isFloat({ min: 0 })),
   opt(body('deduction_months').isInt({ min: 0 })),
@@ -326,6 +332,11 @@ export const familyEmergencyValidation: ValidationChain[] = [
   optDate('marriage_date'),
   opt(body('spouse_name').trim().isLength({ max: 200 })),
   optDate('spouse_dob'),
+  // Spouse / marriage fields are required only when Married.
+  body('spouse_name').if(body('marital_status').equals('Married'))
+    .trim().notEmpty().withMessage('Spouse name is required when married'),
+  body('marriage_date').if(body('marital_status').equals('Married'))
+    .notEmpty().withMessage('Marriage date is required when married'),
   opt(body('child1_name').trim().isLength({ max: 200 })),
   opt(body('child1_gender').isIn(GENDER)),
   optDate('child1_dob'),
@@ -406,6 +417,11 @@ export const idsBankValidation: ValidationChain[] = [
   body('personal_ifsc').notEmpty().withMessage('IFSC is required')
     .toUpperCase().matches(/^[A-Z]{4}0[A-Z0-9]{6}$/).withMessage('Invalid IFSC format'),
   opt(body('personal_bank_branch').trim().isLength({ max: 200 })),
+  // Official / salary bank — all optional
+  opt(body('official_bank_name').trim().isLength({ max: 200 })),
+  opt(body('official_bank_account').trim().matches(/^\d{9,18}$/).withMessage('Official account number must be 9-18 digits')),
+  opt(body('official_ifsc').trim().toUpperCase().matches(/^[A-Z]{4}0[A-Z0-9]{6}$/).withMessage('Invalid official IFSC format')),
+  opt(body('official_bank_branch').trim().isLength({ max: 200 })),
 ];
 
 // ─── Step 12 (Candidate): Experience & Education ──────────────────────────────

@@ -2,18 +2,59 @@
  * useEmployees.ts
  * All TanStack Query hooks for the employee wizard module.
  */
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { employeeService } from '../../../services/api/employee.service';
 import { showToast } from '../../../utils/toast';
 import { useCompany } from '../../../features/company/hooks/useCompany';
-import { selectActiveCompanyId } from '../../../store/slices/authSlice';
+import { selectActiveCompanyId, selectIsSuperAdmin } from '../../../store/slices/authSlice';
 import { useAppSelector } from '../../../store';
 import { StepSchemaKey } from '../validations/employee.schema';
+import { resolveFieldPerm } from './useFieldPerm';
+import type { FieldPermissionEntry } from '../../rbac/types/rbac.types';
+import { maskValue, maskPartial } from '../../../utils/validationEngine';
 
 // Field-permission resolution now lives in ./useFieldPerm. Re-exported here so
 // existing `import { resolveFieldPerm } from '../../hooks/useEmployees'` keep
 // working; new code should pull useFieldPerm() from ./useFieldPerm directly.
-export { resolveFieldPerm, useFieldPerm, FieldPermProvider } from './useFieldPerm';
+export { resolveFieldPerm, useFieldPerm, useStepFieldPerms, FieldPermProvider } from './useFieldPerm';
+
+/**
+ * Provider-free field-permission resolver for the Employee module's READ
+ * surfaces (list, detail, modals) — mirrors the wizard's `useFieldPerm()` but
+ * pulls the active-company map from TanStack Query directly instead of a React
+ * context. `completionPct` is irrelevant for read views (nothing is editable)
+ * so it's fixed at 100.
+ */
+export function useEmployeeFieldPerm(module: string = 'employees') {
+  const { data: fp } = useFieldPermissions(module);
+  const bypass = useAppSelector(selectIsSuperAdmin);
+  return useMemo(
+    () => (fieldKey: string): FieldPermissionEntry => resolveFieldPerm(fp, fieldKey, { bypass, completionPct: 100 }),
+    [fp, bypass],
+  );
+}
+
+/**
+ * Given a resolved permission and a raw value, returns how to render it:
+ * `{ hide }` when not viewable, otherwise `{ text }` (masked when the field is
+ * masked, else the raw string). Non-string values pass through untouched unless
+ * masked.
+ */
+export function maskEmployeeValue(
+  perm: FieldPermissionEntry | undefined,
+  raw: unknown,
+  fieldKey: string,
+): { hide: boolean; text: any } {
+  if (perm && perm.can_view === false) return { hide: true, text: undefined };
+  if (raw == null || raw === '') return { hide: false, text: raw };
+  // The API already masks masked fields server-side — don't re-mask an
+  // already-masked string (would garble it).
+  const looksMasked = typeof raw === 'string' && /[•*]/.test(raw);
+  if (perm?.is_masked)         return { hide: false, text: looksMasked ? raw : maskValue(String(raw), fieldKey) };
+  if (perm?.is_partial_masked) return { hide: false, text: looksMasked ? raw : maskPartial(String(raw)) };
+  return { hide: false, text: raw };
+}
 
 
 // ─── Query key factory ────────────────────────────────────────────────────────

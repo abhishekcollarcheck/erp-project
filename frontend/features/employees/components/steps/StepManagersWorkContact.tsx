@@ -2,13 +2,14 @@
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormInput } from '../../../../components/form/FormInput';
 import { useEmployees } from '../../hooks/useEmployees';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 
 interface Props { isEdit: boolean; employeeId: number | null }
 
 export function StepManagersWorkContact({ employeeId }: Props) {
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
 
   // Load all active employees — used as manager options for both L1 and L2
   const { data: empData, isLoading } = useEmployees({ status: 'Active', limit: 100 });
@@ -26,7 +27,7 @@ export function StepManagersWorkContact({ employeeId }: Props) {
     .map(e => ({ value: e.id, label: `${e.first_name} ${e.last_name} (${e.employee_code ?? 'code pending'})${e.designation ? ' · ' + e.designation : ''}` }));
 
   return (
-    <FormSection fields={[f('l1_manager_id'), f('l2_manager_id'), f('official_email'), f('official_mobile')]}>
+    <FormSection fields={sp('managers_work_contact')}>
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Reporting Managers</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

@@ -18,6 +18,40 @@ export const WIZARD_STEPS = [
 export type StepKey = typeof WIZARD_STEPS[number]['key'];
 export type WizardPart = typeof WIZARD_STEPS[number]['part'];
 
+/**
+ * dynamic_fields.section → wizard step key.
+ *
+ * The migration `20260826-insert-employees-core-fields` keeps every field's
+ * `section` equal to its step's WIZARD_STEPS label, so the identity map below is
+ * generated from WIZARD_STEPS — no hand-maintained list. The extra aliases cover
+ * the historical section names still possible on an un-migrated DB (and the
+ * "Personal" section that used to straddle Personal Profile + Family & Emergency),
+ * so step visibility degrades gracefully instead of hiding a step.
+ */
+export const SECTION_TO_STEP: Record<string, StepKey> = {
+  ...Object.fromEntries(WIZARD_STEPS.map(s => [s.label, s.key])) as Record<string, StepKey>,
+  // legacy / pre-migration section names
+  'Basic Info':                       'role_identity',
+  'Access':                           'role_identity',
+  'Employment Details':               'location_attendance',
+  'Reporting & Contact':              'managers_work_contact',
+  'Schemes (PF/ESIC/Mediclaim/RD)':   'statutory_schemes',
+  'Salary':                           'compensation',
+  'Asset Deduction':                  'compensation',
+  'Onboarding Docs':                  'hr_joining_checklist',
+  'Personal':                         'personal_profile',
+  'Family':                           'family_emergency',
+  'Other Family Members':             'family_emergency',
+  'Emergency Contacts':               'family_emergency',
+  'Statutory':                        'ids_bank',
+  'Vaccinations':                     'ids_bank',
+  'Additional Documents':             'ids_bank',
+  'Personal Bank Details':            'ids_bank',
+  'Bank Details':                     'ids_bank',
+  'Experience':                       'experience_education',
+  'Education':                        'experience_education',
+};
+
 export const HR_STEP_WEIGHTS: Record<string, number> = {
   role_identity:         25,
   location_attendance:   20,

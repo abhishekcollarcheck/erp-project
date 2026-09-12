@@ -1279,6 +1279,9 @@ Designation.init(
     modelName: 'Designation',
     paranoid: true,
     underscored: true,
+    indexes: [
+      { unique: true, fields: ['name'], name: 'designations_name_unique' },
+    ],
   }
 );
 
@@ -1419,6 +1422,9 @@ SubDesignation.init(
     modelName: 'SubDesignation',
     paranoid: true,
     underscored: true,
+    indexes: [
+      { unique: true, fields: ['name'], name: 'sub_designations_name_unique' },
+    ],
   }
 );
 

@@ -161,6 +161,7 @@ State.init(
     paranoid: true,
     underscored: true,
     indexes: [
+      { unique: true, fields: ['name', 'country_id'], name: 'states_name_country_id_unique' },
       { fields: ['country_id'] },
       { fields: ['is_active'] },
     ],
@@ -241,6 +242,7 @@ City.init(
     paranoid: true,
     underscored: true,
     indexes: [
+      { unique: true, fields: ['name', 'state_id'], name: 'cities_name_state_id_unique' },
       { fields: ['state_id'] },
       { fields: ['is_active'] },
     ],
@@ -334,6 +336,7 @@ Site.init(
     paranoid: true,
     underscored: true,
     indexes: [
+      { unique: true, fields: ['company_id', 'name'], name: 'sites_company_id_name_unique' },
       { fields: ['company_id'] },
       { fields: ['city_id'] },
       { fields: ['is_active'] },
@@ -421,6 +424,7 @@ PayRegister.init(
     paranoid: true,
     underscored: true,
     indexes: [
+      { unique: true, fields: ['company_id', 'name'], name: 'pay_registers_company_id_name_unique' },
       { fields: ['company_id'] },
       { fields: ['state_id'] },
       { fields: ['is_active'] },

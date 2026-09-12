@@ -5,7 +5,7 @@ import { FormSelect } from '../../../../components/form/FormSelect';
 import { FormToggle } from '../../../../components/form/FormToggle';
 import { FormDatePicker } from '../../../../components/form/FormDatePicker';
 import { FormCurrencyInput } from '../../../../components/form/FormCurrencyInput';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { FormSection } from '@/components/form/FormSection';
 import { useQualificationData } from '../../../qualification/hoooks/useQualification';
 import { useEducationModeData } from '../../../education-mode/hooks/useEducationMode';
@@ -15,6 +15,7 @@ interface Props { isEdit: boolean; employeeId: number | null }
 export function StepExperienceEducation(_: Props) {
   const isExp = useWatch({ name: 'is_experienced' });
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
   const { control } = useFormContext();
   const { data: qualifications = [] } = useQualificationData();
   const { data: educationModes = [] } = useEducationModeData();
@@ -23,7 +24,7 @@ export function StepExperienceEducation(_: Props) {
   const education   = useFieldArray({ control, name: 'education' });
 
   return (
-    <FormSection fields={[f('is_experienced'), f('experience'), f('education')]}>
+    <FormSection fields={sp('experience_education')}>
     <div style={{ display: 'grid', gap: 16 }}>
 
       {/* ── Work experience ─────────────────────────────────────────────── */}

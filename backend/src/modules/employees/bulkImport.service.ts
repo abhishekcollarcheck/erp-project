@@ -51,7 +51,7 @@ function isInstructionRow(values: string[]): boolean {
 }
 
 export const BULK_IMPORT_MAX_ROWS = 2000;
-const REQUIRED_HEADERS = ['first_name', 'last_name', 'email', 'phone', 'department', 'designation'];
+const REQUIRED_HEADERS = ['first_name', 'email', 'phone', 'department', 'designation'];
 
 // ─── Avatar localisation ─────────────────────────────────────────────────────
 // The Avatar column can hold a URL / data-URI; localise it into the same
@@ -368,13 +368,26 @@ export async function runBulkImport(buf: Buffer, companyId: number, actorId: num
 
 // ─── Template + failed-rows workbook (server-side, no dropdowns) ──────────────
 
-export function buildTemplateWorkbook(): Buffer {
+/**
+ * Server-side template (SheetJS — no dropdowns/colour, that's the frontend
+ * ExcelJS path). `optionLists` is the same `getMasterLists()` map the endpoint
+ * serves; pass it so the guidance row and Field guide list live master values,
+ * not just the static enums.
+ */
+export function buildTemplateWorkbook(optionLists: Record<string, string[]> = {}): Buffer {
   const cols = allTemplateColumns();
+  const listOf = (c: (typeof cols)[number]): string[] =>
+    (c.enumValues ? [...c.enumValues] : (c.optionSource ? optionLists[c.optionSource] ?? [] : []));
+
   const header = cols.map(c => c.label);          // readable headers ("Salary Mode")
   const helpRow = cols.map((c, i) => {
     const bits: string[] = [];
     if (c.required) bits.push('REQUIRED');
-    if (c.enumValues?.length) bits.push(`one of: ${c.enumValues.join(' | ')}`);
+    const list = listOf(c);
+    if (list.length) {
+      const shown = list.length > 12 ? `${list.slice(0, 12).join(' | ')} | …` : list.join(' | ');
+      bits.push(c.strictOptions ? `one of: ${shown}` : `pick from list (others allowed): ${shown}`);
+    }
     if (c.help) bits.push(c.help);
     const text = bits.join('  •  ');
     // marker on the first cell so the importer skips this guidance row even if
@@ -388,8 +401,10 @@ export function buildTemplateWorkbook(): Buffer {
   XLSX.utils.book_append_sheet(wb, ws, 'Employees');
 
   const legend = cols.map(c => ({
-    header: c.label, field_key: c.col, step: c.step,
-    required: c.required ? 'yes' : '', allowed_values: c.enumValues?.join(' | ') ?? '', note: c.help ?? '',
+    step: c.stepLabel, header: c.label, field_key: c.col,
+    required: c.required ? 'yes' : '',
+    dropdown: listOf(c).length ? (c.strictOptions ? 'yes (strict)' : 'yes (suggested)') : '',
+    allowed_values: listOf(c).join(' | '), hint: c.help ?? '',
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(legend), 'Field guide');
 

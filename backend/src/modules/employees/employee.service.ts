@@ -51,16 +51,18 @@ async function loadFieldPerms(groupIds: number[], companyId: number): Promise<Fi
 
   const perms = await FieldPermissionV2.findAll({
     where: { company_id: companyId, group_id: groupIds },
-    include: [{ model: DynamicField, as: 'field', attributes: ['field_key'] }],
+    include: [{ model: DynamicField, as: 'field', attributes: ['field_key', 'section'] }],
   });
 
   const map: FieldPermissionMap = {};
   const byFieldKey = new Map<string, typeof perms>();
+  const sectionOf = new Map<string, string | null>();
   for (const p of perms) {
     const key = (p as any).field?.field_key;
     if (!key) continue;
     if (!byFieldKey.has(key)) byFieldKey.set(key, []);
     byFieldKey.get(key)!.push(p);
+    if (!sectionOf.has(key)) sectionOf.set(key, (p as any).field?.section ?? null);
   }
 
   for (const [fieldKey, rows] of byFieldKey) {
@@ -72,34 +74,115 @@ async function loadFieldPerms(groupIds: number[], companyId: number): Promise<Fi
     const viewGranting = rows.filter(r => r.can_view);
     const is_masked = viewGranting.length > 0 ? viewGranting.every(r => r.is_masked) : false;
     const is_partial_masked = !is_masked && viewGranting.length > 0 ? viewGranting.every(r => r.is_partial_masked) : false;
-    map[fieldKey] = { can_view, can_add, can_edit, can_copy, can_download, is_masked, is_partial_masked };
+    map[fieldKey] = { can_view, can_add, can_edit, can_copy, can_download, is_masked, is_partial_masked, section: sectionOf.get(fieldKey) ?? null };
   }
 
   fpCache.set(cacheKey, { data: map, ts: Date.now() });
   return map;
 }
 
-// is_super_admin bypasses masking entirely
+// ─── Field-permission masking ────────────────────────────────────────────────
+// The resolved field-permission map is keyed by dynamic_fields.field_key. Most
+// payload props already equal their field_key; a few child rows use a
+// per-instance prefix (salary_type / address_type / personal bank) so a
+// `keyFor` mapper translates prop → field_key for those.
+
+function maskString(v: unknown, p: FieldPermEntry): unknown {
+  if (v == null || v === '') return v;
+  // Full mask hides the value entirely (length-preserving bullets, capped);
+  // partial mask reveals first 2 + last 2 (utils/maskPartial).
+  if (p.is_masked) {
+    if (typeof v === 'string' || typeof v === 'number') return '•'.repeat(Math.min(Math.max(String(v).length, 4), 12));
+    return v;
+  }
+  if (p.is_partial_masked && (typeof v === 'string' || typeof v === 'number')) return maskPartial(String(v));
+  return v;
+}
+
+// Relational fields: the FK column carries no display value — its `name`/`label`
+// lives on a companion association object that `flattenEmployee` puts on the top
+// level. Hiding/masking the FK must hide/mask the companion too.
+const EMPLOYEE_FIELD_COMPANIONS: Record<string, { key: string; attrs: string[] }[]> = {
+  company_id:            [{ key: 'company',         attrs: ['name'] }],
+  department_id:         [{ key: 'department',      attrs: ['name'] }],
+  sub_department_id:     [{ key: 'subDepartment',   attrs: ['name'] }],
+  designation_id:        [{ key: 'designation',     attrs: ['name'] }],
+  sub_designation_id:    [{ key: 'subDesignation',  attrs: ['name'] }],
+  working_state_country: [{ key: 'workingState',    attrs: ['name'] }],
+  working_city:          [{ key: 'workingCity',     attrs: ['name'] }],
+  working_site:          [{ key: 'workingSite',     attrs: ['name'] }],
+  pay_register_location: [{ key: 'payRegister',     attrs: ['name'] }],
+  weekly_off:            [{ key: 'weeklyOffPreset', attrs: ['name'] }],
+  shift_id:              [{ key: 'shift',           attrs: ['label'] }],
+  l1_manager_id:         [{ key: 'l1Manager',       attrs: ['first_name', 'last_name'] }],
+  l2_manager_id:         [{ key: 'l2Manager',       attrs: ['first_name', 'last_name'] }],
+};
+
+// is_super_admin (and an empty map — un-configured group) bypasses masking.
 function applyMasking<T extends Record<string, unknown>>(
   data: T,
-  perms: FieldPermissionMap,
+  perms: FieldPermissionMap | undefined | null,
   isSuperAdmin: boolean,
-): Partial<T> {
-  if (isSuperAdmin || !Object.keys(perms).length) return data;
-  const result = { ...data };
-  for (const [field, p] of Object.entries(perms)) {
-    if (!(field in result)) continue;
-    if (!p.can_view) { delete result[field as keyof T]; continue; }
-    if (p.is_masked) {
-      const v = result[field as keyof T];
-      if (typeof v === 'string' && v.length > 4) (result as any)[field] = '•'.repeat(v.length - 4) + v.slice(-4);
-      else if (typeof v === 'string') (result as any)[field] = '••••';
-    } else if (p.is_partial_masked) {
-      const v = result[field as keyof T];
-      if (typeof v === 'string' || typeof v === 'number') (result as any)[field] = maskPartial(String(v));
-    }
+  keyFor: (prop: string) => string = (k) => k,
+): T {
+  if (isSuperAdmin || !perms || !Object.keys(perms).length || !data) return data;
+  const result: any = { ...data };
+  for (const prop of Object.keys(result)) {
+    const p = (perms as any)[keyFor(prop)] as FieldPermEntry | undefined;
+    if (!p) continue;
+    if (!p.can_view) { delete result[prop]; continue; }
+    if (p.is_masked || p.is_partial_masked) result[prop] = maskString(result[prop], p);
   }
   return result;
+}
+
+function applyCompanionMasking(result: any, perms: FieldPermissionMap): void {
+  for (const [fk, companions] of Object.entries(EMPLOYEE_FIELD_COMPANIONS)) {
+    const p = perms[fk];
+    if (!p) continue;
+    for (const { key, attrs } of companions) {
+      if (!(key in result)) continue;
+      if (!p.can_view) { delete result[key]; continue; }
+      const obj = result[key];
+      if (obj && typeof obj === 'object' && (p.is_masked || p.is_partial_masked)) {
+        result[key] = { ...obj };
+        for (const a of attrs) {
+          if (typeof result[key][a] === 'string') result[key][a] = maskString(result[key][a], p);
+        }
+      }
+    }
+  }
+}
+
+const salaryKeyFor  = (row: any) => (prop: string) =>
+  prop === 'salary_mode' ? 'salary_mode' : `${row.salary_type ?? 'current'}_${prop}`;
+const addressKeyFor = (row: any) => (prop: string) =>
+  (row.address_type === 'permanent' ? 'perm_' : 'present_') + prop;
+const BANK_KEY_MAP: Record<string, string> = {
+  bank_name: 'personal_bank_name', account_number: 'personal_bank_account',
+  ifsc_code: 'personal_ifsc', branch_name: 'personal_bank_branch',
+};
+const bankKeyFor = () => (prop: string) => BANK_KEY_MAP[prop] ?? prop;
+
+/**
+ * Applies the requester's resolved employee field permissions to a flattened
+ * employee payload — top-level scalars, relational companions, and every child
+ * object/array. Hidden fields are removed; masked fields are pre-masked.
+ */
+function maskEmployeePayload(json: any, perms: FieldPermissionMap | undefined | null, isSuperAdmin: boolean): any {
+  if (isSuperAdmin || !perms || !Object.keys(perms).length || !json) return json;
+  const out = applyMasking(json, perms, false);
+  applyCompanionMasking(out, perms);
+
+  // Child rows whose props already equal their field_key.
+  for (const k of ['commitmentProbation', 'schemes', 'personal', 'family', 'experienceFlag', 'onboardingDocs', 'statutory', 'assetDeduction']) {
+    if (out[k]) out[k] = applyMasking(out[k], perms, false);
+  }
+  // Prefixed child arrays.
+  if (Array.isArray(out.salaries))    out.salaries    = out.salaries.map((r: any) => applyMasking(r, perms, false, salaryKeyFor(r)));
+  if (Array.isArray(out.addresses))   out.addresses   = out.addresses.map((r: any) => applyMasking(r, perms, false, addressKeyFor(r)));
+  if (Array.isArray(out.bankDetails)) out.bankDetails = out.bankDetails.map((r: any) => (r?.bank_type === 'personal' ? applyMasking(r, perms, false, bankKeyFor()) : r));
+  return out;
 }
 
 // ─── Flatten the 2 remaining split-out step tables back onto the top level ───
@@ -126,28 +209,33 @@ export function flattenEmployee(json: any): any {
 // ─────────────────────────────────────────────────────────────────────────────
 export class EmployeeService {
 
-  async getAll(params: EmployeeQueryParams, companyId: number, isSuperAdmin: boolean) {
+  async getAll(params: EmployeeQueryParams, companyId: number, isSuperAdmin: boolean, actorId?: number) {
     const result = await repo.findAll(params, companyId);
-    const perms = isSuperAdmin ? {} : '';
+    const perms = isSuperAdmin || !actorId
+      ? undefined
+      : (await this.getFieldPermissions(actorId, 'employees', { companyId }) as any)[companyId] as FieldPermissionMap | undefined;
     return {
       ...result,
-      rows: result.rows.map(e => applyMasking(flattenEmployee(e.toJSON()), perms as any, isSuperAdmin)),
+      rows: result.rows.map(e => maskEmployeePayload(flattenEmployee(e.toJSON()), perms, isSuperAdmin)),
     };
   }
 
   // `canSeeSensitive` — super admin, or anyone who can edit employees (if you
   // can edit salary / KYC / bank you can view it). Controls both which child
   // rows are loaded and whether masking is bypassed.
-  async getById(id: number, companyId: number, canSeeSensitive: boolean) {
+  async getById(id: number, companyId: number, canSeeSensitive: boolean, actorId?: number, isSuperAdmin = false) {
     const emp = await repo.findById(id, companyId, canSeeSensitive);
     if (!emp) throw new AppError('Employee not found', 404);
 
-    const perms = canSeeSensitive ? {} : '';
     const raw   = emp.toJSON() as any;
-    const json  = flattenEmployee(raw);
-    if (json.statutory)   json.statutory   = applyMasking(json.statutory,  perms as any, canSeeSensitive);
-    if (json.salaries)    json.salaries     = json.salaries.map((s: any) => applyMasking(s, perms as any, canSeeSensitive));
-    if (json.bankDetails) json.bankDetails  = json.bankDetails.map((b: any) => applyMasking(b, perms as any, canSeeSensitive));
+    let   json  = flattenEmployee(raw);
+
+    // Field-level permissions — remove hidden fields (top level, relational
+    // companions and every child) and pre-mask masked ones before the payload
+    // leaves the server. Runs AFTER computeCompletionPct (which needs raw data).
+    const perms = isSuperAdmin || !actorId
+      ? undefined
+      : (await this.getFieldPermissions(actorId, 'employees', { companyId }) as any)[companyId] as FieldPermissionMap | undefined;
 
     // Completion — recompute from the record we just loaded so the detail view
     // and the Edit wizard always show the true, current percentage (never a
@@ -175,6 +263,8 @@ export class EmployeeService {
         catch { /* non-fatal on a read */ }
       }
     }
+
+    json = maskEmployeePayload(json, perms, isSuperAdmin);
     return json;
   }
 
@@ -203,7 +293,7 @@ export class EmployeeService {
         record_status:   'Draft',   // flips to 'Final' at 100% completion, same trigger as employee_code generation
         first_name:      dto.first_name.trim(),
         middle_name:     dto.middle_name?.trim() || null,
-        last_name:       dto.last_name.trim(),
+        last_name:       dto.last_name?.trim() || null,
         employment_type: dto.employment_type || 'Permanent',
         department_id:   dto.department_id,
         sub_department_id: dto.sub_department_id || null,
@@ -415,9 +505,18 @@ export class EmployeeService {
 
         const personalFields: any = {};
         if (d.marital_status !== undefined) personalFields.marital_status = d.marital_status;
-        if ((d as any).marriage_date !== undefined) personalFields.marriage_date = (d as any).marriage_date || null;
-        if ((d as any).spouse_name !== undefined) personalFields.spouse_name = (d as any).spouse_name || null;
-        if ((d as any).spouse_dob !== undefined) personalFields.spouse_dob = (d as any).spouse_dob || null;
+        // Spouse / marriage fields only apply when Married — clear otherwise so a
+        // status change (e.g. Married → Divorced) doesn't leave stale spouse data.
+        const isMarried = d.marital_status === 'Married';
+        if (isMarried) {
+          if ((d as any).marriage_date !== undefined) personalFields.marriage_date = (d as any).marriage_date || null;
+          if ((d as any).spouse_name !== undefined) personalFields.spouse_name = (d as any).spouse_name || null;
+          if ((d as any).spouse_dob !== undefined) personalFields.spouse_dob = (d as any).spouse_dob || null;
+        } else if (d.marital_status !== undefined) {
+          personalFields.marriage_date = null;
+          personalFields.spouse_name = null;
+          personalFields.spouse_dob = null;
+        }
         for (const n of [1, 2, 3]) {
           if ((d as any)[`child${n}_name`] !== undefined) personalFields[`child${n}_name`] = (d as any)[`child${n}_name`] || null;
           if ((d as any)[`child${n}_gender`] !== undefined) personalFields[`child${n}_gender`] = (d as any)[`child${n}_gender`] || null;
@@ -494,6 +593,20 @@ export class EmployeeService {
           branch_name:    d.personal_bank_branch || null,
         }, t);
 
+        // Official / salary bank — optional. Written when any field is filled,
+        // cleared when the whole block is emptied.
+        const officialBank = {
+          bank_name:      d.official_bank_name || null,
+          account_number: d.official_bank_account || null,
+          ifsc_code:      d.official_ifsc ? d.official_ifsc.toUpperCase() : null,
+          branch_name:    d.official_bank_branch || null,
+        };
+        if (Object.values(officialBank).some(v => v)) {
+          await repo.upsertBank(id, 'official', officialBank, t);
+        } else {
+          await repo.deleteBank(id, 'official', t);
+        }
+
         if (d.vaccinations) {
           const vax = d.vaccinations.filter((v: any) => v && String(v.vaccine_name ?? '').trim());
           await repo.replaceVaccinations(id, vax, t);
@@ -540,10 +653,35 @@ export class EmployeeService {
 
       case 'compensation': {
         const d = dto as SalaryDto;
+        const num = (x: unknown) => (x == null || x === '' ? undefined : Number(x));
+
         const cur = computeSalary(d.current_basic, d.current_hra, d.current_allowance1, d.current_amdb);
         await repo.upsertSalary(id, 'current', { salary_mode: d.salary_mode, ...cur, effective_from: new Date() }, t);
-        const joi = computeSalary(d.joining_basic, d.joining_hra, d.joining_allowance1, d.joining_amdb);
+
+        // Joining package: use explicit joining_* when the caller sent any
+        // (bulk import); otherwise mirror the current package (the wizard).
+        const joiningSent = [d.joining_basic, d.joining_hra, d.joining_allowance1, d.joining_amdb].some(x => x != null);
+        const joi = joiningSent
+          ? computeSalary(d.joining_basic ?? 0, d.joining_hra ?? 0, d.joining_allowance1 ?? 0, num(d.joining_amdb))
+          : cur;
         await repo.upsertSalary(id, 'joining', { salary_mode: d.salary_mode, ...joi }, t);
+
+        // After-probation package — only when the employee is on probation AND
+        // "Salary change after probation" is ticked. Otherwise clear any stale row.
+        const cp = await EmployeeCommitmentProbation.findOne({ where: { employee_id: id }, transaction: t });
+        const onProbation = !!cp?.on_probation;
+        const changeAfterProbation = onProbation && !!d.salary_change_after_probation;
+        const giveArrears = changeAfterProbation && !!d.give_arrears_after_probation;
+
+        if (changeAfterProbation) {
+          const ap = computeSalary(
+            d.after_probation_basic ?? 0, d.after_probation_hra ?? 0,
+            d.after_probation_allowance1 ?? 0, num(d.after_probation_amdb),
+          );
+          await repo.upsertSalary(id, 'after_probation', { salary_mode: d.salary_mode, ...ap }, t);
+        } else {
+          await repo.deleteSalary(id, 'after_probation', t);
+        }
 
         const deductionMonthsNum = d.deduction_months ? Number(d.deduction_months) : 0;
         const { monthlyDeduction, lastInstallment } = (d.asset_deduction_applicable && d.security_amount && deductionMonthsNum > 0)
@@ -559,6 +697,8 @@ export class EmployeeService {
           monthly_deduction: monthlyDeduction || null,
           final_monthly_deduction: d.final_monthly_deduction || null,
           last_installment:  lastInstallment || null,
+          salary_change_after_probation: changeAfterProbation,
+          give_arrears_after_probation:  giveArrears,
         }, t);
         break;
       }
@@ -840,8 +980,8 @@ export class EmployeeService {
   async getDraft(sessionId: string, actorId: number) { return repo.getDraft(sessionId, actorId); }
   async discardDraft(sessionId: string, actorId: number) { return repo.deleteDraft(sessionId, actorId); }
 
-  /** Every active field_key belonging to the form(s) of `moduleKey`. */
-  private async allModuleFieldKeys(moduleKey: string): Promise<string[]> {
+  /** Every active field of the form(s) of `moduleKey`, with its section. */
+  private async allModuleFields(moduleKey: string): Promise<{ field_key: string; section: string | null }[]> {
     const mods = await HrModule.findAll({ attributes: ['id', 'slug'] });
     const modIds = mods.filter(m => permKeyForModule(m.slug) === moduleKey).map(m => m.id);
     if (!modIds.length) return [];
@@ -849,9 +989,21 @@ export class EmployeeService {
     if (!forms.length) return [];
     const fields = await DynamicField.findAll({
       where: { form_id: forms.map(f => f.id), is_active: true },
-      attributes: ['field_key'],
+      attributes: ['field_key', 'section'],
     });
-    return [...new Set(fields.map(f => f.field_key))];
+    const seen = new Set<string>();
+    const out: { field_key: string; section: string | null }[] = [];
+    for (const f of fields) {
+      if (seen.has(f.field_key)) continue;
+      seen.add(f.field_key);
+      out.push({ field_key: f.field_key, section: (f as any).section ?? null });
+    }
+    return out;
+  }
+
+  /** Every active field_key belonging to the form(s) of `moduleKey`. */
+  private async allModuleFieldKeys(moduleKey: string): Promise<string[]> {
+    return (await this.allModuleFields(moduleKey)).map(f => f.field_key);
   }
 
   /**
@@ -880,9 +1032,9 @@ export class EmployeeService {
       can_download: true, is_masked: false, is_partial_masked: false,
     };
     const fullMap = async (): Promise<FieldPermissionMap> => {
-      const keys = await this.allModuleFieldKeys(moduleKey);
+      const fields = await this.allModuleFields(moduleKey);
       const m: FieldPermissionMap = {};
-      for (const k of keys) m[k] = { ...FULL };
+      for (const f of fields) m[f.field_key] = { ...FULL, section: f.section };
       return m;
     };
 
@@ -955,6 +1107,7 @@ export class EmployeeService {
           can_download: permMap.download !== undefined ? permMap.download : base.can_download,
           is_masked,
           is_partial_masked,
+          section:      base.section ?? null,
         };
       }
 
@@ -1061,8 +1214,7 @@ export class EmployeeService {
         const firstName = getString(row.first_name);
         if (!firstName) throw new Error('first_name is required');
 
-        const lastName = getString(row.last_name);
-        if (!lastName) throw new Error('last_name is required');
+        const lastName = getString(row.last_name) ?? null;   // optional
 
         const email = getString(row.email);
         if (!email) throw new Error('email is required');
@@ -1156,7 +1308,7 @@ export class EmployeeService {
    */
   async bulkCreateEmployee(
     base: {
-      company_id: number; first_name: string; middle_name: string | null; last_name: string;
+      company_id: number; first_name: string; middle_name: string | null; last_name: string | null;
       status: string; employment_type: string; department_id: number; designation_id: number;
       sub_department_id: number | null; sub_designation_id: number | null; email: string; phone: string;
       employee_code?: string | null; reference_code?: string | null; avatar_url?: string | null; avatar?: string | null;
@@ -1202,7 +1354,7 @@ export class EmployeeService {
         record_status:      manualCode ? 'Final' : 'Draft',
         first_name:         base.first_name.trim(),
         middle_name:        base.middle_name?.trim() || null,
-        last_name:          base.last_name.trim(),
+        last_name:          base.last_name?.trim() || null,
         employment_type:    (base.employment_type as any) || 'Permanent',
         department_id:      base.department_id,
         sub_department_id:  base.sub_department_id ?? null,
@@ -1263,7 +1415,7 @@ export class EmployeeService {
     existingId: number,
     currentCompanyId: number,
     base: {
-      company_id: number; first_name: string; middle_name: string | null; last_name: string;
+      company_id: number; first_name: string; middle_name: string | null; last_name: string | null;
       status: string; employment_type: string; department_id: number; designation_id: number;
       sub_department_id: number | null; sub_designation_id: number | null; email: string; phone: string;
       employee_code?: string | null; reference_code?: string | null; avatar_url?: string | null; avatar?: string | null;
@@ -1288,7 +1440,7 @@ export class EmployeeService {
         company_id:         targetCompanyId,
         first_name:         base.first_name.trim(),
         middle_name:        base.middle_name?.trim() || null,
-        last_name:          base.last_name.trim(),
+        last_name:          base.last_name?.trim() || null,
         status:             (base.status as any) || existing.status,
         employment_type:    (base.employment_type as any) || existing.employment_type,
         department_id:      base.department_id,

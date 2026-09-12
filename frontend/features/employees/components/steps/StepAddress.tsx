@@ -3,7 +3,7 @@ import { useWatch, useFormContext } from 'react-hook-form';
 import { FormInput } from '../../../../components/form/FormInput';
 import { FormSelect } from '../../../../components/form/FormSelect';
 import { toOpts, PERM_ADDRESS_TYPE } from '../../constants/employee.constants';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useHouseTypeData } from '../../../house-type/hooks/useHouseType';
 import { useCountries, useStates, useCities } from '../../../locations/hooks/uselocation';
@@ -15,6 +15,7 @@ export function StepAddress(_: Props) {
   const permType = useWatch({ name: 'perm_address_type' });
 
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
 
   const { data: houseTypes = [] } = useHouseTypeData();
   const { data: countries = [] } = useCountries();
@@ -34,7 +35,7 @@ export function StepAddress(_: Props) {
   };
 
   return (
-    <FormSection fields={[f('present_house_type'), f('present_house_no'), f('present_area'), f('present_district'), f('present_city'), f('present_state'), f('present_country'), f('present_pincode'), f('perm_address_type'), f('perm_house_type'), f('perm_area'), f('perm_district'), f('perm_city'), f('perm_state'), f('perm_country'), f('perm_pincode')]}>
+    <FormSection fields={sp('address')}>
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink3)' }}>Present Address</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

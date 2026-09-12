@@ -64,6 +64,9 @@ WeeklyOffPreset.init(
     sequelize,
     tableName: 'weekly_off_preset',
     modelName: 'WeeklyOffPreset',
-    indexes: [{ fields: ['is_active'] }],
+    indexes: [
+      { unique: true, fields: ['name'], name: 'weekly_off_preset_name_unique' },
+      { fields: ['is_active'] },
+    ],
   },
 );

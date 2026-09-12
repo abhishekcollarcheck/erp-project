@@ -13,7 +13,7 @@ import {
   RD_TERM,
   DEDUCTION_FROM,
 } from '../../constants/employee.constants';
-import { useFieldPerm } from '../../hooks/useFieldPerm';
+import { useFieldPerm, useStepFieldPerms } from '../../hooks/useFieldPerm';
 import { FormSection } from '../../../../components/form/FormSection';
 import { useInsuredData } from '../../../insuredAmounts/useInsuredAmount';
 
@@ -56,6 +56,7 @@ function formatINR(n: number): string {
 
 export function StepStatutorySchemes(_: Props) {
   const f = useFieldPerm();
+  const sp = useStepFieldPerms();
 
   const { setValue } = useFormContext();
 
@@ -95,7 +96,7 @@ export function StepStatutorySchemes(_: Props) {
   const ttl_m_contribution = useWatch({ name: 'ttl_m_contribution' });
 
   return (
-    <FormSection fields={[f('pf_status'), f('uan_number'), f('epfo_member_id'), f('pf_contribution_pct'), f('pf_employer_from'), f('pf_employee_12'), f('eps_employer_833'), f('epf_eps_diff_367'), f('esic_status'), f('esic_number'), f('esi_employee_pct'), f('esi_employer_pct'), f('mediclaim_status'), f('mediclaim_number'), f('mediclaim_amount'), f('rd_scheme'), f('rd_opening_date'), f('rd_account_number'), f('rd_deduction_from'), f('rd_amount_employee'), f('rd_amount_employer'), f('rd_maturity_date'), f('rd_maturity_amount'), f('ttl_m_contribution')]}>
+    <FormSection fields={sp('statutory_schemes')}>
     <div style={{ display: 'grid', gap: 20 }}>
 
       {/* ── Provident Fund ──────────────────────────────────────────────── */}
