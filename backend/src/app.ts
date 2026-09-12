@@ -24,14 +24,14 @@ app.use(cors({
 }));
 
 // ─── Rate Limiting ───────────────────────────────────────────
-const limiter = rateLimit({
-  windowMs: env.rateLimit.windowMs,
-  max: env.rateLimit.max,
-  message: { success: false, message: 'Too many requests, please try again later.', data: null },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
+// const limiter = rateLimit({
+//   windowMs: env.rateLimit.windowMs,
+//   max: env.rateLimit.max,
+//   message: { success: false, message: 'Too many requests, please try again later.', data: null },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
+// app.use('/api', limiter);
 
 // Auth endpoints: stricter rate limit
 const authLimiter = rateLimit({

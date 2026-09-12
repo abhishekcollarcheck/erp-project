@@ -1672,1164 +1672,1747 @@
 
 
 
+// 'use client';
+
+// import { useMemo, useState, useEffect } from 'react';
+// import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
+// import { AppShell } from '@/layouts/AppLayout';
+// import { Chip } from '@/components/ui/Chip';
+// import { Select } from '@/components/ui/Select';
+// import {
+//   GripVertical,
+//   Pencil,
+//   Trash2,
+//   Loader2,
+//   Building2,
+//   Layers,
+//   Plus,
+//   Search,
+//   AlertCircle,
+//   Check,
+//   X,
+// } from 'lucide-react';
+
+// import {
+//   useDesignations,
+//   useCreateDesignation,
+//   useUpdateDesignation,
+//   useDeleteDesignation,
+//   useSubDesignations,
+//   useCreateSubDesignation,
+//   useUpdateSubDesignation,
+//   useDeleteSubDesignation,
+// } from '@/features/designation/hooks/useDesignations';
+
+// import { useDepartments } from '@/features/departments/hooks/useDepartments';
+
+// import type {
+//   Designation,
+//   SubDesignation,
+// } from '@/services/api/designation.service';
+
+// type Tab = 'designation' | 'subdesignation';
+// type Row = Designation | SubDesignation;
+
+// export default function DesignationsPage() {
+//   const [tab, setTab] = useState<Tab>('designation');
+//   const [filter, setFilter] = useState('');
+//   const [quickAddName, setQuickAddName] = useState('');
+//   const [quickAddDesignationId, setQuickAddDesignationId] = useState<
+//     number | ''
+//   >('');
+//   const [editingId, setEditingId] = useState<number | null>(null);
+//   const [editingName, setEditingName] = useState('');
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Fetch Departments
+//   // ─────────────────────────────────────────────────────────────────────────
+//   const {
+//     data: departments = [],
+//     isLoading: deptsLoading,
+//   } = useDepartments({
+//     is_active: 'true',
+//   });
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Fetch Designations
+//   // ─────────────────────────────────────────────────────────────────────────
+//   const {
+//     data: designations = [],
+//     isLoading: designationsLoading,
+//   } = useDesignations({
+//     is_active: 'true',
+//   });
+//   // Default select first available designation when switching
+//   // to Sub-Designations
+//   useEffect(() => {
+//     if (
+//       tab === 'subdesignation' &&
+//       !quickAddDesignationId &&
+//       designations.length > 0
+//     ) {
+//       setQuickAddDesignationId(designations[0].id);
+//     }
+//   }, [tab, designations, quickAddDesignationId]);
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Fetch Sub-Designations
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const {
+//     data: subDesignations = [],
+//     isLoading: subDesignationsLoading,
+//   } = useSubDesignations({
+//     is_active: 'true',
+//   });
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Mutations
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const createDesignation = useCreateDesignation();
+
+//   const updateDesignation = useUpdateDesignation();
+
+//   const deleteDesignation = useDeleteDesignation();
+
+//   const createSubDesignation = useCreateSubDesignation();
+
+//   const updateSubDesignation = useUpdateSubDesignation();
+
+//   const deleteSubDesignation = useDeleteSubDesignation();
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Filtering
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const filteredDesignations = useMemo(
+//     () =>
+//       designations.filter((d) =>
+//         d.name.toLowerCase().includes(filter.toLowerCase()),
+//       ),
+//     [designations, filter],
+//   );
+
+//   const filteredSubDesignations = useMemo(
+//     () =>
+//       subDesignations.filter((sd) =>
+//         sd.name.toLowerCase().includes(filter.toLowerCase()),
+//       ),
+//     [subDesignations, filter],
+//   );
+
+//   const isLoading =
+//     tab === 'designation'
+//       ? designationsLoading
+//       : subDesignationsLoading;
+
+//   const rows: Row[] =
+//     tab === 'designation'
+//       ? filteredDesignations
+//       : filteredSubDesignations;
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Toggle Department Handlers
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleToggleRowAllDepartments(
+//     designation: Designation,
+//   ) {
+//     const nextValue = !designation.is_all_departments;
+
+//     const fallbackIds =
+//       designation.department_ids &&
+//       designation.department_ids.length > 0
+//         ? designation.department_ids
+//         : departments[0]?.id
+//           ? [departments[0].id]
+//           : [];
+
+//     await updateDesignation.mutateAsync({
+//       id: designation.id,
+
+//       data: {
+//         is_all_departments: nextValue,
+//         department_ids: nextValue ? [] : fallbackIds,
+//       },
+//     });
+//   }
+
+//   async function handleToggleRowDepartment(
+//     designation: Designation,
+//     departmentId: number,
+//   ) {
+//     const currentIds = designation.department_ids || [];
+
+//     let nextIds: number[];
+
+//     if (designation.is_all_departments) {
+//       nextIds = [departmentId];
+//     } else {
+//       nextIds = currentIds.includes(departmentId)
+//         ? currentIds.filter((id) => id !== departmentId)
+//         : [...currentIds, departmentId];
+//     }
+
+//     if (nextIds.length === 0) {
+//       window.alert(
+//         'Designation must belong to at least one department or have "All departments" enabled.',
+//       );
+
+//       return;
+//     }
+
+//     await updateDesignation.mutateAsync({
+//       id: designation.id,
+
+//       data: {
+//         is_all_departments: false,
+//         department_ids: nextIds,
+//       },
+//     });
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Toggle Designation Handlers
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleToggleRowAllDesignations(
+//     sub: SubDesignation,
+//   ) {
+//     const nextValue = !sub.is_all_designations;
+
+//     const fallbackIds =
+//       sub.designation_ids &&
+//       sub.designation_ids.length > 0
+//         ? sub.designation_ids
+//         : designations[0]?.id
+//           ? [designations[0].id]
+//           : [];
+
+//     await updateSubDesignation.mutateAsync({
+//       id: sub.id,
+
+//       data: {
+//         is_all_designations: nextValue,
+//         designation_ids: nextValue ? [] : fallbackIds,
+//       },
+//     });
+//   }
+
+//   async function handleToggleRowDesignation(
+//     sub: SubDesignation,
+//     designationId: number,
+//   ) {
+//     const currentIds = sub.designation_ids || [];
+
+//     let nextIds: number[];
+
+//     if (sub.is_all_designations) {
+//       nextIds = [designationId];
+//     } else {
+//       nextIds = currentIds.includes(designationId)
+//         ? currentIds.filter((id) => id !== designationId)
+//         : [...currentIds, designationId];
+//     }
+
+//     if (nextIds.length === 0) {
+//       window.alert(
+//         'Sub-designation must belong to at least one designation or have "All designations" enabled.',
+//       );
+
+//       return;
+//     }
+
+//     await updateSubDesignation.mutateAsync({
+//       id: sub.id,
+
+//       data: {
+//         is_all_designations: false,
+//         designation_ids: nextIds,
+//       },
+//     });
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Tab Switching
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function switchTab(next: Tab) {
+//     setTab(next);
+
+//     setFilter('');
+
+//     setQuickAddName('');
+
+//     setQuickAddDesignationId('');
+
+//     setEditingId(null);
+
+//     setEditingName('');
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Quick Add
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleQuickAdd() {
+//     const name = quickAddName.trim();
+
+//     if (!name) return;
+
+//     if (tab === 'designation') {
+//       await createDesignation.mutateAsync({
+//         name,
+
+//         is_all_departments: true,
+
+//         department_ids: [],
+//       });
+//     } else {
+//       if (!quickAddDesignationId) {
+//         window.alert('Please select a designation first.');
+
+//         return;
+//       }
+
+//       await createSubDesignation.mutateAsync({
+//         name,
+
+//         is_all_designations: false,
+
+//         designation_ids: [Number(quickAddDesignationId)],
+//       });
+//     }
+
+//     setQuickAddName('');
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Edit
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function startEdit(row: Row) {
+//     if (editingId === row.id) {
+//       setEditingId(null);
+
+//       setEditingName('');
+
+//       return;
+//     }
+
+//     setEditingId(row.id);
+
+//     setEditingName(row.name);
+//   }
+
+//   function cancelEdit() {
+//     setEditingId(null);
+
+//     setEditingName('');
+//   }
+
+//   async function commitEdit(row: Row) {
+//     const name = editingName.trim();
+
+//     if (
+//       !name ||
+//       editingId === null ||
+//       name === row.name
+//     ) {
+//       cancelEdit();
+
+//       return;
+//     }
+
+//     if (tab === 'designation') {
+//       await updateDesignation.mutateAsync({
+//         id: row.id,
+
+//         data: {
+//           name,
+//         },
+//       });
+//     } else {
+//       await updateSubDesignation.mutateAsync({
+//         id: row.id,
+
+//         data: {
+//           name,
+//         },
+//       });
+//     }
+
+//     cancelEdit();
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Delete
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleDelete(row: Row) {
+//     if (
+//       !window.confirm(
+//         `Delete "${row.name}"? This can't be undone.`,
+//       )
+//     ) {
+//       return;
+//     }
+
+//     if (tab === 'designation') {
+//       await deleteDesignation.mutateAsync(row.id);
+//     } else {
+//       await deleteSubDesignation.mutateAsync(row.id);
+//     }
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Delete Master
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleDeleteMaster() {
+//     const label =
+//       tab === 'designation'
+//         ? 'all designations'
+//         : 'all sub-designations';
+
+//     if (
+//       !window.confirm(
+//         `Delete ${label} (${rows.length} items)? This can't be undone.`,
+//       )
+//     ) {
+//       return;
+//     }
+
+//     for (const row of rows) {
+//       if (tab === 'designation') {
+//         await deleteDesignation.mutateAsync(row.id);
+//       } else {
+//         await deleteSubDesignation.mutateAsync(row.id);
+//       }
+//     }
+//   }
+
+//   const addDisabled =
+//     !quickAddName.trim() ||
+//     (tab === 'subdesignation' &&
+//       !quickAddDesignationId) ||
+//     createDesignation.isPending ||
+//     createSubDesignation.isPending;
+
+//   return (
+//     <AppShell>
+//       <MasterDataLayout>
+//         <div className="pg-enter">
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Header */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div className="ph">
+//             <div>
+//               <h1>
+//                 {tab === 'designation'
+//                   ? 'Designation Management'
+//                   : 'Sub-Designation Management'}
+//               </h1>
+
+//               <p>
+//                 Manage designations, department assignments,
+//                 and linked sub-designations.
+//               </p>
+//             </div>
+
+//             <div className="ph-r">
+//               <button
+//                 type="button"
+//                 onClick={handleDeleteMaster}
+//                 disabled={rows.length === 0}
+//                 className="btn btn-ghost btn-sm"
+//                 style={{ color: 'var(--red)' }}
+//               >
+//                 Delete master
+//               </button>
+
+//               <Chip variant="green">Auto-save on</Chip>
+//             </div>
+//           </div>
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Tabs + Search */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+
+//             <div className="tabs">
+//               <div
+//                 className={`tab${tab === 'designation' ? ' on' : ''}`}
+//                 onClick={() => switchTab('designation')}
+//               >
+//                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+//                   <Building2 size={14} />
+//                   Designations
+//                   <span className="chip cgr">{designations.length}</span>
+//                 </span>
+//               </div>
+
+//               <div
+//                 className={`tab${tab === 'subdesignation' ? ' on' : ''}`}
+//                 onClick={() => switchTab('subdesignation')}
+//               >
+//                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+//                   <Layers size={14} />
+//                   Sub-Designations
+//                   <span className="chip cgr">{subDesignations.length}</span>
+//                 </span>
+//               </div>
+//             </div>
+
+//             <div className="search-bar" style={{ maxWidth: 220 }}>
+//               <Search size={14} style={{ color: 'var(--ink4)' }} />
+//               <input
+//                 type="text"
+//                 placeholder="Search..."
+//                 value={filter}
+//                 onChange={(e) => setFilter(e.target.value)}
+//               />
+//             </div>
+//           </div>
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Quick Creation */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+//             {tab === 'subdesignation' && (
+//               <div className="fg" style={{ margin: 0, width: 220 }}>
+//                 <Select
+//                   value={quickAddDesignationId}
+//                   onChange={(v) => setQuickAddDesignationId(v ? Number(v) : '')}
+//                   options={designations.map((d) => ({ value: d.id, label: d.name }))}
+//                   placeholder="Select Designation..."
+//                   filter
+//                 />
+//               </div>
+//             )}
+
+//             <div className="fg" style={{ margin: 0, flex: 1 }}>
+//               <input
+//                 type="text"
+//                 placeholder={
+//                   tab === 'designation'
+//                     ? 'Add new designation...'
+//                     : 'Add new sub-designation...'
+//                 }
+//                 value={quickAddName}
+//                 onChange={(e) =>
+//                   setQuickAddName(e.target.value)
+//                 }
+//                 onKeyDown={(e) => {
+//                   if (e.key === 'Enter') {
+//                     handleQuickAdd();
+//                   }
+//                 }}
+//               />
+//             </div>
+
+//             <button
+//               type="button"
+//               onClick={handleQuickAdd}
+//               disabled={addDisabled}
+//               className="btn btn-pri btn-sm"
+//             >
+//               {createDesignation.isPending ||
+//               createSubDesignation.isPending ? (
+//                 <Loader2
+//                   size={14}
+//                   className="animate-spin"
+//                 />
+//               ) : (
+//                 <Plus size={14} />
+//               )}
+
+//               Add
+//             </button>
+//           </div>
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Assignment Info */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+
+//             <div className="flex items-center gap-2">
+
+//               {tab === 'designation' ? (
+//                 <Building2
+//                   size={14}
+//                   className="text-slate-400"
+//                 />
+//               ) : (
+//                 <Layers
+//                   size={14}
+//                   className="text-slate-400"
+//                 />
+//               )}
+
+//               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+//                 {tab === 'designation'
+//                   ? 'Department Assignment'
+//                   : 'Designation Assignment'}
+//               </span>
+//             </div>
+
+//             <p className="mt-1.5 text-[11px] text-slate-500">
+//               {tab === 'designation'
+//                 ? 'A designation can apply to all departments or be linked to one or more specific departments.'
+//                 : 'A sub-designation can apply to all designations or be linked to one or more specific designations.'}
+//             </p>
+//           </div>
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Data List */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div className="divide-y divide-slate-100 overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
+
+//             {isLoading ? (
+//               <div className="flex items-center justify-center gap-2 p-8 text-xs text-slate-400">
+
+//                 <Loader2
+//                   size={16}
+//                   className="animate-spin text-blue-600"
+//                 />
+
+//                 Loading configuration records...
+//               </div>
+//             ) : rows.length === 0 ? (
+//               <div className="p-8 text-center text-xs text-slate-400">
+//                 No active records available.
+//               </div>
+//             ) : (
+//               rows.map((row, idx) => {
+//                 const isEditing =
+//                   editingId === row.id;
+
+//                 const deptNames =
+//                   tab === 'designation'
+//                     ? (row as Designation)
+//                         .is_all_departments
+//                       ? ['All departments']
+//                       : (row as Designation)
+//                           .departments
+//                           ?.map(
+//                             (d) =>
+//                               d.department_name,
+//                           ) || []
+//                     : [];
+
+//                 const designationNames =
+//                   tab === 'subdesignation'
+//                     ? (row as SubDesignation)
+//                         .is_all_designations
+//                       ? ['All designations']
+//                       : (row as SubDesignation)
+//                           .designations
+//                           ?.map(
+//                             (desig) =>
+//                               desig.name,
+//                           ) || []
+//                     : [];
+
+//                 return (
+//                   <div
+//                     key={row.id}
+//                     className="relative"
+//                     onBlur={(e) => {
+//                       if (!isEditing) return;
+
+//                       if (
+//                         !e.currentTarget.contains(
+//                           e.relatedTarget as Node,
+//                         )
+//                       ) {
+//                         commitEdit(row);
+//                       }
+//                     }}
+//                   >
+
+//                     {/* Row */}
+
+//                     <div className="relative px-4 py-3 transition-colors hover:bg-slate-50/50">
+
+//                       <div className="flex items-center justify-between gap-4">
+
+//                         {/* Left */}
+
+//                         <div className="flex min-w-0 items-center gap-3">
+
+//                           <GripVertical
+//                             size={14}
+//                             className="shrink-0 cursor-grab text-slate-300"
+//                           />
+
+//                           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
+//                             {idx + 1}
+//                           </span>
+
+//                           {isEditing ? (
+//                             <input
+//                               autoFocus
+//                               className="h-9 flex-1 rounded-lg border border-blue-300 bg-white px-3 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+//                               value={editingName}
+//                               onChange={(e) =>
+//                                 setEditingName(
+//                                   e.target.value,
+//                                 )
+//                               }
+//                               onKeyDown={(e) => {
+//                                 if (e.key === 'Enter') {
+//                                   commitEdit(row);
+//                                 }
+
+//                                 if (
+//                                   e.key === 'Escape'
+//                                 ) {
+//                                   cancelEdit();
+//                                 }
+//                               }}
+//                             />
+//                           ) : (
+//                             <span className="truncate text-xs font-bold uppercase tracking-wider text-slate-900">
+//                               {row.name}
+//                             </span>
+//                           )}
+//                         </div>
+
+//                         {/* Right */}
+
+//                         <div className="flex shrink-0 items-center gap-3">
+
+//                           {tab === 'designation' ? (
+//                             deptNames.length > 0 ? (
+//                               <span className="rounded-full border border-blue-400/80 bg-white px-3 py-0.5 text-xs font-semibold text-blue-600 shadow-sm">
+//                                 {deptNames.length ===
+//                                 1
+//                                   ? deptNames[0]
+//                                   : `${deptNames.length} Departments`}
+//                               </span>
+//                             ) : (
+//                               <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-0.5 text-xs font-semibold text-amber-600">
+//                                 0 Departments
+//                               </span>
+//                             )
+//                           ) : designationNames.length >
+//                             0 ? (
+//                             <span className="rounded-full border border-blue-400/80 bg-white px-3 py-0.5 text-xs font-semibold text-blue-600 shadow-sm">
+//                               {designationNames.length ===
+//                               1
+//                                 ? designationNames[0]
+//                                 : `${designationNames.length} Designations`}
+//                             </span>
+//                           ) : (
+//                             <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-0.5 text-xs font-semibold text-amber-600">
+//                               0 Designations
+//                             </span>
+//                           )}
+
+//                           <button
+//                             type="button"
+//                             onClick={() =>
+//                               startEdit(row)
+//                             }
+//                             className={`rounded-lg p-1.5 transition-colors ${
+//                               isEditing
+//                                 ? 'bg-blue-50 text-blue-600'
+//                                 : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+//                             }`}
+//                             title="Edit"
+//                           >
+//                             <Pencil size={13} />
+//                           </button>
+
+//                           <button
+//                             type="button"
+//                             onClick={() =>
+//                               handleDelete(row)
+//                             }
+//                             className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
+//                             title="Delete"
+//                           >
+//                             <Trash2 size={13} />
+//                           </button>
+
+//                         </div>
+//                       </div>
+//                     </div>
+
+//                     {/* ───────────────────────────────────────────────────── */}
+//                     {/* Designation → Department Assignment */}
+//                     {/* ───────────────────────────────────────────────────── */}
+
+//                     {tab === 'designation' &&
+//                       isEditing && (
+//                         <div className="border-t border-slate-100 bg-slate-50/60 px-9 py-4">
+
+//                           <div className="mb-3 flex items-center justify-between">
+
+//                             <div>
+//                               <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+//                                 Department Scope
+//                               </div>
+
+//                               <p className="mt-0.5 text-[11px] text-slate-400">
+//                                 Choose where this designation
+//                                 can be used.
+//                               </p>
+//                             </div>
+
+//                             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
+//                               {(row as Designation)
+//                                 .is_all_departments
+//                                 ? 'Global'
+//                                 : `${(row as Designation).department_ids?.length ?? 0} selected`}
+//                             </span>
+//                           </div>
+
+//                           {/* All Departments */}
+
+//                           <label
+//                             className={`mb-3 flex cursor-pointer items-center justify-between rounded-xl border p-3 transition-all ${
+//                               (row as Designation)
+//                                 .is_all_departments
+//                                 ? 'border-blue-500 bg-blue-50'
+//                                 : 'border-slate-200 bg-white hover:border-slate-300'
+//                             }`}
+//                           >
+//                             <div className="flex items-center gap-3">
+
+//                               <div
+//                                 className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+//                                   (row as Designation)
+//                                     .is_all_departments
+//                                     ? 'bg-blue-600 text-white'
+//                                     : 'bg-slate-100 text-slate-400'
+//                                 }`}
+//                               >
+//                                 <Building2 size={15} />
+//                               </div>
+
+//                               <div>
+//                                 <div
+//                                   className={`text-xs font-semibold ${
+//                                     (row as Designation)
+//                                       .is_all_departments
+//                                       ? 'text-blue-700'
+//                                       : 'text-slate-700'
+//                                   }`}
+//                                 >
+//                                   All Departments
+//                                 </div>
+
+//                                 <div className="text-[10px] text-slate-400">
+//                                   Designation applies everywhere
+//                                 </div>
+//                               </div>
+//                             </div>
+
+//                             <input
+//                               type="checkbox"
+//                               checked={Boolean(
+//                                 (row as Designation)
+//                                   .is_all_departments,
+//                               )}
+//                               onChange={() =>
+//                                 handleToggleRowAllDepartments(
+//                                   row as Designation,
+//                                 )
+//                               }
+//                               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+//                             />
+//                           </label>
+
+//                           {/* Department Grid */}
+
+//                           {deptsLoading ? (
+//                             <div className="flex items-center gap-2 py-3 text-xs text-slate-400">
+//                               <Loader2
+//                                 size={13}
+//                                 className="animate-spin text-blue-600"
+//                               />
+
+//                               Loading departments...
+//                             </div>
+//                           ) : (
+//                             <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
+
+//                               {departments.length === 0 ? (
+//                                 <div className="w-full py-5 text-center text-xs text-slate-400">
+//                                   No departments available.
+//                                 </div>
+//                               ) : (
+//                                 departments.map(
+//                                   (dept) => {
+//                                     const isChecked =
+//                                       Boolean(
+//                                         (
+//                                           row as Designation
+//                                         )
+//                                           .is_all_departments,
+//                                       ) ||
+//                                       Boolean(
+//                                         (
+//                                           row as Designation
+//                                         )
+//                                           .department_ids
+//                                           ?.includes(
+//                                             dept.id,
+//                                           ),
+//                                       );
+
+//                                     return (
+//                                       <button
+//                                         type="button"
+//                                         key={dept.id}
+//                                         onClick={() =>
+//                                           handleToggleRowDepartment(
+//                                             row as Designation,
+//                                             dept.id,
+//                                           )
+//                                         }
+//                                         className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${
+//                                           isChecked
+//                                             ? 'border-blue-500 bg-blue-50 shadow-sm'
+//                                             : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+//                                         }`}
+//                                       >
+
+//                                         <div className="flex min-w-0 items-center gap-2.5">
+
+//                                           <div
+//                                             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+//                                               isChecked
+//                                                 ? 'bg-blue-600 text-white'
+//                                                 : 'bg-slate-100 text-slate-400'
+//                                             }`}
+//                                           >
+//                                             <Building2
+//                                               size={14}
+//                                             />
+//                                           </div>
+
+//                                           <span
+//                                             className={`truncate text-xs font-semibold ${
+//                                               isChecked
+//                                                 ? 'text-blue-700'
+//                                                 : 'text-slate-700'
+//                                             }`}
+//                                           >
+//                                             {
+//                                               dept.department_name
+//                                             }
+//                                           </span>
+//                                         </div>
+
+//                                         <div
+//                                           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+//                                             isChecked
+//                                               ? 'border-blue-600 bg-blue-600 text-white'
+//                                               : 'border-slate-300 bg-white'
+//                                           }`}
+//                                         >
+//                                           {isChecked && (
+//                                             <Check size={12} />
+//                                           )}
+//                                         </div>
+//                                       </button>
+//                                     );
+//                                   },
+//                                 )
+//                               )}
+//                             </div>
+//                           )}
+//                         </div>
+//                       )}
+
+//                     {/* ───────────────────────────────────────────────────── */}
+//                     {/* Sub-Designation → Designation Assignment */}
+//                     {/* ───────────────────────────────────────────────────── */}
+
+//                     {tab === 'subdesignation' &&
+//                       isEditing && (
+//                         <div className="border-t border-slate-100 bg-slate-50/60 px-9 py-4">
+
+//                           <div className="mb-3 flex items-center justify-between">
+
+//                             <div>
+//                               <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+//                                 Designation Scope
+//                               </div>
+
+//                               <p className="mt-0.5 text-[11px] text-slate-400">
+//                                 Choose which designations can
+//                                 use this sub-designation.
+//                               </p>
+//                             </div>
+
+//                             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
+//                               {(row as SubDesignation)
+//                                 .is_all_designations
+//                                 ? 'Global'
+//                                 : `${(row as SubDesignation).designation_ids?.length ?? 0} selected`}
+//                             </span>
+//                           </div>
+
+//                           {/* All Designations */}
+
+//                           <label
+//                             className={`mb-3 flex cursor-pointer items-center justify-between rounded-xl border p-3 transition-all ${
+//                               (row as SubDesignation)
+//                                 .is_all_designations
+//                                 ? 'border-blue-500 bg-blue-50'
+//                                 : 'border-slate-200 bg-white hover:border-slate-300'
+//                             }`}
+//                           >
+//                             <div className="flex items-center gap-3">
+
+//                               <div
+//                                 className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+//                                   (row as SubDesignation)
+//                                     .is_all_designations
+//                                     ? 'bg-blue-600 text-white'
+//                                     : 'bg-slate-100 text-slate-400'
+//                                 }`}
+//                               >
+//                                 <Layers size={15} />
+//                               </div>
+
+//                               <div>
+//                                 <div
+//                                   className={`text-xs font-semibold ${
+//                                     (row as SubDesignation)
+//                                       .is_all_designations
+//                                       ? 'text-blue-700'
+//                                       : 'text-slate-700'
+//                                   }`}
+//                                 >
+//                                   All Designations
+//                                 </div>
+
+//                                 <div className="text-[10px] text-slate-400">
+//                                   Sub-designation applies everywhere
+//                                 </div>
+//                               </div>
+//                             </div>
+
+//                             <input
+//                               type="checkbox"
+//                               checked={Boolean(
+//                                 (
+//                                   row as SubDesignation
+//                                 )
+//                                   .is_all_designations,
+//                               )}
+//                               onChange={() =>
+//                                 handleToggleRowAllDesignations(
+//                                   row as SubDesignation,
+//                                 )
+//                               }
+//                               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+//                             />
+//                           </label>
+
+//                           {/* Designation Grid */}
+
+//                           {designationsLoading ? (
+//                             <div className="flex items-center gap-2 py-3 text-xs text-slate-400">
+//                               <Loader2
+//                                 size={13}
+//                                 className="animate-spin text-blue-600"
+//                               />
+
+//                               Loading designations...
+//                             </div>
+//                           ) : (
+//                             <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
+
+//                               {designations.length === 0 ? (
+//                                 <div className="w-full py-5 text-center text-xs text-slate-400">
+//                                   No designations available.
+//                                 </div>
+//                               ) : (
+//                                 designations.map(
+//                                   (desig) => {
+//                                     const isChecked =
+//                                       Boolean(
+//                                         (
+//                                           row as SubDesignation
+//                                         )
+//                                           .is_all_designations,
+//                                       ) ||
+//                                       Boolean(
+//                                         (
+//                                           row as SubDesignation
+//                                         )
+//                                           .designation_ids
+//                                           ?.includes(
+//                                             desig.id,
+//                                           ),
+//                                       );
+
+//                                     return (
+//                                       <button
+//                                         type="button"
+//                                         key={desig.id}
+//                                         onClick={() =>
+//                                           handleToggleRowDesignation(
+//                                             row as SubDesignation,
+//                                             desig.id,
+//                                           )
+//                                         }
+//                                         className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${
+//                                           isChecked
+//                                             ? 'border-blue-500 bg-blue-50 shadow-sm'
+//                                             : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+//                                         }`}
+//                                       >
+
+//                                         <div className="flex min-w-0 items-center gap-2.5">
+
+//                                           <div
+//                                             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+//                                               isChecked
+//                                                 ? 'bg-blue-600 text-white'
+//                                                 : 'bg-slate-100 text-slate-400'
+//                                             }`}
+//                                           >
+//                                             <Layers
+//                                               size={14}
+//                                             />
+//                                           </div>
+
+//                                           <span
+//                                             className={`truncate text-xs font-semibold ${
+//                                               isChecked
+//                                                 ? 'text-blue-700'
+//                                                 : 'text-slate-700'
+//                                             }`}
+//                                           >
+//                                             {desig.name}
+//                                           </span>
+//                                         </div>
+
+//                                         <div
+//                                           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+//                                             isChecked
+//                                               ? 'border-blue-600 bg-blue-600 text-white'
+//                                               : 'border-slate-300 bg-white'
+//                                           }`}
+//                                         >
+//                                           {isChecked && (
+//                                             <Check size={12} />
+//                                           )}
+//                                         </div>
+//                                       </button>
+//                                     );
+//                                   },
+//                                 )
+//                               )}
+//                             </div>
+//                           )}
+//                         </div>
+//                       )}
+//                   </div>
+//                 );
+//               })
+//             )}
+//           </div>
+//         </div>
+//       </MasterDataLayout>
+//     </AppShell>
+//   );
+// }
+ 
+
+
+
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
-import { Chip } from '@/components/ui/Chip';
-import { Select } from '@/components/ui/Select';
-import {
-  GripVertical,
-  Pencil,
-  Trash2,
-  Loader2,
-  Building2,
-  Layers,
-  Plus,
-  Search,
-  AlertCircle,
-  Check,
-  X,
-} from 'lucide-react';
+import { GripVertical, Pencil, X, Loader2, Lock } from 'lucide-react';
 
 import {
-  useDesignations,
-  useCreateDesignation,
-  useUpdateDesignation,
-  useDeleteDesignation,
-  useSubDesignations,
-  useCreateSubDesignation,
-  useUpdateSubDesignation,
-  useDeleteSubDesignation,
+  useDesignations, useCreateDesignation, useUpdateDesignation, useDeleteDesignation,
+  useSubDesignations, useCreateSubDesignation, useUpdateSubDesignation, useDeleteSubDesignation,
 } from '@/features/designation/hooks/useDesignations';
-
 import { useDepartments } from '@/features/departments/hooks/useDepartments';
+import type { Designation, SubDesignation } from '@/services/api/designation.service';
 
-import type {
-  Designation,
-  SubDesignation,
-} from '@/services/api/designation.service';
+import { usePermission } from '@/features/auth/hooks/useAuth';
+import { PermissionGuard } from '@/utils/permissionGuard';
+import { useFieldPermissions, resolveFieldPerm } from '@/features/rbac/hooks/useFieldPermissions';
+import { maskedView } from '@/components/form/maskField';
+import { showToast } from '@/utils/toast';
 
 type Tab = 'designation' | 'subdesignation';
 type Row = Designation | SubDesignation;
 
+// Which field_key (from designation-seed.sql) governs the active tab.
+const FIELD_KEY: Record<Tab, string> = {
+  designation: 'designation_name',
+  subdesignation: 'sub_designation_name',
+};
+
 export default function DesignationsPage() {
+  const { canCreate, canEdit, canDelete, isSuperAdmin } = usePermission();
+  const { data: fp, isLoading: fieldsLoading } = useFieldPermissions('designation');
+
+  // f() = existing rows (completionPct: 100). fCreate() = the quick-add row
+  // (completionPct: 0 — activates can_add's bonus), same split as Department.
+  const f = useCallback(
+    (key: string) => resolveFieldPerm(fp, key, { completionPct: 100, bypass: isSuperAdmin }),
+    [fp, isSuperAdmin]
+  );
+  const fCreate = useCallback(
+    (key: string) => resolveFieldPerm(fp, key, { completionPct: 0, bypass: isSuperAdmin }),
+    [fp, isSuperAdmin]
+  );
+
   const [tab, setTab] = useState<Tab>('designation');
+  const currentFieldKey = FIELD_KEY[tab];
+  const canAddCurrent = canCreate('designation') && fCreate(currentFieldKey).can_edit;
+  const canEditCurrent = canEdit('designation') && f(currentFieldKey).can_edit;
+  const canDeleteCurrent = canDelete('designation');
+  const fieldPerm = f(currentFieldKey);
+
   const [filter, setFilter] = useState('');
   const [quickAddName, setQuickAddName] = useState('');
-  const [quickAddDesignationId, setQuickAddDesignationId] = useState<
-    number | ''
-  >('');
+  const [quickAddDesignationId, setQuickAddDesignationId] = useState<number | ''>('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
-  // ─────────────────────────────────────────────────────────────────────────
-  // Fetch Departments
-  // ─────────────────────────────────────────────────────────────────────────
-  const {
-    data: departments = [],
-    isLoading: deptsLoading,
-  } = useDepartments({
-    is_active: 'true',
-  });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Fetch Designations
-  // ─────────────────────────────────────────────────────────────────────────
-  const {
-    data: designations = [],
-    isLoading: designationsLoading,
-  } = useDesignations({
-    is_active: 'true',
-  });
-  // Default select first available designation when switching
-  // to Sub-Designations
+  const { data: departments = [], isLoading: deptsLoading } = useDepartments({ is_active: 'true' });
+  const { data: designations = [], isLoading: designationsLoading } = useDesignations({ is_active: 'true' });
+
   useEffect(() => {
-    if (
-      tab === 'subdesignation' &&
-      !quickAddDesignationId &&
-      designations.length > 0
-    ) {
+    if (tab === 'subdesignation' && !quickAddDesignationId && designations.length > 0) {
       setQuickAddDesignationId(designations[0].id);
     }
   }, [tab, designations, quickAddDesignationId]);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Fetch Sub-Designations
-  // ─────────────────────────────────────────────────────────────────────────
-
-  const {
-    data: subDesignations = [],
-    isLoading: subDesignationsLoading,
-  } = useSubDesignations({
-    is_active: 'true',
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Mutations
-  // ─────────────────────────────────────────────────────────────────────────
+  const { data: subDesignations = [], isLoading: subDesignationsLoading } = useSubDesignations({ is_active: 'true' });
 
   const createDesignation = useCreateDesignation();
-
   const updateDesignation = useUpdateDesignation();
-
   const deleteDesignation = useDeleteDesignation();
-
   const createSubDesignation = useCreateSubDesignation();
-
   const updateSubDesignation = useUpdateSubDesignation();
-
   const deleteSubDesignation = useDeleteSubDesignation();
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Filtering
-  // ─────────────────────────────────────────────────────────────────────────
-
   const filteredDesignations = useMemo(
-    () =>
-      designations.filter((d) =>
-        d.name.toLowerCase().includes(filter.toLowerCase()),
-      ),
-    [designations, filter],
+    () => designations.filter((d) => d.name.toLowerCase().includes(filter.toLowerCase())),
+    [designations, filter]
   );
-
   const filteredSubDesignations = useMemo(
-    () =>
-      subDesignations.filter((sd) =>
-        sd.name.toLowerCase().includes(filter.toLowerCase()),
-      ),
-    [subDesignations, filter],
+    () => subDesignations.filter((sd) => sd.name.toLowerCase().includes(filter.toLowerCase())),
+    [subDesignations, filter]
   );
 
-  const isLoading =
-    tab === 'designation'
-      ? designationsLoading
-      : subDesignationsLoading;
+  const isLoading = (tab === 'designation' ? designationsLoading : subDesignationsLoading) || fieldsLoading;
+  const rows: Row[] = tab === 'designation' ? filteredDesignations : filteredSubDesignations;
 
-  const rows: Row[] =
-    tab === 'designation'
-      ? filteredDesignations
-      : filteredSubDesignations;
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Toggle Department Handlers
-  // ─────────────────────────────────────────────────────────────────────────
-
-  async function handleToggleRowAllDepartments(
-    designation: Designation,
-  ) {
+  // ─── Toggle Department Handlers (Designations) ─────────────────────────
+  async function handleToggleRowAllDepartments(designation: Designation) {
+    if (!canEditCurrent) return;
     const nextValue = !designation.is_all_departments;
+    const fallbackIds = designation.department_ids && designation.department_ids.length > 0
+      ? designation.department_ids
+      : (departments[0]?.id ? [departments[0].id] : []);
 
-    const fallbackIds =
-      designation.department_ids &&
-      designation.department_ids.length > 0
-        ? designation.department_ids
-        : departments[0]?.id
-          ? [departments[0].id]
-          : [];
-
-    await updateDesignation.mutateAsync({
-      id: designation.id,
-
-      data: {
-        is_all_departments: nextValue,
-        department_ids: nextValue ? [] : fallbackIds,
-      },
-    });
+    try {
+      await updateDesignation.mutateAsync({
+        id: designation.id,
+        data: { is_all_departments: nextValue, department_ids: nextValue ? [] : fallbackIds },
+      });
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to update department scope');
+    }
   }
 
-  async function handleToggleRowDepartment(
-    designation: Designation,
-    departmentId: number,
-  ) {
+  async function handleToggleRowDepartment(designation: Designation, departmentId: number) {
+    if (!canEditCurrent) return;
     const currentIds = designation.department_ids || [];
-
     let nextIds: number[];
 
     if (designation.is_all_departments) {
       nextIds = [departmentId];
     } else {
-      nextIds = currentIds.includes(departmentId)
-        ? currentIds.filter((id) => id !== departmentId)
-        : [...currentIds, departmentId];
+      nextIds = currentIds.includes(departmentId) ? currentIds.filter((id) => id !== departmentId) : [...currentIds, departmentId];
     }
 
     if (nextIds.length === 0) {
-      window.alert(
-        'Designation must belong to at least one department or have "All departments" enabled.',
-      );
-
+      showToast('Designation must belong to at least one department or have "All departments" enabled.');
       return;
     }
 
-    await updateDesignation.mutateAsync({
-      id: designation.id,
-
-      data: {
-        is_all_departments: false,
-        department_ids: nextIds,
-      },
-    });
+    try {
+      await updateDesignation.mutateAsync({ id: designation.id, data: { is_all_departments: false, department_ids: nextIds } });
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to update department scope');
+    }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Toggle Designation Handlers
-  // ─────────────────────────────────────────────────────────────────────────
-
-  async function handleToggleRowAllDesignations(
-    sub: SubDesignation,
-  ) {
+  // ─── Toggle Designation Handlers (Sub-Designations) ────────────────────
+  async function handleToggleRowAllDesignations(sub: SubDesignation) {
+    if (!canEditCurrent) return;
     const nextValue = !sub.is_all_designations;
+    const fallbackIds = sub.designation_ids && sub.designation_ids.length > 0
+      ? sub.designation_ids
+      : (designations[0]?.id ? [designations[0].id] : []);
 
-    const fallbackIds =
-      sub.designation_ids &&
-      sub.designation_ids.length > 0
-        ? sub.designation_ids
-        : designations[0]?.id
-          ? [designations[0].id]
-          : [];
-
-    await updateSubDesignation.mutateAsync({
-      id: sub.id,
-
-      data: {
-        is_all_designations: nextValue,
-        designation_ids: nextValue ? [] : fallbackIds,
-      },
-    });
+    try {
+      await updateSubDesignation.mutateAsync({
+        id: sub.id,
+        data: { is_all_designations: nextValue, designation_ids: nextValue ? [] : fallbackIds },
+      });
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to update designation scope');
+    }
   }
 
-  async function handleToggleRowDesignation(
-    sub: SubDesignation,
-    designationId: number,
-  ) {
+  async function handleToggleRowDesignation(sub: SubDesignation, designationId: number) {
+    if (!canEditCurrent) return;
     const currentIds = sub.designation_ids || [];
-
     let nextIds: number[];
 
     if (sub.is_all_designations) {
       nextIds = [designationId];
     } else {
-      nextIds = currentIds.includes(designationId)
-        ? currentIds.filter((id) => id !== designationId)
-        : [...currentIds, designationId];
+      nextIds = currentIds.includes(designationId) ? currentIds.filter((id) => id !== designationId) : [...currentIds, designationId];
     }
 
     if (nextIds.length === 0) {
-      window.alert(
-        'Sub-designation must belong to at least one designation or have "All designations" enabled.',
-      );
-
+      showToast('Sub-designation must belong to at least one designation or have "All designations" enabled.');
       return;
     }
 
-    await updateSubDesignation.mutateAsync({
-      id: sub.id,
-
-      data: {
-        is_all_designations: false,
-        designation_ids: nextIds,
-      },
-    });
+    try {
+      await updateSubDesignation.mutateAsync({ id: sub.id, data: { is_all_designations: false, designation_ids: nextIds } });
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to update designation scope');
+    }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Tab Switching
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ─── Standard Handlers ────────────────────────────────────────────────
   function switchTab(next: Tab) {
     setTab(next);
-
     setFilter('');
-
     setQuickAddName('');
-
     setQuickAddDesignationId('');
-
     setEditingId(null);
-
     setEditingName('');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Quick Add
-  // ─────────────────────────────────────────────────────────────────────────
-
   async function handleQuickAdd() {
     const name = quickAddName.trim();
+    if (!name || !canAddCurrent) return;
 
-    if (!name) return;
-
-    if (tab === 'designation') {
-      await createDesignation.mutateAsync({
-        name,
-
-        is_all_departments: true,
-
-        department_ids: [],
-      });
-    } else {
-      if (!quickAddDesignationId) {
-        window.alert('Please select a designation first.');
-
-        return;
+    try {
+      if (tab === 'designation') {
+        await createDesignation.mutateAsync({ name, is_all_departments: true, department_ids: [] });
+      } else {
+        if (!quickAddDesignationId) {
+          showToast('Please select a designation first.');
+          return;
+        }
+        await createSubDesignation.mutateAsync({ name, is_all_designations: false, designation_ids: [Number(quickAddDesignationId)] });
       }
-
-      await createSubDesignation.mutateAsync({
-        name,
-
-        is_all_designations: false,
-
-        designation_ids: [Number(quickAddDesignationId)],
-      });
+      setQuickAddName('');
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to add item');
     }
-
-    setQuickAddName('');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Edit
-  // ─────────────────────────────────────────────────────────────────────────
-
   function startEdit(row: Row) {
+    if (!canEditCurrent) return;
     if (editingId === row.id) {
       setEditingId(null);
-
       setEditingName('');
-
       return;
     }
-
     setEditingId(row.id);
-
     setEditingName(row.name);
   }
 
   function cancelEdit() {
     setEditingId(null);
-
     setEditingName('');
   }
 
   async function commitEdit(row: Row) {
+    if (!canEditCurrent) { cancelEdit(); return; }
     const name = editingName.trim();
-
-    if (
-      !name ||
-      editingId === null ||
-      name === row.name
-    ) {
+    if (!name || editingId === null || name === row.name) {
       cancelEdit();
-
       return;
     }
 
-    if (tab === 'designation') {
-      await updateDesignation.mutateAsync({
-        id: row.id,
-
-        data: {
-          name,
-        },
-      });
-    } else {
-      await updateSubDesignation.mutateAsync({
-        id: row.id,
-
-        data: {
-          name,
-        },
-      });
+    try {
+      if (tab === 'designation') await updateDesignation.mutateAsync({ id: row.id, data: { name } });
+      else await updateSubDesignation.mutateAsync({ id: row.id, data: { name } });
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to save changes');
     }
-
     cancelEdit();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Delete
-  // ─────────────────────────────────────────────────────────────────────────
-
   async function handleDelete(row: Row) {
-    if (
-      !window.confirm(
-        `Delete "${row.name}"? This can't be undone.`,
-      )
-    ) {
-      return;
-    }
+    if (!canDeleteCurrent) return;
+    if (!window.confirm(`Delete "${row.name}"? This can't be undone.`)) return;
 
-    if (tab === 'designation') {
-      await deleteDesignation.mutateAsync(row.id);
-    } else {
-      await deleteSubDesignation.mutateAsync(row.id);
+    try {
+      if (tab === 'designation') await deleteDesignation.mutateAsync(row.id);
+      else await deleteSubDesignation.mutateAsync(row.id);
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to delete item');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Delete Master
-  // ─────────────────────────────────────────────────────────────────────────
-
   async function handleDeleteMaster() {
-    const label =
-      tab === 'designation'
-        ? 'all designations'
-        : 'all sub-designations';
+    if (!canDeleteCurrent) return;
+    const label = tab === 'designation' ? 'all designations' : 'all sub-designations';
+    if (!window.confirm(`Delete ${label} (${rows.length} items)? This can't be undone.`)) return;
 
-    if (
-      !window.confirm(
-        `Delete ${label} (${rows.length} items)? This can't be undone.`,
-      )
-    ) {
-      return;
-    }
-
-    for (const row of rows) {
-      if (tab === 'designation') {
-        await deleteDesignation.mutateAsync(row.id);
-      } else {
-        await deleteSubDesignation.mutateAsync(row.id);
+    try {
+      for (const row of rows) {
+        if (tab === 'designation') await deleteDesignation.mutateAsync(row.id);
+        else await deleteSubDesignation.mutateAsync(row.id);
       }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to delete some items');
     }
   }
 
   const addDisabled =
     !quickAddName.trim() ||
-    (tab === 'subdesignation' &&
-      !quickAddDesignationId) ||
+    (tab === 'subdesignation' && !quickAddDesignationId) ||
     createDesignation.isPending ||
     createSubDesignation.isPending;
 
   return (
-    <AppShell>
-      <MasterDataLayout>
-        <div className="pg-enter">
-
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Header */}
-          {/* ─────────────────────────────────────────────────────────────── */}
-
-          <div className="ph">
-            <div>
-              <h1>
-                {tab === 'designation'
-                  ? 'Designation Management'
-                  : 'Sub-Designation Management'}
-              </h1>
-
-              <p>
-                Manage designations, department assignments,
-                and linked sub-designations.
-              </p>
-            </div>
-
-            <div className="ph-r">
-              <button
-                type="button"
-                onClick={handleDeleteMaster}
-                disabled={rows.length === 0}
-                className="btn btn-ghost btn-sm"
-                style={{ color: 'var(--red)' }}
-              >
-                Delete master
-              </button>
-
-              <Chip variant="green">Auto-save on</Chip>
-            </div>
-          </div>
-
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Tabs + Search */}
-          {/* ─────────────────────────────────────────────────────────────── */}
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-
-            <div className="tabs">
-              <div
-                className={`tab${tab === 'designation' ? ' on' : ''}`}
-                onClick={() => switchTab('designation')}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <Building2 size={14} />
-                  Designations
-                  <span className="chip cgr">{designations.length}</span>
-                </span>
+    <PermissionGuard permission="designation:view">
+      <AppShell>
+        <MasterDataLayout>
+          <div className="px-6 py-5">
+            {/* Header */}
+            <div className="mb-3.5 flex items-start justify-between">
+              <div>
+                <h1 className="text-[19px] font-bold text-slate-900">
+                  {tab === 'designation' ? 'Designations' : 'Sub Designations'}
+                </h1>
+                <p className="mt-0.5 text-[11.5px] text-slate-400">
+                  Designations → departments · Sub-designations → designations
+                </p>
               </div>
 
-              <div
-                className={`tab${tab === 'subdesignation' ? ' on' : ''}`}
-                onClick={() => switchTab('subdesignation')}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <Layers size={14} />
-                  Sub-Designations
-                  <span className="chip cgr">{subDesignations.length}</span>
+              <div className="flex items-center gap-3">
+                {canDeleteCurrent && (
+                  <button
+                    onClick={handleDeleteMaster}
+                    disabled={rows.length === 0}
+                    className="text-[12px] font-medium text-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Delete master
+                  </button>
+                )}
+                <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+                  Auto-save on
                 </span>
               </div>
             </div>
 
-            <div className="search-bar" style={{ maxWidth: 220 }}>
-              <Search size={14} style={{ color: 'var(--ink4)' }} />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
+            {/* Tabs */}
+            <div className="mb-4 flex items-center gap-2">
+              <TabButton label="Designation" count={designations.length} active={tab === 'designation'} onClick={() => switchTab('designation')} />
+              <TabButton label="Sub Designation" count={subDesignations.length} active={tab === 'subdesignation'} onClick={() => switchTab('subdesignation')} />
             </div>
-          </div>
 
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Quick Creation */}
-          {/* ─────────────────────────────────────────────────────────────── */}
+            {/* Quick Add Bar — hidden entirely when the role can't add to this tab's field */}
+            {canAddCurrent && (
+              <div className="mb-3 flex items-center gap-2">
+                {tab === 'subdesignation' && (
+                  <select
+                    className="qin w-56 shrink-0"
+                    value={quickAddDesignationId}
+                    onChange={(e) => setQuickAddDesignationId(e.target.value ? Number(e.target.value) : '')}
+                  >
+                    <option value="">Select designation…</option>
+                    {designations.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                )}
 
-          <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-
-            {tab === 'subdesignation' && (
-              <div className="fg" style={{ margin: 0, width: 220 }}>
-                <Select
-                  value={quickAddDesignationId}
-                  onChange={(v) => setQuickAddDesignationId(v ? Number(v) : '')}
-                  options={designations.map((d) => ({ value: d.id, label: d.name }))}
-                  placeholder="Select Designation..."
-                  filter
+                <input
+                  className="qin flex-1"
+                  placeholder={tab === 'designation' ? 'Add designation...' : 'Add sub-designation...'}
+                  value={quickAddName}
+                  onChange={(e) => setQuickAddName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleQuickAdd()}
                 />
+
+                <button
+                  onClick={handleQuickAdd}
+                  disabled={addDisabled}
+                  className="rounded-md bg-blue-600 px-5 py-2 text-[13px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Add
+                </button>
               </div>
             )}
 
-            <div className="fg" style={{ margin: 0, flex: 1 }}>
-              <input
-                type="text"
-                placeholder={
-                  tab === 'designation'
-                    ? 'Add new designation...'
-                    : 'Add new sub-designation...'
-                }
-                value={quickAddName}
-                onChange={(e) =>
-                  setQuickAddName(e.target.value)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleQuickAdd();
-                  }
-                }}
-              />
+            {/* Search Bar & Micro Tip */}
+            <div className="mb-2 flex items-center gap-2">
+              <input className="qin w-52" placeholder="Filter..." value={filter} onChange={(e) => setFilter(e.target.value)} />
+              <div className="flex-1" />
+              <span className="w-8 shrink-0 text-right text-[12px] text-gray-400">{rows.length}</span>
             </div>
 
-            <button
-              type="button"
-              onClick={handleQuickAdd}
-              disabled={addDisabled}
-              className="btn btn-pri btn-sm"
-            >
-              {createDesignation.isPending ||
-              createSubDesignation.isPending ? (
-                <Loader2
-                  size={14}
-                  className="animate-spin"
-                />
-              ) : (
-                <Plus size={14} />
-              )}
-
-              Add
-            </button>
-          </div>
-
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Assignment Info */}
-          {/* ─────────────────────────────────────────────────────────────── */}
-
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-
-            <div className="flex items-center gap-2">
-
+            <p className="mb-3 text-[11px] text-slate-400">
               {tab === 'designation' ? (
-                <Building2
-                  size={14}
-                  className="text-slate-400"
-                />
+                <>Tip: leave a designation on <span className="font-semibold text-slate-600">All departments</span> if it applies everywhere. Or link it to one or more departments. Drag <GripVertical className="inline h-3 w-3" /> to reorder.</>
               ) : (
-                <Layers
-                  size={14}
-                  className="text-slate-400"
-                />
+                <>Tip: leave a sub-designation on <span className="font-semibold text-slate-600">All designations</span> if it applies everywhere. Or link it to one or more designations. Drag <GripVertical className="inline h-3 w-3" /> to reorder.</>
               )}
-
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                {tab === 'designation'
-                  ? 'Department Assignment'
-                  : 'Designation Assignment'}
-              </span>
-            </div>
-
-            <p className="mt-1.5 text-[11px] text-slate-500">
-              {tab === 'designation'
-                ? 'A designation can apply to all departments or be linked to one or more specific departments.'
-                : 'A sub-designation can apply to all designations or be linked to one or more specific designations.'}
             </p>
-          </div>
 
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Data List */}
-          {/* ─────────────────────────────────────────────────────────────── */}
+            {/* Main List */}
+            <div className="overflow-hidden rounded-md border border-gray-100 bg-white">
+              {isLoading ? (
+                <div className="flex items-center gap-2 p-4 text-xs text-gray-400">
+                  <Loader2 size={13} className="animate-spin" /> Loading…
+                </div>
+              ) : rows.length === 0 ? (
+                <div className="p-4 text-xs text-gray-400">
+                  No {tab === 'designation' ? 'designations' : 'sub-designations'} found.
+                </div>
+              ) : (
+                rows.map((row, i) => {
+                  const isEditing = editingId === row.id;
+                  const mv = maskedView(row.name, fieldPerm);
+                  const displayName = mv.kind === 'full' ? '••••••••' : mv.kind === 'partial' ? mv.text : row.name;
+                  const canEditThisRow = canEditCurrent && mv.kind === 'none';
 
-          <div className="divide-y divide-slate-100 overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
+                  const deptNames =
+                    tab === 'designation'
+                      ? (row as Designation).is_all_departments
+                        ? ['All departments']
+                        : (row as Designation).departments?.map((d) => d.department_name) || []
+                      : [];
 
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2 p-8 text-xs text-slate-400">
+                  const designationNames =
+                    tab === 'subdesignation'
+                      ? (row as SubDesignation).is_all_designations
+                        ? ['All designations']
+                        : (row as SubDesignation).designations?.map((d) => d.name) || []
+                      : [];
 
-                <Loader2
-                  size={16}
-                  className="animate-spin text-blue-600"
-                />
+                  return (
+                    <div
+                      key={row.id}
+                      className="border-b border-gray-100 last:border-b-0"
+                      onBlur={(e) => {
+                        if (!isEditing) return;
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) commitEdit(row);
+                      }}
+                    >
+                      <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50/80">
+                        <GripVertical size={14} className="shrink-0 cursor-grab text-gray-300" />
+                        <span className="w-5 shrink-0 text-[11px] text-gray-400">{i + 1}</span>
 
-                Loading configuration records...
-              </div>
-            ) : rows.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400">
-                No active records available.
-              </div>
-            ) : (
-              rows.map((row, idx) => {
-                const isEditing =
-                  editingId === row.id;
-
-                const deptNames =
-                  tab === 'designation'
-                    ? (row as Designation)
-                        .is_all_departments
-                      ? ['All departments']
-                      : (row as Designation)
-                          .departments
-                          ?.map(
-                            (d) =>
-                              d.department_name,
-                          ) || []
-                    : [];
-
-                const designationNames =
-                  tab === 'subdesignation'
-                    ? (row as SubDesignation)
-                        .is_all_designations
-                      ? ['All designations']
-                      : (row as SubDesignation)
-                          .designations
-                          ?.map(
-                            (desig) =>
-                              desig.name,
-                          ) || []
-                    : [];
-
-                return (
-                  <div
-                    key={row.id}
-                    className="relative"
-                    onBlur={(e) => {
-                      if (!isEditing) return;
-
-                      if (
-                        !e.currentTarget.contains(
-                          e.relatedTarget as Node,
-                        )
-                      ) {
-                        commitEdit(row);
-                      }
-                    }}
-                  >
-
-                    {/* Row */}
-
-                    <div className="relative px-4 py-3 transition-colors hover:bg-slate-50/50">
-
-                      <div className="flex items-center justify-between gap-4">
-
-                        {/* Left */}
-
-                        <div className="flex min-w-0 items-center gap-3">
-
-                          <GripVertical
-                            size={14}
-                            className="shrink-0 cursor-grab text-slate-300"
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            className="qin !h-8 flex-1"
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitEdit(row);
+                              if (e.key === 'Escape') cancelEdit();
+                            }}
                           />
-
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
-                            {idx + 1}
-                          </span>
-
-                          {isEditing ? (
-                            <input
-                              autoFocus
-                              className="h-9 flex-1 rounded-lg border border-blue-300 bg-white px-3 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
-                              value={editingName}
-                              onChange={(e) =>
-                                setEditingName(
-                                  e.target.value,
-                                )
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  commitEdit(row);
-                                }
-
-                                if (
-                                  e.key === 'Escape'
-                                ) {
-                                  cancelEdit();
-                                }
-                              }}
-                            />
-                          ) : (
-                            <span className="truncate text-xs font-bold uppercase tracking-wider text-slate-900">
-                              {row.name}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Right */}
-
-                        <div className="flex shrink-0 items-center gap-3">
-
-                          {tab === 'designation' ? (
-                            deptNames.length > 0 ? (
-                              <span className="rounded-full border border-blue-400/80 bg-white px-3 py-0.5 text-xs font-semibold text-blue-600 shadow-sm">
-                                {deptNames.length ===
-                                1
-                                  ? deptNames[0]
-                                  : `${deptNames.length} Departments`}
-                              </span>
-                            ) : (
-                              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-0.5 text-xs font-semibold text-amber-600">
-                                0 Departments
-                              </span>
-                            )
-                          ) : designationNames.length >
-                            0 ? (
-                            <span className="rounded-full border border-blue-400/80 bg-white px-3 py-0.5 text-xs font-semibold text-blue-600 shadow-sm">
-                              {designationNames.length ===
-                              1
-                                ? designationNames[0]
-                                : `${designationNames.length} Designations`}
-                            </span>
-                          ) : (
-                            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-0.5 text-xs font-semibold text-amber-600">
-                              0 Designations
-                            </span>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              startEdit(row)
-                            }
-                            className={`rounded-lg p-1.5 transition-colors ${
-                              isEditing
-                                ? 'bg-blue-50 text-blue-600'
-                                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
-                            }`}
-                            title="Edit"
+                        ) : (
+                          <span
+                            className="flex-1 truncate text-[13px] font-semibold uppercase tracking-wide text-gray-800 flex items-center gap-1"
+                            data-nocopy={mv.noCopy || undefined}
+                            onCopy={mv.noCopy ? (e) => e.preventDefault() : undefined}
+                            onCut={mv.noCopy ? (e) => e.preventDefault() : undefined}
+                            onContextMenu={mv.noCopy ? (e) => e.preventDefault() : undefined}
                           >
+                            {displayName}
+                            {mv.kind !== 'none' && <Lock size={10} className="text-gray-400" />}
+                          </span>
+                        )}
+
+                        {/* Right Tag Badges */}
+                        {tab === 'designation' ? (
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {deptNames.length > 0 ? (
+                              deptNames.map((name, idx) => (
+                                <span key={idx} className="rounded-full border border-blue-200 bg-blue-50/50 px-3 py-0.5 text-[11px] font-medium text-blue-600">{name}</span>
+                              ))
+                            ) : (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-0.5 text-[11px] font-medium text-amber-600">No departments linked</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {designationNames.length > 0 ? (
+                              designationNames.map((name, idx) => (
+                                <span key={idx} className="rounded-full border border-blue-200 bg-blue-50/50 px-3 py-0.5 text-[11px] font-medium text-blue-600">{name}</span>
+                              ))
+                            ) : (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-0.5 text-[11px] font-medium text-amber-600">No designations linked</span>
+                            )}
+                          </div>
+                        )}
+
+                        {canEditThisRow && (
+                          <button onClick={() => startEdit(row)} className={`shrink-0 text-gray-400 hover:text-gray-600 ${isEditing ? 'text-blue-600' : ''}`} title="Edit">
                             <Pencil size={13} />
                           </button>
+                        )}
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDelete(row)
-                            }
-                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
-                            title="Delete"
-                          >
-                            <Trash2 size={13} />
+                        {canDeleteCurrent && (
+                          <button onClick={() => handleDelete(row)} className="shrink-0 text-gray-400 hover:text-red-500" title="Delete">
+                            <X size={15} />
                           </button>
-
-                        </div>
+                        )}
                       </div>
-                    </div>
 
-                    {/* ───────────────────────────────────────────────────── */}
-                    {/* Designation → Department Assignment */}
-                    {/* ───────────────────────────────────────────────────── */}
-
-                    {tab === 'designation' &&
-                      isEditing && (
-                        <div className="border-t border-slate-100 bg-slate-50/60 px-9 py-4">
-
-                          <div className="mb-3 flex items-center justify-between">
-
-                            <div>
-                              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Department Scope
-                              </div>
-
-                              <p className="mt-0.5 text-[11px] text-slate-400">
-                                Choose where this designation
-                                can be used.
-                              </p>
-                            </div>
-
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
-                              {(row as Designation)
-                                .is_all_departments
-                                ? 'Global'
-                                : `${(row as Designation).department_ids?.length ?? 0} selected`}
-                            </span>
+                      {/* Expandable Department Checkbox Grid (Designation Tab) */}
+                      {tab === 'designation' && isEditing && (
+                        <div className="border-t border-slate-100 bg-slate-50/60 px-9 py-3 text-[12px]">
+                          <div className="mb-2">
+                            <label className="inline-flex cursor-pointer items-center gap-2 font-bold text-slate-800">
+                              <input
+                                type="checkbox"
+                                checked={(row as Designation).is_all_departments}
+                                onChange={() => handleToggleRowAllDepartments(row as Designation)}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span>All departments</span>
+                              <span className="font-normal text-slate-400">(applies everywhere)</span>
+                            </label>
                           </div>
-
-                          {/* All Departments */}
-
-                          <label
-                            className={`mb-3 flex cursor-pointer items-center justify-between rounded-xl border p-3 transition-all ${
-                              (row as Designation)
-                                .is_all_departments
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-slate-200 bg-white hover:border-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-
-                              <div
-                                className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                                  (row as Designation)
-                                    .is_all_departments
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-slate-100 text-slate-400'
-                                }`}
-                              >
-                                <Building2 size={15} />
-                              </div>
-
-                              <div>
-                                <div
-                                  className={`text-xs font-semibold ${
-                                    (row as Designation)
-                                      .is_all_departments
-                                      ? 'text-blue-700'
-                                      : 'text-slate-700'
-                                  }`}
-                                >
-                                  All Departments
-                                </div>
-
-                                <div className="text-[10px] text-slate-400">
-                                  Designation applies everywhere
-                                </div>
-                              </div>
-                            </div>
-
-                            <input
-                              type="checkbox"
-                              checked={Boolean(
-                                (row as Designation)
-                                  .is_all_departments,
-                              )}
-                              onChange={() =>
-                                handleToggleRowAllDepartments(
-                                  row as Designation,
-                                )
-                              }
-                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                          </label>
-
-                          {/* Department Grid */}
 
                           {deptsLoading ? (
-                            <div className="flex items-center gap-2 py-3 text-xs text-slate-400">
-                              <Loader2
-                                size={13}
-                                className="animate-spin text-blue-600"
-                              />
-
-                              Loading departments...
+                            <div className="flex items-center gap-2 py-1 text-slate-400">
+                              <Loader2 size={12} className="animate-spin" /> Loading departments...
                             </div>
                           ) : (
-                            <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
-
-                              {departments.length === 0 ? (
-                                <div className="w-full py-5 text-center text-xs text-slate-400">
-                                  No departments available.
-                                </div>
-                              ) : (
-                                departments.map(
-                                  (dept) => {
-                                    const isChecked =
-                                      Boolean(
-                                        (
-                                          row as Designation
-                                        )
-                                          .is_all_departments,
-                                      ) ||
-                                      Boolean(
-                                        (
-                                          row as Designation
-                                        )
-                                          .department_ids
-                                          ?.includes(
-                                            dept.id,
-                                          ),
-                                      );
-
-                                    return (
-                                      <button
-                                        type="button"
-                                        key={dept.id}
-                                        onClick={() =>
-                                          handleToggleRowDepartment(
-                                            row as Designation,
-                                            dept.id,
-                                          )
-                                        }
-                                        className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${
-                                          isChecked
-                                            ? 'border-blue-500 bg-blue-50 shadow-sm'
-                                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                                        }`}
-                                      >
-
-                                        <div className="flex min-w-0 items-center gap-2.5">
-
-                                          <div
-                                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                                              isChecked
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-slate-100 text-slate-400'
-                                            }`}
-                                          >
-                                            <Building2
-                                              size={14}
-                                            />
-                                          </div>
-
-                                          <span
-                                            className={`truncate text-xs font-semibold ${
-                                              isChecked
-                                                ? 'text-blue-700'
-                                                : 'text-slate-700'
-                                            }`}
-                                          >
-                                            {
-                                              dept.department_name
-                                            }
-                                          </span>
-                                        </div>
-
-                                        <div
-                                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                                            isChecked
-                                              ? 'border-blue-600 bg-blue-600 text-white'
-                                              : 'border-slate-300 bg-white'
-                                          }`}
-                                        >
-                                          {isChecked && (
-                                            <Check size={12} />
-                                          )}
-                                        </div>
-                                      </button>
-                                    );
-                                  },
-                                )
-                              )}
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 md:grid-cols-4 lg:grid-cols-6">
+                              {departments.map((dept) => {
+                                const isChecked = (row as Designation).is_all_departments || (row as Designation).department_ids?.includes(dept.id);
+                                return (
+                                  <label key={dept.id} className="inline-flex cursor-pointer items-center gap-2 truncate font-medium text-slate-800">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(isChecked)}
+                                      onChange={() => handleToggleRowDepartment(row as Designation, dept.id)}
+                                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="truncate">{dept.department_name}</span>
+                                  </label>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
                       )}
 
-                    {/* ───────────────────────────────────────────────────── */}
-                    {/* Sub-Designation → Designation Assignment */}
-                    {/* ───────────────────────────────────────────────────── */}
-
-                    {tab === 'subdesignation' &&
-                      isEditing && (
-                        <div className="border-t border-slate-100 bg-slate-50/60 px-9 py-4">
-
-                          <div className="mb-3 flex items-center justify-between">
-
-                            <div>
-                              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Designation Scope
-                              </div>
-
-                              <p className="mt-0.5 text-[11px] text-slate-400">
-                                Choose which designations can
-                                use this sub-designation.
-                              </p>
-                            </div>
-
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
-                              {(row as SubDesignation)
-                                .is_all_designations
-                                ? 'Global'
-                                : `${(row as SubDesignation).designation_ids?.length ?? 0} selected`}
-                            </span>
+                      {/* Expandable Designation Checkbox Grid (Sub-Designation Tab) */}
+                      {tab === 'subdesignation' && isEditing && (
+                        <div className="border-t border-slate-100 bg-slate-50/60 px-9 py-3 text-[12px]">
+                          <div className="mb-2">
+                            <label className="inline-flex cursor-pointer items-center gap-2 font-bold text-slate-800">
+                              <input
+                                type="checkbox"
+                                checked={(row as SubDesignation).is_all_designations}
+                                onChange={() => handleToggleRowAllDesignations(row as SubDesignation)}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span>All designations</span>
+                              <span className="font-normal text-slate-400">(applies everywhere)</span>
+                            </label>
                           </div>
 
-                          {/* All Designations */}
-
-                          <label
-                            className={`mb-3 flex cursor-pointer items-center justify-between rounded-xl border p-3 transition-all ${
-                              (row as SubDesignation)
-                                .is_all_designations
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-slate-200 bg-white hover:border-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-
-                              <div
-                                className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                                  (row as SubDesignation)
-                                    .is_all_designations
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-slate-100 text-slate-400'
-                                }`}
-                              >
-                                <Layers size={15} />
-                              </div>
-
-                              <div>
-                                <div
-                                  className={`text-xs font-semibold ${
-                                    (row as SubDesignation)
-                                      .is_all_designations
-                                      ? 'text-blue-700'
-                                      : 'text-slate-700'
-                                  }`}
-                                >
-                                  All Designations
-                                </div>
-
-                                <div className="text-[10px] text-slate-400">
-                                  Sub-designation applies everywhere
-                                </div>
-                              </div>
-                            </div>
-
-                            <input
-                              type="checkbox"
-                              checked={Boolean(
-                                (
-                                  row as SubDesignation
-                                )
-                                  .is_all_designations,
-                              )}
-                              onChange={() =>
-                                handleToggleRowAllDesignations(
-                                  row as SubDesignation,
-                                )
-                              }
-                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                          </label>
-
-                          {/* Designation Grid */}
-
                           {designationsLoading ? (
-                            <div className="flex items-center gap-2 py-3 text-xs text-slate-400">
-                              <Loader2
-                                size={13}
-                                className="animate-spin text-blue-600"
-                              />
-
-                              Loading designations...
+                            <div className="flex items-center gap-2 py-1 text-slate-400">
+                              <Loader2 size={12} className="animate-spin" /> Loading designations...
                             </div>
                           ) : (
-                            <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
-
-                              {designations.length === 0 ? (
-                                <div className="w-full py-5 text-center text-xs text-slate-400">
-                                  No designations available.
-                                </div>
-                              ) : (
-                                designations.map(
-                                  (desig) => {
-                                    const isChecked =
-                                      Boolean(
-                                        (
-                                          row as SubDesignation
-                                        )
-                                          .is_all_designations,
-                                      ) ||
-                                      Boolean(
-                                        (
-                                          row as SubDesignation
-                                        )
-                                          .designation_ids
-                                          ?.includes(
-                                            desig.id,
-                                          ),
-                                      );
-
-                                    return (
-                                      <button
-                                        type="button"
-                                        key={desig.id}
-                                        onClick={() =>
-                                          handleToggleRowDesignation(
-                                            row as SubDesignation,
-                                            desig.id,
-                                          )
-                                        }
-                                        className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${
-                                          isChecked
-                                            ? 'border-blue-500 bg-blue-50 shadow-sm'
-                                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                                        }`}
-                                      >
-
-                                        <div className="flex min-w-0 items-center gap-2.5">
-
-                                          <div
-                                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                                              isChecked
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-slate-100 text-slate-400'
-                                            }`}
-                                          >
-                                            <Layers
-                                              size={14}
-                                            />
-                                          </div>
-
-                                          <span
-                                            className={`truncate text-xs font-semibold ${
-                                              isChecked
-                                                ? 'text-blue-700'
-                                                : 'text-slate-700'
-                                            }`}
-                                          >
-                                            {desig.name}
-                                          </span>
-                                        </div>
-
-                                        <div
-                                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                                            isChecked
-                                              ? 'border-blue-600 bg-blue-600 text-white'
-                                              : 'border-slate-300 bg-white'
-                                          }`}
-                                        >
-                                          {isChecked && (
-                                            <Check size={12} />
-                                          )}
-                                        </div>
-                                      </button>
-                                    );
-                                  },
-                                )
-                              )}
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 md:grid-cols-4 lg:grid-cols-6">
+                              {designations.map((desig) => {
+                                const isChecked = (row as SubDesignation).is_all_designations || (row as SubDesignation).designation_ids?.includes(desig.id);
+                                return (
+                                  <label key={desig.id} className="inline-flex cursor-pointer items-center gap-2 truncate font-medium text-slate-800">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(isChecked)}
+                                      onChange={() => handleToggleRowDesignation(row as SubDesignation, desig.id)}
+                                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="truncate">{desig.name}</span>
+                                  </label>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
                       )}
-                  </div>
-                );
-              })
-            )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
-      </MasterDataLayout>
-    </AppShell>
+
+          <style jsx global>{`
+            .qin {
+              height: 38px;
+              border: 1px solid #e5e7eb;
+              border-radius: 6px;
+              padding: 0 10px;
+              font-size: 13px;
+              color: #374151;
+              outline: none;
+              background: white;
+            }
+            .qin:focus {
+              border-color: #93c5fd;
+              box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            }
+          `}</style>
+        </MasterDataLayout>
+      </AppShell>
+    </PermissionGuard>
   );
 }
- 
+
+function TabButton({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        'flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors',
+        active ? 'border-blue-500 bg-white text-blue-600' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50',
+      ].join(' ')}
+    >
+      {label}
+      <span className={active ? 'text-[12px] font-semibold text-blue-600' : 'text-[12px] text-gray-400'}>{count}</span>
+    </button>
+  );
+}

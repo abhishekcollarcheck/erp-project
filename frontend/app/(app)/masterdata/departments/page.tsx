@@ -2892,254 +2892,1586 @@
 // }
 
 
-'use client';
+// 'use client';
+// import { useMemo, useState, useEffect } from 'react';
+// import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
+// import { AppShell } from '@/layouts/AppLayout';
+// import { Chip } from '@/components/ui/Chip';
+// import { Select } from '@/components/ui/Select';
+// import {
+//   GripVertical,
+//   Pencil,
+//   Trash2,
+//   Loader2,
+//   Building2,
+//   Layers,
+//   Plus,
+//   Search,
+//   AlertCircle,
+//   Check,
+//   X,
+// } from 'lucide-react';
+// import { useQueries } from '@tanstack/react-query';
 
-import { useMemo, useState, useEffect } from 'react';
+// import {
+//   useCreateDepartment,
+//   useUpdateDepartment,
+//   useDeleteDepartment,
+// } from '@/features/departments/hooks/useDepartments';
+
+// import { departmentService } from '@/services/api/department.service';
+// import type { Department } from '@/services/api/department.service';
+
+// import {
+//   useSubDepartments,
+//   useCreateSubDepartment,
+//   useUpdateSubDepartment,
+//   useDeleteSubDepartment,
+// } from '@/features/sub-departments/hooks/useSubDepartments';
+
+// import { useCompanies } from '@/features/companies/hooks/useCompanies';
+// import type { SubDepartment } from '@/services/api/subDepartment.service';
+
+// type Tab = 'department' | 'subdepartment';
+// type Row = Department | SubDepartment;
+
+// export default function DepartmentsPage() {
+//   const [tab, setTab] = useState<Tab>('department');
+
+//   const [selectedCompanyIds, setSelectedCompanyIds] = useState<number[]>([]);
+//   const [filter, setFilter] = useState('');
+
+//   const [quickAddName, setQuickAddName] = useState('');
+//   const [quickAddDeptId, setQuickAddDeptId] = useState<number | ''>('');
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Edit modal state
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const [editingRow, setEditingRow] = useState<Row | null>(null);
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Department edit state
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const [editDepartmentName, setEditDepartmentName] = useState('');
+//   const [editDepartmentCompanyIds, setEditDepartmentCompanyIds] = useState<number[]>([]);
+//   const [editDepartmentIsAllCompanies, setEditDepartmentIsAllCompanies] = useState(false);
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Sub-department edit state
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const [editSubDepartmentName, setEditSubDepartmentName] = useState('');
+//   const [editSubDepartmentIds, setEditSubDepartmentIds] = useState<number[]>([]);
+//   const [editSubDepartmentIsAllDepartments, setEditSubDepartmentIsAllDepartments] =
+//     useState(false);
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Fetch Companies
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const {
+//     data: companies = [],
+//     isLoading: companiesLoading,
+//   } = useCompanies({ limit: 100 });
+
+//   const allCompanyIds = useMemo(
+//     () => companies.map((c) => c.id),
+//     [companies],
+//   );
+
+//   // Priority logic:
+//   // If no company filter is checked, default to ALL company IDs.
+//   const effectiveCompanyIds = useMemo(() => {
+//     if (selectedCompanyIds.length > 0) {
+//       return selectedCompanyIds;
+//     }
+
+//     return allCompanyIds;
+//   }, [selectedCompanyIds, allCompanyIds]);
+
+//   const isAllExplicitlySelected =
+//     companies.length > 0 &&
+//     selectedCompanyIds.length === companies.length;
+
+//   function toggleCompanyFilter(companyId: number) {
+//     setSelectedCompanyIds((prev) =>
+//       prev.includes(companyId)
+//         ? prev.filter((id) => id !== companyId)
+//         : [...prev, companyId],
+//     );
+//   }
+
+//   function toggleSelectAllCompanies() {
+//     setSelectedCompanyIds(
+//       isAllExplicitlySelected ? [] : allCompanyIds,
+//     );
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Fetch Departments
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const departmentQueries = useQueries({
+//     queries: effectiveCompanyIds.map((companyId) => ({
+//       queryKey: [
+//         'departments',
+//         {
+//           company_id: companyId,
+//           is_active: 'true',
+//         },
+//       ],
+
+//       queryFn: async () => {
+//         const res = await departmentService.getAll({
+//           company_id: companyId,
+//           is_active: 'true',
+//         });
+
+//         return res.data ?? [];
+//       },
+
+//       enabled: effectiveCompanyIds.length > 0,
+//     })),
+//   });
+
+//   const deptLoading = departmentQueries.some(
+//     (q) => q.isLoading,
+//   );
+
+//   const activeDepartments = useMemo(() => {
+//     const map = new Map<number, Department>();
+
+//     departmentQueries.forEach((queryResult) => {
+//       if (Array.isArray(queryResult.data)) {
+//         queryResult.data.forEach((dept) => {
+//           map.set(dept.id, dept);
+//         });
+//       }
+//     });
+
+//     return Array.from(map.values());
+//   }, [departmentQueries]);
+
+//   useEffect(() => {
+//     if (
+//       tab === 'subdepartment' &&
+//       !quickAddDeptId &&
+//       activeDepartments.length > 0
+//     ) {
+//       setQuickAddDeptId(activeDepartments[0].id);
+//     }
+//   }, [tab, activeDepartments, quickAddDeptId]);
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Fetch Sub-Departments
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const {
+//     data: subDepartments = [],
+//     isLoading: subDeptLoading,
+//   } = useSubDepartments({
+//     is_active: 'true',
+//   });
+
+//   const companyDepartmentIds = useMemo(
+//     () => new Set(activeDepartments.map((d) => d.id)),
+//     [activeDepartments],
+//   );
+
+//   const activeSubDepartments = useMemo(() => {
+//     return subDepartments.filter(
+//       (sd) =>
+//         sd.is_all_departments ||
+//         (sd.department_ids ?? []).some((id) =>
+//           companyDepartmentIds.has(id),
+//         ),
+//     );
+//   }, [subDepartments, companyDepartmentIds]);
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Mutations
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const createDepartment = useCreateDepartment();
+//   const updateDepartment = useUpdateDepartment();
+//   const deleteDepartment = useDeleteDepartment();
+
+//   const createSubDepartment = useCreateSubDepartment();
+//   const updateSubDepartment = useUpdateSubDepartment();
+//   const deleteSubDepartment = useDeleteSubDepartment();
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Filtering
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   const filteredDepartments = useMemo(
+//     () =>
+//       activeDepartments.filter((d) =>
+//         d.department_name
+//           .toLowerCase()
+//           .includes(filter.toLowerCase()),
+//       ),
+//     [activeDepartments, filter],
+//   );
+
+//   const filteredSubDepartments = useMemo(
+//     () =>
+//       activeSubDepartments.filter((sd) =>
+//         sd.name
+//           .toLowerCase()
+//           .includes(filter.toLowerCase()),
+//       ),
+//     [activeSubDepartments, filter],
+//   );
+
+//   const isLoading =
+//     tab === 'department'
+//       ? deptLoading
+//       : subDeptLoading;
+
+//   const rows: Row[] =
+//     tab === 'department'
+//       ? filteredDepartments
+//       : filteredSubDepartments;
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Tab switching
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function switchTab(next: Tab) {
+//     setTab(next);
+//     setFilter('');
+//     setQuickAddName('');
+//     setQuickAddDeptId('');
+//     closeEditModal();
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Quick Add
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleQuickAdd() {
+//     const name = quickAddName.trim();
+
+//     if (!name) return;
+
+//     try {
+//       if (tab === 'department') {
+//         await createDepartment.mutateAsync({
+//           company_ids: effectiveCompanyIds,
+//           department_name: name,
+//           head_id: null,
+//         });
+//       } else {
+//         if (!quickAddDeptId) {
+//           alert('Please choose a parent department.');
+//           return;
+//         }
+
+//         await createSubDepartment.mutateAsync({
+//           name,
+//           is_all_departments: false,
+//           department_ids: [Number(quickAddDeptId)],
+//         });
+//       }
+
+//       setQuickAddName('');
+//     } catch {
+//       // Mutation hook already handles/display errors.
+//     }
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Delete
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleDelete(row: Row) {
+//     const rowName =
+//       tab === 'department'
+//         ? (row as Department).department_name
+//         : (row as SubDepartment).name;
+
+//     if (
+//       !confirm(
+//         `Delete "${rowName}"? This action cannot be undone.`,
+//       )
+//     ) {
+//       return;
+//     }
+
+//     try {
+//       if (tab === 'department') {
+//         await deleteDepartment.mutateAsync(row.id);
+//       } else {
+//         await deleteSubDepartment.mutateAsync(row.id);
+//       }
+//     } catch {
+//       // Mutation hook already handles/display errors.
+//     }
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Open Edit Modal
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function openEditModal(row: Row) {
+//     setEditingRow(row);
+
+//     if (tab === 'department') {
+//       const dept = row as Department;
+
+//       setEditDepartmentName(dept.department_name);
+//       setEditDepartmentCompanyIds(dept.company_ids ?? []);
+//       setEditDepartmentIsAllCompanies(Boolean(dept.is_all_companies));
+
+//       return;
+//     }
+
+//     const sub = row as SubDepartment;
+
+//     setEditSubDepartmentName(sub.name);
+//     setEditSubDepartmentIds(sub.department_ids ?? []);
+//     setEditSubDepartmentIsAllDepartments(
+//       Boolean(sub.is_all_departments),
+//     );
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Close Edit Modal
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function closeEditModal() {
+//     setEditingRow(null);
+
+//     setEditDepartmentName('');
+//     setEditDepartmentCompanyIds([]);
+//     setEditDepartmentIsAllCompanies(false);
+
+//     setEditSubDepartmentName('');
+//     setEditSubDepartmentIds([]);
+//     setEditSubDepartmentIsAllDepartments(false);
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Toggle Company in Edit Modal
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function toggleEditCompany(companyId: number) {
+//     setEditDepartmentCompanyIds((prev) =>
+//       prev.includes(companyId)
+//         ? prev.filter((id) => id !== companyId)
+//         : [...prev, companyId],
+//     );
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Toggle All Companies in Edit Modal
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function toggleEditAllCompanies() {
+//     setEditDepartmentIsAllCompanies((prev) => !prev);
+
+//     if (!editDepartmentIsAllCompanies) {
+//       setEditDepartmentCompanyIds([]);
+//     } else if (editDepartmentCompanyIds.length === 0) {
+//       setEditDepartmentCompanyIds(
+//         companies.map((company) => company.id),
+//       );
+//     }
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Toggle Department in Sub-Department Edit Modal
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function toggleEditDepartment(deptId: number) {
+//     setEditSubDepartmentIds((prev) =>
+//       prev.includes(deptId)
+//         ? prev.filter((id) => id !== deptId)
+//         : [...prev, deptId],
+//     );
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Toggle All Departments
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   function toggleEditAllDepartments() {
+//     setEditSubDepartmentIsAllDepartments((prev) => !prev);
+
+//     if (!editSubDepartmentIsAllDepartments) {
+//       setEditSubDepartmentIds([]);
+//     } else if (editSubDepartmentIds.length === 0) {
+//       setEditSubDepartmentIds(
+//         activeDepartments.map((dept) => dept.id),
+//       );
+//     }
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Save Department
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleSaveDepartment() {
+//     if (!editingRow || tab !== 'department') return;
+
+//     const dept = editingRow as Department;
+//     const trimmedName = editDepartmentName.trim();
+
+//     if (!trimmedName) {
+//       alert('Department name is required.');
+//       return;
+//     }
+
+//     try {
+//       await updateDepartment.mutateAsync({
+//         id: dept.id,
+
+//         data: {
+//           department_name: trimmedName,
+
+//           is_all_companies: editDepartmentIsAllCompanies,
+
+//           company_ids: editDepartmentIsAllCompanies
+//             ? []
+//             : editDepartmentCompanyIds,
+//         },
+//       });
+
+//       closeEditModal();
+//     } catch {
+//       // Mutation hook already handles/display errors.
+//     }
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Save Sub-Department
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleSaveSubDepartment() {
+//     if (!editingRow || tab !== 'subdepartment') return;
+
+//     const sub = editingRow as SubDepartment;
+//     const trimmedName = editSubDepartmentName.trim();
+
+//     if (!trimmedName) {
+//       alert('Sub-department name is required.');
+//       return;
+//     }
+
+//     try {
+//       await updateSubDepartment.mutateAsync({
+//         id: sub.id,
+
+//         data: {
+//           name: trimmedName,
+
+//           is_all_departments:
+//             editSubDepartmentIsAllDepartments,
+
+//           department_ids:
+//             editSubDepartmentIsAllDepartments
+//               ? []
+//               : editSubDepartmentIds,
+//         },
+//       });
+
+//       closeEditModal();
+//     } catch {
+//       // Mutation hook already handles/display errors.
+//     }
+//   }
+
+//   // ─────────────────────────────────────────────────────────────────────────
+//   // Modal submit
+//   // ─────────────────────────────────────────────────────────────────────────
+
+//   async function handleSaveEdit() {
+//     if (tab === 'department') {
+//       await handleSaveDepartment();
+//     } else {
+//       await handleSaveSubDepartment();
+//     }
+//   }
+
+//   const editSaving =
+//     tab === 'department'
+//       ? updateDepartment.isPending
+//       : updateSubDepartment.isPending;
+
+//   return (
+//     <AppShell>
+//       <MasterDataLayout>
+//         <div className="pg-enter">
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Header */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div className="ph">
+//             <div>
+//               <h1>Structure Management</h1>
+//               <p>
+//                 Manage structural hierarchy, company assignments,
+//                 and linked sub-departments.
+//               </p>
+//             </div>
+
+//             <div className="ph-r">
+//               <Chip variant="green">Live Sync Active</Chip>
+//             </div>
+//           </div>
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Company Scope Filter */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div className="card cp mb16">
+
+//             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+//               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink4)' }}>
+//                 <Building2 size={13} />
+//                 Company Scope Filter
+//               </span>
+
+//               <button
+//                 type="button"
+//                 onClick={toggleSelectAllCompanies}
+//                 className="btn btn-ghost btn-sm"
+//                 style={{ color: 'var(--blue)' }}
+//               >
+//                 {isAllExplicitlySelected
+//                   ? 'Deselect All'
+//                   : 'Select All'}
+//               </button>
+//             </div>
+
+//             {companiesLoading ? (
+//               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 12, color: 'var(--ink4)' }}>
+//                 <Loader2 size={13} className="animate-spin" style={{ color: 'var(--blue)' }} />
+//                 Loading company scope options...
+//               </div>
+//             ) : (
+//               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+//                 {companies.map((company) => {
+//                   const active =
+//                     selectedCompanyIds.includes(company.id);
+
+//                   return (
+//                     <button
+//                       type="button"
+//                       key={company.id}
+//                       onClick={() =>
+//                         toggleCompanyFilter(company.id)
+//                       }
+//                       className={active ? 'btn btn-pri btn-sm' : 'btn btn-sec btn-sm'}
+//                     >
+//                       {company.name}
+//                     </button>
+//                   );
+//                 })}
+//               </div>
+//             )}
+
+//             {selectedCompanyIds.length === 0 && (
+//               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 500, color: 'var(--ink3)' }}>
+//                 <AlertCircle size={13} style={{ color: 'var(--amber)', flexShrink: 0 }} />
+//                 No specific filter selected. All companies
+//                 are automatically included.
+//               </div>
+//             )}
+//           </div>
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Tabs + Search */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+
+//             <div className="tabs">
+//               <div
+//                 className={`tab${tab === 'department' ? ' on' : ''}`}
+//                 onClick={() => switchTab('department')}
+//               >
+//                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+//                   <Building2 size={14} />
+//                   Departments
+//                   <span className="chip cgr">{activeDepartments.length}</span>
+//                 </span>
+//               </div>
+
+//               <div
+//                 className={`tab${tab === 'subdepartment' ? ' on' : ''}`}
+//                 onClick={() => switchTab('subdepartment')}
+//               >
+//                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+//                   <Layers size={14} />
+//                   Sub-Departments
+//                   <span className="chip cgr">{activeSubDepartments.length}</span>
+//                 </span>
+//               </div>
+//             </div>
+
+//             <div className="search-bar" style={{ maxWidth: 220 }}>
+//               <Search size={14} style={{ color: 'var(--ink4)' }} />
+//               <input
+//                 type="text"
+//                 placeholder="Search..."
+//                 value={filter}
+//                 onChange={(e) =>
+//                   setFilter(e.target.value)
+//                 }
+//               />
+//             </div>
+//           </div>
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Quick Creation */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+//             {tab === 'subdepartment' && (
+//               <div className="fg" style={{ margin: 0, width: 220 }}>
+//                 <Select
+//                   value={quickAddDeptId}
+//                   onChange={(v) => setQuickAddDeptId(v ? Number(v) : '')}
+//                   options={activeDepartments.map((dept) => ({ value: dept.id, label: dept.department_name }))}
+//                   placeholder="Select Department..."
+//                   filter
+//                 />
+//               </div>
+//             )}
+
+//             <div className="fg" style={{ margin: 0, flex: 1 }}>
+//               <input
+//                 type="text"
+//                 placeholder={
+//                   tab === 'department'
+//                     ? 'Add new department...'
+//                     : 'Add new sub-department...'
+//                 }
+//                 value={quickAddName}
+//                 onChange={(e) =>
+//                   setQuickAddName(e.target.value)
+//                 }
+//                 onKeyDown={(e) => {
+//                   if (e.key === 'Enter') {
+//                     handleQuickAdd();
+//                   }
+//                 }}
+//               />
+//             </div>
+
+//             <button
+//               type="button"
+//               onClick={handleQuickAdd}
+//               disabled={
+//                 !quickAddName.trim() ||
+//                 createDepartment.isPending ||
+//                 createSubDepartment.isPending
+//               }
+//               className="btn btn-pri btn-sm"
+//             >
+//               {createDepartment.isPending ||
+//               createSubDepartment.isPending ? (
+//                 <Loader2
+//                   size={14}
+//                   className="animate-spin"
+//                 />
+//               ) : (
+//                 <Plus size={14} />
+//               )}
+
+//               Add
+//             </button>
+//           </div>
+
+//           {/* ─────────────────────────────────────────────────────────────── */}
+//           {/* Data List */}
+//           {/* ─────────────────────────────────────────────────────────────── */}
+
+//           <div className="divide-y divide-slate-100 overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
+
+//             {isLoading ? (
+//               <div className="flex items-center justify-center gap-2 p-8 text-xs text-slate-400">
+//                 <Loader2
+//                   size={16}
+//                   className="animate-spin text-blue-600"
+//                 />
+
+//                 Loading configuration records...
+//               </div>
+//             ) : rows.length === 0 ? (
+//               <div className="p-8 text-center text-xs text-slate-400">
+//                 No active records available.
+//               </div>
+//             ) : (
+//               rows.map((row, idx) => (
+//                 <RowItem
+//                   key={row.id}
+//                   index={idx + 1}
+//                   row={row}
+//                   tab={tab}
+//                   companies={companies}
+//                   isEditing={editingRow?.id === row.id}
+//                   onToggleEdit={() =>
+//                     openEditModal(row)
+//                   }
+//                   onDelete={() =>
+//                     handleDelete(row)
+//                   }
+//                 />
+//               ))
+//             )}
+//           </div>
+//         </div>
+
+//         {/* ================================================================= */}
+//         {/* FULL WIDTH EDIT MODAL */}
+//         {/* ================================================================= */}
+
+//         {editingRow && (
+//           <div
+//             className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+//             onMouseDown={(e) => {
+//               if (e.target === e.currentTarget) {
+//                 closeEditModal();
+//               }
+//             }}
+//           >
+//             <div
+//               className="flex w-full max-w-3xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+//               onMouseDown={(e) => e.stopPropagation()}
+//             >
+
+//               {/* ───────────────────────────────────────────────────────── */}
+//               {/* Modal Header */}
+//               {/* ───────────────────────────────────────────────────────── */}
+
+//               <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 py-4">
+
+//                 <div className="flex items-center gap-3">
+
+//                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+//                     {tab === 'department' ? (
+//                       <Building2 size={19} />
+//                     ) : (
+//                       <Layers size={19} />
+//                     )}
+//                   </div>
+
+//                   <div>
+//                     <h2 className="text-base font-bold text-slate-900">
+//                       {tab === 'department'
+//                         ? 'Edit Department'
+//                         : 'Edit Sub-Department'}
+//                     </h2>
+
+//                     <p className="mt-0.5 text-xs text-slate-500">
+//                       {tab === 'department'
+//                         ? 'Update department details and company scope.'
+//                         : 'Update sub-department details and department scope.'}
+//                     </p>
+//                   </div>
+//                 </div>
+
+//                 <button
+//                   type="button"
+//                   onClick={closeEditModal}
+//                   disabled={editSaving}
+//                   className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+//                 >
+//                   <X size={18} />
+//                 </button>
+//               </div>
+
+//               {/* ───────────────────────────────────────────────────────── */}
+//               {/* Modal Body */}
+//               {/* ───────────────────────────────────────────────────────── */}
+
+//               <div className="flex-1 overflow-y-auto p-6">
+
+//                 {tab === 'department' ? (
+//                   <div className="space-y-6">
+
+//                     {/* Department Name */}
+
+//                     <div>
+//                       <label className="mb-2 block text-xs font-semibold text-slate-700">
+//                         Department Name
+//                         <span className="ml-1 text-red-500">
+//                           *
+//                         </span>
+//                       </label>
+
+//                       <input
+//                         type="text"
+//                         value={editDepartmentName}
+//                         onChange={(e) =>
+//                           setEditDepartmentName(
+//                             e.target.value,
+//                           )
+//                         }
+//                         autoFocus
+//                         className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+//                         placeholder="Enter department name"
+//                         onKeyDown={(e) => {
+//                           if (e.key === 'Enter') {
+//                             handleSaveEdit();
+//                           }
+//                         }}
+//                       />
+//                     </div>
+
+//                     {/* Company Scope */}
+
+//                     <div>
+
+//                       <div className="mb-3 flex items-center justify-between">
+
+//                         <div>
+//                           <label className="block text-xs font-semibold text-slate-700">
+//                             Company Scope
+//                           </label>
+
+//                           <p className="mt-0.5 text-[11px] text-slate-400">
+//                             Choose which companies can use this department.
+//                           </p>
+//                         </div>
+
+//                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
+//                           {editDepartmentIsAllCompanies
+//                             ? 'Global'
+//                             : `${editDepartmentCompanyIds.length} selected`}
+//                         </span>
+//                       </div>
+
+//                       {/* All Companies */}
+
+//                       <button
+//                         type="button"
+//                         onClick={toggleEditAllCompanies}
+//                         className={`mb-3 flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${
+//                           editDepartmentIsAllCompanies
+//                             ? 'border-blue-500 bg-blue-50'
+//                             : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+//                         }`}
+//                       >
+//                         <div className="flex items-center gap-3">
+
+//                           <div
+//                             className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+//                               editDepartmentIsAllCompanies
+//                                 ? 'bg-blue-600 text-white'
+//                                 : 'bg-white text-slate-400'
+//                             }`}
+//                           >
+//                             <Building2 size={15} />
+//                           </div>
+
+//                           <div>
+//                             <div
+//                               className={`text-xs font-semibold ${
+//                                 editDepartmentIsAllCompanies
+//                                   ? 'text-blue-700'
+//                                   : 'text-slate-700'
+//                               }`}
+//                             >
+//                               All Companies
+//                             </div>
+
+//                             <div className="text-[10px] text-slate-400">
+//                               Department applies to every company
+//                             </div>
+//                           </div>
+//                         </div>
+
+//                         {editDepartmentIsAllCompanies && (
+//                           <Check
+//                             size={18}
+//                             className="text-blue-600"
+//                           />
+//                         )}
+//                       </button>
+
+//                       {/* Company Flex Items */}
+
+//                       {!editDepartmentIsAllCompanies && (
+//                         <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+
+//                           {companies.length === 0 ? (
+//                             <div className="w-full py-5 text-center text-xs text-slate-400">
+//                               No companies available.
+//                             </div>
+//                           ) : (
+//                             companies.map((company) => {
+//                               const checked =
+//                                 editDepartmentCompanyIds.includes(
+//                                   company.id,
+//                                 );
+
+//                               return (
+//                                 <button
+//                                   type="button"
+//                                   key={company.id}
+//                                   onClick={() =>
+//                                     toggleEditCompany(
+//                                       company.id,
+//                                     )
+//                                   }
+//                                   className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${
+//                                     checked
+//                                       ? 'border-blue-500 bg-blue-50 shadow-sm'
+//                                       : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+//                                   }`}
+//                                 >
+//                                   <div className="flex min-w-0 items-center gap-2.5">
+
+//                                     <div
+//                                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+//                                         checked
+//                                           ? 'bg-blue-600 text-white'
+//                                           : 'bg-slate-100 text-slate-400'
+//                                       }`}
+//                                     >
+//                                       <Building2 size={14} />
+//                                     </div>
+
+//                                     <span
+//                                       className={`truncate text-xs font-semibold ${
+//                                         checked
+//                                           ? 'text-blue-700'
+//                                           : 'text-slate-700'
+//                                       }`}
+//                                     >
+//                                       {company.name}
+//                                     </span>
+//                                   </div>
+
+//                                   <div
+//                                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+//                                       checked
+//                                         ? 'border-blue-600 bg-blue-600 text-white'
+//                                         : 'border-slate-300 bg-white'
+//                                     }`}
+//                                   >
+//                                     {checked && (
+//                                       <Check size={12} />
+//                                     )}
+//                                   </div>
+//                                 </button>
+//                               );
+//                             })
+//                           )}
+//                         </div>
+//                       )}
+//                     </div>
+
+//                     {/* Selected summary */}
+
+//                     {!editDepartmentIsAllCompanies && (
+//                       <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+//                         <Check
+//                           size={14}
+//                           className="shrink-0"
+//                         />
+
+//                         <span>
+//                           {editDepartmentCompanyIds.length ===
+//                           0
+//                             ? 'No company selected.'
+//                             : `${editDepartmentCompanyIds.length} company${
+//                                 editDepartmentCompanyIds.length ===
+//                                 1
+//                                   ? ''
+//                                   : 'ies'
+//                               } selected.`}
+//                         </span>
+//                       </div>
+//                     )}
+//                   </div>
+//                 ) : (
+//                   <div className="space-y-6">
+
+//                     {/* Sub Department Name */}
+
+//                     <div>
+//                       <label className="mb-2 block text-xs font-semibold text-slate-700">
+//                         Sub-Department Name
+//                         <span className="ml-1 text-red-500">
+//                           *
+//                         </span>
+//                       </label>
+
+//                       <input
+//                         type="text"
+//                         value={editSubDepartmentName}
+//                         onChange={(e) =>
+//                           setEditSubDepartmentName(
+//                             e.target.value,
+//                           )
+//                         }
+//                         autoFocus
+//                         className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+//                         placeholder="Enter sub-department name"
+//                         onKeyDown={(e) => {
+//                           if (e.key === 'Enter') {
+//                             handleSaveEdit();
+//                           }
+//                         }}
+//                       />
+//                     </div>
+
+//                     {/* Department Scope */}
+
+//                     <div>
+
+//                       <div className="mb-3 flex items-center justify-between">
+
+//                         <div>
+//                           <label className="block text-xs font-semibold text-slate-700">
+//                             Department Scope
+//                           </label>
+
+//                           <p className="mt-0.5 text-[11px] text-slate-400">
+//                             Choose which departments can use this sub-department.
+//                           </p>
+//                         </div>
+
+//                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
+//                           {editSubDepartmentIsAllDepartments
+//                             ? 'Global'
+//                             : `${editSubDepartmentIds.length} selected`}
+//                         </span>
+//                       </div>
+
+//                       {/* All Departments */}
+
+//                       <button
+//                         type="button"
+//                         onClick={toggleEditAllDepartments}
+//                         className={`mb-3 flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${
+//                           editSubDepartmentIsAllDepartments
+//                             ? 'border-blue-500 bg-blue-50'
+//                             : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+//                         }`}
+//                       >
+//                         <div className="flex items-center gap-3">
+
+//                           <div
+//                             className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+//                               editSubDepartmentIsAllDepartments
+//                                 ? 'bg-blue-600 text-white'
+//                                 : 'bg-white text-slate-400'
+//                             }`}
+//                           >
+//                             <Layers size={15} />
+//                           </div>
+
+//                           <div>
+//                             <div
+//                               className={`text-xs font-semibold ${
+//                                 editSubDepartmentIsAllDepartments
+//                                   ? 'text-blue-700'
+//                                   : 'text-slate-700'
+//                               }`}
+//                             >
+//                               All Departments
+//                             </div>
+
+//                             <div className="text-[10px] text-slate-400">
+//                               Sub-department applies everywhere
+//                             </div>
+//                           </div>
+//                         </div>
+
+//                         {editSubDepartmentIsAllDepartments && (
+//                           <Check
+//                             size={18}
+//                             className="text-blue-600"
+//                           />
+//                         )}
+//                       </button>
+
+//                       {/* Department Flex Items */}
+
+//                       {!editSubDepartmentIsAllDepartments && (
+//                         <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+
+//                           {activeDepartments.length === 0 ? (
+//                             <div className="w-full py-5 text-center text-xs text-slate-400">
+//                               No departments available.
+//                             </div>
+//                           ) : (
+//                             activeDepartments.map((dept) => {
+//                               const checked =
+//                                 editSubDepartmentIds.includes(
+//                                   dept.id,
+//                                 );
+
+//                               return (
+//                                 <button
+//                                   type="button"
+//                                   key={dept.id}
+//                                   onClick={() =>
+//                                     toggleEditDepartment(
+//                                       dept.id,
+//                                     )
+//                                   }
+//                                   className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${
+//                                     checked
+//                                       ? 'border-blue-500 bg-blue-50 shadow-sm'
+//                                       : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+//                                   }`}
+//                                 >
+//                                   <div className="flex min-w-0 items-center gap-2.5">
+
+//                                     <div
+//                                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+//                                         checked
+//                                           ? 'bg-blue-600 text-white'
+//                                           : 'bg-slate-100 text-slate-400'
+//                                       }`}
+//                                     >
+//                                       <Layers size={14} />
+//                                     </div>
+
+//                                     <span
+//                                       className={`truncate text-xs font-semibold ${
+//                                         checked
+//                                           ? 'text-blue-700'
+//                                           : 'text-slate-700'
+//                                       }`}
+//                                     >
+//                                       {dept.department_name}
+//                                     </span>
+//                                   </div>
+
+//                                   <div
+//                                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+//                                       checked
+//                                         ? 'border-blue-600 bg-blue-600 text-white'
+//                                         : 'border-slate-300 bg-white'
+//                                     }`}
+//                                   >
+//                                     {checked && (
+//                                       <Check size={12} />
+//                                     )}
+//                                   </div>
+//                                 </button>
+//                               );
+//                             })
+//                           )}
+//                         </div>
+//                       )}
+//                     </div>
+
+//                     {/* Selected summary */}
+
+//                     {!editSubDepartmentIsAllDepartments && (
+//                       <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+//                         <Check
+//                           size={14}
+//                           className="shrink-0"
+//                         />
+
+//                         <span>
+//                           {editSubDepartmentIds.length ===
+//                           0
+//                             ? 'No department selected.'
+//                             : `${editSubDepartmentIds.length} department${
+//                                 editSubDepartmentIds.length ===
+//                                 1
+//                                   ? ''
+//                                   : 's'
+//                               } selected.`}
+//                         </span>
+//                       </div>
+//                     )}
+//                   </div>
+//                 )}
+//               </div>
+
+//               {/* ───────────────────────────────────────────────────────── */}
+//               {/* Modal Footer */}
+//               {/* ───────────────────────────────────────────────────────── */}
+
+//               <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/70 px-6 py-4">
+
+//                 <button
+//                   type="button"
+//                   onClick={closeEditModal}
+//                   disabled={editSaving}
+//                   className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+//                 >
+//                   <X size={14} />
+//                   Cancel
+//                 </button>
+
+//                 <button
+//                   type="button"
+//                   onClick={handleSaveEdit}
+//                   disabled={
+//                     editSaving ||
+//                     (tab === 'department'
+//                       ? !editDepartmentName.trim()
+//                       : !editSubDepartmentName.trim())
+//                   }
+//                   className="flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+//                 >
+//                   {editSaving ? (
+//                     <>
+//                       <Loader2
+//                         size={14}
+//                         className="animate-spin"
+//                       />
+
+//                       Saving...
+//                     </>
+//                   ) : (
+//                     <>
+//                       <Check size={14} />
+
+//                       Save Changes
+//                     </>
+//                   )}
+//                 </button>
+//               </div>
+//             </div>
+//           </div>
+//         )}
+//       </MasterDataLayout>
+//     </AppShell>
+//   );
+// }
+
+// // ============================================================================
+// // ROW ITEM
+// // ============================================================================
+
+// function RowItem({
+//   index,
+//   row,
+//   tab,
+//   companies,
+//   isEditing,
+//   onToggleEdit,
+//   onDelete,
+// }: {
+//   index: number;
+//   row: Row;
+//   tab: Tab;
+//   companies: { id: number; name: string }[];
+//   isEditing: boolean;
+//   onToggleEdit: () => void;
+//   onDelete: () => void;
+// }) {
+//   if (tab === 'department') {
+//     const dept = row as Department;
+
+//     const isGlobal = dept.is_all_companies;
+//     const selectedCompanyIds = dept.company_ids ?? [];
+
+//     let badgeText = '';
+
+//     if (isGlobal) {
+//       badgeText = 'All companies';
+//     } else {
+//       const count = selectedCompanyIds.length;
+
+//       badgeText =
+//         count === 0
+//           ? '0 Companies'
+//           : count === 1
+//             ? '1 Company'
+//             : `${count} Companies`;
+//     }
+
+//     return (
+//       <div className="relative px-4 py-3 transition-colors hover:bg-slate-50/50">
+
+//         <div className="flex items-center justify-between gap-4">
+
+//           {/* Left */}
+
+//           <div className="flex min-w-0 items-center gap-3">
+
+//             <GripVertical
+//               size={14}
+//               className="shrink-0 cursor-grab text-slate-300"
+//             />
+
+//             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
+//               {index}
+//             </span>
+
+//             <span className="truncate text-xs font-bold uppercase tracking-wider text-slate-900">
+//               {dept.department_name}
+//             </span>
+//           </div>
+
+//           {/* Right */}
+
+//           <div className="flex shrink-0 items-center gap-3">
+
+//             <span className="rounded-full border border-blue-400/80 bg-white px-3 py-0.5 text-xs font-semibold text-blue-600 shadow-sm">
+//               {badgeText}
+//             </span>
+
+//             <button
+//               type="button"
+//               onClick={onToggleEdit}
+//               className={`rounded-lg p-1.5 transition-colors ${
+//                 isEditing
+//                   ? 'bg-blue-50 text-blue-600'
+//                   : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+//               }`}
+//               title="Edit department"
+//             >
+//               <Pencil size={13} />
+//             </button>
+
+//             <button
+//               type="button"
+//               onClick={onDelete}
+//               className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
+//               title="Delete department"
+//             >
+//               <Trash2 size={13} />
+//             </button>
+//           </div>
+//         </div>
+//       </div>
+//     );
+//   }
+
+//   // ==========================================================================
+//   // SUB DEPARTMENT
+//   // ==========================================================================
+
+//   const sub = row as SubDepartment;
+
+//   const isGlobalDept = sub.is_all_departments;
+//   const selectedDeptIds = sub.department_ids ?? [];
+
+//   let badgeText = '';
+
+//   if (isGlobalDept) {
+//     badgeText = 'All departments';
+//   } else {
+//     const count = selectedDeptIds.length;
+
+//     badgeText =
+//       count === 0
+//         ? '0 Departments'
+//         : count === 1
+//           ? '1 Department'
+//           : `${count} Departments`;
+//   }
+
+//   return (
+//     <div className="relative px-4 py-3 transition-colors hover:bg-slate-50/50">
+
+//       <div className="flex items-center justify-between gap-4">
+
+//         {/* Left */}
+
+//         <div className="flex min-w-0 items-center gap-3">
+
+//           <GripVertical
+//             size={14}
+//             className="shrink-0 cursor-grab text-slate-300"
+//           />
+
+//           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
+//             {index}
+//           </span>
+
+//           <span className="truncate text-xs font-bold uppercase tracking-wider text-slate-900">
+//             {sub.name}
+//           </span>
+//         </div>
+
+//         {/* Right */}
+
+//         <div className="flex shrink-0 items-center gap-3">
+
+//           <span className="rounded-full border border-blue-400/80 bg-white px-3 py-0.5 text-xs font-semibold text-blue-600 shadow-sm">
+//             {badgeText}
+//           </span>
+
+//           <button
+//             type="button"
+//             onClick={onToggleEdit}
+//             className={`rounded-lg p-1.5 transition-colors ${
+//               isEditing
+//                 ? 'bg-blue-50 text-blue-600'
+//                 : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+//             }`}
+//             title="Edit sub-department"
+//           >
+//             <Pencil size={13} />
+//           </button>
+
+//           <button
+//             type="button"
+//             onClick={onDelete}
+//             className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
+//             title="Delete sub-department"
+//           >
+//             <Trash2 size={13} />
+//           </button>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
+
+
+
+'use client';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { MasterDataLayout } from '@/components/layout/MasterDataLayout';
 import { AppShell } from '@/layouts/AppLayout';
 import { Chip } from '@/components/ui/Chip';
 import { Select } from '@/components/ui/Select';
 import {
-  GripVertical,
-  Pencil,
-  Trash2,
-  Loader2,
-  Building2,
-  Layers,
-  Plus,
-  Search,
-  AlertCircle,
-  Check,
-  X,
+  GripVertical, Pencil, Trash2, Loader2, Building2, Layers,
+  Plus, Search, AlertCircle, Check, X, Lock,
 } from 'lucide-react';
 import { useQueries } from '@tanstack/react-query';
 
 import {
-  useCreateDepartment,
-  useUpdateDepartment,
-  useDeleteDepartment,
+  useCreateDepartment, useUpdateDepartment, useDeleteDepartment,
 } from '@/features/departments/hooks/useDepartments';
-
 import { departmentService } from '@/services/api/department.service';
 import type { Department } from '@/services/api/department.service';
-
 import {
-  useSubDepartments,
-  useCreateSubDepartment,
-  useUpdateSubDepartment,
-  useDeleteSubDepartment,
+  useSubDepartments, useCreateSubDepartment, useUpdateSubDepartment, useDeleteSubDepartment,
 } from '@/features/sub-departments/hooks/useSubDepartments';
-
 import { useCompanies } from '@/features/companies/hooks/useCompanies';
 import type { SubDepartment } from '@/services/api/subDepartment.service';
+
+import { usePermission } from '@/features/auth/hooks/useAuth';
+import { PermissionGuard } from '@/utils/permissionGuard';
+import { useFieldPermissions, resolveFieldPerm } from '@/features/rbac/hooks/useFieldPermissions';
+import { maskedView } from '@/components/form/maskField';
+import { showToast } from '@/utils/toast';
 
 type Tab = 'department' | 'subdepartment';
 type Row = Department | SubDepartment;
 
+// Which field_key (from department-seed.sql) governs the active tab.
+const FIELD_KEY: Record<Tab, string> = {
+  department: 'department_name',
+  subdepartment: 'sub_department_name',
+};
+
 export default function DepartmentsPage() {
+  const { canCreate, canEdit, canDelete, isSuperAdmin } = usePermission();
+  const { data: fp, isLoading: fieldsLoading } = useFieldPermissions('department');
+
+  // f() = existing rows (completionPct: 100). fCreate() = the quick-add row
+  // (completionPct: 0 — activates can_add's bonus), same split as Shifts/Location.
+  const f = useCallback(
+    (key: string) => resolveFieldPerm(fp, key, { completionPct: 100, bypass: isSuperAdmin }),
+    [fp, isSuperAdmin]
+  );
+  const fCreate = useCallback(
+    (key: string) => resolveFieldPerm(fp, key, { completionPct: 0, bypass: isSuperAdmin }),
+    [fp, isSuperAdmin]
+  );
+
   const [tab, setTab] = useState<Tab>('department');
+  const currentFieldKey = FIELD_KEY[tab];
+  const canAddCurrent = canCreate('department') && fCreate(currentFieldKey).can_edit;
+  const canEditCurrent = canEdit('department') && f(currentFieldKey).can_edit;
+  const canDeleteCurrent = canDelete('department');
+  const fieldPerm = f(currentFieldKey);
 
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<number[]>([]);
   const [filter, setFilter] = useState('');
-
   const [quickAddName, setQuickAddName] = useState('');
   const [quickAddDeptId, setQuickAddDeptId] = useState<number | ''>('');
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Edit modal state
-  // ─────────────────────────────────────────────────────────────────────────
-
   const [editingRow, setEditingRow] = useState<Row | null>(null);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Department edit state
-  // ─────────────────────────────────────────────────────────────────────────
 
   const [editDepartmentName, setEditDepartmentName] = useState('');
   const [editDepartmentCompanyIds, setEditDepartmentCompanyIds] = useState<number[]>([]);
   const [editDepartmentIsAllCompanies, setEditDepartmentIsAllCompanies] = useState(false);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Sub-department edit state
-  // ─────────────────────────────────────────────────────────────────────────
-
   const [editSubDepartmentName, setEditSubDepartmentName] = useState('');
   const [editSubDepartmentIds, setEditSubDepartmentIds] = useState<number[]>([]);
-  const [editSubDepartmentIsAllDepartments, setEditSubDepartmentIsAllDepartments] =
-    useState(false);
+  const [editSubDepartmentIsAllDepartments, setEditSubDepartmentIsAllDepartments] = useState(false);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Fetch Companies
-  // ─────────────────────────────────────────────────────────────────────────
-
-  const {
-    data: companies = [],
-    isLoading: companiesLoading,
-  } = useCompanies({ limit: 100 });
-
-  const allCompanyIds = useMemo(
-    () => companies.map((c) => c.id),
-    [companies],
+  const { data: companies = [], isLoading: companiesLoading } = useCompanies({ limit: 100 });
+  const allCompanyIds = useMemo(() => companies.map((c) => c.id), [companies]);
+  const effectiveCompanyIds = useMemo(
+    () => (selectedCompanyIds.length > 0 ? selectedCompanyIds : allCompanyIds),
+    [selectedCompanyIds, allCompanyIds]
   );
-
-  // Priority logic:
-  // If no company filter is checked, default to ALL company IDs.
-  const effectiveCompanyIds = useMemo(() => {
-    if (selectedCompanyIds.length > 0) {
-      return selectedCompanyIds;
-    }
-
-    return allCompanyIds;
-  }, [selectedCompanyIds, allCompanyIds]);
-
-  const isAllExplicitlySelected =
-    companies.length > 0 &&
-    selectedCompanyIds.length === companies.length;
+  const isAllExplicitlySelected = companies.length > 0 && selectedCompanyIds.length === companies.length;
 
   function toggleCompanyFilter(companyId: number) {
     setSelectedCompanyIds((prev) =>
-      prev.includes(companyId)
-        ? prev.filter((id) => id !== companyId)
-        : [...prev, companyId],
+      prev.includes(companyId) ? prev.filter((id) => id !== companyId) : [...prev, companyId]
     );
   }
-
   function toggleSelectAllCompanies() {
-    setSelectedCompanyIds(
-      isAllExplicitlySelected ? [] : allCompanyIds,
-    );
+    setSelectedCompanyIds(isAllExplicitlySelected ? [] : allCompanyIds);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Fetch Departments
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ─── Fetch Departments ───────────────────────────────────────────────────
   const departmentQueries = useQueries({
     queries: effectiveCompanyIds.map((companyId) => ({
-      queryKey: [
-        'departments',
-        {
-          company_id: companyId,
-          is_active: 'true',
-        },
-      ],
-
-      queryFn: async () => {
-        const res = await departmentService.getAll({
-          company_id: companyId,
-          is_active: 'true',
-        });
-
-        return res.data ?? [];
-      },
-
+      queryKey: ['departments', { company_id: companyId, is_active: 'true' }],
+      queryFn: async () => (await departmentService.getAll({ company_id: companyId, is_active: 'true' })).data ?? [],
       enabled: effectiveCompanyIds.length > 0,
     })),
   });
-
-  const deptLoading = departmentQueries.some(
-    (q) => q.isLoading,
-  );
-
+  const deptLoading = departmentQueries.some((q) => q.isLoading);
   const activeDepartments = useMemo(() => {
     const map = new Map<number, Department>();
-
-    departmentQueries.forEach((queryResult) => {
-      if (Array.isArray(queryResult.data)) {
-        queryResult.data.forEach((dept) => {
-          map.set(dept.id, dept);
-        });
-      }
-    });
-
+    departmentQueries.forEach((q) => Array.isArray(q.data) && q.data.forEach((d) => map.set(d.id, d)));
     return Array.from(map.values());
   }, [departmentQueries]);
 
   useEffect(() => {
-    if (
-      tab === 'subdepartment' &&
-      !quickAddDeptId &&
-      activeDepartments.length > 0
-    ) {
+    if (tab === 'subdepartment' && !quickAddDeptId && activeDepartments.length > 0) {
       setQuickAddDeptId(activeDepartments[0].id);
     }
   }, [tab, activeDepartments, quickAddDeptId]);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Fetch Sub-Departments
-  // ─────────────────────────────────────────────────────────────────────────
-
-  const {
-    data: subDepartments = [],
-    isLoading: subDeptLoading,
-  } = useSubDepartments({
-    is_active: 'true',
-  });
-
-  const companyDepartmentIds = useMemo(
-    () => new Set(activeDepartments.map((d) => d.id)),
-    [activeDepartments],
+  // ─── Fetch Sub-Departments ───────────────────────────────────────────────
+  const { data: subDepartments = [], isLoading: subDeptLoading } = useSubDepartments({ is_active: 'true' });
+  const companyDepartmentIds = useMemo(() => new Set(activeDepartments.map((d) => d.id)), [activeDepartments]);
+  const activeSubDepartments = useMemo(
+    () => subDepartments.filter((sd) => sd.is_all_departments || (sd.department_ids ?? []).some((id) => companyDepartmentIds.has(id))),
+    [subDepartments, companyDepartmentIds]
   );
 
-  const activeSubDepartments = useMemo(() => {
-    return subDepartments.filter(
-      (sd) =>
-        sd.is_all_departments ||
-        (sd.department_ids ?? []).some((id) =>
-          companyDepartmentIds.has(id),
-        ),
-    );
-  }, [subDepartments, companyDepartmentIds]);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Mutations
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ─── Mutations ───────────────────────────────────────────────────────────
   const createDepartment = useCreateDepartment();
   const updateDepartment = useUpdateDepartment();
   const deleteDepartment = useDeleteDepartment();
-
   const createSubDepartment = useCreateSubDepartment();
   const updateSubDepartment = useUpdateSubDepartment();
   const deleteSubDepartment = useDeleteSubDepartment();
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Filtering
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ─── Filtering ───────────────────────────────────────────────────────────
   const filteredDepartments = useMemo(
-    () =>
-      activeDepartments.filter((d) =>
-        d.department_name
-          .toLowerCase()
-          .includes(filter.toLowerCase()),
-      ),
-    [activeDepartments, filter],
+    () => activeDepartments.filter((d) => d.department_name.toLowerCase().includes(filter.toLowerCase())),
+    [activeDepartments, filter]
   );
-
   const filteredSubDepartments = useMemo(
-    () =>
-      activeSubDepartments.filter((sd) =>
-        sd.name
-          .toLowerCase()
-          .includes(filter.toLowerCase()),
-      ),
-    [activeSubDepartments, filter],
+    () => activeSubDepartments.filter((sd) => sd.name.toLowerCase().includes(filter.toLowerCase())),
+    [activeSubDepartments, filter]
   );
-
-  const isLoading =
-    tab === 'department'
-      ? deptLoading
-      : subDeptLoading;
-
-  const rows: Row[] =
-    tab === 'department'
-      ? filteredDepartments
-      : filteredSubDepartments;
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Tab switching
-  // ─────────────────────────────────────────────────────────────────────────
+  const isLoading = (tab === 'department' ? deptLoading : subDeptLoading) || fieldsLoading;
+  const rows: Row[] = tab === 'department' ? filteredDepartments : filteredSubDepartments;
 
   function switchTab(next: Tab) {
     setTab(next);
@@ -3149,1003 +4481,481 @@ export default function DepartmentsPage() {
     closeEditModal();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Quick Add
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ─── Quick Add ───────────────────────────────────────────────────────────
   async function handleQuickAdd() {
     const name = quickAddName.trim();
-
-    if (!name) return;
+    if (!name || !canAddCurrent) return;
 
     try {
       if (tab === 'department') {
-        await createDepartment.mutateAsync({
-          company_ids: effectiveCompanyIds,
-          department_name: name,
-          head_id: null,
-        });
+        await createDepartment.mutateAsync({ company_ids: effectiveCompanyIds, department_name: name, head_id: null });
       } else {
         if (!quickAddDeptId) {
-          alert('Please choose a parent department.');
+          showToast('Please choose a parent department.');
           return;
         }
-
-        await createSubDepartment.mutateAsync({
-          name,
-          is_all_departments: false,
-          department_ids: [Number(quickAddDeptId)],
-        });
+        await createSubDepartment.mutateAsync({ name, is_all_departments: false, department_ids: [Number(quickAddDeptId)] });
       }
-
       setQuickAddName('');
-    } catch {
-      // Mutation hook already handles/display errors.
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to add item');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Delete
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ─── Delete ──────────────────────────────────────────────────────────────
   async function handleDelete(row: Row) {
-    const rowName =
-      tab === 'department'
-        ? (row as Department).department_name
-        : (row as SubDepartment).name;
-
-    if (
-      !confirm(
-        `Delete "${rowName}"? This action cannot be undone.`,
-      )
-    ) {
-      return;
-    }
+    if (!canDeleteCurrent) return;
+    const rowName = tab === 'department' ? (row as Department).department_name : (row as SubDepartment).name;
+    if (!confirm(`Delete "${rowName}"? This action cannot be undone.`)) return;
 
     try {
-      if (tab === 'department') {
-        await deleteDepartment.mutateAsync(row.id);
-      } else {
-        await deleteSubDepartment.mutateAsync(row.id);
-      }
-    } catch {
-      // Mutation hook already handles/display errors.
+      if (tab === 'department') await deleteDepartment.mutateAsync(row.id);
+      else await deleteSubDepartment.mutateAsync(row.id);
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to delete item');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Open Edit Modal
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ─── Edit modal ──────────────────────────────────────────────────────────
   function openEditModal(row: Row) {
+    if (!canEditCurrent) return;
     setEditingRow(row);
 
     if (tab === 'department') {
       const dept = row as Department;
-
       setEditDepartmentName(dept.department_name);
       setEditDepartmentCompanyIds(dept.company_ids ?? []);
       setEditDepartmentIsAllCompanies(Boolean(dept.is_all_companies));
-
       return;
     }
 
     const sub = row as SubDepartment;
-
     setEditSubDepartmentName(sub.name);
     setEditSubDepartmentIds(sub.department_ids ?? []);
-    setEditSubDepartmentIsAllDepartments(
-      Boolean(sub.is_all_departments),
-    );
+    setEditSubDepartmentIsAllDepartments(Boolean(sub.is_all_departments));
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Close Edit Modal
-  // ─────────────────────────────────────────────────────────────────────────
 
   function closeEditModal() {
     setEditingRow(null);
-
-    setEditDepartmentName('');
-    setEditDepartmentCompanyIds([]);
-    setEditDepartmentIsAllCompanies(false);
-
-    setEditSubDepartmentName('');
-    setEditSubDepartmentIds([]);
-    setEditSubDepartmentIsAllDepartments(false);
+    setEditDepartmentName(''); setEditDepartmentCompanyIds([]); setEditDepartmentIsAllCompanies(false);
+    setEditSubDepartmentName(''); setEditSubDepartmentIds([]); setEditSubDepartmentIsAllDepartments(false);
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Toggle Company in Edit Modal
-  // ─────────────────────────────────────────────────────────────────────────
 
   function toggleEditCompany(companyId: number) {
-    setEditDepartmentCompanyIds((prev) =>
-      prev.includes(companyId)
-        ? prev.filter((id) => id !== companyId)
-        : [...prev, companyId],
-    );
+    setEditDepartmentCompanyIds((prev) => (prev.includes(companyId) ? prev.filter((id) => id !== companyId) : [...prev, companyId]));
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Toggle All Companies in Edit Modal
-  // ─────────────────────────────────────────────────────────────────────────
-
   function toggleEditAllCompanies() {
     setEditDepartmentIsAllCompanies((prev) => !prev);
-
-    if (!editDepartmentIsAllCompanies) {
-      setEditDepartmentCompanyIds([]);
-    } else if (editDepartmentCompanyIds.length === 0) {
-      setEditDepartmentCompanyIds(
-        companies.map((company) => company.id),
-      );
-    }
+    if (!editDepartmentIsAllCompanies) setEditDepartmentCompanyIds([]);
+    else if (editDepartmentCompanyIds.length === 0) setEditDepartmentCompanyIds(companies.map((c) => c.id));
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Toggle Department in Sub-Department Edit Modal
-  // ─────────────────────────────────────────────────────────────────────────
-
   function toggleEditDepartment(deptId: number) {
-    setEditSubDepartmentIds((prev) =>
-      prev.includes(deptId)
-        ? prev.filter((id) => id !== deptId)
-        : [...prev, deptId],
-    );
+    setEditSubDepartmentIds((prev) => (prev.includes(deptId) ? prev.filter((id) => id !== deptId) : [...prev, deptId]));
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Toggle All Departments
-  // ─────────────────────────────────────────────────────────────────────────
-
   function toggleEditAllDepartments() {
     setEditSubDepartmentIsAllDepartments((prev) => !prev);
-
-    if (!editSubDepartmentIsAllDepartments) {
-      setEditSubDepartmentIds([]);
-    } else if (editSubDepartmentIds.length === 0) {
-      setEditSubDepartmentIds(
-        activeDepartments.map((dept) => dept.id),
-      );
-    }
+    if (!editSubDepartmentIsAllDepartments) setEditSubDepartmentIds([]);
+    else if (editSubDepartmentIds.length === 0) setEditSubDepartmentIds(activeDepartments.map((d) => d.id));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Save Department
-  // ─────────────────────────────────────────────────────────────────────────
-
   async function handleSaveDepartment() {
-    if (!editingRow || tab !== 'department') return;
-
+    if (!editingRow || tab !== 'department' || !canEditCurrent) return;
     const dept = editingRow as Department;
     const trimmedName = editDepartmentName.trim();
-
-    if (!trimmedName) {
-      alert('Department name is required.');
-      return;
-    }
+    if (!trimmedName) { showToast('Department name is required.'); return; }
 
     try {
       await updateDepartment.mutateAsync({
         id: dept.id,
-
         data: {
           department_name: trimmedName,
-
           is_all_companies: editDepartmentIsAllCompanies,
-
-          company_ids: editDepartmentIsAllCompanies
-            ? []
-            : editDepartmentCompanyIds,
+          company_ids: editDepartmentIsAllCompanies ? [] : editDepartmentCompanyIds,
         },
       });
-
       closeEditModal();
-    } catch {
-      // Mutation hook already handles/display errors.
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to save changes');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Save Sub-Department
-  // ─────────────────────────────────────────────────────────────────────────
-
   async function handleSaveSubDepartment() {
-    if (!editingRow || tab !== 'subdepartment') return;
-
+    if (!editingRow || tab !== 'subdepartment' || !canEditCurrent) return;
     const sub = editingRow as SubDepartment;
     const trimmedName = editSubDepartmentName.trim();
-
-    if (!trimmedName) {
-      alert('Sub-department name is required.');
-      return;
-    }
+    if (!trimmedName) { showToast('Sub-department name is required.'); return; }
 
     try {
       await updateSubDepartment.mutateAsync({
         id: sub.id,
-
         data: {
           name: trimmedName,
-
-          is_all_departments:
-            editSubDepartmentIsAllDepartments,
-
-          department_ids:
-            editSubDepartmentIsAllDepartments
-              ? []
-              : editSubDepartmentIds,
+          is_all_departments: editSubDepartmentIsAllDepartments,
+          department_ids: editSubDepartmentIsAllDepartments ? [] : editSubDepartmentIds,
         },
       });
-
       closeEditModal();
-    } catch {
-      // Mutation hook already handles/display errors.
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.message || 'Failed to save changes');
     }
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Modal submit
-  // ─────────────────────────────────────────────────────────────────────────
 
   async function handleSaveEdit() {
-    if (tab === 'department') {
-      await handleSaveDepartment();
-    } else {
-      await handleSaveSubDepartment();
-    }
+    if (tab === 'department') await handleSaveDepartment();
+    else await handleSaveSubDepartment();
   }
 
-  const editSaving =
-    tab === 'department'
-      ? updateDepartment.isPending
-      : updateSubDepartment.isPending;
+  const editSaving = tab === 'department' ? updateDepartment.isPending : updateSubDepartment.isPending;
 
   return (
-    <AppShell>
-      <MasterDataLayout>
-        <div className="pg-enter">
-
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Header */}
-          {/* ─────────────────────────────────────────────────────────────── */}
-
-          <div className="ph">
-            <div>
-              <h1>Structure Management</h1>
-              <p>
-                Manage structural hierarchy, company assignments,
-                and linked sub-departments.
-              </p>
-            </div>
-
-            <div className="ph-r">
-              <Chip variant="green">Live Sync Active</Chip>
-            </div>
-          </div>
-
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Company Scope Filter */}
-          {/* ─────────────────────────────────────────────────────────────── */}
-
-          <div className="card cp mb16">
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink4)' }}>
-                <Building2 size={13} />
-                Company Scope Filter
-              </span>
-
-              <button
-                type="button"
-                onClick={toggleSelectAllCompanies}
-                className="btn btn-ghost btn-sm"
-                style={{ color: 'var(--blue)' }}
-              >
-                {isAllExplicitlySelected
-                  ? 'Deselect All'
-                  : 'Select All'}
-              </button>
-            </div>
-
-            {companiesLoading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 12, color: 'var(--ink4)' }}>
-                <Loader2 size={13} className="animate-spin" style={{ color: 'var(--blue)' }} />
-                Loading company scope options...
+    <PermissionGuard permission="department:view">
+      <AppShell>
+        <MasterDataLayout>
+          <div className="pg-enter">
+            {/* Header */}
+            <div className="ph">
+              <div>
+                <h1>Structure Management</h1>
+                <p>Manage structural hierarchy, company assignments, and linked sub-departments.</p>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {companies.map((company) => {
-                  const active =
-                    selectedCompanyIds.includes(company.id);
+              <div className="ph-r">
+                <Chip variant="green">Live Sync Active</Chip>
+              </div>
+            </div>
 
-                  return (
+            {/* Company Scope Filter */}
+            <div className="card cp mb16">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink4)' }}>
+                  <Building2 size={13} />
+                  Company Scope Filter
+                </span>
+                <button type="button" onClick={toggleSelectAllCompanies} className="btn btn-ghost btn-sm" style={{ color: 'var(--blue)' }}>
+                  {isAllExplicitlySelected ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+
+              {companiesLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 12, color: 'var(--ink4)' }}>
+                  <Loader2 size={13} className="animate-spin" style={{ color: 'var(--blue)' }} />
+                  Loading company scope options...
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {companies.map((company) => (
                     <button
-                      type="button"
-                      key={company.id}
-                      onClick={() =>
-                        toggleCompanyFilter(company.id)
-                      }
-                      className={active ? 'btn btn-pri btn-sm' : 'btn btn-sec btn-sm'}
+                      type="button" key={company.id} onClick={() => toggleCompanyFilter(company.id)}
+                      className={selectedCompanyIds.includes(company.id) ? 'btn btn-pri btn-sm' : 'btn btn-sec btn-sm'}
                     >
                       {company.name}
                     </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {selectedCompanyIds.length === 0 && (
-              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 500, color: 'var(--ink3)' }}>
-                <AlertCircle size={13} style={{ color: 'var(--amber)', flexShrink: 0 }} />
-                No specific filter selected. All companies
-                are automatically included.
-              </div>
-            )}
-          </div>
-
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Tabs + Search */}
-          {/* ─────────────────────────────────────────────────────────────── */}
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-
-            <div className="tabs">
-              <div
-                className={`tab${tab === 'department' ? ' on' : ''}`}
-                onClick={() => switchTab('department')}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <Building2 size={14} />
-                  Departments
-                  <span className="chip cgr">{activeDepartments.length}</span>
-                </span>
-              </div>
-
-              <div
-                className={`tab${tab === 'subdepartment' ? ' on' : ''}`}
-                onClick={() => switchTab('subdepartment')}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <Layers size={14} />
-                  Sub-Departments
-                  <span className="chip cgr">{activeSubDepartments.length}</span>
-                </span>
-              </div>
-            </div>
-
-            <div className="search-bar" style={{ maxWidth: 220 }}>
-              <Search size={14} style={{ color: 'var(--ink4)' }} />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={filter}
-                onChange={(e) =>
-                  setFilter(e.target.value)
-                }
-              />
-            </div>
-          </div>
-
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Quick Creation */}
-          {/* ─────────────────────────────────────────────────────────────── */}
-
-          <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-
-            {tab === 'subdepartment' && (
-              <div className="fg" style={{ margin: 0, width: 220 }}>
-                <Select
-                  value={quickAddDeptId}
-                  onChange={(v) => setQuickAddDeptId(v ? Number(v) : '')}
-                  options={activeDepartments.map((dept) => ({ value: dept.id, label: dept.department_name }))}
-                  placeholder="Select Department..."
-                  filter
-                />
-              </div>
-            )}
-
-            <div className="fg" style={{ margin: 0, flex: 1 }}>
-              <input
-                type="text"
-                placeholder={
-                  tab === 'department'
-                    ? 'Add new department...'
-                    : 'Add new sub-department...'
-                }
-                value={quickAddName}
-                onChange={(e) =>
-                  setQuickAddName(e.target.value)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleQuickAdd();
-                  }
-                }}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleQuickAdd}
-              disabled={
-                !quickAddName.trim() ||
-                createDepartment.isPending ||
-                createSubDepartment.isPending
-              }
-              className="btn btn-pri btn-sm"
-            >
-              {createDepartment.isPending ||
-              createSubDepartment.isPending ? (
-                <Loader2
-                  size={14}
-                  className="animate-spin"
-                />
-              ) : (
-                <Plus size={14} />
+                  ))}
+                </div>
               )}
 
-              Add
-            </button>
-          </div>
-
-          {/* ─────────────────────────────────────────────────────────────── */}
-          {/* Data List */}
-          {/* ─────────────────────────────────────────────────────────────── */}
-
-          <div className="divide-y divide-slate-100 overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2 p-8 text-xs text-slate-400">
-                <Loader2
-                  size={16}
-                  className="animate-spin text-blue-600"
-                />
-
-                Loading configuration records...
-              </div>
-            ) : rows.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400">
-                No active records available.
-              </div>
-            ) : (
-              rows.map((row, idx) => (
-                <RowItem
-                  key={row.id}
-                  index={idx + 1}
-                  row={row}
-                  tab={tab}
-                  companies={companies}
-                  isEditing={editingRow?.id === row.id}
-                  onToggleEdit={() =>
-                    openEditModal(row)
-                  }
-                  onDelete={() =>
-                    handleDelete(row)
-                  }
-                />
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* ================================================================= */}
-        {/* FULL WIDTH EDIT MODAL */}
-        {/* ================================================================= */}
-
-        {editingRow && (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) {
-                closeEditModal();
-              }
-            }}
-          >
-            <div
-              className="flex w-full max-w-3xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-
-              {/* ───────────────────────────────────────────────────────── */}
-              {/* Modal Header */}
-              {/* ───────────────────────────────────────────────────────── */}
-
-              <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 py-4">
-
-                <div className="flex items-center gap-3">
-
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    {tab === 'department' ? (
-                      <Building2 size={19} />
-                    ) : (
-                      <Layers size={19} />
-                    )}
-                  </div>
-
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">
-                      {tab === 'department'
-                        ? 'Edit Department'
-                        : 'Edit Sub-Department'}
-                    </h2>
-
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {tab === 'department'
-                        ? 'Update department details and company scope.'
-                        : 'Update sub-department details and department scope.'}
-                    </p>
-                  </div>
+              {selectedCompanyIds.length === 0 && (
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 500, color: 'var(--ink3)' }}>
+                  <AlertCircle size={13} style={{ color: 'var(--amber)', flexShrink: 0 }} />
+                  No specific filter selected. All companies are automatically included.
                 </div>
+              )}
+            </div>
 
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  disabled={editSaving}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-                >
-                  <X size={18} />
-                </button>
+            {/* Tabs + Search */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+              <div className="tabs">
+                <div className={`tab${tab === 'department' ? ' on' : ''}`} onClick={() => switchTab('department')}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Building2 size={14} /> Departments <span className="chip cgr">{activeDepartments.length}</span>
+                  </span>
+                </div>
+                <div className={`tab${tab === 'subdepartment' ? ' on' : ''}`} onClick={() => switchTab('subdepartment')}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Layers size={14} /> Sub-Departments <span className="chip cgr">{activeSubDepartments.length}</span>
+                  </span>
+                </div>
               </div>
-
-              {/* ───────────────────────────────────────────────────────── */}
-              {/* Modal Body */}
-              {/* ───────────────────────────────────────────────────────── */}
-
-              <div className="flex-1 overflow-y-auto p-6">
-
-                {tab === 'department' ? (
-                  <div className="space-y-6">
-
-                    {/* Department Name */}
-
-                    <div>
-                      <label className="mb-2 block text-xs font-semibold text-slate-700">
-                        Department Name
-                        <span className="ml-1 text-red-500">
-                          *
-                        </span>
-                      </label>
-
-                      <input
-                        type="text"
-                        value={editDepartmentName}
-                        onChange={(e) =>
-                          setEditDepartmentName(
-                            e.target.value,
-                          )
-                        }
-                        autoFocus
-                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                        placeholder="Enter department name"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSaveEdit();
-                          }
-                        }}
-                      />
-                    </div>
-
-                    {/* Company Scope */}
-
-                    <div>
-
-                      <div className="mb-3 flex items-center justify-between">
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700">
-                            Company Scope
-                          </label>
-
-                          <p className="mt-0.5 text-[11px] text-slate-400">
-                            Choose which companies can use this department.
-                          </p>
-                        </div>
-
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
-                          {editDepartmentIsAllCompanies
-                            ? 'Global'
-                            : `${editDepartmentCompanyIds.length} selected`}
-                        </span>
-                      </div>
-
-                      {/* All Companies */}
-
-                      <button
-                        type="button"
-                        onClick={toggleEditAllCompanies}
-                        className={`mb-3 flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${
-                          editDepartmentIsAllCompanies
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 bg-slate-50 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-
-                          <div
-                            className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                              editDepartmentIsAllCompanies
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-white text-slate-400'
-                            }`}
-                          >
-                            <Building2 size={15} />
-                          </div>
-
-                          <div>
-                            <div
-                              className={`text-xs font-semibold ${
-                                editDepartmentIsAllCompanies
-                                  ? 'text-blue-700'
-                                  : 'text-slate-700'
-                              }`}
-                            >
-                              All Companies
-                            </div>
-
-                            <div className="text-[10px] text-slate-400">
-                              Department applies to every company
-                            </div>
-                          </div>
-                        </div>
-
-                        {editDepartmentIsAllCompanies && (
-                          <Check
-                            size={18}
-                            className="text-blue-600"
-                          />
-                        )}
-                      </button>
-
-                      {/* Company Flex Items */}
-
-                      {!editDepartmentIsAllCompanies && (
-                        <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-
-                          {companies.length === 0 ? (
-                            <div className="w-full py-5 text-center text-xs text-slate-400">
-                              No companies available.
-                            </div>
-                          ) : (
-                            companies.map((company) => {
-                              const checked =
-                                editDepartmentCompanyIds.includes(
-                                  company.id,
-                                );
-
-                              return (
-                                <button
-                                  type="button"
-                                  key={company.id}
-                                  onClick={() =>
-                                    toggleEditCompany(
-                                      company.id,
-                                    )
-                                  }
-                                  className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${
-                                    checked
-                                      ? 'border-blue-500 bg-blue-50 shadow-sm'
-                                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <div className="flex min-w-0 items-center gap-2.5">
-
-                                    <div
-                                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                                        checked
-                                          ? 'bg-blue-600 text-white'
-                                          : 'bg-slate-100 text-slate-400'
-                                      }`}
-                                    >
-                                      <Building2 size={14} />
-                                    </div>
-
-                                    <span
-                                      className={`truncate text-xs font-semibold ${
-                                        checked
-                                          ? 'text-blue-700'
-                                          : 'text-slate-700'
-                                      }`}
-                                    >
-                                      {company.name}
-                                    </span>
-                                  </div>
-
-                                  <div
-                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                                      checked
-                                        ? 'border-blue-600 bg-blue-600 text-white'
-                                        : 'border-slate-300 bg-white'
-                                    }`}
-                                  >
-                                    {checked && (
-                                      <Check size={12} />
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Selected summary */}
-
-                    {!editDepartmentIsAllCompanies && (
-                      <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
-                        <Check
-                          size={14}
-                          className="shrink-0"
-                        />
-
-                        <span>
-                          {editDepartmentCompanyIds.length ===
-                          0
-                            ? 'No company selected.'
-                            : `${editDepartmentCompanyIds.length} company${
-                                editDepartmentCompanyIds.length ===
-                                1
-                                  ? ''
-                                  : 'ies'
-                              } selected.`}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-
-                    {/* Sub Department Name */}
-
-                    <div>
-                      <label className="mb-2 block text-xs font-semibold text-slate-700">
-                        Sub-Department Name
-                        <span className="ml-1 text-red-500">
-                          *
-                        </span>
-                      </label>
-
-                      <input
-                        type="text"
-                        value={editSubDepartmentName}
-                        onChange={(e) =>
-                          setEditSubDepartmentName(
-                            e.target.value,
-                          )
-                        }
-                        autoFocus
-                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                        placeholder="Enter sub-department name"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSaveEdit();
-                          }
-                        }}
-                      />
-                    </div>
-
-                    {/* Department Scope */}
-
-                    <div>
-
-                      <div className="mb-3 flex items-center justify-between">
-
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700">
-                            Department Scope
-                          </label>
-
-                          <p className="mt-0.5 text-[11px] text-slate-400">
-                            Choose which departments can use this sub-department.
-                          </p>
-                        </div>
-
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
-                          {editSubDepartmentIsAllDepartments
-                            ? 'Global'
-                            : `${editSubDepartmentIds.length} selected`}
-                        </span>
-                      </div>
-
-                      {/* All Departments */}
-
-                      <button
-                        type="button"
-                        onClick={toggleEditAllDepartments}
-                        className={`mb-3 flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${
-                          editSubDepartmentIsAllDepartments
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 bg-slate-50 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-
-                          <div
-                            className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                              editSubDepartmentIsAllDepartments
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-white text-slate-400'
-                            }`}
-                          >
-                            <Layers size={15} />
-                          </div>
-
-                          <div>
-                            <div
-                              className={`text-xs font-semibold ${
-                                editSubDepartmentIsAllDepartments
-                                  ? 'text-blue-700'
-                                  : 'text-slate-700'
-                              }`}
-                            >
-                              All Departments
-                            </div>
-
-                            <div className="text-[10px] text-slate-400">
-                              Sub-department applies everywhere
-                            </div>
-                          </div>
-                        </div>
-
-                        {editSubDepartmentIsAllDepartments && (
-                          <Check
-                            size={18}
-                            className="text-blue-600"
-                          />
-                        )}
-                      </button>
-
-                      {/* Department Flex Items */}
-
-                      {!editSubDepartmentIsAllDepartments && (
-                        <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-
-                          {activeDepartments.length === 0 ? (
-                            <div className="w-full py-5 text-center text-xs text-slate-400">
-                              No departments available.
-                            </div>
-                          ) : (
-                            activeDepartments.map((dept) => {
-                              const checked =
-                                editSubDepartmentIds.includes(
-                                  dept.id,
-                                );
-
-                              return (
-                                <button
-                                  type="button"
-                                  key={dept.id}
-                                  onClick={() =>
-                                    toggleEditDepartment(
-                                      dept.id,
-                                    )
-                                  }
-                                  className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${
-                                    checked
-                                      ? 'border-blue-500 bg-blue-50 shadow-sm'
-                                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <div className="flex min-w-0 items-center gap-2.5">
-
-                                    <div
-                                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                                        checked
-                                          ? 'bg-blue-600 text-white'
-                                          : 'bg-slate-100 text-slate-400'
-                                      }`}
-                                    >
-                                      <Layers size={14} />
-                                    </div>
-
-                                    <span
-                                      className={`truncate text-xs font-semibold ${
-                                        checked
-                                          ? 'text-blue-700'
-                                          : 'text-slate-700'
-                                      }`}
-                                    >
-                                      {dept.department_name}
-                                    </span>
-                                  </div>
-
-                                  <div
-                                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                                      checked
-                                        ? 'border-blue-600 bg-blue-600 text-white'
-                                        : 'border-slate-300 bg-white'
-                                    }`}
-                                  >
-                                    {checked && (
-                                      <Check size={12} />
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Selected summary */}
-
-                    {!editSubDepartmentIsAllDepartments && (
-                      <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
-                        <Check
-                          size={14}
-                          className="shrink-0"
-                        />
-
-                        <span>
-                          {editSubDepartmentIds.length ===
-                          0
-                            ? 'No department selected.'
-                            : `${editSubDepartmentIds.length} department${
-                                editSubDepartmentIds.length ===
-                                1
-                                  ? ''
-                                  : 's'
-                              } selected.`}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* ───────────────────────────────────────────────────────── */}
-              {/* Modal Footer */}
-              {/* ───────────────────────────────────────────────────────── */}
-
-              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/70 px-6 py-4">
-
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  disabled={editSaving}
-                  className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <X size={14} />
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveEdit}
-                  disabled={
-                    editSaving ||
-                    (tab === 'department'
-                      ? !editDepartmentName.trim()
-                      : !editSubDepartmentName.trim())
-                  }
-                  className="flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {editSaving ? (
-                    <>
-                      <Loader2
-                        size={14}
-                        className="animate-spin"
-                      />
-
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={14} />
-
-                      Save Changes
-                    </>
-                  )}
-                </button>
+              <div className="search-bar" style={{ maxWidth: 220 }}>
+                <Search size={14} style={{ color: 'var(--ink4)' }} />
+                <input type="text" placeholder="Search..." value={filter} onChange={(e) => setFilter(e.target.value)} />
               </div>
             </div>
+
+            {/* Quick Creation — hidden entirely when the role can't add to this tab's field */}
+            {canAddCurrent && (
+              <div className="card cp mb14" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {tab === 'subdepartment' && (
+                  <div className="fg" style={{ margin: 0, width: 220 }}>
+                    <Select
+                      value={quickAddDeptId}
+                      onChange={(v) => setQuickAddDeptId(v ? Number(v) : '')}
+                      options={activeDepartments.map((dept) => ({ value: dept.id, label: dept.department_name }))}
+                      placeholder="Select Department..."
+                      filter
+                    />
+                  </div>
+                )}
+                <div className="fg" style={{ margin: 0, flex: 1 }}>
+                  <input
+                    type="text"
+                    placeholder={tab === 'department' ? 'Add new department...' : 'Add new sub-department...'}
+                    value={quickAddName}
+                    onChange={(e) => setQuickAddName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleQuickAdd()}
+                  />
+                </div>
+                <button
+                  type="button" onClick={handleQuickAdd}
+                  disabled={!quickAddName.trim() || createDepartment.isPending || createSubDepartment.isPending}
+                  className="btn btn-pri btn-sm"
+                >
+                  {createDepartment.isPending || createSubDepartment.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                  Add
+                </button>
+              </div>
+            )}
+
+            {/* Data List */}
+            <div className="divide-y divide-slate-100 overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 p-8 text-xs text-slate-400">
+                  <Loader2 size={16} className="animate-spin text-blue-600" />
+                  Loading configuration records...
+                </div>
+              ) : rows.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400">No active records available.</div>
+              ) : (
+                rows.map((row, idx) => (
+                  <RowItem
+                    key={row.id}
+                    index={idx + 1}
+                    row={row}
+                    tab={tab}
+                    isEditing={editingRow?.id === row.id}
+                    canEdit={canEditCurrent}
+                    canDelete={canDeleteCurrent}
+                    fieldPerm={fieldPerm}
+                    onToggleEdit={() => openEditModal(row)}
+                    onDelete={() => handleDelete(row)}
+                  />
+                ))
+              )}
+            </div>
           </div>
-        )}
-      </MasterDataLayout>
-    </AppShell>
+
+          {/* Edit modal */}
+          {editingRow && (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+              onMouseDown={(e) => e.target === e.currentTarget && closeEditModal()}
+            >
+              <div
+                className="flex w-full max-w-3xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      {tab === 'department' ? <Building2 size={19} /> : <Layers size={19} />}
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">
+                        {tab === 'department' ? 'Edit Department' : 'Edit Sub-Department'}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {tab === 'department' ? 'Update department details and company scope.' : 'Update sub-department details and department scope.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={closeEditModal} disabled={editSaving} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6">
+                  {tab === 'department' ? (
+                    <div className="space-y-6">
+                      <div>
+                        <label className="mb-2 block text-xs font-semibold text-slate-700">
+                          Department Name <span className="ml-1 text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text" value={editDepartmentName} onChange={(e) => setEditDepartmentName(e.target.value)}
+                          autoFocus className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          placeholder="Enter department name"
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-3 flex items-center justify-between">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700">Company Scope</label>
+                            <p className="mt-0.5 text-[11px] text-slate-400">Choose which companies can use this department.</p>
+                          </div>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
+                            {editDepartmentIsAllCompanies ? 'Global' : `${editDepartmentCompanyIds.length} selected`}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button" onClick={toggleEditAllCompanies}
+                          className={`mb-3 flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${editDepartmentIsAllCompanies ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50 hover:border-slate-300'}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${editDepartmentIsAllCompanies ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+                              <Building2 size={15} />
+                            </div>
+                            <div>
+                              <div className={`text-xs font-semibold ${editDepartmentIsAllCompanies ? 'text-blue-700' : 'text-slate-700'}`}>All Companies</div>
+                              <div className="text-[10px] text-slate-400">Department applies to every company</div>
+                            </div>
+                          </div>
+                          {editDepartmentIsAllCompanies && <Check size={18} className="text-blue-600" />}
+                        </button>
+
+                        {!editDepartmentIsAllCompanies && (
+                          <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                            {companies.length === 0 ? (
+                              <div className="w-full py-5 text-center text-xs text-slate-400">No companies available.</div>
+                            ) : (
+                              companies.map((company) => {
+                                const checked = editDepartmentCompanyIds.includes(company.id);
+                                return (
+                                  <button
+                                    type="button" key={company.id} onClick={() => toggleEditCompany(company.id)}
+                                    className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${checked ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                                  >
+                                    <div className="flex min-w-0 items-center gap-2.5">
+                                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${checked ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Building2 size={14} />
+                                      </div>
+                                      <span className={`truncate text-xs font-semibold ${checked ? 'text-blue-700' : 'text-slate-700'}`}>{company.name}</span>
+                                    </div>
+                                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${checked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'}`}>
+                                      {checked && <Check size={12} />}
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {!editDepartmentIsAllCompanies && (
+                        <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                          <Check size={14} className="shrink-0" />
+                          <span>
+                            {editDepartmentCompanyIds.length === 0
+                              ? 'No company selected.'
+                              : `${editDepartmentCompanyIds.length} company${editDepartmentCompanyIds.length === 1 ? '' : 'ies'} selected.`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div>
+                        <label className="mb-2 block text-xs font-semibold text-slate-700">
+                          Sub-Department Name <span className="ml-1 text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text" value={editSubDepartmentName} onChange={(e) => setEditSubDepartmentName(e.target.value)}
+                          autoFocus className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          placeholder="Enter sub-department name"
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-3 flex items-center justify-between">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700">Department Scope</label>
+                            <p className="mt-0.5 text-[11px] text-slate-400">Choose which departments can use this sub-department.</p>
+                          </div>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
+                            {editSubDepartmentIsAllDepartments ? 'Global' : `${editSubDepartmentIds.length} selected`}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button" onClick={toggleEditAllDepartments}
+                          className={`mb-3 flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${editSubDepartmentIsAllDepartments ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50 hover:border-slate-300'}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${editSubDepartmentIsAllDepartments ? 'bg-blue-600 text-white' : 'bg-white text-slate-400'}`}>
+                              <Layers size={15} />
+                            </div>
+                            <div>
+                              <div className={`text-xs font-semibold ${editSubDepartmentIsAllDepartments ? 'text-blue-700' : 'text-slate-700'}`}>All Departments</div>
+                              <div className="text-[10px] text-slate-400">Sub-department applies everywhere</div>
+                            </div>
+                          </div>
+                          {editSubDepartmentIsAllDepartments && <Check size={18} className="text-blue-600" />}
+                        </button>
+
+                        {!editSubDepartmentIsAllDepartments && (
+                          <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                            {activeDepartments.length === 0 ? (
+                              <div className="w-full py-5 text-center text-xs text-slate-400">No departments available.</div>
+                            ) : (
+                              activeDepartments.map((dept) => {
+                                const checked = editSubDepartmentIds.includes(dept.id);
+                                return (
+                                  <button
+                                    type="button" key={dept.id} onClick={() => toggleEditDepartment(dept.id)}
+                                    className={`flex min-w-[180px] flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-all sm:max-w-[calc(50%-4px)] ${checked ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                                  >
+                                    <div className="flex min-w-0 items-center gap-2.5">
+                                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${checked ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Layers size={14} />
+                                      </div>
+                                      <span className={`truncate text-xs font-semibold ${checked ? 'text-blue-700' : 'text-slate-700'}`}>{dept.department_name}</span>
+                                    </div>
+                                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${checked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'}`}>
+                                      {checked && <Check size={12} />}
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {!editSubDepartmentIsAllDepartments && (
+                        <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                          <Check size={14} className="shrink-0" />
+                          <span>
+                            {editSubDepartmentIds.length === 0
+                              ? 'No department selected.'
+                              : `${editSubDepartmentIds.length} department${editSubDepartmentIds.length === 1 ? '' : 's'} selected.`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/70 px-6 py-4">
+                  <button type="button" onClick={closeEditModal} disabled={editSaving} className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50">
+                    <X size={14} /> Cancel
+                  </button>
+                  <button
+                    type="button" onClick={handleSaveEdit}
+                    disabled={editSaving || (tab === 'department' ? !editDepartmentName.trim() : !editSubDepartmentName.trim())}
+                    className="flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {editSaving ? (<><Loader2 size={14} className="animate-spin" /> Saving...</>) : (<><Check size={14} /> Save Changes</>)}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </MasterDataLayout>
+      </AppShell>
+    </PermissionGuard>
   );
 }
 
@@ -4154,179 +4964,77 @@ export default function DepartmentsPage() {
 // ============================================================================
 
 function RowItem({
-  index,
-  row,
-  tab,
-  companies,
-  isEditing,
-  onToggleEdit,
-  onDelete,
+  index, row, tab, isEditing, canEdit, canDelete, fieldPerm, onToggleEdit, onDelete,
 }: {
-  index: number;
-  row: Row;
-  tab: Tab;
-  companies: { id: number; name: string }[];
-  isEditing: boolean;
-  onToggleEdit: () => void;
-  onDelete: () => void;
+  index: number; row: Row; tab: Tab; isEditing: boolean;
+  canEdit: boolean; canDelete: boolean; fieldPerm: ReturnType<typeof resolveFieldPerm>;
+  onToggleEdit: () => void; onDelete: () => void;
 }) {
-  if (tab === 'department') {
-    const dept = row as Department;
+  const isDept = tab === 'department';
+  const dept = isDept ? (row as Department) : null;
+  const sub = !isDept ? (row as SubDepartment) : null;
 
-    const isGlobal = dept.is_all_companies;
-    const selectedCompanyIds = dept.company_ids ?? [];
+  const rawName = isDept ? dept!.department_name : sub!.name;
+  const mv = maskedView(rawName, fieldPerm);
+  const displayName = mv.kind === 'full' ? '••••••••' : mv.kind === 'partial' ? mv.text : rawName;
 
-    let badgeText = '';
-
-    if (isGlobal) {
-      badgeText = 'All companies';
-    } else {
-      const count = selectedCompanyIds.length;
-
-      badgeText =
-        count === 0
-          ? '0 Companies'
-          : count === 1
-            ? '1 Company'
-            : `${count} Companies`;
-    }
-
-    return (
-      <div className="relative px-4 py-3 transition-colors hover:bg-slate-50/50">
-
-        <div className="flex items-center justify-between gap-4">
-
-          {/* Left */}
-
-          <div className="flex min-w-0 items-center gap-3">
-
-            <GripVertical
-              size={14}
-              className="shrink-0 cursor-grab text-slate-300"
-            />
-
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
-              {index}
-            </span>
-
-            <span className="truncate text-xs font-bold uppercase tracking-wider text-slate-900">
-              {dept.department_name}
-            </span>
-          </div>
-
-          {/* Right */}
-
-          <div className="flex shrink-0 items-center gap-3">
-
-            <span className="rounded-full border border-blue-400/80 bg-white px-3 py-0.5 text-xs font-semibold text-blue-600 shadow-sm">
-              {badgeText}
-            </span>
-
-            <button
-              type="button"
-              onClick={onToggleEdit}
-              className={`rounded-lg p-1.5 transition-colors ${
-                isEditing
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
-              }`}
-              title="Edit department"
-            >
-              <Pencil size={13} />
-            </button>
-
-            <button
-              type="button"
-              onClick={onDelete}
-              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
-              title="Delete department"
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================================================
-  // SUB DEPARTMENT
-  // ==========================================================================
-
-  const sub = row as SubDepartment;
-
-  const isGlobalDept = sub.is_all_departments;
-  const selectedDeptIds = sub.department_ids ?? [];
-
-  let badgeText = '';
-
-  if (isGlobalDept) {
-    badgeText = 'All departments';
-  } else {
-    const count = selectedDeptIds.length;
-
-    badgeText =
-      count === 0
-        ? '0 Departments'
-        : count === 1
-          ? '1 Department'
-          : `${count} Departments`;
-  }
+  const isGlobal = isDept ? dept!.is_all_companies : sub!.is_all_departments;
+  const selectedIds = isDept ? (dept!.company_ids ?? []) : (sub!.department_ids ?? []);
+  const unit = isDept ? 'Compan' : 'Department';
+  const badgeText = isGlobal
+    ? `All ${isDept ? 'companies' : 'departments'}`
+    : selectedIds.length === 0
+      ? `0 ${unit}${isDept ? 'ies' : 's'}`
+      : selectedIds.length === 1
+        ? `1 ${unit}${isDept ? 'y' : ''}`
+        : `${selectedIds.length} ${unit}${isDept ? 'ies' : 's'}`;
 
   return (
     <div className="relative px-4 py-3 transition-colors hover:bg-slate-50/50">
-
       <div className="flex items-center justify-between gap-4">
-
-        {/* Left */}
-
         <div className="flex min-w-0 items-center gap-3">
-
-          <GripVertical
-            size={14}
-            className="shrink-0 cursor-grab text-slate-300"
-          />
-
+          <GripVertical size={14} className="shrink-0 cursor-grab text-slate-300" />
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
             {index}
           </span>
-
-          <span className="truncate text-xs font-bold uppercase tracking-wider text-slate-900">
-            {sub.name}
+          <span
+            className="truncate text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1"
+            data-nocopy={mv.noCopy || undefined}
+            onCopy={mv.noCopy ? (e) => e.preventDefault() : undefined}
+            onCut={mv.noCopy ? (e) => e.preventDefault() : undefined}
+            onContextMenu={mv.noCopy ? (e) => e.preventDefault() : undefined}
+          >
+            {displayName}
+            {mv.kind !== 'none' && <Lock size={10} className="text-slate-400" />}
           </span>
         </div>
 
-        {/* Right */}
-
         <div className="flex shrink-0 items-center gap-3">
-
           <span className="rounded-full border border-blue-400/80 bg-white px-3 py-0.5 text-xs font-semibold text-blue-600 shadow-sm">
             {badgeText}
           </span>
 
-          <button
-            type="button"
-            onClick={onToggleEdit}
-            className={`rounded-lg p-1.5 transition-colors ${
-              isEditing
-                ? 'bg-blue-50 text-blue-600'
-                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
-            }`}
-            title="Edit sub-department"
-          >
-            <Pencil size={13} />
-          </button>
+          {canEdit && mv.kind === 'none' && (
+            <button
+              type="button" onClick={onToggleEdit}
+              className={`rounded-lg p-1.5 transition-colors ${isEditing ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
+              title={isDept ? 'Edit department' : 'Edit sub-department'}
+            >
+              <Pencil size={13} />
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={onDelete}
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
-            title="Delete sub-department"
-          >
-            <Trash2 size={13} />
-          </button>
+          {canDelete && (
+            <button
+              type="button" onClick={onDelete}
+              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
+              title={isDept ? 'Delete department' : 'Delete sub-department'}
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
-}
+}   
