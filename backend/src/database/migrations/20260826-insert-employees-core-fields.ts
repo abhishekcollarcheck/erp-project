@@ -1,6 +1,52 @@
-import { QueryInterface } from 'sequelize';
+import { QueryInterface, QueryTypes, DataTypes } from 'sequelize';
+
+// `permissions` (models/RoleModels.ts's Permission) has no createTable
+// migration anywhere in this repo — like hr_modules/form_definitions before
+// this migration's own fix below, it only ever gets created via
+// sequelize.sync() on a dev boot. 20261001000000-restore-missing-system-roles.ts
+// hit the identical gap for role_templates/roles/etc. and fixed it with this
+// same createTableIfMissing/addIndexIfMissing pattern; permissions needs the
+// same treatment so the module-permission insert below doesn't fail with
+// "table doesn't exist" on a DB built purely via `sequelize-cli db:migrate`.
+async function createTableIfMissing(
+  queryInterface: QueryInterface,
+  table: string,
+  attributes: Parameters<QueryInterface['createTable']>[1],
+): Promise<boolean> {
+  const tables = await queryInterface.showAllTables();
+  const names = tables.map((t) => (typeof t === 'string' ? t : (t as any).tableName));
+  if (names.includes(table)) return false;
+  await queryInterface.createTable(table, attributes);
+  return true;
+}
+
+async function addIndexIfMissing(
+  queryInterface: QueryInterface,
+  table: string,
+  fields: string[],
+  options: { unique?: boolean; name: string },
+): Promise<void> {
+  const indexes = (await queryInterface.showIndex(table)) as Array<{ name: string }>;
+  if (indexes.some((i) => i.name === options.name)) return;
+  await queryInterface.addIndex(table, fields, options);
+}
 
 const FORM_ID = 1;
+
+// Module-level permission catalog rows this migration must create for the
+// Employee module — kept in sync with FormBuilderService.MODULE_PERM_ACTIONS
+// and .ensureModulePermissions() (form-builder/formBuilder.service.ts), which
+// is exactly what runs when a module is created from the Portal's
+// Module Create flow (FormBuilderService.createModule ->
+// ensureModulePermissions(permKeyForModule(slug))). 'employees' is the
+// permission module key here (not the hr_modules.slug) because
+// permKeyForModule('employees') falls through HR_MODULE_TO_PERM_KEY
+// unchanged — it only remaps the singular 'employee' slug, and this
+// migration's hr_modules row already uses slug 'employees' below. This is
+// also the exact key SYSTEM_GROUPS / rbac-seed-data.ts grant crud() access
+// to, so a fresh DB's permission catalog matches what seedRbac.ts expects.
+const MODULE_PERM_KEY = 'employees';
+const MODULE_PERM_ACTIONS = ['view', 'create', 'edit', 'delete', 'download'] as const;
 // Sole seeder of dynamic_fields for the Employee form (form_id = 1).
 //
 // `section` is the SINGLE SOURCE OF TRUTH for which wizard step a field belongs
@@ -356,6 +402,46 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     }] as any);
   }
 
+  // Module permissions (permissions table) — same slug scheme and same
+  // "findOrCreate, never overwrite an existing row" semantics as
+  // ensureModulePermissions(), just expressed as an existence check + insert
+  // since migrations here don't import application services (see e.g.
+  // 20261001000000-restore-missing-system-roles.ts for the same pattern).
+  // Runs unconditionally (not gated behind the module/form existence check
+  // above) so it also self-heals a DB where the Employee module/form already
+  // exist from an earlier run of this migration but the permission rows were
+  // never created — the bug being fixed here. No hardcoded permission IDs;
+  // the unique index on `slug` (uk_permissions_slug) is what "existing"
+  // duplicates are checked against, so re-running this migration against a
+  // DB that already has some/all of these rows creates nothing extra.
+  const createdPermissions = await createTableIfMissing(queryInterface, 'permissions', {
+    id:          { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    module:      { type: DataTypes.STRING(100), allowNull: false },
+    action:      { type: DataTypes.STRING(100), allowNull: false },
+    slug:        { type: DataTypes.STRING(200), allowNull: false },
+    description: { type: DataTypes.STRING(300), allowNull: true },
+  });
+  if (createdPermissions) {
+    await addIndexIfMissing(queryInterface, 'permissions', ['slug'], { unique: true, name: 'uk_permissions_slug' });
+  }
+
+  for (const action of MODULE_PERM_ACTIONS) {
+    const slug = `${MODULE_PERM_KEY}:${action}`;
+    const existingPermission = (await queryInterface.sequelize.query(
+      'SELECT id FROM permissions WHERE slug = :slug LIMIT 1',
+      { replacements: { slug }, type: QueryTypes.SELECT },
+    )) as { id: number }[];
+
+    if (existingPermission.length === 0) {
+      await queryInterface.bulkInsert('permissions', [{
+        module: MODULE_PERM_KEY,
+        action,
+        slug,
+        description: null,
+      }] as any);
+    }
+  }
+
   const rows = FIELDS.map((f, i) => ({
     company_id: null,
     form_id: FORM_ID,
@@ -404,6 +490,15 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
   const fieldKeys = FIELDS.map((f) => f.field_key);
+
+  // Deliberately does NOT delete the `employees:*` rows from `permissions`
+  // (created above), same as it already never deleted the `hr_modules` /
+  // `form_definitions` rows this migration may have created — a Permission
+  // row can be (and, once any admin grants a group/role access to the
+  // Employee module, will be) referenced by group_permissions/
+  // role_module_permissions rows this migration has no way to distinguish
+  // from pre-existing ones. Portal → Create Module has the same asymmetry:
+  // there is no "undo" path that unwinds ensureModulePermissions().
 
   // remove the permission rows first so nothing is left dangling
   await queryInterface.sequelize.query(`
